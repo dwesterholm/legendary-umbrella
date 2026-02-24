@@ -79,22 +79,22 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LSTG-01 | TBD | Pending |
-| LSTG-02 | TBD | Pending |
-| BRF-01 | TBD | Pending |
-| BRF-02 | TBD | Pending |
-| BRF-03 | TBD | Pending |
-| PRICE-01 | TBD | Pending |
-| AREA-01 | TBD | Pending |
-| RPRT-01 | TBD | Pending |
-| RPRT-02 | TBD | Pending |
-| RPRT-03 | TBD | Pending |
+| LSTG-01 | Phase 1: Foundation + Core Pipeline | Pending |
+| LSTG-02 | Phase 1: Foundation + Core Pipeline | Pending |
+| BRF-01 | Phase 2: BRF Financial Analysis | Pending |
+| BRF-02 | Phase 2: BRF Financial Analysis | Pending |
+| BRF-03 | Phase 2: BRF Financial Analysis | Pending |
+| PRICE-01 | Phase 3: Market Context | Pending |
+| AREA-01 | Phase 3: Market Context | Pending |
+| RPRT-01 | Phase 4: AI Report + Delivery | Pending |
+| RPRT-02 | Phase 4: AI Report + Delivery | Pending |
+| RPRT-03 | Phase 4: AI Report + Delivery | Pending |
 
 **Coverage:**
 - v1 requirements: 10 total
-- Mapped to phases: 0
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 after initial definition*
+*Last updated: 2026-02-24 after roadmap creation*
