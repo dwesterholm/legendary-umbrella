@@ -9,8 +9,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Listing Analysis
 
-- [ ] **LSTG-01**: User can paste a Booli URL and system extracts listing data (price, size, avgift, rooms, byggår, address, BRF name)
-- [ ] **LSTG-02**: User can view structured listing summary with all key data points displayed clearly
+- [x] **LSTG-01**: User can paste a Booli URL and system extracts listing data (price, size, avgift, rooms, byggår, address, BRF name)
+- [x] **LSTG-02**: User can view structured listing summary with all key data points displayed clearly
 
 ### BRF Financial Analysis
 
@@ -79,8 +79,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LSTG-01 | Phase 1: Foundation + Core Pipeline | Pending |
-| LSTG-02 | Phase 1: Foundation + Core Pipeline | Pending |
+| LSTG-01 | Phase 1: Foundation + Core Pipeline | Complete |
+| LSTG-02 | Phase 1: Foundation + Core Pipeline | Complete |
 | BRF-01 | Phase 2: BRF Financial Analysis | Pending |
 | BRF-02 | Phase 2: BRF Financial Analysis | Pending |
 | BRF-03 | Phase 2: BRF Financial Analysis | Pending |
