@@ -29,11 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User sees a structured, clearly formatted listing summary with all extracted data points
   4. User can create an account, log in, and see their previous analyses in a dashboard
   5. When Booli scraping fails or returns partial data, the user sees a clear error or partial result (not a crash)
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Project setup: Next.js 16, Tailwind v4 theme, Supabase config, auth pages, database schema
+- [ ] 01-02-PLAN.md — Core pipeline: Apify scraping, Zod schemas, server action, listing UI, coming-soon sections
+- [ ] 01-03-PLAN.md — Dashboard: analysis history card grid, end-to-end verification
 
 ### Phase 2: BRF Financial Analysis
 **Goal**: User can upload a BRF arsredovisning and see a financial health assessment with a transparent A-F score
@@ -86,7 +87,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Core Pipeline | 0/0 | Not started | - |
+| 1. Foundation + Core Pipeline | 0/3 | Planned | - |
 | 2. BRF Financial Analysis | 0/0 | Not started | - |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
