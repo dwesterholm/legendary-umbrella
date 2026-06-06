@@ -4,7 +4,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { scrapeBooli } from "@/lib/apify/booli-scraper";
-import { scraperOutputSchema, type ListingData } from "@/lib/schemas/listing";
+import {
+  normalizeScraperOutput,
+  scraperOutputSchema,
+  type ListingData,
+} from "@/lib/schemas/listing";
 import { calculatePrisPerKvm } from "@/lib/utils";
 
 export type AnalyzeResult =
@@ -40,27 +44,21 @@ export async function analyzeUrl(formData: FormData): Promise<AnalyzeResult> {
   let rawData: Record<string, unknown>;
   try {
     rawData = await scrapeBooli(url);
-  } catch {
+  } catch (error) {
+    console.error("[analyze] scrapeBooli failed:", error);
     return { error: "Kunde inte hamta data fran Booli. Forsok igen." };
   }
 
-  // Validate scraper output
+  // Validate scraper output, then map actor field names to our model.
+  // Normalization works on the raw object either way -- validation failure
+  // just means we skip the typed view, not the data.
   const parsed = scraperOutputSchema.safeParse(rawData);
+  const { address, price, livingArea, rooms, monthlyFee, buildYear, brfName, prisPerKvm: scrapedPrisPerKvm } =
+    normalizeScraperOutput(parsed.success ? parsed.data : rawData);
 
   // Track missing fields for our required display fields
   const missingFields: string[] = [];
   const requiredDisplayFields = ["address", "price", "livingArea", "rooms"] as const;
-
-  // Build listing data from whatever we got, even if validation failed
-  const raw = parsed.success ? parsed.data : rawData;
-
-  const address = typeof raw.address === "string" ? raw.address : null;
-  const price = typeof raw.price === "number" ? raw.price : null;
-  const livingArea = typeof raw.livingArea === "number" ? raw.livingArea : null;
-  const rooms = typeof raw.rooms === "number" ? raw.rooms : null;
-  const monthlyFee = typeof raw.monthlyFee === "number" ? raw.monthlyFee : null;
-  const buildYear = typeof raw.buildYear === "number" ? raw.buildYear : null;
-  const brfName = typeof raw.brfName === "string" ? raw.brfName : null;
 
   // Check required display fields
   if (!address) missingFields.push("address");
@@ -71,10 +69,12 @@ export async function analyzeUrl(formData: FormData): Promise<AnalyzeResult> {
   if (buildYear === null) missingFields.push("buildYear");
   if (!brfName) missingFields.push("brfName");
 
+  // Prefer the actor's exact pris/kvm, fall back to computing it
   const prisPerKvm =
-    price !== null && livingArea !== null
+    scrapedPrisPerKvm ??
+    (price !== null && livingArea !== null
       ? calculatePrisPerKvm(price, livingArea)
-      : 0;
+      : 0);
 
   const listingData: ListingData = {
     url,
@@ -88,8 +88,8 @@ export async function analyzeUrl(formData: FormData): Promise<AnalyzeResult> {
     prisPerKvm,
   };
 
-  const isPartial = requiredDisplayFields.some(
-    (field) => !raw[field] || (typeof raw[field] !== "string" && typeof raw[field] !== "number")
+  const isPartial = requiredDisplayFields.some((field) =>
+    missingFields.includes(field)
   );
 
   // Authenticated user: save to DB and redirect

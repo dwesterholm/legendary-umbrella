@@ -10,9 +10,19 @@ const client = new ApifyClient({
  */
 export async function scrapeBooli(url: string): Promise<Record<string, unknown>> {
   try {
-    const run = await client.actor("lexis-solutions/booli-se-scraper").call(
-      { startUrls: [{ url }] },
-      { waitSecs: 30 }
+    // Actor ID bpf1JaYRBbia2nQU9 = lexis-solutions/booli-se-scraper
+    const run = await client.actor("bpf1JaYRBbia2nQU9").call(
+      {
+        startUrls: [{ url }],
+        sort: "newest",
+        maxItems: 1,
+        proxyConfiguration: {
+          useApifyProxy: true,
+          apifyProxyGroups: ["RESIDENTIAL"],
+          apifyProxyCountry: "SE",
+        },
+      },
+      { waitSecs: 60 }
     );
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
@@ -23,6 +33,8 @@ export async function scrapeBooli(url: string): Promise<Record<string, unknown>>
 
     return items[0] as Record<string, unknown>;
   } catch (error) {
+    // Log the real error server-side before mapping to a user-facing message
+    console.error("[booli-scraper]", error);
     if (error instanceof Error && error.message.includes("Inga resultat")) {
       throw error;
     }
