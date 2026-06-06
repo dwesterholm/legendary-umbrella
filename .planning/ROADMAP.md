@@ -91,3 +91,32 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 2. BRF Financial Analysis | 0/0 | Not started | - |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
+
+## Backlog
+
+### Phase 999.1: Proprietary price estimator (BACKLOG)
+
+**Goal:** [Captured for future planning] Build a price estimator that beats Booli's "value based price." Booli's dropdown exposes which reference objects drive their estimate — ours would weigh historical data, trends, floor level, balcony, BRF debt, and more. Prior art: a friend's hand-built scraper + estimator outperformed Booli's during his own apartment search. Synergy: actor already returns Booli's `estimate` and `listSqmPrice` for benchmarking.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.2: Deeper listing extraction via broker sites (BACKLOG)
+
+**Goal:** [Captured for future planning] Extract more detail per listing than the Booli actor provides — potentially following through to the broker's own page (actor already returns `agencyListingUrl`, e.g. Vitec links). Could recover fields the actor lacks: floor, balcony, BRF name, renovation status, full description.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.3: Macro-driven price estimates (BACKLOG)
+
+**Goal:** [Captured for future planning] Feed macroeconomic indicators (interest rates, inflation, regional price indices — SCB/Riksbank data) into valuations so estimates aren't purely based on a few comparable sales. Natural companion to 999.1 (estimator) and Phase 3 (SCB integration groundwork).
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
