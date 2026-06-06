@@ -12,7 +12,7 @@ Bostad AI delivers an AI-powered property analysis tool for the Swedish market i
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation + Core Pipeline** - App shell, Booli scraping, and listing data display
+- [x] **Phase 1: Foundation + Core Pipeline** - App shell, Booli scraping, and listing data display (completed 2026-06-06)
 - [ ] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring
 - [ ] **Phase 3: Market Context** - Comparable sold prices and area demographics
 - [ ] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export
@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project setup: Next.js 16, Tailwind v4 theme, Supabase config, auth pages, database schema
-- [ ] 01-02-PLAN.md — Core pipeline: Apify scraping, Zod schemas, server action, listing UI, coming-soon sections
-- [ ] 01-03-PLAN.md — Dashboard: analysis history card grid, end-to-end verification
+- [x] 01-01-PLAN.md — Project setup: Next.js 16, Tailwind v4 theme, Supabase config, auth pages, database schema
+- [x] 01-02-PLAN.md — Core pipeline: Apify scraping, Zod schemas, server action, listing UI, coming-soon sections
+- [x] 01-03-PLAN.md — Dashboard: analysis history card grid, end-to-end verification
 
 ### Phase 2: BRF Financial Analysis
 **Goal**: User can upload a BRF arsredovisning and see a financial health assessment with a transparent A-F score
@@ -87,7 +87,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Core Pipeline | 1/3 | In Progress | - |
+| 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
 | 2. BRF Financial Analysis | 0/0 | Not started | - |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |

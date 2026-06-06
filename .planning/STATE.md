@@ -5,24 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** Phase 1: Foundation + Core Pipeline
+**Current focus:** Phase 1 complete -- ready to plan Phase 2 (BRF Financial Analysis)
 
 ## Current Position
 
-**Phase:** 1 of 4 (Foundation + Core Pipeline)
-**Current Plan:** 3
-**Total Plans in Phase:** 3
-**Status:** Ready to execute
-**Last activity:** 2026-02-24
+**Phase:** 1 of 4 (Foundation + Core Pipeline) -- COMPLETE
+**Current Plan:** All 3 plans complete and verified
+**Status:** Phase 1 verified via human UAT 2026-06-06. Ready for Phase 2 planning.
+**Last activity:** 2026-06-06
 
-Progress: [██████░░░░] 58%
+Progress: [██████████] 100% of Phase 1 (3/3 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 5min
-- Total execution time: 0.17 hours
+- Total plans completed: 3
+- Average duration: 5min (excl. 01-03 verification session)
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
@@ -30,10 +29,7 @@ Progress: [██████░░░░] 58%
 |-------|-------|-------|----------|
 | 01-P01 | 6min | 2 tasks | 36 files |
 | 01-P02 | 4min | 2 tasks | 13 files |
-
-**Recent Trend:**
-- Last 5 plans: 6min, 4min
-- Trend: improving
+| 01-P03 | 2 sessions | 2 tasks | 6 files |
 
 *Updated after each plan completion*
 
@@ -52,18 +48,30 @@ Recent decisions affecting current work:
 - [Phase 01]: Used zod/v4 import path for Zod 4.x compatibility
 - [Phase 01]: Root page is client component for inline guest result display
 - [Phase 01]: Server action handles both auth and guest flows in single analyzeUrl function
+- [Phase 01-03]: Apify actor field names confirmed via real scrape (streetAddress, rent, constructionYear, livingArea.raw); normalizeScraperOutput() maps to internal model
+- [Phase 01-03]: Actor does NOT provide brfName or floor -- Phase 2 must resolve BRF via address lookup (e.g. Allabrf)
+- [Phase 01-03]: serverExternalPackages: ["apify-client"] required -- dynamic requires break Turbopack
+- [Phase 01-03]: SE residential Apify proxy required for Booli scraping
+- [Infra]: New Supabase project bostad-ai (nsheegvczxjeeayngqrv, Paris) after old project froze from 90+ day dormancy. Free tier pauses after 7 days inactivity -- recurring risk at current dev pace.
+- [Infra]: Supabase CLI + Apify CLI installed and authenticated. Apify paid plan active.
 
 ### Pending Todos
 
-None yet.
+- Customize Supabase auth email templates (currently "powered by Supabase" boilerplate) -- Dashboard → Authentication → Email Templates
+- UAT-test guest gate redirect explicitly (log out, paste URL, expect /login redirect)
+- README.md has uncommitted create-next-app boilerplate -- decide keep/revert
+- Design polish pass (overall UX approved, deeper design work wanted)
 
 ### Blockers/Concerns
 
 - Research flags Phase 2 (BRF Analysis) as highest-risk: Claude structured output for Swedish K2/K3 formats needs deeper research during planning.
-- Research flags Inngest + Supabase Realtime wiring in Phase 1 as non-trivial -- may need research spike.
+- Research flags Inngest + Supabase Realtime wiring in Phase 1 as non-trivial -- may need research spike. (Did not materialize in Phase 1; revisit if async jobs needed.)
+- Supabase free tier pauses after 7 days inactivity -- old project was permanently frozen after 90+ days. Visit dashboard periodically or upgrade.
+- Apify actor trial is 1 day (started 2026-06-06); ongoing scrapes need the paid actor rental.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 01-02-PLAN.md (Core scraping pipeline + listing UI)
+Last session: 2026-06-06
+Stopped at: Phase 1 closed -- 01-03 UAT approved, fixes committed (6ab826c)
 Resume file: None
+Next step: /gsd-plan-phase 2 (or /gsd-discuss-phase 2 first)
