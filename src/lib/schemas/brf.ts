@@ -62,8 +62,11 @@ export const brfExtractionSchema = z.object({
 /** The Zod-validated extraction Claude returns (numbers + confidence + citation). */
 export type BrfExtraction = z.infer<typeof brfExtractionSchema>;
 
-/** The maintenance-plan status enum, narrowed for downstream consumers. */
+/** The maintenance-plan status enum, narrowed for downstream consumers (nullable). */
 export type UnderhallsplanStatus = BrfExtraction["underhallsplanStatus"]["value"];
+
+/** The same enum with `null` excluded — usable as a `Record` key (scorer). */
+export type UnderhallsplanValue = NonNullable<UnderhallsplanStatus>;
 
 /**
  * A single extracted figure after normalization: the primitive value plus its

@@ -1,4 +1,8 @@
-import type { NormalizedBrf, UnderhallsplanStatus } from "@/lib/schemas/brf";
+import type {
+  NormalizedBrf,
+  UnderhallsplanStatus,
+  UnderhallsplanValue,
+} from "@/lib/schemas/brf";
 
 /**
  * The single source of truth for every threshold and weight used to grade a
@@ -48,7 +52,7 @@ export const BRF_SCORE_THRESHOLDS = {
       finns_inaktuell: 0.5,
       oklart: 0.3,
       saknas: 0.1,
-    } as Record<UnderhallsplanStatus, number>,
+    } as Record<UnderhallsplanValue, number>,
   },
 } as const;
 
@@ -136,7 +140,7 @@ function scoreKassaflode(value: number): number {
 }
 
 /** underhallsplanStatus → [0,1] sub-score. */
-function scoreUnderhall(value: UnderhallsplanStatus): number {
+function scoreUnderhall(value: UnderhallsplanValue): number {
   return BRF_SCORE_THRESHOLDS.underhallsplanStatus.scores[value] ?? 0.1;
 }
 
