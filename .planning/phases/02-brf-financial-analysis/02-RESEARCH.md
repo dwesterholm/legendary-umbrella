@@ -401,7 +401,7 @@ Evidence:
 | A6 | `vitest`/`promptfoo` legitimacy | Package Audit | Run slopcheck before installing (mature packages, low risk) |
 | A7 | Sanity bands (skuld/kvm 2,000–15,000; avgift 300–1,200 SEK/m²/år) | Pitfall 4 | These are starting bands from AI-SPEC/project research; planner+user lock final thresholds for methodology page (D-09) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where do BRF results persist — new jsonb column on `analyses`, or a related `brf_analyses` table?**
    - What we know: `analyses` has a `listing_data` jsonb column + RLS; one PDF per analysis, replaceable (D-06).
