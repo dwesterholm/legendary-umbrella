@@ -1,0 +1,367 @@
+"use server";
+
+import { createHash } from "node:crypto";
+import { createClient } from "@/lib/supabase/server";
+import { uploadBrfPdf } from "@/lib/supabase/storage";
+import { extractBrfFinancials, type FieldCitation } from "@/lib/brf/extract";
+import {
+  brfExtractionSchema,
+  normalizeBrfExtraction,
+  type BrfExtraction,
+  type NormalizedBrf,
+} from "@/lib/schemas/brf";
+import { applySanityChecks } from "@/lib/brf/sanity";
+import { computeBrfGrade, type BrfScoreResult } from "@/lib/brf/score";
+import { costSek } from "@/lib/brf/cost";
+
+/** Hard per-analysis Claude budget (AI-SPEC §6 cost-cap guardrail). */
+const COST_CAP_SEK = 5;
+
+/** Server-side upload limit (D-14). */
+const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20 MB
+
+/** Persisted BRF payload: extraction + computed grade + per-field provenance. */
+export interface BrfData {
+  extraction: BrfExtraction;
+  normalized: NormalizedBrf;
+  grade: BrfScoreResult;
+  /** Per-field confidence after sanity downgrade (D-10), keyed by metric. */
+  perFieldConfidence: Record<string, number>;
+  citations: FieldCitation[];
+  /** Fields the user manually corrected (D-12) — rendered "Manuellt angiven". */
+  manualFields?: string[];
+}
+
+/** Discriminated result returned to the client (mirrors AnalyzeResult style). */
+export type AnalyzeBrfResult =
+  | { ok: true; data: BrfData; cached: boolean; error?: undefined }
+  | { ok: false; error: string; data?: undefined; cached?: undefined };
+
+/** The four sanity-checkable / scorable metric keys. */
+const METRIC_KEYS = [
+  "skuldPerKvm",
+  "avgiftsniva",
+  "kassaflode",
+  "underhallsplanStatus",
+] as const;
+
+/**
+ * Heuristic scanned-PDF detector (D-14). A born-digital PDF carries a font
+ * dictionary and extractable text operators; a pure image scan does not. We
+ * cannot fully parse here, so we use a cheap byte-level heuristic: the presence
+ * of `/Font` and text-showing operators (`Tj`/`TJ`) suggests real text. Absence
+ * across the document is a strong scanned signal. Conservative: only flags when
+ * there is clearly no text layer.
+ */
+function detectScanned(bytes: Uint8Array): boolean {
+  const head = Buffer.from(
+    bytes.subarray(0, Math.min(bytes.byteLength, 2_000_000)),
+  ).toString("latin1");
+  const hasFont = head.includes("/Font");
+  const hasTextOp = /\bTj\b|\bTJ\b/.test(head);
+  return !hasFont && !hasTextOp;
+}
+
+/** Content hash for the D-06 replace-identical skip-Claude cache. */
+function hashBytes(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** Runs the deterministic pipeline: sanity → grade → per-field confidence map. */
+function scoreExtraction(extraction: BrfExtraction): {
+  normalized: NormalizedBrf;
+  grade: BrfScoreResult;
+  perFieldConfidence: Record<string, number>;
+} {
+  // Sanity-downgrade out-of-band numeric fields (D-10) WITHOUT dropping values.
+  const sanitized = applySanityChecks({
+    skuldPerKvm: {
+      value: extraction.skuldPerKvm.value,
+      confidence: extraction.skuldPerKvm.confidence,
+    },
+    avgiftsniva: {
+      value: extraction.avgiftsniva.value,
+      confidence: extraction.avgiftsniva.confidence,
+    },
+  });
+
+  const perFieldConfidence: Record<string, number> = {
+    skuldPerKvm: sanitized.skuldPerKvm?.confidence ?? extraction.skuldPerKvm.confidence,
+    avgiftsniva: sanitized.avgiftsniva?.confidence ?? extraction.avgiftsniva.confidence,
+    kassaflode: extraction.kassaflode.confidence,
+    underhallsplanStatus: extraction.underhallsplanStatus.confidence,
+  };
+
+  const normalized = normalizeBrfExtraction(extraction);
+  const grade = computeBrfGrade(normalized);
+  return { normalized, grade, perFieldConfidence };
+}
+
+/**
+ * `analyzeBrf` — the BRF analysis spine (D-05 → store → D-06 skip → extract →
+ * normalize → sanity → grade → persist with status + cost). Stays on the same
+ * page (D-04 — no navigation away); the client polls `brf_status` for progress (D-13).
+ *
+ * @param formData - `analysisId` (string) and `file` (a PDF File)
+ */
+export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> {
+  const analysisId = formData.get("analysisId");
+  const file = formData.get("file");
+
+  if (typeof analysisId !== "string" || !analysisId) {
+    return { ok: false, error: "Analys-id saknas." };
+  }
+  if (!(file instanceof File)) {
+    return { ok: false, error: "Ingen fil bifogad." };
+  }
+
+  // Server-side input validation BEFORE any storage/Claude work (ASVS V5, T-02-11).
+  if (file.type !== "application/pdf") {
+    return { ok: false, error: "Filen måste vara en PDF." };
+  }
+  if (file.size > MAX_PDF_BYTES) {
+    return { ok: false, error: "PDF:en är för stor (max 20 MB)." };
+  }
+
+  // Auth gate (D-05 HARD): no guest path — replace analyze.ts's guest-cookie allowance.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "Logga in för BRF-analys" };
+  }
+
+  // Ownership check (second layer behind RLS). Also fetches the prior hash/data
+  // for the D-06 skip decision.
+  const { data: row, error: rowError } = await supabase
+    .from("analyses")
+    .select("id, user_id, brf_pdf_hash, brf_data")
+    .eq("id", analysisId)
+    .single();
+
+  if (rowError || !row || row.user_id !== user.id) {
+    return { ok: false, error: "Analysen hittades inte." };
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const contentHash = hashBytes(bytes);
+  const scanned = detectScanned(bytes);
+
+  // D-06 replace-identical cache: same content hash + an existing extraction →
+  // skip the Claude call entirely and return the stored result (no re-bill).
+  if (
+    row.brf_pdf_hash === contentHash &&
+    row.brf_data &&
+    typeof row.brf_data === "object"
+  ) {
+    return { ok: true, data: row.brf_data as BrfData, cached: true };
+  }
+
+  // Store the PDF privately (upsert = D-06 replace). Path is {userId}/{analysisId}.pdf.
+  const { error: uploadError } = await uploadBrfPdf(
+    supabase,
+    user.id,
+    analysisId,
+    bytes,
+  );
+  if (uploadError) {
+    return { ok: false, error: "Kunde inte spara PDF:en. Försök igen." };
+  }
+
+  // Status: reading → extracting (D-13). The client polls this column.
+  await supabase
+    .from("analyses")
+    .update({ brf_status: "reading", brf_scanned: scanned })
+    .eq("id", analysisId);
+  await supabase
+    .from("analyses")
+    .update({ brf_status: "extracting" })
+    .eq("id", analysisId);
+
+  // The single Claude call. Guardrails (§6): parse failures retry once inside
+  // extract.ts; refusal/truncation throw a Swedish message — route to manual entry.
+  let extraction: BrfExtraction;
+  let citations: FieldCitation[];
+  let cost: number;
+  try {
+    const result = await extractBrfFinancials({ bytes, contentHash });
+    cost = costSek(result.usage);
+
+    // Cost-cap guardrail (§6): never persist a run that blew the budget; surface
+    // it rather than silently billing. (Bounded retries + caching keep this rare.)
+    if (cost > COST_CAP_SEK) {
+      await supabase
+        .from("analyses")
+        .update({ brf_status: "failed", brf_cost_sek: cost })
+        .eq("id", analysisId);
+      return {
+        ok: false,
+        error: "Analysen avbröts (kostnadstaket nåddes). Försök igen senare.",
+      };
+    }
+
+    // Schema gate (§6): never present partial/unparsed JSON as a result.
+    const parsed = brfExtractionSchema.safeParse(result.parsed);
+    if (!parsed.success) {
+      throw new Error("BRF_SCHEMA_INVALID");
+    }
+    extraction = parsed.data;
+    citations = result.citations;
+  } catch {
+    await supabase
+      .from("analyses")
+      .update({ brf_status: "failed" })
+      .eq("id", analysisId);
+    return {
+      ok: false,
+      error:
+        "Vi kunde inte läsa dokumentet automatiskt — fyll i uppgifterna manuellt.",
+    };
+  }
+
+  // Deterministic pipeline (D-08): sanity → grade. Status → scoring.
+  await supabase
+    .from("analyses")
+    .update({ brf_status: "scoring" })
+    .eq("id", analysisId);
+
+  const { normalized, grade, perFieldConfidence } = scoreExtraction(extraction);
+
+  const brfData: BrfData = {
+    extraction,
+    normalized,
+    grade,
+    perFieldConfidence,
+    citations,
+  };
+
+  // Persist final result + status done + cost + content hash (D-06) + scanned flag.
+  // GDPR: do NOT log the financials/quotes; only the hash + usage were logged in extract.ts.
+  const { error: persistError } = await supabase
+    .from("analyses")
+    .update({
+      brf_data: brfData,
+      brf_status: "done",
+      brf_cost_sek: cost,
+      brf_pdf_hash: contentHash,
+      brf_scanned: scanned,
+    })
+    .eq("id", analysisId);
+
+  if (persistError) {
+    return { ok: false, error: "Kunde inte spara analysen. Försök igen." };
+  }
+
+  return { ok: true, data: brfData, cached: false };
+}
+
+/**
+ * `correctBrfField` — D-12 inline correction. Re-runs the deterministic pipeline
+ * (normalize → sanity → computeBrfGrade) on the stored extraction with ONE field
+ * overridden by a user-supplied value. It NEVER calls Claude/extract again
+ * (re-extraction is the RESEARCH anti-pattern — it would re-bill and could revert
+ * the correction). The corrected field is marked "Manuellt angiven".
+ *
+ * @param formData - `analysisId`, `field` (one of the four metrics), `value`
+ */
+export async function correctBrfField(
+  formData: FormData,
+): Promise<AnalyzeBrfResult> {
+  const analysisId = formData.get("analysisId");
+  const field = formData.get("field");
+  const rawValue = formData.get("value");
+
+  if (typeof analysisId !== "string" || !analysisId) {
+    return { ok: false, error: "Analys-id saknas." };
+  }
+  if (
+    typeof field !== "string" ||
+    !(METRIC_KEYS as readonly string[]).includes(field)
+  ) {
+    return { ok: false, error: "Okänt fält." };
+  }
+
+  // Auth-gated identically to analyzeBrf (D-05).
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "Logga in för BRF-analys" };
+  }
+
+  const { data: row, error: rowError } = await supabase
+    .from("analyses")
+    .select("id, user_id, brf_data")
+    .eq("id", analysisId)
+    .single();
+
+  if (rowError || !row || row.user_id !== user.id) {
+    return { ok: false, error: "Analysen hittades inte." };
+  }
+  if (!row.brf_data || typeof row.brf_data !== "object") {
+    return { ok: false, error: "Ingen analys att korrigera." };
+  }
+
+  const current = row.brf_data as BrfData;
+  const extraction: BrfExtraction = {
+    ...current.extraction,
+  };
+
+  // Coerce the corrected value to the field's type. underhallsplanStatus is an
+  // enum string; the others are numbers. A manual correction is, by definition,
+  // high-confidence and human-sourced.
+  const key = field as (typeof METRIC_KEYS)[number];
+  if (key === "underhallsplanStatus") {
+    const allowed = ["finns_aktuell", "finns_inaktuell", "saknas", "oklart"];
+    const v = typeof rawValue === "string" ? rawValue : "";
+    if (!allowed.includes(v)) {
+      return { ok: false, error: "Ogiltigt värde för underhållsplan." };
+    }
+    extraction.underhallsplanStatus = {
+      value: v as BrfExtraction["underhallsplanStatus"]["value"],
+      confidence: 1,
+      sourceQuote: null,
+      pageRef: null,
+    };
+  } else {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) {
+      return { ok: false, error: "Ogiltigt numeriskt värde." };
+    }
+    extraction[key] = {
+      value: num,
+      confidence: 1,
+      sourceQuote: null,
+      pageRef: null,
+    };
+  }
+
+  // Re-run ONLY the deterministic pipeline — NO extractBrfFinancials call.
+  const { normalized, grade, perFieldConfidence } = scoreExtraction(extraction);
+
+  const manualFields = Array.from(
+    new Set([...(current.manualFields ?? []), field]),
+  );
+
+  const brfData: BrfData = {
+    ...current,
+    extraction,
+    normalized,
+    grade,
+    perFieldConfidence,
+    manualFields,
+  };
+
+  const { error: persistError } = await supabase
+    .from("analyses")
+    .update({ brf_data: brfData })
+    .eq("id", analysisId);
+
+  if (persistError) {
+    return { ok: false, error: "Kunde inte spara korrigeringen. Försök igen." };
+  }
+
+  return { ok: true, data: brfData, cached: false };
+}
