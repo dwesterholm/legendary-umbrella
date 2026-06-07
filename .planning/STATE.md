@@ -5,13 +5,13 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-06-07T19:01:14.445Z"
+last_updated: "2026-06-07T19:06:26.825Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 14
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 02 (brf-financial-analysis) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 **Phase:** 1 of 4 (Foundation + Core Pipeline) -- COMPLETE
 **Current Plan:** 1
 **Status:** Ready to execute
@@ -53,6 +53,7 @@ Progress: [██████████] 100% of Phase 1 (3/3 plans)
 
 *Updated after each plan completion*
 | Phase 02 P01 | 6min | 3 tasks | 11 files |
+| Phase 02 P03 | ~5min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 02]: vitest [SUS] slopcheck flag confirmed false positive (official vitest-dev/vitest); installed with human approval
 - [Phase 02]: USD/SEK exposed as USD_SEK_RATE config constant in cost contract (not hardcoded), per assumption A1
 - [Phase 02]: Wave 0 RED-first: deterministic-core tests written before src/lib/brf/ production code (Plan 03 implements GREEN)
+- [Phase ?]: Locked BRF grade weights (skuld 0.35, kassaflode 0.30, avgift 0.20, underhall 0.15) and composite bands (A>=0.85..F) as single source of truth in BRF_SCORE_THRESHOLDS for Plan 05 methodology page (D-08/D-09)
+- [Phase ?]: OSAKER_THRESHOLD=0.5 exported from sanity.ts; out-of-band values downgraded to confidence 0.2, value never dropped (D-10/D-12)
 
 ### Pending Todos
 
@@ -95,7 +98,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-07T19:01:01.324Z
+Last session: 2026-06-07T19:06:22.150Z
 Stopped at: Phase 2 context gathered
 Resume file: .planning/phases/02-brf-financial-analysis/02-CONTEXT.md
 Next step: /gsd-plan-phase 2 (or /gsd-discuss-phase 2 first)

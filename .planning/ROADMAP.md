@@ -59,7 +59,7 @@ Plans:
 
 - [x] 02-01-PLAN.md — Wave 0: install Vitest/Promptfoo + RED deterministic-core tests (scorer, sanity, cost, schema)
 - [x] 02-02-PLAN.md — Migration: brf-pdfs private bucket, RLS, brf_* columns, analyses UPDATE policy, schema push
-- [ ] 02-03-PLAN.md — Deterministic core: brfExtractionSchema + normalizer, A–F scorer (D-08), sanity bands (D-10), cost
+- [x] 02-03-PLAN.md — Deterministic core: brfExtractionSchema + normalizer, A–F scorer (D-08), sanity bands (D-10), cost
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -118,7 +118,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
-| 2. BRF Financial Analysis | 2/6 | In Progress|  |
+| 2. BRF Financial Analysis | 3/6 | In Progress|  |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
 
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 **Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
 **Requirements:** TBD
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 
