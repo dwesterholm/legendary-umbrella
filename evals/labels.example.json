@@ -1,0 +1,27 @@
+{
+  "_comment": "EXAMPLE manifest only — synthetic, NOT real data. The real evals/labels.json (gitignored) follows this exact shape: keyed by the SHA-256 content hash of each årsredovisning PDF, with the expert-labelled correct value per field. expectedOsaker marks fixtures the system SHOULD flag as uncertain (out-of-band / scanned). See AI-SPEC §5.",
+  "0000000000000000000000000000000000000000000000000000000000000000": {
+    "skuldPerKvm": 4200,
+    "avgiftsniva": 580,
+    "kassaflode": 310,
+    "underhallsplanStatus": "finns_aktuell",
+    "expectedOsaker": false,
+    "sourcePage": 7
+  },
+  "1111111111111111111111111111111111111111111111111111111111111111": {
+    "skuldPerKvm": 12800,
+    "avgiftsniva": 1050,
+    "kassaflode": -180,
+    "underhallsplanStatus": "saknas",
+    "expectedOsaker": false,
+    "sourcePage": 9
+  },
+  "2222222222222222222222222222222222222222222222222222222222222222": {
+    "skuldPerKvm": null,
+    "avgiftsniva": 720,
+    "kassaflode": null,
+    "underhallsplanStatus": "finns_inaktuell",
+    "expectedOsaker": true,
+    "sourcePage": 5
+  }
+}

@@ -1,0 +1,30 @@
+# Promptfoo config skeleton for the BRF extractor eval (AI-SPEC §5).
+# COST-GATED: not run in CI here. Requires a frozen 4–6 PDF subset under
+# evals/fixtures/ (gitignored — PII) and expert labels in evals/labels.json
+# (gitignored — see evals/labels.example.json for the shape).
+#
+# This is a stub: the real prompt/provider wiring lands when extract.ts +
+# prompt.ts exist (Plan 04). Do NOT run without RUN_LLM_EVALS=1 (incurs cost).
+
+description: "BRF årsredovisning extraction accuracy vs expert labels"
+
+prompts:
+  # System prompt lives in production code so the eval tests exactly what ships.
+  - file://../src/lib/brf/prompt.ts:BRF_EXTRACTION_SYSTEM_PROMPT
+
+providers:
+  - id: anthropic:messages:claude-haiku-4-5
+    config:
+      temperature: 0
+      max_tokens: 2048
+
+# Frozen reference subset (4–6 diverse PDFs: K2/K3, digital/scanned, pre/post-2023).
+# Each row points at a fixture and its expert-labelled expected values.
+tests:
+  - description: "placeholder — populated from evals/labels.json against evals/fixtures/*.pdf"
+    vars: {}
+    assert:
+      - type: javascript
+        # Real assertions compare extracted figures to labels and check that
+        # out-of-band / scanned fixtures are flagged Osäker (expectedOsaker).
+        value: "true /* stub: wire to labels.json in Plan 04 */"
