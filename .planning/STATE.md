@@ -5,13 +5,13 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-06-07T19:06:26.825Z"
+last_updated: "2026-06-07T19:16:36.175Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 14
 ---
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100% of Phase 1 (3/3 plans)
 *Updated after each plan completion*
 | Phase 02 P01 | 6min | 3 tasks | 11 files |
 | Phase 02 P03 | ~5min | 3 tasks | 4 files |
+| Phase 02 P04 | 12min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,7 @@ Recent decisions affecting current work:
 - [Phase 02]: Wave 0 RED-first: deterministic-core tests written before src/lib/brf/ production code (Plan 03 implements GREEN)
 - [Phase ?]: Locked BRF grade weights (skuld 0.35, kassaflode 0.30, avgift 0.20, underhall 0.15) and composite bands (A>=0.85..F) as single source of truth in BRF_SCORE_THRESHOLDS for Plan 05 methodology page (D-08/D-09)
 - [Phase ?]: OSAKER_THRESHOLD=0.5 exported from sanity.ts; out-of-band values downgraded to confidence 0.2, value never dropped (D-10/D-12)
+- [Phase ?]: Plan 02-04: single client.beta.messages.parse for base64 + Files API transports; model pinned to claude-haiku-4-5-20251001; cost-cap refuses to persist over 5 SEK
 
 ### Pending Todos
 
@@ -95,10 +97,11 @@ Recent decisions affecting current work:
 - Research flags Inngest + Supabase Realtime wiring in Phase 1 as non-trivial -- may need research spike. (Did not materialize in Phase 1; revisit if async jobs needed.)
 - Supabase free tier pauses after 7 days inactivity -- old project was permanently frozen after 90+ days. Visit dashboard periodically or upgrade.
 - Apify actor trial is 1 day (started 2026-06-06); ongoing scrapes need the paid actor rental.
+- 02-04 Task 3: needs real ANTHROPIC_API_KEY in .env.local for live extraction smoke test (blocking-human checkpoint)
 
 ## Session Continuity
 
-Last session: 2026-06-07T19:06:22.150Z
+Last session: 2026-06-07T19:16:04.649Z
 Stopped at: Phase 2 context gathered
 Resume file: .planning/phases/02-brf-financial-analysis/02-CONTEXT.md
 Next step: /gsd-plan-phase 2 (or /gsd-discuss-phase 2 first)
