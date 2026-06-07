@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+coverage/
+
+# BRF eval harness — real PDFs (PII per AI-SPEC §5/GDPR) and expert labels
+# must never enter git history. Only labels.example.json (synthetic) is committed.
+evals/fixtures/
+evals/labels.json
 
 # next.js
 /.next/
