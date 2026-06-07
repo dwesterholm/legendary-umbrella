@@ -45,11 +45,15 @@ Plans:
   2. System extracts and displays key BRF financials (skuld/kvm, avgiftsniva, kassaflode, underhallsplan status) from the uploaded PDF
   3. System assigns a BRF health score (A-F) with visible explanation of what drove the score
   4. When PDF parsing produces low-confidence results, user sees which fields are uncertain rather than silently wrong numbers
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Wave 0: install Vitest/Promptfoo + RED deterministic-core tests (scorer, sanity, cost, schema)
+- [ ] 02-02-PLAN.md — Migration: brf-pdfs private bucket, RLS, brf_* columns, analyses UPDATE policy, schema push
+- [ ] 02-03-PLAN.md — Deterministic core: brfExtractionSchema + normalizer, A–F scorer (D-08), sanity bands (D-10), cost
+- [ ] 02-04-PLAN.md — Extraction: versioned prompt + single Haiku call (citations/caching) + analyzeBrf/correctBrfField actions
+- [ ] 02-05-PLAN.md — Upload + progress UI: dropzone (D-05 gate), live status (D-13), wire into analysis page (D-04)
+- [ ] 02-06-PLAN.md — Score card (D-07/D-10/D-11/D-12) + public "Så räknar vi" methodology page (D-09)
 
 ### Phase 3: Market Context
 **Goal**: User can see how a listing's price compares to recent sales in the area and understand the neighborhood demographics
@@ -88,7 +92,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
-| 2. BRF Financial Analysis | 0/0 | Not started | - |
+| 2. BRF Financial Analysis | 0/6 | Not started | - |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
 
