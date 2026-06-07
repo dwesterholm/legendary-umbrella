@@ -14,8 +14,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### BRF Financial Analysis
 
-- [x] **BRF-01**: System parses BRF årsredovisning and displays financial overview (skuld/kvm, avgiftsnivå, kassaflöde, underhållsplan status)
-- [x] **BRF-02**: System generates BRF health score (A–F) based on financial metrics with transparent methodology
+- [ ] **BRF-01**: System parses BRF årsredovisning and displays financial overview (skuld/kvm, avgiftsnivå, kassaflöde, underhållsplan status)
+- [ ] **BRF-02**: System generates BRF health score (A–F) based on financial metrics with transparent methodology
 - [ ] **BRF-03**: User can upload BRF årsredovisning PDF when auto-fetch is unavailable
 
 ### Price Comparison
@@ -81,8 +81,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | LSTG-01 | Phase 1: Foundation + Core Pipeline | Complete |
 | LSTG-02 | Phase 1: Foundation + Core Pipeline | Complete |
-| BRF-01 | Phase 2: BRF Financial Analysis | Complete |
-| BRF-02 | Phase 2: BRF Financial Analysis | Complete |
+| BRF-01 | Phase 2: BRF Financial Analysis | Pending |
+| BRF-02 | Phase 2: BRF Financial Analysis | Pending |
 | BRF-03 | Phase 2: BRF Financial Analysis | Pending |
 | PRICE-01 | Phase 3: Market Context | Pending |
 | AREA-01 | Phase 3: Market Context | Pending |
