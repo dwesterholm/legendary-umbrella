@@ -35,7 +35,7 @@ decisions:
 metrics:
   duration: ~5min
   completed: 2026-06-07
-status: paused-at-checkpoint
+status: complete
 ---
 
 # Phase 02 Plan 02: BRF Persistence Migration Summary
@@ -52,7 +52,7 @@ Migration `002_brf.sql` adds the BRF persistence layer — five `brf_*` jsonb/sc
 
 No separate `brf_analyses` table was created (locked decision).
 
-**Task 2 (PAUSED — blocking checkpoint):** Pushing the migration to the live Supabase database (`supabase db push`) is a `checkpoint:human-verify gate="blocking"` step. It requires confirming the free-tier project (ref `nsheegvczxjeeayngqrv`) is not paused, running the push (may prompt for DB password), and verifying the live schema in the dashboard. Auto-advance is not active, so execution stopped here per checkpoint protocol. The migration file is committed but NOT yet applied to the live DB.
+**Task 2 (complete — human-gated push applied):** The migration was pushed to the live Supabase database (`supabase db push --include-all`) after human approval of the blocking checkpoint. `supabase migration list` now shows `002 | 002` (local and remote in sync). The push applied cleanly in a single transaction (columns + UPDATE policy + private bucket + storage RLS), so all statements succeeded. Project `nsheegvczxjeeayngqrv` (bostad-ai, Paris) confirmed not paused.
 
 ## Verification
 
@@ -63,7 +63,7 @@ Task 1 automated verification passed:
 - Storage policy keyed to `(storage.foldername(name))[1] = auth.uid()::text`.
 - No `brf_analyses` table created.
 
-Task 2 live-DB verification is pending human action (the push).
+Task 2 live-DB push applied: `supabase migration list` reports `002 | 002` (local/remote synced).
 
 ## Threat Model Coverage
 
