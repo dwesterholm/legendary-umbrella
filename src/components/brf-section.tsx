@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { BrfUpload } from "@/components/brf-upload";
 import { BrfProgress } from "@/components/brf-progress";
+import { BrfScoreCard } from "@/components/brf-score-card";
 import type { BrfData } from "@/actions/analyze-brf";
 
 interface BrfSectionProps {
@@ -101,22 +102,26 @@ export function BrfSection({
   }
 
   if (view === "result") {
+    // Persisted brfData present → render the full score card (D-07/D-10/D-11/D-12).
+    if (data) {
+      return (
+        <BrfScoreCard
+          analysisId={analysisId}
+          brfData={data}
+          onCorrected={setData}
+        />
+      );
+    }
+    // In-session completion without the row payload yet — prompt a reload so the
+    // server-fetched brfData hydrates the score card.
     return (
       <Card className="w-full max-w-2xl border-warm-gray-200">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <h3 className="text-lg font-medium text-warm-gray-700">BRF Analys</h3>
-          {data && (
-            <Badge className="bg-sage-600 text-white text-base px-3 py-1">
-              Betyg {data.grade.grade}
-            </Badge>
-          )}
         </CardHeader>
         <CardContent>
           <p className="text-sm text-warm-gray-700">
-            Analys klar.{" "}
-            {data
-              ? "Ladda om sidan for att se hela betygskortet."
-              : "Ladda om sidan for att se resultatet."}
+            Analys klar. Ladda om sidan for att se betygskortet.
           </p>
         </CardContent>
       </Card>
