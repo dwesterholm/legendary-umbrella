@@ -41,6 +41,7 @@ decisions:
   - "Model pinned to dated id claude-haiku-4-5-20251001 (reproducible) rather than the floating alias"
   - "Honored project gitignore convention: documented env vars in .env.local.example (the existing !.env.local.example negation) rather than .env.example, which is gitignored"
   - "Cost-cap guardrail marks brf_status=failed and refuses to persist a result when costSek > 5 SEK rather than silently billing (AI-SPEC §6)"
+  - "Removed document-level citations:{enabled:true} — the Anthropic API rejects it alongside output_config.format (structured outputs) with a 400. D-11 source quotes + page refs are captured as sourceQuote/pageRef fields inside brfExtractionSchema instead, so the structured-output path carries the trust payload; the result citations array stays empty by design. Found via the Task 3 live smoke test."
 metrics:
   duration: ~12min
   completed: 2026-06-07
@@ -48,7 +49,7 @@ metrics:
 
 # Phase 2 Plan 04: BRF Extraction Layer + analyzeBrf Server Action Summary
 
-Built the project's first Claude integration — a single Haiku 4.5 extraction call with citations and prompt caching — plus the `analyzeBrf`/`correctBrfField` server actions that wire auth-gating, private PDF storage, content-hash caching, the deterministic scoring pipeline, and status/cost persistence into one spine. All code type-checks and the full vitest suite is green; one real end-to-end extraction remains gated behind a human-provided `ANTHROPIC_API_KEY` (Task 3 checkpoint).
+Built the project's first Claude integration — a single Haiku 4.5 structured-extraction call with prompt caching — plus the `analyzeBrf`/`correctBrfField` server actions that wire auth-gating, private PDF storage, content-hash caching, the deterministic scoring pipeline, and status/cost persistence into one spine. All code type-checks and the full vitest suite is green. Task 3 (live end-to-end extraction with a real `ANTHROPIC_API_KEY`) is **complete**: a real BRF årsredovisning extracted cleanly — grade A, all four fields, **0.71 SEK** (< 5 SEK cap), no key leak. That smoke test also surfaced and fixed a 400 (citations vs structured output — see Deviations).
 
 ## What Was Built
 
@@ -61,7 +62,7 @@ Built the project's first Claude integration — a single Haiku 4.5 extraction c
 
 ## Threat Model Coverage
 
-- **T-02-09 (API key disclosure):** Anthropic client lives only in server `extract.ts`; never browser-enabled; key read from server-only env; `@anthropic-ai/sdk` is a server-external package. (Live no-leak confirmation is the Task 3 smoke test.)
+- **T-02-09 (API key disclosure):** Anthropic client lives only in server `extract.ts`; never browser-enabled; key read from server-only env; `@anthropic-ai/sdk` is a server-external package. Live no-leak confirmed by the Task 3 smoke test (the key never appeared in the result payload).
 - **T-02-10 (privilege escalation):** hard auth gate + per-row ownership check + the Plan 02 UPDATE RLS policy.
 - **T-02-11 (DoS/tampering via upload):** `application/pdf` MIME + ≤20 MB size validated before any storage/Claude work; Files API for large scans avoids the request-size cap.
 - **T-02-12 (PII in logs):** only content hash + token usage are logged; never bytes/financials/quotes.
@@ -102,11 +103,22 @@ This plan completes the `analyze-brf` GREEN gate begun by Plan 01's RED contract
 
 ## Known Stubs
 
-None. All four modules are fully implemented. No hardcoded empty values, placeholders, or unwired data sources. The only unexecuted path is the live Claude call, which is correctly gated behind the missing `ANTHROPIC_API_KEY` (Task 3 checkpoint) rather than stubbed.
+None. All four modules are fully implemented and the live Claude path is now exercised end-to-end.
 
-## Checkpoint Pending (Task 3)
+## Checkpoint Resolved (Task 3)
 
-Task 3 is a `gate="blocking-human"` checkpoint: provisioning a real `ANTHROPIC_API_KEY` and running one real PDF extraction end-to-end (brf_status='done', cost < 5 SEK, no key leak). This cannot be automated and is NOT auto-approved (package/credential blocking gate). The code is complete and type-checks; the live smoke test awaits the user-supplied key. See the checkpoint message returned to the orchestrator.
+Task 3 was a `gate="blocking-human"` checkpoint: provision a real `ANTHROPIC_API_KEY` and run one real PDF extraction end-to-end. **Resolved** — the user supplied a key, and a throwaway harness ran the full pipeline (read PDF → `extractBrfFinancials` → normalize → sanity → `computeBrfGrade` → `costSek`) against a real BRF årsredovisning:
+
+- Grade **A**; all four fields extracted (skuldPerKvm 1171, avgiftsniva 806, kassaflöde 1 033 890, underhållsplan `finns_aktuell`)
+- **0.71 SEK** — well under the 5 SEK cost cap
+- API key absent from the serialized result (no-leak assertion passed)
+- Single Haiku call; prompt cache written (51k cache-creation tokens)
+
+The harness surfaced a real API conflict (citations + structured output → 400), which was fixed in `extract.ts` (commit `204750c`). The harness itself was throwaway and not committed.
+
+## Deviation — citations vs structured output (found by Task 3)
+
+The plan specified document-level citations *and* `output_config.format` structured output on the same Haiku call. The Anthropic API rejects this combination with `400 "Citations cannot be enabled when output format is set"`. Resolution: dropped `citations: { enabled: true }` and rely on the `sourceQuote`/`pageRef` fields already in `brfExtractionSchema` to carry D-11's trust payload. The `BrfData.citations` array (API-grounded citations) is now always empty; per-field provenance comes from the structured fields. tsc + 31 unit tests stayed green; live extraction confirmed working.
 
 ## Self-Check: PASSED
 
