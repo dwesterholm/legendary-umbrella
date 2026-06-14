@@ -68,6 +68,37 @@ function hashBytes(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+/** A minimal slice of the Supabase client this module needs (status writes). */
+type StatusWriter = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Writes the terminal `failed` status and makes its failure observable (WR-04).
+ *
+ * `BrfProgress` only stops polling on a terminal status (`done`/`failed`), so a
+ * silently-dropped `failed` write leaves the client spinning forever. We log
+ * the DB error server-side (no financials/bytes — only ids, per T-02-12/GDPR)
+ * so a stuck poller is diagnosable rather than invisible.
+ */
+async function writeFailedStatus(
+  supabase: StatusWriter,
+  analysisId: string,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  const { error } = await supabase
+    .from("analyses")
+    .update({ brf_status: "failed", ...extra })
+    .eq("id", analysisId);
+  if (error) {
+    // The terminal write itself failed — surface it so the stuck poller is
+    // explainable. Never log the document contents (GDPR).
+    console.error("[analyzeBrf] terminal failed-status write did not land", {
+      analysisId,
+      code: error.code,
+      message: error.message,
+    });
+  }
+}
+
 /**
  * Runs the deterministic pipeline: sanity → grade → per-field confidence map.
  *
@@ -188,14 +219,14 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
     return { ok: false, error: "Kunde inte spara PDF:en. Försök igen." };
   }
 
-  // Status: reading → extracting (D-13). The client polls this column.
+  // Status → extracting (D-13). The client polls this column. WR-03: the
+  // earlier reading→extracting double-write was a dead flicker (no work between
+  // the two awaited writes, and the 1.5s poller never observes `reading`), so
+  // we write the single meaningful pre-call state once. The scanned flag rides
+  // along on this write.
   await supabase
     .from("analyses")
-    .update({ brf_status: "reading", brf_scanned: scanned })
-    .eq("id", analysisId);
-  await supabase
-    .from("analyses")
-    .update({ brf_status: "extracting" })
+    .update({ brf_status: "extracting", brf_scanned: scanned })
     .eq("id", analysisId);
 
   // The single Claude call. Guardrails (§6): parse failures retry once inside
@@ -210,10 +241,7 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
     // Cost-cap guardrail (§6): never persist a run that blew the budget; surface
     // it rather than silently billing. (Bounded retries + caching keep this rare.)
     if (cost > COST_CAP_SEK) {
-      await supabase
-        .from("analyses")
-        .update({ brf_status: "failed", brf_cost_sek: cost })
-        .eq("id", analysisId);
+      await writeFailedStatus(supabase, analysisId, { brf_cost_sek: cost });
       return {
         ok: false,
         error: "Analysen avbröts (kostnadstaket nåddes). Försök igen senare.",
@@ -227,11 +255,19 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
     }
     extraction = parsed.data;
     citations = result.citations;
-  } catch {
-    await supabase
-      .from("analyses")
-      .update({ brf_status: "failed" })
-      .eq("id", analysisId);
+  } catch (error) {
+    // WR-06: preserve the distinct failure reason. extract.ts now rethrows a
+    // coded error (CLAUDE_REFUSAL / CLAUDE_MAX_TOKENS / CLAUDE_PARSE_EMPTY /
+    // CLAUDE_CALL_FAILED), and the schema gate throws BRF_SCHEMA_INVALID. Log
+    // the CODE + content hash only (never raw financials/bytes/quotes, per
+    // T-02-12/GDPR) so refusal vs truncation vs network failure are
+    // distinguishable in server logs.
+    console.error("[analyzeBrf] extraction failed", {
+      analysisId,
+      contentHash,
+      code: error instanceof Error ? error.message : "UNKNOWN",
+    });
+    await writeFailedStatus(supabase, analysisId);
     return {
       ok: false,
       error:

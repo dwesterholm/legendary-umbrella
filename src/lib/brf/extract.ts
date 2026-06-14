@@ -8,7 +8,8 @@ import type { ClaudeUsage } from "@/lib/brf/cost";
 /**
  * The single Claude extraction call (AI-SPEC §3/§4). Mirrors the
  * `booli-scraper` structure: a module-scope vendor client reading a server-only
- * env var, a try/catch that logs server-side and throws a Swedish user message.
+ * env var, a try/catch that logs server-side (hash + code only) and rethrows a
+ * coded error so the action layer can distinguish failure modes (WR-06).
  *
  * The Anthropic client is instantiated ONLY here (server module). It reads
  * `ANTHROPIC_API_KEY` from the environment and is never configured to allow
@@ -97,9 +98,12 @@ function collectCitations(
  *   PDFs (avoids the request-size cap — RESEARCH pitfall 1).
  * - `stop_reason === "refusal"` throws immediately with NO retry (do not loop on
  *   a guardrail trip). `"max_tokens"` retries once, then throws.
- * - try/catch logs ONLY the content hash + token usage server-side, NEVER raw
- *   bytes, financials, or quotes (T-02-12 / GDPR, AI-SPEC §7), then throws a
- *   Swedish user-facing message.
+ * - try/catch logs ONLY the content hash + a stable failure code server-side,
+ *   NEVER raw bytes, financials, or quotes (T-02-12 / GDPR, AI-SPEC §7), then
+ *   rethrows a CODED error (CLAUDE_REFUSAL / CLAUDE_MAX_TOKENS /
+ *   CLAUDE_PARSE_EMPTY / CLAUDE_CALL_FAILED) so the action layer can
+ *   distinguish failure modes (WR-06). The user-facing Swedish message is
+ *   produced at the action layer, not here.
  *
  * @param input - the PDF bytes plus a content hash for safe logging
  * @returns parsed figures, token usage, and the raw citation locations
@@ -192,10 +196,28 @@ export async function extractBrfFinancials(
       ),
     };
   } catch (error) {
-    // GDPR / T-02-12: log ONLY the content hash, never bytes/financials/quotes.
-    console.error("[brf-extract]", { contentHash, error });
-    throw new Error(
-      "Kunde inte läsa ut föreningens ekonomi ur PDF:en. Kontrollera filen eller fyll i uppgifterna manuellt.",
-    );
+    // GDPR / T-02-12: log ONLY the content hash + a stable code, never
+    // bytes/financials/quotes.
+    const code = isKnownExtractionCode(error)
+      ? (error as Error).message
+      : "CLAUDE_CALL_FAILED";
+    console.error("[brf-extract]", { contentHash, code });
+    // WR-06: rethrow a CODED error rather than flattening every failure mode to
+    // one opaque Swedish string. The action distinguishes refusal vs truncation
+    // vs parse-empty vs network failure from this code; the user-facing message
+    // is produced at the action layer.
+    throw new Error(code, { cause: error });
   }
+}
+
+/** The deliberate, differentiated extraction failure codes (WR-06). */
+const KNOWN_EXTRACTION_CODES = new Set([
+  "CLAUDE_REFUSAL",
+  "CLAUDE_MAX_TOKENS",
+  "CLAUDE_PARSE_EMPTY",
+]);
+
+/** True when `error` is one of the deliberate stop-reason codes from `runOnce`. */
+function isKnownExtractionCode(error: unknown): boolean {
+  return error instanceof Error && KNOWN_EXTRACTION_CODES.has(error.message);
 }
