@@ -75,6 +75,8 @@ if (!ext) return null; // skip malformed rows rather than crashing
 
 **Fix:** Add a *pre-call* bound that the cap can actually enforce: cap input by document size before the call (the existing `MAX_PDF_BYTES` helps but is 20 MB, well above 5 SEK of input tokens), and add a per-user call/cost rate limit (e.g. a `brf_cost_sek` running-sum check per user per window) before invoking `extractBrfFinancials`. Keep the post-call check as a second line, but rename/comment it honestly — it is a "do not persist over-budget result" check, not a spend cap.
 
+**Resolution (documented, not code-fixed):** A true *pre-call* spend cap is not feasible — token count (and therefore cost) is unknown until after the Claude call returns. Per-request spend is already inherently bounded by the single Haiku call at `max_tokens: 2048` (plus one truncation retry), observed at ~0.71 SEK, well under the 5 SEK cap. An honest clarifying comment was added at the cost-check site in `analyze-brf.ts` stating that the check gates **persistence** of an over-budget result (not the spend), and that per-request cost is bounded by `max_tokens`. **Deferred follow-up:** per-user rate limiting / DoS guard (a running per-user/window `brf_cost_sek` ceiling before invoking `extractBrfFinancials`) is the real protection against repeated authenticated calls, and is out of scope for this phase.
+
 ## Warnings
 
 ### WR-01: `correctBrfField` accepts an empty numeric submission as `0`

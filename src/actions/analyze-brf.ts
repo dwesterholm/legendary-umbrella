@@ -238,8 +238,15 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
     const result = await extractBrfFinancials({ bytes, contentHash });
     cost = costSek(result.usage);
 
-    // Cost-cap guardrail (§6): never persist a run that blew the budget; surface
-    // it rather than silently billing. (Bounded retries + caching keep this rare.)
+    // Cost guardrail (§6) — HONEST scope (CR-02): this is NOT a pre-call spend
+    // cap. The token count (and thus cost) is unknown until AFTER the Claude
+    // call returns, so this check gates PERSISTENCE of an over-budget result,
+    // not the spend itself. Per-REQUEST spend is already inherently bounded by
+    // the single Haiku call at `max_tokens: 2048` (+ one truncation retry),
+    // observed at ~0.71 SEK — well under COST_CAP_SEK. What is NOT bounded here
+    // is per-USER aggregate spend: a script hitting this authenticated action
+    // repeatedly bills each call in full. A per-user rate limit / DoS guard is
+    // a deferred follow-up (out of scope for this phase — see REVIEW.md CR-02).
     if (cost > COST_CAP_SEK) {
       await writeFailedStatus(supabase, analysisId, { brf_cost_sek: cost });
       return {
