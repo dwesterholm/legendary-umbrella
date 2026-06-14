@@ -91,9 +91,11 @@ function collectCitations(
  * Extracts the four BRF financial figures from a PDF via ONE Haiku call.
  *
  * - `messages.parse` with `zodOutputFormat(brfExtractionSchema)` guarantees the
- *   response shape; the document block carries `citations.enabled` (D-11 trust)
- *   and `cache_control: ephemeral` (D-13 cost — the PDF dominates input tokens,
- *   so caching it makes a retry/re-run cheap; T-02-13).
+ *   response shape. D-11 trust (source quotes + page refs) is carried by the
+ *   schema's own `sourceQuote`/`pageRef` fields, NOT API citations — the two are
+ *   mutually exclusive (see the document-block note below). The document block
+ *   carries `cache_control: ephemeral` (D-13 cost — the PDF dominates input
+ *   tokens, so caching it makes a retry/re-run cheap; T-02-13).
  * - Transport: base64-inline for PDFs ≤ ~5 MB; the Files API for larger/scanned
  *   PDFs (avoids the request-size cap — RESEARCH pitfall 1).
  * - `stop_reason === "refusal"` throws immediately with NO retry (do not loop on
