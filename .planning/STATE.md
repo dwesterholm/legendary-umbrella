@@ -5,13 +5,13 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-06-07T19:16:36.175Z"
+last_updated: "2026-06-14T12:47:20.173Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 14
 ---
 
@@ -83,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Locked BRF grade weights (skuld 0.35, kassaflode 0.30, avgift 0.20, underhall 0.15) and composite bands (A>=0.85..F) as single source of truth in BRF_SCORE_THRESHOLDS for Plan 05 methodology page (D-08/D-09)
 - [Phase ?]: OSAKER_THRESHOLD=0.5 exported from sanity.ts; out-of-band values downgraded to confidence 0.2, value never dropped (D-10/D-12)
 - [Phase ?]: Plan 02-04: single client.beta.messages.parse for base64 + Files API transports; model pinned to claude-haiku-4-5-20251001; cost-cap refuses to persist over 5 SEK
+- [Phase ?]: Plan 05: polling (not Realtime) for D-13 progress, ~1.5s interval cleared on terminal status
+- [Phase ?]: Plan 05: isGuest resolved server-side; UI teaser is defence-in-depth behind analyzeBrf hard gate (D-05)
 
 ### Pending Todos
 
@@ -101,7 +103,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-07T19:16:04.649Z
+Last session: 2026-06-14T12:47:11.515Z
 Stopped at: Phase 2 context gathered
 Resume file: .planning/phases/02-brf-financial-analysis/02-CONTEXT.md
 Next step: /gsd-plan-phase 2 (or /gsd-discuss-phase 2 first)
