@@ -148,7 +148,14 @@ export async function extractBrfFinancials(
               {
                 type: "document",
                 source: documentSource,
-                citations: { enabled: true },
+                // NOTE: API-level `citations: { enabled: true }` is mutually
+                // exclusive with `output_config.format` (structured outputs) —
+                // sending both returns a 400 "Citations cannot be enabled when
+                // output format is set". D-11's source quotes + page refs are
+                // captured as `sourceQuote`/`pageRef` fields inside
+                // brfExtractionSchema instead, so the structured-output path
+                // already delivers the trust payload. The `citations` result
+                // array (collectCitations) stays empty by design.
                 cache_control: { type: "ephemeral" },
               },
               { type: "text", text: USER_INSTRUCTION },
