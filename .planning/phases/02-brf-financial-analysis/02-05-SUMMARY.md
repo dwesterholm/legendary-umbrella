@@ -96,16 +96,14 @@ completed: 2026-06-14
 
 Otherwise the plan was executed as written.
 
-## Pending Checkpoint (Task 3 — blocking human-verify)
+## Browser Verification — deferred to phase-end UAT (Task 3)
 
-This is the reason the plan is not yet marked fully complete. Build/type/unit gates pass without exercising the real flow, so a human must confirm the UX in a browser:
+Code, type, and unit gates all pass; the remaining check is a browser walkthrough. This is **deferred to phase-end UAT** rather than run in isolation, because Plan 06 modifies the same `brf-section.tsx` to swap the minimal result view for the full `<BrfScoreCard>` — verifying the intermediate UI now and again after Plan 06 would be redundant. The orchestrator will record these as `human_verification` items to run via `/gsd-verify-work` once the complete BRF flow (upload → progress → score card → methodology page) is in place:
 
 1. **Logged out:** open an analysis page → BRF section shows the "Logga in for BRF-analys" teaser, no upload control (D-05); the other three "Kommer snart" sections unchanged.
 2. **Logged in:** a PDF dropzone appears. A non-PDF and a >20 MB file are both rejected client-side with a Swedish error (D-14).
 3. **Upload a real arsredovisning:** step progress cycles Laser → Extraherar → Beraknar (D-13). Reload mid-run → resumes at the current step (server-persisted status).
-4. **On completion:** the minimal "Analys klar" + grade confirmation appears (full score card is Plan 06).
-
-Resume signal: type "approved" once the gate, validation, and live progress all behave, or report what broke.
+4. **On completion:** the result view appears (full score card after Plan 06).
 
 ## Known Stubs
 
