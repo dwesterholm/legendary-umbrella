@@ -14,7 +14,7 @@ Bostad AI delivers an AI-powered property analysis tool for the Swedish market i
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation + Core Pipeline** - App shell, Booli scraping, and listing data display (completed 2026-06-06)
-- [ ] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring
+- [x] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring (completed 2026-06-14)
 - [ ] **Phase 3: Market Context** - Comparable sold prices and area demographics
 - [ ] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export
 
@@ -71,7 +71,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-06-PLAN.md — Score card (D-07/D-10/D-11/D-12) + public "Så räknar vi" methodology page (D-09)
+- [x] 02-06-PLAN.md — Score card (D-07/D-10/D-11/D-12) + public "Så räknar vi" methodology page (D-09)
 
 ### Phase 3: Market Context
 
@@ -118,7 +118,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
-| 2. BRF Financial Analysis | 5/6 | In Progress|  |
+| 2. BRF Financial Analysis | 6/6 | Complete   | 2026-06-14 |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
 
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 **Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
 **Requirements:** TBD
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 

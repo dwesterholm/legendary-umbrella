@@ -5,14 +5,14 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-06-14T12:47:20.173Z"
-last_activity: 2026-06-07
+last_updated: "2026-06-14T12:54:18.974Z"
+last_activity: 2026-06-14
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 14
+  completed_plans: 9
+  percent: 29
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 02 (brf-financial-analysis) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 **Phase:** 1 of 4 (Foundation + Core Pipeline) -- COMPLETE
 **Current Plan:** 1
 **Status:** Ready to execute
-**Last activity:** 2026-06-07
+**Last activity:** 2026-06-14
 
 Progress: [██████████] 100% of Phase 1 (3/3 plans)
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100% of Phase 1 (3/3 plans)
 | Phase 02 P01 | 6min | 3 tasks | 11 files |
 | Phase 02 P03 | ~5min | 3 tasks | 4 files |
 | Phase 02 P04 | 12min | 2 tasks | 8 files |
+| Phase 02-brf-financial-analysis P06 | 12min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Plan 02-04: single client.beta.messages.parse for base64 + Files API transports; model pinned to claude-haiku-4-5-20251001; cost-cap refuses to persist over 5 SEK
 - [Phase ?]: Plan 05: polling (not Realtime) for D-13 progress, ~1.5s interval cleared on terminal status
 - [Phase ?]: Plan 05: isGuest resolved server-side; UI teaser is defence-in-depth behind analyzeBrf hard gate (D-05)
+- [Phase ?]: Public /sa-raknar-vi placed outside the auth-gated (app) route group so it renders for logged-out visitors (D-09)
+- [Phase ?]: BrfScoreCard inline edit re-scores via correctBrfField only — never re-calls Claude (D-12)
 
 ### Pending Todos
 
@@ -103,7 +106,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-14T12:47:11.515Z
+Last session: 2026-06-14T12:54:01.262Z
 Stopped at: Phase 2 context gathered
 Resume file: .planning/phases/02-brf-financial-analysis/02-CONTEXT.md
 Next step: /gsd-plan-phase 2 (or /gsd-discuss-phase 2 first)
