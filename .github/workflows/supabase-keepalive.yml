@@ -1,0 +1,52 @@
+name: Supabase keepalive
+
+# Free-tier Supabase projects auto-pause after 7 days of database inactivity.
+# This job issues a trivial query every 3 days to reset that inactivity timer,
+# keeping the project awake. It does NOT un-pause an already-paused project —
+# that requires a manual "Restore project" in the Supabase dashboard.
+#
+# Temporary measure for the dev phase. Remove (or rely on production traffic)
+# once the app is live, or upgrade to Supabase Pro to drop auto-pause entirely.
+#
+# Setup: add one repository secret (Settings → Secrets and variables → Actions):
+#   SUPABASE_ANON_KEY = the publishable/anon key
+#     (value is NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY from .env.local — client-safe,
+#      RLS-protected; kept as a secret only to avoid push-protection on commits).
+# The project URL below is the public NEXT_PUBLIC_SUPABASE_URL — safe to inline.
+
+on:
+  schedule:
+    # Every 3 days at 06:00 UTC — well inside the 7-day pause window even if a
+    # run is delayed (GitHub cron is best-effort, not guaranteed to the minute).
+    - cron: "0 6 */3 * *"
+  workflow_dispatch: {} # allow manual runs from the Actions tab to test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST to reset the inactivity timer
+        env:
+          SUPABASE_URL: "https://nsheegvczxjeeayngqrv.supabase.co"
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_ANON_KEY secret is not set — add it under repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # A select against the analyses table under the anon role goes through
+          # PostgREST → Postgres (real DB activity). RLS returns an empty array,
+          # but the query still executed, which is what resets the pause timer.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "${SUPABASE_URL}/rest/v1/analyses?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          echo "Supabase REST responded with HTTP ${code}"
+          # 200 (rows or RLS-empty) and 206 (partial) both mean the DB was queried.
+          case "$code" in
+            200 | 206) echo "Keepalive ping OK — inactivity timer reset." ;;
+            *)
+              echo "::error::Keepalive ping failed (HTTP ${code}). Project may be paused or the key/URL is wrong."
+              exit 1
+              ;;
+          esac
