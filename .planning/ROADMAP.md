@@ -14,7 +14,7 @@ Bostad AI delivers an AI-powered property analysis tool for the Swedish market i
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation + Core Pipeline** - App shell, Booli scraping, and listing data display (completed 2026-06-06)
-- [x] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring (completed 2026-06-14)
+- [ ] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring (code complete; awaiting human UAT — see 02-UAT.md)
 - [ ] **Phase 3: Market Context** - Comparable sold prices and area demographics
 - [ ] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export
 
@@ -118,7 +118,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
-| 2. BRF Financial Analysis | 6/6 | Complete   | 2026-06-14 |
+| 2. BRF Financial Analysis | 6/6 | Testing (UAT) | - |
 | 3. Market Context | 0/0 | Not started | - |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
 
