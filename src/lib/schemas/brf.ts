@@ -93,6 +93,82 @@ export interface NormalizedBrf {
 }
 
 /**
+ * The persisted `brf_data` JSONB shape — validated on READ as well as write.
+ *
+ * `brf_data` is a JSONB column the user's own RLS session can read, but its
+ * integrity is never re-asserted by the DB. A stale row, schema drift, a
+ * partially-written record, or a hand-edited row can therefore present a shape
+ * that bypasses every Zod gate the write path enforces (CR-01). This schema is
+ * the read-path gate: parse failure → treat the payload as "no analysis yet"
+ * rather than dereferencing `undefined` and white-screening the score card.
+ *
+ * The grade/breakdown/confidence shapes are validated loosely (they are
+ * produced by our own deterministic code, not by Claude) — the goal is to
+ * guarantee the fields the UI dereferences exist and are the right kind, not to
+ * re-derive the scoring contract.
+ */
+const metricRatingSchema = z.enum([
+  "strong",
+  "good",
+  "mid",
+  "weak",
+  "not_assessable",
+]);
+
+const metricBreakdownSchema = z.object({
+  key: z.enum([
+    "skuldPerKvm",
+    "avgiftsniva",
+    "kassaflode",
+    "underhallsplanStatus",
+  ]),
+  value: z.union([
+    z.number(),
+    z.enum(["finns_aktuell", "finns_inaktuell", "saknas", "oklart"]),
+    z.null(),
+  ]),
+  rating: metricRatingSchema,
+  weight: z.number(),
+  contribution: z.number(),
+});
+
+export const brfDataSchema = z.object({
+  extraction: brfExtractionSchema,
+  normalized: z.object({
+    skuldPerKvm: z.number().nullable(),
+    avgiftsniva: z.number().nullable(),
+    kassaflode: z.number().nullable(),
+    underhallsplanStatus: z
+      .enum(["finns_aktuell", "finns_inaktuell", "saknas", "oklart"])
+      .nullable(),
+  }),
+  grade: z.object({
+    grade: z.enum(["A", "B", "C", "D", "E", "F"]),
+    breakdown: z.array(metricBreakdownSchema),
+  }),
+  perFieldConfidence: z.record(z.string(), z.number()),
+  citations: z.array(
+    z.object({
+      sourceQuote: z.string().nullable(),
+      pageRef: z.number().nullable(),
+    }),
+  ),
+  manualFields: z.array(z.string()).optional(),
+});
+
+/**
+ * Defensive read-path guard for persisted `brf_data` (CR-01). Returns the
+ * validated payload on success, or `null` when the stored JSON is missing,
+ * malformed, or shape-drifted — callers treat `null` as "not analysed yet" and
+ * degrade gracefully (re-analyse affordance) instead of crashing.
+ */
+export function safeParseBrfData(input: unknown): z.infer<typeof brfDataSchema> | null {
+  if (!input || typeof input !== "object") return null;
+  const parsed = brfDataSchema.safeParse(input);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
  * Flattens a parsed extraction into the primitive shape `computeBrfGrade`
  * consumes. Null-tolerant, mirroring `normalizeScraperOutput`: every field
  * falls back to `null` rather than throwing.

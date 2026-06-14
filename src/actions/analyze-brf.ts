@@ -7,6 +7,7 @@ import { extractBrfFinancials, type FieldCitation } from "@/lib/brf/extract";
 import {
   brfExtractionSchema,
   normalizeBrfExtraction,
+  safeParseBrfData,
   type BrfExtraction,
   type NormalizedBrf,
 } from "@/lib/schemas/brf";
@@ -150,12 +151,14 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
 
   // D-06 replace-identical cache: same content hash + an existing extraction →
   // skip the Claude call entirely and return the stored result (no re-bill).
-  if (
-    row.brf_pdf_hash === contentHash &&
-    row.brf_data &&
-    typeof row.brf_data === "object"
-  ) {
-    return { ok: true, data: row.brf_data as BrfData, cached: true };
+  // CR-01: re-validate the persisted JSONB before reusing it — a malformed or
+  // shape-drifted row must NOT be returned as an authoritative result; fall
+  // through to a fresh extraction instead.
+  if (row.brf_pdf_hash === contentHash) {
+    const cached = safeParseBrfData(row.brf_data);
+    if (cached) {
+      return { ok: true, data: cached, cached: true };
+    }
   }
 
   // Store the PDF privately (upsert = D-06 replace). Path is {userId}/{analysisId}.pdf.
@@ -300,11 +303,14 @@ export async function correctBrfField(
   if (rowError || !row || row.user_id !== user.id) {
     return { ok: false, error: "Analysen hittades inte." };
   }
-  if (!row.brf_data || typeof row.brf_data !== "object") {
+  // CR-01: re-validate the persisted JSONB before correcting/re-scoring it. A
+  // malformed or shape-drifted row would crash the spread/dereference below;
+  // treat it as "nothing to correct" rather than throwing.
+  const current = safeParseBrfData(row.brf_data);
+  if (!current) {
     return { ok: false, error: "Ingen analys att korrigera." };
   }
 
-  const current = row.brf_data as BrfData;
   const extraction: BrfExtraction = {
     ...current.extraction,
   };

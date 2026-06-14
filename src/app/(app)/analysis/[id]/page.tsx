@@ -5,7 +5,7 @@ import { ComingSoonSection } from "@/components/coming-soon-section";
 import { BrfSection } from "@/components/brf-section";
 import { UrlInput } from "@/components/url-input";
 import type { ListingData } from "@/lib/schemas/listing";
-import type { BrfData } from "@/actions/analyze-brf";
+import { safeParseBrfData } from "@/lib/schemas/brf";
 
 interface AnalysisPageProps {
   params: Promise<{ id: string }>;
@@ -33,7 +33,10 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
 
   const listingData = analysis.listing_data as unknown as ListingData;
   const isPartial = analysis.partial ?? false;
-  const brfData = (analysis.brf_data as unknown as BrfData | null) ?? null;
+  // CR-01: re-validate the persisted JSONB against the Zod schema before it is
+  // handed to the UI. A malformed/partial/shape-drifted row degrades to
+  // "no analysis yet" (the upload affordance) rather than crashing the score card.
+  const brfData = safeParseBrfData(analysis.brf_data);
 
   return (
     <div className="flex flex-col items-center gap-8">

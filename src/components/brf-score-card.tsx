@@ -229,7 +229,11 @@ export function BrfScoreCard({
           const isUncertain = confidence < OSAKER_THRESHOLD;
           const isManual = manualFields.includes(metric.key);
           const rating = ratingBadge(metric.rating);
+          // CR-01 defence-in-depth: a malformed/partial payload may be missing
+          // this metric's extraction entry; skip the row rather than crashing
+          // on `ext.sourceQuote` below.
           const ext = data.extraction[metric.key];
+          if (!ext) return null;
           const isEditing = editingKey === metric.key;
 
           return (
