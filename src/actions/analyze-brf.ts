@@ -11,7 +11,7 @@ import {
   type BrfExtraction,
   type NormalizedBrf,
 } from "@/lib/schemas/brf";
-import { applySanityChecks } from "@/lib/brf/sanity";
+import { applySanityChecks, applyManualConfidence } from "@/lib/brf/sanity";
 import { computeBrfGrade, type BrfScoreResult } from "@/lib/brf/score";
 import { costSek } from "@/lib/brf/cost";
 
@@ -68,8 +68,19 @@ function hashBytes(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-/** Runs the deterministic pipeline: sanity → grade → per-field confidence map. */
-function scoreExtraction(extraction: BrfExtraction): {
+/**
+ * Runs the deterministic pipeline: sanity → grade → per-field confidence map.
+ *
+ * `manualFields` (D-12): fields the user explicitly entered are authoritative —
+ * the GRADE is still re-scored deterministically from the value, but the
+ * stored `perFieldConfidence` for a manual field is NOT subject to the sanity
+ * downgrade. A user who deliberately enters an out-of-band figure should not
+ * have their own input flagged "Osäker" (WR-02 — manual = authoritative).
+ */
+function scoreExtraction(
+  extraction: BrfExtraction,
+  manualFields: readonly string[] = [],
+): {
   normalized: NormalizedBrf;
   grade: BrfScoreResult;
   perFieldConfidence: Record<string, number>;
@@ -86,12 +97,17 @@ function scoreExtraction(extraction: BrfExtraction): {
     },
   });
 
-  const perFieldConfidence: Record<string, number> = {
+  const sanityConfidence: Record<string, number> = {
     skuldPerKvm: sanitized.skuldPerKvm?.confidence ?? extraction.skuldPerKvm.confidence,
     avgiftsniva: sanitized.avgiftsniva?.confidence ?? extraction.avgiftsniva.confidence,
     kassaflode: extraction.kassaflode.confidence,
     underhallsplanStatus: extraction.underhallsplanStatus.confidence,
   };
+
+  // WR-02: a manually-corrected field is human-sourced and authoritative — its
+  // confidence wins over any sanity band downgrade. The value still flows
+  // through normalize/computeBrfGrade unchanged, so the GRADE stays deterministic.
+  const perFieldConfidence = applyManualConfidence(sanityConfidence, manualFields);
 
   const normalized = normalizeBrfExtraction(extraction);
   const grade = computeBrfGrade(normalized);
@@ -332,7 +348,14 @@ export async function correctBrfField(
       pageRef: null,
     };
   } else {
-    const num = Number(rawValue);
+    // WR-01: reject empty/whitespace-only input. Number("") and Number("  ")
+    // are both 0 (finite), so without this guard clearing the editor would
+    // silently persist a meaningless 0 marked "Manuellt angiven".
+    const raw = typeof rawValue === "string" ? rawValue.trim() : "";
+    if (raw === "") {
+      return { ok: false, error: "Ogiltigt numeriskt värde." };
+    }
+    const num = Number(raw);
     if (!Number.isFinite(num)) {
       return { ok: false, error: "Ogiltigt numeriskt värde." };
     }
@@ -344,11 +367,16 @@ export async function correctBrfField(
     };
   }
 
-  // Re-run ONLY the deterministic pipeline — NO extractBrfFinancials call.
-  const { normalized, grade, perFieldConfidence } = scoreExtraction(extraction);
-
   const manualFields = Array.from(
     new Set([...(current.manualFields ?? []), field]),
+  );
+
+  // Re-run ONLY the deterministic pipeline — NO extractBrfFinancials call.
+  // Pass manualFields so the corrected field's confidence stays authoritative
+  // (WR-02) even when its value is outside the sanity band.
+  const { normalized, grade, perFieldConfidence } = scoreExtraction(
+    extraction,
+    manualFields,
   );
 
   const brfData: BrfData = {

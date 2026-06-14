@@ -72,3 +72,32 @@ export function applySanityChecks<T extends SanityInput>(input: T): T {
 
   return result as T;
 }
+
+/** Confidence assigned to a human-entered value — authoritative (WR-02). */
+export const MANUAL_CONFIDENCE = 1;
+
+/**
+ * Forces every manually-corrected field's confidence to authoritative (D-12 /
+ * WR-02), overriding any sanity-band downgrade. A user who deliberately enters
+ * an out-of-band figure ("manual = authoritative") must not have their own
+ * input flagged "Osäker" purely because it sits outside the plausible band.
+ *
+ * The GRADE is still re-scored deterministically from the value elsewhere;
+ * this only governs the stored per-field confidence. Pure function, no Claude.
+ *
+ * @param perFieldConfidence - the post-sanity confidence map (mutated copy returned)
+ * @param manualFields - keys the user explicitly corrected
+ * @returns a new map with manual fields pinned to `MANUAL_CONFIDENCE`
+ */
+export function applyManualConfidence(
+  perFieldConfidence: Record<string, number>,
+  manualFields: readonly string[],
+): Record<string, number> {
+  const result = { ...perFieldConfidence };
+  for (const field of manualFields) {
+    if (field in result) {
+      result[field] = MANUAL_CONFIDENCE;
+    }
+  }
+  return result;
+}

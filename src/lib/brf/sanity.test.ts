@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 // RED: implemented in Plan 03 (src/lib/brf/sanity.ts).
-import { applySanityChecks, BRF_SANITY_BANDS } from "@/lib/brf/sanity";
+import {
+  applySanityChecks,
+  applyManualConfidence,
+  MANUAL_CONFIDENCE,
+  BRF_SANITY_BANDS,
+} from "@/lib/brf/sanity";
 
 // applySanityChecks takes a per-field extraction (value + model confidence) and
 // downgrades confidence when a value falls outside its plausible band (D-10).
@@ -50,6 +55,39 @@ describe("applySanityChecks — value is never dropped (D-12 keeps it editable)"
     });
     // The number the user can verify/correct must survive untouched.
     expect(result.skuldPerKvm.value).toBe(50000);
+  });
+});
+
+describe("applyManualConfidence — manual edits stay authoritative (WR-02, D-12)", () => {
+  it("keeps a manually-corrected field at full confidence even when the sanity band downgraded it", () => {
+    // A user deliberately enters skuldPerKvm = 18000 (above the 15000 band).
+    // applySanityChecks would force it to the downgraded confidence...
+    const sanitized = applySanityChecks({
+      skuldPerKvm: { value: 18000, confidence: 1 },
+    });
+    expect(sanitized.skuldPerKvm.confidence).toBeLessThan(OSAKER_THRESHOLD);
+
+    // ...but because the user typed it, manual confidence must win.
+    const perField = applyManualConfidence(
+      { skuldPerKvm: sanitized.skuldPerKvm.confidence },
+      ["skuldPerKvm"],
+    );
+    expect(perField.skuldPerKvm).toBe(MANUAL_CONFIDENCE);
+    expect(perField.skuldPerKvm).toBeGreaterThanOrEqual(OSAKER_THRESHOLD);
+  });
+
+  it("leaves non-manual fields' confidence untouched", () => {
+    const perField = applyManualConfidence(
+      { skuldPerKvm: 0.2, avgiftsniva: 0.9 },
+      ["skuldPerKvm"],
+    );
+    expect(perField.skuldPerKvm).toBe(MANUAL_CONFIDENCE);
+    expect(perField.avgiftsniva).toBe(0.9);
+  });
+
+  it("ignores manual field keys that are not present in the map", () => {
+    const perField = applyManualConfidence({ kassaflode: 0.7 }, ["skuldPerKvm"]);
+    expect(perField).toEqual({ kassaflode: 0.7 });
   });
 });
 
