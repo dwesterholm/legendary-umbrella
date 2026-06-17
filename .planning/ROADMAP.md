@@ -84,12 +84,27 @@ Plans:
   2. User sees SCB-sourced neighborhood demographics (income levels, population trends) for the listing's location
   3. When comparable sales data or SCB data is unavailable, the report still loads with the available sections
 
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
 
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Wave 0: sold-source feasibility spike (gates PRICE-01) + RED deterministic-core tests + retain lat/lng in listing schema
+- [ ] 03-02-PLAN.md — Migration: price_data/area_data jsonb + market_status/source/cost columns under existing RLS, human-gated schema push
+
+**Wave 2** *(blocked on Wave 1 / spike decision)*
+
+- [ ] 03-03-PLAN.md — AREA-01 core: resolveGeo (turf point-in-polygon + DeSO/kommun) + SCB PxWebApi fetch/cache + json-stat2 normalize (GREEN)
+- [ ] 03-04-PLAN.md — PRICE-01 core: source-isolated sold fetch + null-tolerant normalize + deterministic computePriceComparison + cost guard (GREEN)
+
+**Wave 3** *(blocked on Waves 1-2)*
+
+- [ ] 03-05-PLAN.md — Server action enrichMarketContext: auth/ownership → fetch both sources → deterministic compute → independent persist of price_data/area_data
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 03-06-PLAN.md — UI: price-comparison + SCB area-stats cards (D-09 trust display) wired into the analysis page, independent partial-data degrade
 
 ### Phase 4: AI Report + Delivery
 
