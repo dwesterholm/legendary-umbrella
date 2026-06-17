@@ -305,7 +305,9 @@ await fetch(
 | A5 | Turf.js point-in-polygon is accurate enough for DeSO assignment | Geometry | LOW — standard use; edge cases only at polygon borders (rare, and kommun baseline covers it) |
 | A6 | Sold-price source exposes enough per-sale attrs (date, pris/kvm at minimum) for the comp list "receipt" (D-05) | PRICE-01 | MEDIUM — date + price + area is the minimum; floor/balcony/avgift are bonus per D-03. Confirm in spike. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three are operationally resolved in the Phase 3 plans: Q1 → Wave-0 spike in 03-01 T1 gates PRICE-01 display (Plan 04 `depends_on: 03-01`); Q2 → D-03 pris/kvm-first matching with rich attrs optional (Plan 04); Q3 → no backfill, degrade old rows to kommun-baseline (Plan 05 T1).
 
 1. **Which sold-price source wins?**
    - Known: existing actor cannot do it (verified). Official Booli API and a sold-prices actor are the two candidates.
