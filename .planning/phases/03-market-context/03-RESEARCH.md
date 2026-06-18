@@ -12,7 +12,7 @@ This phase replaces two "Kommer snart" placeholders with real data panels: a com
 
 **Finding 2 (D-10-RD — SCB + geocoding):** The SCB PxWebApi 2.0 (live as of Oct 2025) is **free, CC0, no auth, no API key**. Verified live: `maxDataCells: 150000`, `30 calls / 10 s` per IP, formats `json-stat2`/`csv`/`px`/`xlsx`. All four required metrics exist at **DeSO level** with confirmed table IDs (population-by-age, income, housing tenure). Because the actor already gives us lat/lng, geocoding collapses to a **point-in-polygon lookup against SCB's free DeSO GeoPackage** (lat/lng → DeSO code → kommun code is the DeSO prefix). Kommun baseline is trivially derivable; DeSO upgrade (D-06) is feasible and free.
 
-**Primary recommendation:** For AREA-01, build the SCB integration now — it is fully de-risked (free, tested, all tables exist). For PRICE-01, the sold-price source is the one real unknown: **plan a Wave-0 feasibility spike** to pick between (a) the **official Booli API** (`booli.se/api/`, requires a free caller-ID + key applied for by email) which historically exposes slutpriser, and (b) a **dedicated sold-prices scraper actor**. Do not assume either works until the spike confirms it. Capture `latitude`, `longitude`, `booliId`, and `breadcrumbs` at scrape time regardless — they are the join key for both panels.
+**Primary recommendation:** For AREA-01, build the SCB integration now — it is fully de-risked (free, tested, all tables exist). For PRICE-01, the sold-price source is the one real unknown: **plan a Wave-0 feasibility spike**. **NOTE (corrected 2026-06-18):** the official Booli API is NO LONGER a candidate — it became "Booli Pro", gated to banks/brokers/statisticians (confirmed by the developer). The viable primary path is the **keyless `searchSold` GraphQL query** at `https://www.booli.se/graphql` (proven by open-source tools `pschoffer/huset-priser` and `truedarkdev/booli-mcp-cc` — returns `soldPrice`/`soldSqmPrice`/`soldDate` by `areaId`, no API key, browser-like headers when Cloudflare-challenged). The spike must confirm it works **from our server runtime** (datacenter IP may be Cloudflare-challenged) and, if blocked, **routed through the Apify SE residential proxy** we already use; a **paid sold-prices actor** is the last fallback. A from-scratch HTML scraper is NOT needed. Capture `latitude`, `longitude`, `booliId`, and `breadcrumbs` at scrape time regardless — they are the join key for both panels.
 
 ## Architectural Responsibility Map
 
@@ -47,8 +47,8 @@ This phase replaces two "Kommer snart" placeholders with real data panels: a com
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| `lexis-solutions/booli-se-scraper` for sold | Official Booli API (`booli.se/api/`) | Legitimate, structured, historically exposes slutpriser — but requires a free key applied for by email + ToU acceptance; status uncertain `[ASSUMED]` |
-| Official Booli API | A dedicated "Booli sold prices" Apify actor | No application step, but another paid actor rental (+$/month) and same scraping-grey-zone posture as today |
+| `lexis-solutions/booli-se-scraper` for sold | Keyless `searchSold` GraphQL (`www.booli.se/graphql`) | Structured JSON, free, no key, returns soldPrice/soldSqmPrice/soldDate by areaId (proven by huset-priser/booli-mcp-cc). Risk: Cloudflare may challenge our datacenter IP → route via Apify residential proxy. ToS grey-zone (private API). |
+| ~~Official Booli API~~ (DEAD — now "Booli Pro", institution-only) | A dedicated "Booli sold prices" Apify actor | Last fallback: another paid actor rental (+$/month), same scraping-grey-zone posture; only if both direct GraphQL and the Apify-proxied GraphQL fail |
 | Geocoding service (Geoapify/maps.co) | Use actor's `latitude`/`longitude` directly | **No external geocoder needed** — actor already returns coords; only DeSO polygon lookup remains |
 | Runtime `.gpkg` reader | Build-time gpkg→GeoJSON conversion | GeoJSON is simpler, no native dep, slightly larger repo file |
 
@@ -192,7 +192,7 @@ export function computePriceComparison(input: {
 | Address → coordinates | A geocoder / address parser | Actor's `latitude`/`longitude` (already returned) | Free, exact, no extra API |
 | lat/lng → DeSO area | Manual bounding-box math | `@turf/boolean-point-in-polygon` + SCB DeSO GeoPackage | Polygons are irregular; turf is battle-tested |
 | Parsing SCB output | Custom px/CSV parser | Request `json-stat2` (or `csv`) from PxWebApi | SCB serves structured formats natively |
-| Sold-price acquisition | A from-scratch Booli scraper | Official Booli API or an existing/maintained actor | ToS posture, anti-bot, maintenance burden |
+| Sold-price acquisition | A from-scratch HTML scraper (Playwright + anti-bot) | Keyless `searchSold` GraphQL (direct, or via the Apify residential proxy) | Avoids HTML parsing/Playwright entirely — just POST a known GraphQL query, parse JSON; only the Cloudflare-IP question remains |
 | Trend/regression | A stats library import | A few lines of pure TS (least-squares slope over ≤dozens of points) | Sample is tiny; a dependency is overkill |
 
 **Key insight:** The two hardest-looking sub-problems (geocoding, demographics access) are nearly free here — the actor already hands us coordinates, and SCB is an open no-auth API. The genuine risk concentrates entirely in *sold-price acquisition*, which is why it gets a feasibility spike and everything else can be built straight.
@@ -298,8 +298,9 @@ await fetch(
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | The **official Booli API** (`booli.se/api/`, caller-ID+key by application) still exists and exposes slutpriser with sale date/price/area | Standard Stack / Alternatives | HIGH — it's the cleanest sold-price path; if dead or key not granted, must fall to a paid sold-prices actor. **De-risk in Wave-0 spike.** |
-| A2 | A dedicated "Booli sold-prices" Apify actor exists and works as a fallback | Alternatives | MEDIUM — fallback for A1; cost (+monthly rental) and ToS posture to confirm in spike |
+| A1 | ~~official Booli API exposes slutpriser~~ — **FALSIFIED (2026-06-18):** the official API is now "Booli Pro", gated to banks/brokers/statisticians; not available to this project. Superseded by A1b. | Standard Stack / Alternatives | RESOLVED — official API is OUT. |
+| A1b | The keyless **`searchSold` GraphQL** (`www.booli.se/graphql`) returns slutpriser (soldPrice/soldSqmPrice/soldDate) by areaId without an API key | Standard Stack / Alternatives | HIGH on data shape (proven by huset-priser/booli-mcp-cc); MEDIUM on whether our SERVER IP is Cloudflare-challenged. **De-risk transport in Wave-0 spike; Apify residential proxy is the mitigation.** |
+| A2 | A dedicated "Booli sold-prices" Apify actor exists as a last fallback (after direct + Apify-proxied GraphQL) | Alternatives | MEDIUM — cost (+monthly rental) and ToS posture to confirm only if GraphQL paths fail |
 | A3 | SCB DeSO income table `HE0110I/Tab*InkDesoRegso` and tenure `HE0111YDeSo/HushallT33Deso` are queryable at DeSO for a recent year | SCB tables | MEDIUM — table *existence* confirmed via SCB docs; exact DeSO availability/year per table needs a live query during build (population table fully verified live) |
 | A4 | SCB ships a free DeSO GeoPackage suitable for build-time GeoJSON conversion | Geometry | LOW — confirmed via SCB open-geodata + a community repo; format details to confirm at conversion time |
 | A5 | Turf.js point-in-polygon is accurate enough for DeSO assignment | Geometry | LOW — standard use; edge cases only at polygon borders (rare, and kommun baseline covers it) |
@@ -309,10 +310,10 @@ await fetch(
 
 > All three are operationally resolved in the Phase 3 plans: Q1 → Wave-0 spike in 03-01 T1 gates PRICE-01 display (Plan 04 `depends_on: 03-01`); Q2 → D-03 pris/kvm-first matching with rich attrs optional (Plan 04); Q3 → no backfill, degrade old rows to kommun-baseline (Plan 05 T1).
 
-1. **Which sold-price source wins?**
-   - Known: existing actor cannot do it (verified). Official Booli API and a sold-prices actor are the two candidates.
-   - Unclear: Booli API key-grant status/turnaround; exact slutpris fields; per-query cost of the actor option.
-   - Recommendation: **Wave-0 feasibility spike** — attempt Booli API key registration AND test one sold-prices actor run; pick based on what returns real slutpriser within budget. Gate planning of PRICE-01 display on the spike result.
+1. **Which sold-price source wins?** (updated 2026-06-18 — official API removed)
+   - Known: existing actor cannot do it (verified). Official Booli API is DEAD (now "Booli Pro", institution-only). The keyless `searchSold` GraphQL endpoint returns the data (proven by open-source tools).
+   - Unclear: whether Cloudflare challenges our SERVER/datacenter IP on the direct GraphQL call; reliable `areaId` resolution + tiering; per-query cost if the Apify proxy/actor transport is needed.
+   - Recommendation: **Wave-0 feasibility spike** — test `searchSold` GraphQL from a server context first, fall back to the same call via the Apify SE residential proxy, then a paid actor. Pick the first that returns real slutpriser within budget. Gate PRICE-01 display planning on the spike result.
 
 2. **Per-sale attribute richness (D-03 floor/balcony/avgift)?**
    - Known: pris/kvm + date + area is the floor; the actor's active items expose `infoPoints` (floor) and `amenities` (balcony/elevator) — a sold source *may* too.
@@ -331,11 +332,11 @@ await fetch(
 | SCB PxWebApi 2.0 | AREA-01 | ✓ (verified live, no auth) | apiVersion 2.2.0 | v1 doris SSD paths also live |
 | SCB DeSO GeoPackage | DeSO upgrade only | ✓ (free download per SCB open-geodata) `[ASSUMED format]` | — | kommun-baseline needs no geometry |
 | `ogr2ogr` / GDAL (build-time gpkg→GeoJSON) | one-time conversion | ✗ (not checked on dev machine) | — | Use SCB's GeoJSON export if offered, or convert via an online tool once |
-| Official Booli API | sold spike (path A) | ? unknown (application required) | — | sold-prices Apify actor (path B) |
+| `searchSold` GraphQL (`www.booli.se/graphql`) | sold spike (primary, keyless) | ? Cloudflare-from-server-IP unverified (data shape proven by OSS) | — | via Apify residential proxy → paid sold-prices actor |
 | `@turf/*` | DeSO point-in-polygon | ✗ (not installed) | — | install after human-verify (audit) |
 
 **Missing dependencies with no fallback:** none that block the phase — AREA-01 is fully unblocked; PRICE-01's only blocker (sold source) has two candidate paths.
-**Missing dependencies with fallback:** sold source (Booli API → sold actor); GDAL (→ SCB GeoJSON export or one-time online conversion); turf (→ kommun baseline without DeSO upgrade).
+**Missing dependencies with fallback:** sold source (direct `searchSold` GraphQL → same call via Apify residential proxy → paid sold actor); GDAL (→ SCB GeoJSON export or one-time online conversion); turf (→ kommun baseline without DeSO upgrade).
 
 ## Validation Architecture
 
@@ -413,8 +414,8 @@ await fetch(
 - SCB PxWebApi page (`scb.se/en/services/open-data-api/pxwebapi/`) → v2.0 launched Oct 2025.
 
 ### Tertiary (LOW confidence — flagged for spike)
-- Official Booli API existence/slutpris support (`booli.se/api/`, caller-ID+key) — multiple community wrappers reference it; current status unverified.
-- `github.com/olif/bopriskartan`, `github.com/filipsalo/booliapi` — Booli API returns sold data historically (auth required).
+- **`searchSold` GraphQL recipe** — `github.com/pschoffer/huset-priser` (lib.js: `POST www.booli.se/graphql`, `query SearchSold($page,$areaId,$objectType)`, fields `soldPrice.raw`/`soldSqmPrice.raw`/`soldDate`, axios + `Content-Type` only) and `github.com/truedarkdev/booli-mcp-cc` (`src/client/graphql.ts`: keyless, browser-like headers `User-Agent`/`Origin`/`Referer`/`Sec-Ch-Ua`, `searchForSale`/`searchLocations`/`getPropertyDetails`). Confirms the data + transport; the unverified part is Cloudflare behavior from our server IP.
+- Official Booli API: DEAD for indie use — now "Booli Pro", gated to banks/brokers/statisticians (per developer). Old wrappers (`filipsalo/booliapi`, `rinti/booli-api`) target the retired public API; ignore.
 - SCB DeSO GeoPackage availability (community repo `adamstj/scb-api-examples`).
 
 ## Metadata
