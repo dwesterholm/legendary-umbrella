@@ -16,6 +16,8 @@
     "@hookform/resolvers": "^5.2.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
+    "@turf/boolean-point-in-polygon": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
     "apify-client": "^2.22.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
