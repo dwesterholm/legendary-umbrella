@@ -211,3 +211,23 @@ Plans:
 Plans:
 
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.6: Own the Booli acquisition layer — replace the paid Apify actor (BACKLOG)
+
+**Goal:** [Captured for future planning] Replace the paid Apify Booli actor (`bpf1JaYRBbia2nQU9`, ~$29/mo) for active-listing extraction with our own fetch against Booli's keyless GraphQL (`www.booli.se/graphql`), reusing the same fallback tree as the Phase 3 sold-price source: **direct from server → same call via the Apify SE residential proxy (existing `APIFY_API_TOKEN`) → paid actor as last resort**. Unifies active + sold acquisition behind ONE owned `booli-graphql` client + one fallback tree, so we control the data shape, can add metadata / richer fields over time, and stop depending on a third-party actor's maintenance.
+
+**Brief spike already done (2026-06-20) — see `.planning/spikes/booli-own-acquisition-SPIKE.md`:**
+- **Field parity confirmed (HIGH):** a real `searchForSale` GraphQL response carries the exact field names we normalize today (`streetAddress`, `price`/`listPrice`/`listSqmPrice`/`estimate` in the same `{raw,value,formatted,unit}` shape, `livingArea`, `rooms`, `objectType`, `tenureForm`, `latitude`/`longitude`/`booliId`). The actor appears to be a thin wrapper over this GraphQL — moving loses no fields.
+- **Transport identical to the Phase 3 sold-source spike (HIGH):** same Cloudflare posture, same direct→Apify-proxy fallback — Phase 3's transport evidence carries straight over.
+- **The one real unknown (MEDIUM):** single-listing-by-URL retrieval. Our flow is paste one URL → that listing; the MCP reference says direct lookup-by-id is "not supported" by the queries they tried. The thorough investigation must confirm the path: (1) a detail GraphQL query the site uses on `/bostad/{id}`, (2) the detail page's embedded `__NEXT_DATA__`/Apollo state (fetch HTML via proxy, extract JSON — not DOM scraping), or (3) `searchForSale` + filter + match on `booliId`.
+
+**FIRST STEP — thorough feasibility spike (gates the migration).** Pin down the single-listing-by-URL retrieval path from our actual server runtime, confirm full field coverage incl. the gaps the actor also lacks (brfName/floor — overlaps 999.2), measure reliability/rate-limit, and decide whether to drop the actor subscription or keep it only as the last-resort fallback. Best sequenced AFTER the Phase 3 sold-source spike has proven the GraphQL+proxy transport.
+
+**Cost note:** likely keep Apify for the residential proxy even after dropping the actor — saving is partial; the real win is ownership + control.
+**Related:** companion to 999.2 (deeper listing extraction — recovers fields like floor/balcony/brfName, possibly via broker pages); shares the transport layer with Phase 3 PRICE-01.
+**Requirements:** TBD (relates to LSTG-01 acquisition; infra/ownership)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (promote with /gsd-review-backlog when ready)
