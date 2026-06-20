@@ -20,11 +20,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Price Comparison
 
-- [ ] **PRICE-01**: System compares listing price vs recently sold properties in same area/building (pris/kvm vs area average, trend direction, sample size)
+- [x] **PRICE-01**: System compares listing price vs recently sold properties in same area/building (pris/kvm vs area average, trend direction, sample size)
 
 ### Area Statistics
 
-- [ ] **AREA-01**: System displays SCB demographics for the listing's neighborhood (income levels, population trends)
+- [x] **AREA-01**: System displays SCB demographics for the listing's neighborhood (income levels, population trends)
 
 ### AI Report
 
@@ -84,8 +84,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BRF-01 | Phase 2: BRF Financial Analysis | Complete |
 | BRF-02 | Phase 2: BRF Financial Analysis | Complete |
 | BRF-03 | Phase 2: BRF Financial Analysis | Complete |
-| PRICE-01 | Phase 3: Market Context | Pending |
-| AREA-01 | Phase 3: Market Context | Pending |
+| PRICE-01 | Phase 3: Market Context | Complete |
+| AREA-01 | Phase 3: Market Context | Complete |
 | RPRT-01 | Phase 4: AI Report + Delivery | Pending |
 | RPRT-02 | Phase 4: AI Report + Delivery | Pending |
 | RPRT-03 | Phase 4: AI Report + Delivery | Pending |

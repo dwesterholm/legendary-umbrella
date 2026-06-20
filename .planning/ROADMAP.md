@@ -91,7 +91,7 @@ Plans:
 **Wave 1**
 
 - [x] 03-01-PLAN.md — Wave 0: sold-source feasibility spike (gates PRICE-01) + RED deterministic-core tests + retain lat/lng in listing schema — DONE 2026-06-20 (sold-source UNBLOCKED, validated GO via Booli SSR + Apify Playwright; 4 RED tests; schema retains coords/booliId/breadcrumbs)
-- [ ] 03-02-PLAN.md — Migration: price_data/area_data jsonb + market_status/source/cost columns under existing RLS, human-gated schema push
+- [x] 03-02-PLAN.md — Migration: price_data/area_data jsonb + market_status/source/cost columns under existing RLS, human-gated schema push
 
 **Wave 2** *(blocked on Wave 1 / spike decision)*
 
@@ -134,7 +134,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
 | 2. BRF Financial Analysis | 6/6 | Complete    | 2026-06-16 |
-| 3. Market Context | 0/0 | Not started | - |
+| 3. Market Context | 2/6 | In Progress|  |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
 
 ## Backlog
@@ -145,7 +145,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 **Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
 **Requirements:** TBD
-**Plans:** 6/6 plans complete
+**Plans:** 2/6 plans executed
 
 Plans:
 
@@ -217,6 +217,7 @@ Plans:
 **Goal:** [Captured for future planning] Replace the paid Apify Booli actor (`bpf1JaYRBbia2nQU9`, ~$29/mo) for active-listing extraction with our own fetch against Booli's keyless GraphQL (`www.booli.se/graphql`), reusing the same fallback tree as the Phase 3 sold-price source: **direct from server → same call via the Apify SE residential proxy (existing `APIFY_API_TOKEN`) → paid actor as last resort**. Unifies active + sold acquisition behind ONE owned `booli-graphql` client + one fallback tree, so we control the data shape, can add metadata / richer fields over time, and stop depending on a third-party actor's maintenance.
 
 **Brief spike already done (2026-06-20) — see `.planning/spikes/booli-own-acquisition-SPIKE.md`:**
+
 - **Field parity confirmed (HIGH):** a real `searchForSale` GraphQL response carries the exact field names we normalize today (`streetAddress`, `price`/`listPrice`/`listSqmPrice`/`estimate` in the same `{raw,value,formatted,unit}` shape, `livingArea`, `rooms`, `objectType`, `tenureForm`, `latitude`/`longitude`/`booliId`). The actor appears to be a thin wrapper over this GraphQL — moving loses no fields.
 - **Transport identical to the Phase 3 sold-source spike (HIGH):** same Cloudflare posture, same direct→Apify-proxy fallback — Phase 3's transport evidence carries straight over.
 - **The one real unknown (MEDIUM):** single-listing-by-URL retrieval. Our flow is paste one URL → that listing; the MCP reference says direct lookup-by-id is "not supported" by the queries they tried. The thorough investigation must confirm the path: (1) a detail GraphQL query the site uses on `/bostad/{id}`, (2) the detail page's embedded `__NEXT_DATA__`/Apollo state (fetch HTML via proxy, extract JSON — not DOM scraping), or (3) `searchForSale` + filter + match on `booliId`.
