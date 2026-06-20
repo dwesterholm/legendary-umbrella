@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 1
-status: paused
-stopped_at: "Phase 3 paused at 03-01 human-verify — sold-source (Booli searchSold GraphQL) blocked by Cloudflare managed-challenge; no working transport in-session"
-last_updated: "2026-06-20T11:22:00.067Z"
+current_plan: 2
+status: executing
+stopped_at: "Completed 03-01 — sold-source UNBLOCKED + validated GO (Booli SSR __APOLLO_STATE__ via Apify Playwright, ~$18/mo worst case); RED tests for compare/geo/scb/cost + schema retention of coords/booliId/breadcrumbs done. PRICE-01 + AREA-01 met."
+last_updated: "2026-06-20T20:40:00.000Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 15
-  completed_plans: 9
-  percent: 20
+  completed_plans: 10
+  percent: 23
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 03 (market-context) — EXECUTING
-Plan: 1 of 6
+Plan: 2 of 6 (03-01 complete)
 **Phase:** 3 of 4 (market context)
-**Current Plan:** 1
+**Current Plan:** 2
 **Status:** Executing Phase 03
 **Last activity:** 2026-06-20
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100% of Phase 1 (3/3 plans)
 | Phase 02 P03 | ~5min | 3 tasks | 4 files |
 | Phase 02 P04 | 12min | 2 tasks | 8 files |
 | Phase 02-brf-financial-analysis P06 | 12min | 2 tasks | 3 files |
+| Phase 03 P01 | ~35min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,12 @@ Recent decisions affecting current work:
 - [Phase ?]: Plan 05: isGuest resolved server-side; UI teaser is defence-in-depth behind analyzeBrf hard gate (D-05)
 - [Phase ?]: Public /sa-raknar-vi placed outside the auth-gated (app) route group so it renders for logged-out visitors (D-09)
 - [Phase ?]: BrfScoreCard inline edit re-scores via correctBrfField only — never re-calls Claude (D-12)
+- [Phase 03-01]: Sold source = Booli SSR HTML (__NEXT_DATA__ → __APOLLO_STATE__) via apify/playwright-scraper + RESIDENTIAL/SE, NOT the GraphQL API (separate stricter CF zone). Raw fetch even via proxy is 403; a real browser is mandatory. ~$0.0055/render, worst case ~$18/mo @ 800 analyses. PRICE-01 ships in FULL.
+- [Phase 03-01]: Trigger D-01 tier walk-up on recency+count, not totalCount — sparse-locality thinness manifests as stale comps, not empty results
+- [Phase 03-01]: breadcrumbs modelled as { label?: string; url?: string }[] | null (spike-confirmed); ladder comes from the listing DETAIL page, not the SERP; areaId via /areaIds=(\d+)/ on breadcrumb url
+- [Phase 03-01]: SCB queries each metric's own latest year (income 2024 lags population/tenure 2025); all three DeSO-available — A3 resolved
+- [Phase 03-01]: Headline-poisoning guards locked in RED: listingPrisPerKvm<=0/null → reason 'listing_pris_okand' deltaPct null; all-null comps → 'thin', areaAvg never NaN/Infinity (HIGH-3 + areaAvg-NaN)
+- [Phase 03-01]: listing schema retains latitude/longitude/booliId/breadcrumbs (nullable) — join key for both Phase 3 panels; new rows only, no backfill
 
 ### Pending Todos
 
@@ -104,13 +111,14 @@ Recent decisions affecting current work:
 - Supabase free tier pauses after 7 days inactivity -- old project was permanently frozen after 90+ days. Visit dashboard periodically or upgrade.
 - Apify actor trial is 1 day (started 2026-06-06); ongoing scrapes need the paid actor rental.
 - 02-04 Task 3: needs real ANTHROPIC_API_KEY in .env.local for live extraction smoke test (blocking-human checkpoint)
-- **[PHASE 3 PAUSED] Sold-price source dead:** Booli `searchSold` GraphQL (`www.booli.se/graphql`) sits behind a stricter Cloudflare managed-challenge zone than the for-sale HTML pages. Direct fetch (minimal + full browser headers), Apify RESIDENTIAL/SE proxy (Stockholm egress confirmed), and Apify Playwright in-browser fetch from a CF-cleared page ALL return 403. No Booli sold actor exists in the Apify store (only Hemnet, out of scope). A non-browser POST cannot solve a JS/Turnstile managed challenge regardless of IP. PRICE-01 is blocked until a CF-managed-challenge solver, a paid data provider, or a re-scope to asking-price (utgångspris) is decided out-of-band. Full matrix + options in 03-SPIKE.md §6.
-- AREA-01 is NOT blocked: SCB DeSO availability fully de-risked (population 2025, income 2024, tenure 2025 all at DeSO level). Breadcrumbs shape pinned: `{label,url}[]`, wide→narrow, areaId in `?areaIds=<N>`.
+- **[RESOLVED — sold-source UNBLOCKED]** The earlier GraphQL/Cloudflare blocker was overturned: Booli server-renders full per-object slutpriser into the page HTML (`__NEXT_DATA__ → __APOLLO_STATE__`), read via `apify/playwright-scraper` chromium + RESIDENTIAL/SE proxy (200, full data; raw fetch even via proxy is 403). Validated GO, ~$18/mo worst case. PRICE-01 ships in FULL. The `/graphql` API is a separate stricter CF zone and is irrelevant. Canonical recipe in 03-SPIKE.md.
+- AREA-01: SCB DeSO availability fully de-risked (population 2025, income 2024, tenure 2025 all at DeSO level; income lags one year). Breadcrumbs shape pinned: `{label?,url?}[]`, wide→narrow, areaId in `?areaIds=<N>` (from the detail page, not SERP).
+- **Monitored (not blocking):** CF/transport fragility — depends on Apify Playwright continuing to clear CF; alert on `hasApollo === false`/non-200 + cache. Rural-locality staleness mitigated by D-01 walk-up on recency+count.
 
 ## Session Continuity
 
-Last session: 2026-06-20 (execute-phase 3)
-Stopped at: Phase 3 PAUSED at 03-01 Task 1 human-verify (user chose to pause) — sold-source blocker
-Resume file: .planning/phases/03-market-context/03-SPIKE.md (§6 decision options)
-Completed this session: 03-01 Task 1 spike committed (065a03b: 03-SPIKE.md + mock sold-comps.json). Tasks 2–3 (RED tests, schema) NOT started. Plans 03-02→03-06 NOT started.
-Next step: Resolve the sold-source blocker out-of-band, then re-run `/gsd-execute-phase 3` (the 03-01 spike artifact is already committed; re-dispatch continues from Task 2). If re-scoping PRICE-01 to asking-price, replan Phase 3 first.
+Last session: 2026-06-20 (execute-phase 3, 03-01 continuation)
+Stopped at: 03-01 COMPLETE — checkpoint approved, blocker overturned, Tasks 2–3 done, SUMMARY written.
+Resume file: .planning/phases/03-market-context/03-01-SUMMARY.md
+Completed this session: 03-01 fully complete — 03-SPIKE.md rewritten to the working SSR source (a40b51e), real sold-comps fixture promoted + __probe__/ removed (e705597), four RED tests + scb-population fixture (c852f56), listing schema retains coords/booliId/breadcrumbs (0512ed1). PRICE-01 + AREA-01 met.
+Next step: Run `/gsd-execute-phase 3` to dispatch Plan 03-02 (sold-source.ts + compare.ts GREEN against the committed fixtures + RED contracts). `@turf/*` install for the DeSO geo upgrade remains gated behind a human-verify checkpoint in its consuming plan.

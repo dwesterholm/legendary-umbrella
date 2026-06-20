@@ -90,7 +90,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Wave 0: sold-source feasibility spike (gates PRICE-01) + RED deterministic-core tests + retain lat/lng in listing schema
+- [x] 03-01-PLAN.md — Wave 0: sold-source feasibility spike (gates PRICE-01) + RED deterministic-core tests + retain lat/lng in listing schema — DONE 2026-06-20 (sold-source UNBLOCKED, validated GO via Booli SSR + Apify Playwright; 4 RED tests; schema retains coords/booliId/breadcrumbs)
 - [ ] 03-02-PLAN.md — Migration: price_data/area_data jsonb + market_status/source/cost columns under existing RLS, human-gated schema push
 
 **Wave 2** *(blocked on Wave 1 / spike decision)*
