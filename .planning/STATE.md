@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: Not started
-status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-06-20T10:06:19.086Z"
+current_plan: 1
+status: paused
+stopped_at: "Phase 3 paused at 03-01 human-verify — sold-source (Booli searchSold GraphQL) blocked by Cloudflare managed-challenge; no working transport in-session"
+last_updated: "2026-06-20T11:22:00.067Z"
 last_activity: 2026-06-20
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 2
-  total_plans: 9
+  total_plans: 15
   completed_plans: 9
-  percent: 22
+  percent: 20
 ---
 
 # Project State
@@ -22,15 +22,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** Phase 02 — brf-financial-analysis
+**Current focus:** Phase 03 — market-context
 
 ## Current Position
 
-Phase: 02 (brf-financial-analysis) — EXECUTING
-Plan: 4 of 6
+Phase: 03 (market-context) — EXECUTING
+Plan: 1 of 6
 **Phase:** 3 of 4 (market context)
-**Current Plan:** Not started
-**Status:** Ready to execute
+**Current Plan:** 1
+**Status:** Executing Phase 03
 **Last activity:** 2026-06-20
 
 Progress: [██████████] 100% of Phase 1 (3/3 plans)
@@ -104,10 +104,13 @@ Recent decisions affecting current work:
 - Supabase free tier pauses after 7 days inactivity -- old project was permanently frozen after 90+ days. Visit dashboard periodically or upgrade.
 - Apify actor trial is 1 day (started 2026-06-06); ongoing scrapes need the paid actor rental.
 - 02-04 Task 3: needs real ANTHROPIC_API_KEY in .env.local for live extraction smoke test (blocking-human checkpoint)
+- **[PHASE 3 PAUSED] Sold-price source dead:** Booli `searchSold` GraphQL (`www.booli.se/graphql`) sits behind a stricter Cloudflare managed-challenge zone than the for-sale HTML pages. Direct fetch (minimal + full browser headers), Apify RESIDENTIAL/SE proxy (Stockholm egress confirmed), and Apify Playwright in-browser fetch from a CF-cleared page ALL return 403. No Booli sold actor exists in the Apify store (only Hemnet, out of scope). A non-browser POST cannot solve a JS/Turnstile managed challenge regardless of IP. PRICE-01 is blocked until a CF-managed-challenge solver, a paid data provider, or a re-scope to asking-price (utgångspris) is decided out-of-band. Full matrix + options in 03-SPIKE.md §6.
+- AREA-01 is NOT blocked: SCB DeSO availability fully de-risked (population 2025, income 2024, tenure 2025 all at DeSO level). Breadcrumbs shape pinned: `{label,url}[]`, wide→narrow, areaId in `?areaIds=<N>`.
 
 ## Session Continuity
 
-Last session: 2026-06-17T09:17:31.141Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-market-context/03-CONTEXT.md
-Next step: /gsd-plan-phase 2 (or /gsd-discuss-phase 2 first)
+Last session: 2026-06-20 (execute-phase 3)
+Stopped at: Phase 3 PAUSED at 03-01 Task 1 human-verify (user chose to pause) — sold-source blocker
+Resume file: .planning/phases/03-market-context/03-SPIKE.md (§6 decision options)
+Completed this session: 03-01 Task 1 spike committed (065a03b: 03-SPIKE.md + mock sold-comps.json). Tasks 2–3 (RED tests, schema) NOT started. Plans 03-02→03-06 NOT started.
+Next step: Resolve the sold-source blocker out-of-band, then re-run `/gsd-execute-phase 3` (the 03-01 spike artifact is already committed; re-dispatch continues from Task 2). If re-scoping PRICE-01 to asking-price, replan Phase 3 first.
