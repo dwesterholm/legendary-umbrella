@@ -100,7 +100,7 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1-2)*
 
-- [ ] 03-05-PLAN.md — Server action enrichMarketContext: auth/ownership → fetch both sources → deterministic compute → independent persist of price_data/area_data
+- [x] 03-05-PLAN.md — Server action enrichMarketContext: auth/ownership → fetch both sources → deterministic compute → independent persist of price_data/area_data
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -134,7 +134,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
 | 2. BRF Financial Analysis | 6/6 | Complete    | 2026-06-16 |
-| 3. Market Context | 3/6 | In Progress|  |
+| 3. Market Context | 5/6 | In Progress|  |
 | 4. AI Report + Delivery | 0/0 | Not started | - |
 
 ## Backlog
@@ -145,7 +145,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 **Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
 **Requirements:** TBD
-**Plans:** 3/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 
