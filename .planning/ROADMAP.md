@@ -95,7 +95,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 / spike decision)*
 
-- [ ] 03-03-PLAN.md — AREA-01 core: resolveGeo (turf point-in-polygon + DeSO/kommun) + SCB PxWebApi fetch/cache + json-stat2 normalize (GREEN)
+- [x] 03-03-PLAN.md — AREA-01 core: resolveGeo (turf point-in-polygon, DeSO precision) + SCB PxWebApi fetch + json-stat2 normalize (GREEN) — DeSO geo artifact shipped (4.90 MB), 6/6 tests GREEN → 03-03-SUMMARY.md
 - [x] 03-04-PLAN.md — PRICE-01 core: source-isolated sold fetch + null-tolerant normalize + deterministic computePriceComparison + cost guard (GREEN)
 
 **Wave 3** *(blocked on Waves 1-2)*
