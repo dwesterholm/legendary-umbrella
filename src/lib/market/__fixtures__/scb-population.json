@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "source": "SCB PxWebApi BE/BE0101/BE0101Y/FolkmDesoAldKon (population by DeSO, age, sex)",
+    "capturedShape": "json-stat2 (response.format='json-stat2')",
+    "deso": "0180C1010 (Stockholm kommun prefix 0180), year 2025",
+    "note": "Minimal hand-authored json-stat2 fixture matching the documented SCB shape (scb.test.ts offline source). The income metric is intentionally ABSENT here to exercise the per-metric metric-absent → null normalize case (Pitfall 3 / D-06 / D-08). Values are illustrative, not real per-person data."
+  },
+  "version": "2.0",
+  "class": "dataset",
+  "label": "Population by region, age, sex and year",
+  "source": "Statistics Sweden",
+  "updated": "2026-04-01T06:00:00Z",
+  "id": ["Region", "Alder", "Kon", "ContentsCode", "Tid"],
+  "size": [1, 3, 2, 1, 1],
+  "dimension": {
+    "Region": {
+      "label": "region",
+      "category": {
+        "index": { "0180C1010": 0 },
+        "label": { "0180C1010": "Stockholm 0180C1010" }
+      }
+    },
+    "Alder": {
+      "label": "age",
+      "category": {
+        "index": { "0-19": 0, "20-64": 1, "65+": 2 },
+        "label": { "0-19": "0-19 years", "20-64": "20-64 years", "65+": "65+ years" }
+      }
+    },
+    "Kon": {
+      "label": "sex",
+      "category": {
+        "index": { "1": 0, "2": 1 },
+        "label": { "1": "men", "2": "women" }
+      }
+    },
+    "ContentsCode": {
+      "label": "observations",
+      "category": {
+        "index": { "BE0101N1": 0 },
+        "label": { "BE0101N1": "Population" }
+      }
+    },
+    "Tid": {
+      "label": "year",
+      "category": {
+        "index": { "2025": 0 },
+        "label": { "2025": "2025" }
+      }
+    }
+  },
+  "value": [410, 395, 980, 1020, 360, 470],
+  "role": {
+    "time": ["Tid"],
+    "metric": ["ContentsCode"]
+  }
+}
