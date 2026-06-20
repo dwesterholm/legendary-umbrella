@@ -1,0 +1,53 @@
+{
+  "_note": "MOCK fixture — NOT captured from a live source. The Booli searchSold GraphQL endpoint is Cloudflare-managed-challenge protected and could not be reached from any in-session transport (direct fetch, browser-headers, Apify residential proxy, or in-browser page-context fetch on Apify Playwright). See .planning/phases/03-market-context/03-SPIKE.md. This payload mirrors the documented searchSold result shape (soldPrice.raw / soldSqmPrice.raw / soldDate / livingArea.raw / rooms.raw) so Plan 04 tests and normalizeSoldOutput can be built against a realistic structure. Values are synthetic (no real address/PII). Shipping PRICE-01 on this mock = PRICE-01-INCOMPLETE per Plan 06 Task 3 live gate.",
+  "_source_shape": "Booli GraphQL query SearchSold(input:{areaId,page,filters,sort}){ totalCount result{ soldPrice{raw} soldSqmPrice{raw} soldDate livingArea{raw} rooms{raw} } }",
+  "data": {
+    "searchSold": {
+      "totalCount": 6,
+      "result": [
+        {
+          "soldPrice": { "raw": 4250000 },
+          "soldSqmPrice": { "raw": 86735 },
+          "soldDate": "2026-05-18",
+          "livingArea": { "raw": 49 },
+          "rooms": { "raw": 2 }
+        },
+        {
+          "soldPrice": { "raw": 5600000 },
+          "soldSqmPrice": { "raw": 90322 },
+          "soldDate": "2026-04-02",
+          "livingArea": { "raw": 62 },
+          "rooms": { "raw": 3 }
+        },
+        {
+          "soldPrice": { "raw": 3100000 },
+          "soldSqmPrice": { "raw": 83783 },
+          "soldDate": "2026-02-11",
+          "livingArea": { "raw": 37 },
+          "rooms": { "raw": 1.5 }
+        },
+        {
+          "soldPrice": { "raw": 7250000 },
+          "soldSqmPrice": { "raw": 88414 },
+          "soldDate": "2025-11-27",
+          "livingArea": { "raw": 82 },
+          "rooms": { "raw": 4 }
+        },
+        {
+          "soldPrice": { "raw": 4100000 },
+          "soldSqmPrice": { "raw": 85416 },
+          "soldDate": "2025-09-05",
+          "livingArea": { "raw": 48 },
+          "rooms": { "raw": 2 }
+        },
+        {
+          "soldPrice": { "raw": null },
+          "soldSqmPrice": { "raw": null },
+          "soldDate": "2025-07-19",
+          "livingArea": { "raw": 55 },
+          "rooms": { "raw": 2 }
+        }
+      ]
+    }
+  }
+}
