@@ -53,8 +53,20 @@ export async function analyzeUrl(formData: FormData): Promise<AnalyzeResult> {
   // Normalization works on the raw object either way -- validation failure
   // just means we skip the typed view, not the data.
   const parsed = scraperOutputSchema.safeParse(rawData);
-  const { address, price, livingArea, rooms, monthlyFee, buildYear, brfName, prisPerKvm: scrapedPrisPerKvm } =
-    normalizeScraperOutput(parsed.success ? parsed.data : rawData);
+  const {
+    address,
+    price,
+    livingArea,
+    rooms,
+    monthlyFee,
+    buildYear,
+    brfName,
+    prisPerKvm: scrapedPrisPerKvm,
+    latitude,
+    longitude,
+    booliId,
+    breadcrumbs,
+  } = normalizeScraperOutput(parsed.success ? parsed.data : rawData);
 
   // Track missing fields for our required display fields
   const missingFields: string[] = [];
@@ -86,6 +98,12 @@ export async function analyzeUrl(formData: FormData): Promise<AnalyzeResult> {
     buildYear,
     brfName,
     prisPerKvm,
+    // Retained join-key fields for the Phase 3 panels (03-SPIKE.md). New scrapes
+    // persist these into analyses.listing_data; existing rows lack them (null).
+    latitude,
+    longitude,
+    booliId,
+    breadcrumbs,
   };
 
   const isPartial = requiredDisplayFields.some((field) =>
