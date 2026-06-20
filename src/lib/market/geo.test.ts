@@ -10,7 +10,7 @@ import { resolveGeo } from "@/lib/market/geo";
 
 describe("resolveGeo — kommun baseline (RESEARCH Pitfall 2)", () => {
   it("derives kommunCode from the first 4 chars of a DeSO code", () => {
-    // A point that resolves to DeSO "0180C1010" must expose kommunCode "0180".
+    // A point in central Stockholm resolves to a "0180…" DeSO → kommun "0180".
     const result = resolveGeo(59.3293, 18.0686); // central Stockholm
     expect(result.kommunCode).toBe("0180");
   });
@@ -18,7 +18,14 @@ describe("resolveGeo — kommun baseline (RESEARCH Pitfall 2)", () => {
 
 describe("resolveGeo — point-in-polygon → desoCode", () => {
   it("a lat/lng inside a DeSO polygon resolves to that polygon's desoCode", () => {
-    const result = resolveGeo(59.3293, 18.0686);
+    // Coordinate verified to fall inside the real SCB DeSO_2025 polygon
+    // "0180C1010" (southern Stockholm kommun) in the committed deso.geojson.
+    // (The RED test originally guessed this code for the central-Stockholm
+    // point above; against the real SCB geometry that point is "0180C4040",
+    // so the pairing was corrected to a verified-real coordinate — the
+    // behavior under test, "point inside a DeSO → that DeSO's code", is
+    // unchanged.)
+    const result = resolveGeo(59.233, 18.11);
     expect(result.desoCode).toBe("0180C1010");
   });
 
