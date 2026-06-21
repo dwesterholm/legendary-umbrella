@@ -35,22 +35,39 @@ type DesoFeature = Feature<Polygon | MultiPolygon, DesoProperties>;
 // __dirname is unavailable under ESM, so derive the module dir defensively and
 // resolve the repo-root-relative artifact path from it.
 function loadDeso(): DesoFeature[] {
-  // Resolve src/data/deso.geojson relative to this module (src/lib/market/geo.ts).
-  let moduleDir: string;
+  // Resolve the artifact robustly across runtimes. Under `next dev`/`next start`
+  // the server module is bundled, so `import.meta.url` is NOT the source path and
+  // the module-relative resolve points at a non-existent bundle path → throws →
+  // an empty DeSO set → every point resolves to null (the AREA-null bug). The
+  // process CWD is the project root under Next (dev + start), so resolve from
+  // there FIRST, then fall back to the module-relative path (which is correct
+  // under vitest/tsx running straight from source).
+  const candidates: string[] = [path.join(process.cwd(), "src/data/deso.geojson")];
   try {
     // ESM
-    moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    candidates.push(path.resolve(moduleDir, "../../data/deso.geojson"));
   } catch {
     // CJS / transpiled fallback
-    moduleDir = __dirname;
+    candidates.push(path.resolve(__dirname, "../../data/deso.geojson"));
   }
-  const artifactPath = path.resolve(moduleDir, "../../data/deso.geojson");
-  const raw = readFileSync(artifactPath, "utf8");
-  const fc = JSON.parse(raw) as FeatureCollection<
-    Polygon | MultiPolygon,
-    DesoProperties
-  >;
-  return fc.features;
+
+  let lastError: unknown = null;
+  for (const artifactPath of candidates) {
+    try {
+      const raw = readFileSync(artifactPath, "utf8");
+      const fc = JSON.parse(raw) as FeatureCollection<
+        Polygon | MultiPolygon,
+        DesoProperties
+      >;
+      return fc.features;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("deso.geojson not found in any candidate path");
 }
 
 let desoFeatures: DesoFeature[] | null = null;
