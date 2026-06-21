@@ -181,8 +181,12 @@ export async function fetchSoldComps(
           apifyProxyGroups: ["RESIDENTIAL"],
           apifyProxyCountry: "SE",
         },
-        // One transient proxy/tunnel blip self-healed on retry 1 this session.
-        maxRequestRetries: 1,
+        // Booli intermittently 403-challenges the slutpriser page even via the
+        // browser+residential transport; the challenge clears on retry (observed:
+        // a first-attempt 403 that succeeded on retry 1). 1 retry was borderline
+        // (a single 403 streak returned 0 items → a false "thin"); 3 absorbs the
+        // intermittent block.
+        maxRequestRetries: 3,
         maxPagesPerCrawl: 1,
         pageFunction: PAGE_FUNCTION,
       },
