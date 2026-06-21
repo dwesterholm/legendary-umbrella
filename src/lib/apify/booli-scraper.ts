@@ -22,8 +22,22 @@ export async function scrapeBooli(url: string): Promise<Record<string, unknown>>
           apifyProxyCountry: "SE",
         },
       },
-      { waitSecs: 60 }
+      // Apify cold-start (image pull + container creation) can take ~60s BEFORE
+      // crawling even begins; a tight 60s budget returned an empty dataset
+      // mid-run and was misread as "no results". Give cold-starts ample headroom
+      // — a warm run still returns as soon as it finishes, so this only raises
+      // the ceiling, it does not slow the common case.
+      { waitSecs: 240 }
     );
+
+    // A non-SUCCEEDED run (still RUNNING at the wait ceiling, TIMED-OUT, FAILED,
+    // ABORTED) is NOT "listing not found" — surface a distinct transient error so
+    // the user is told to try again rather than that the listing does not exist.
+    if (run.status !== "SUCCEEDED") {
+      throw new Error(
+        `Booli-skraparen blev inte klar i tid (status: ${run.status})`
+      );
+    }
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 

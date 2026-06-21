@@ -164,8 +164,18 @@ export async function fetchSoldComps(
         maxPagesPerCrawl: 1,
         pageFunction: PAGE_FUNCTION,
       },
-      { waitSecs: 90 },
+      // chromium cold-start (image pull + container creation) can eat ~60s
+      // before the page is even fetched; give it ample headroom — a warm run
+      // returns as soon as it finishes, so this only raises the ceiling.
+      { waitSecs: 240 },
     );
+
+    // A non-SUCCEEDED run (still RUNNING at the wait ceiling, TIMED-OUT, FAILED)
+    // is a TRANSIENT source failure, not a genuinely-empty area — don't read a
+    // partial dataset and mislabel it. Throw so it maps to "tillfälligt otillgänglig".
+    if (run.status !== "SUCCEEDED") {
+      throw new Error(`Sold-kallan blev inte klar i tid (status: ${run.status})`);
+    }
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
