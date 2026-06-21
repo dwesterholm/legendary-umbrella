@@ -61,16 +61,27 @@ export interface SoldSourceQuery {
 /**
  * Resolves the Booli `areaId` for the requested tier from the breadcrumb ladder.
  *
- * The ladder is ordered wide→narrow (län → kommun → neighborhood → BRF). The
- * areaId lives in each breadcrumb `url` as the `areaIds=<N>` query param
- * (03-SPIKE.md §2). The final BRF crumb has no `areaIds` param. We map:
- *  - "building"/"neighborhood" → the narrowest crumb that still carries an
- *    `areaIds` (a slutpriser query needs an areaId; the BRF id is not one).
- *  - "wide" → a broader crumb (the län/kommun end of the ladder).
+ * The ladder is ordered wide→narrow (län → kommun → neighborhood → street → BRF).
+ * The areaId lives in each breadcrumb `url` as the `areaIds=<N>` query param
+ * (03-SPIKE.md §2). The final BRF crumb has no `areaIds` param. The extracted
+ * id list is therefore also wide→narrow, e.g. [2(län), 1(kommun), 115341(Södermalm
+ * neighborhood), 102186(Helgagatan street)]. We map the D-01 tiers by POSITION
+ * from the narrow end so each tier hits a genuinely distinct area (the previous
+ * mapping collapsed both building AND neighborhood onto the narrowest id — the
+ * street — so the dense Södermalm neighborhood 115341 was never queried, a
+ * primary cause of the false "thin"):
+ *  - "building"     → the narrowest area (street/BRF-area level) = last id.
+ *  - "neighborhood" → one level wider than building = second-from-narrowest,
+ *    falling back to the narrowest when the ladder is too short to distinguish.
+ *  - "wide"         → the kommun/län end: prefer kommun (second from the wide
+ *    end) when present, else the widest id.
+ *
+ * Robust for ladders of varying length (a short [kommun, street] ladder still
+ * resolves all three tiers without crashing).
  *
  * Returns null when no areaId can be resolved (caller throws — HIGH-1).
  */
-function resolveAreaId(query: SoldSourceQuery): string | null {
+export function resolveAreaId(query: SoldSourceQuery): string | null {
   const crumbs = query.breadcrumbs ?? [];
   const ids: string[] = [];
   for (const crumb of crumbs) {
@@ -79,14 +90,25 @@ function resolveAreaId(query: SoldSourceQuery): string | null {
   }
   if (ids.length === 0) return null;
 
+  const last = ids.length - 1;
   // ids are wide→narrow (matches the breadcrumb order). Pick by tier.
-  if (query.tier === "wide") {
-    // Prefer the kommun-level id (second from the wide end) when present, else
-    // the widest available.
-    return ids[Math.min(1, ids.length - 1)] ?? ids[0];
+  switch (query.tier) {
+    case "wide":
+      // Prefer the kommun level. In the full Booli ladder the widest crumb is the
+      // LÄN, so kommun is the second id (skip län). For a short ladder with no län
+      // crumb (≤2 ids, e.g. [kommun, street]) the kommun IS the widest id, so fall
+      // back to ids[0] rather than picking the narrow street id (the old
+      // `Math.min(1,last)` heuristic mis-picked the street for short ladders).
+      return ids.length >= 3 ? ids[1] : ids[0];
+    case "neighborhood":
+      // One level wider than the building/street id (the neighborhood crumb, e.g.
+      // Södermalm 115341), clamped to a real index for short ladders.
+      return ids[Math.max(0, last - 1)];
+    case "building":
+    default:
+      // The narrowest area that still carries an areaId (street/BRF-area level).
+      return ids[last];
   }
-  // building / neighborhood → the narrowest area that still has an areaId.
-  return ids[ids.length - 1];
 }
 
 /** Builds the slutpriser URL for an areaId (+ optional objectType filter). */

@@ -7,9 +7,10 @@ import { z } from "zod/v4";
  * Source shape (03-SPIKE.md §1.3): Booli server-renders every comp into the page
  * HTML as `__NEXT_DATA__ → props.pageProps.__APOLLO_STATE__ → SoldProperty:<id>`.
  * We read that SSR Apollo blob — NOT the Cloudflare-walled `/graphql` API. The
- * committed fixture `__fixtures__/sold-comps.json` is a real redacted payload in
- * exactly that raw `SoldProperty:<id>` shape, so the raw schema + normalize here
- * must parse THAT shape (the tests read the fixture; no live calls).
+ * committed fixture `__fixtures__/sold-comps.json` is a real redacted payload
+ * stored in the TRUE live shape `{ items: [{ hasApollo, __APOLLO_STATE__ }] }`
+ * (the exact array `fetchSoldComps` returns — Apify dataset items), so the
+ * normalize here parses the live shape (the tests read the fixture; no live calls).
  *
  * Mirrors the Phase 1/2 conventions: `import { z } from "zod/v4"`, a permissive
  * `.passthrough()` raw schema (listing.ts:15-30), local `num`/`str`/`rawOf`
@@ -166,11 +167,23 @@ function dataPointsOf(entry: Record<string, unknown>): DataPoint[] {
  * m² and rooms out of the `dataPoints` plainText and the numeric `.raw` fields
  * for price/% diff. Null-tolerant throughout (RESEARCH Pattern 3): a malformed
  * or partial entry yields nulls, never a throw — so one bad comp can never blank
- * the panel. Accepts either the full `{ __APOLLO_STATE__ }` payload or a bare
- * `__APOLLO_STATE__` map.
+ * the panel. Accepts ALL of: the live `fetchSoldComps` return shape — an ARRAY of
+ * Apify dataset items `[{ hasApollo, __APOLLO_STATE__ }, …]` (possibly paginated
+ * across multiple items) — the full `{ __APOLLO_STATE__ }` payload, OR a bare
+ * `__APOLLO_STATE__` map. Comps from every item are merged.
  */
 export function normalizeSoldOutput(raw: unknown): SoldComp[] {
   if (!raw || typeof raw !== "object") return [];
+
+  // The live source returns an ARRAY of dataset items (one per rendered page),
+  // each `{ hasApollo, __APOLLO_STATE__ }`. Normalize each and merge. (Vitest's
+  // committed fixture was a bare payload, which is why this mismatch never tripped
+  // a test — see __fixtures__/sold-comps.json, now stored in the true live shape.)
+  if (Array.isArray(raw)) {
+    const merged: SoldComp[] = [];
+    for (const item of raw) merged.push(...normalizeSoldOutput(item));
+    return merged;
+  }
 
   const root = raw as Record<string, unknown>;
   const state =

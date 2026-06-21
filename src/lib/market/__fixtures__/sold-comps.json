@@ -3,2744 +3,2750 @@
     "source": "booli.se /sok/slutpriser?areaIds=76 (Nacka kommun)",
     "transport": "apify/playwright-scraper chromium + RESIDENTIAL/SE proxy",
     "capturedAt": "2026-06-20",
-    "shape": "Raw __NEXT_DATA__.props.pageProps.__APOLLO_STATE__ subset: SoldProperty:<booliId> keys + one Area_V3 context object, exactly as server-rendered.",
+    "shape": "TRUE live fetchSoldComps return shape: an ARRAY of Apify dataset items [{ hasApollo, __APOLLO_STATE__ }] (one per rendered slutpriser page), exactly as the playwright-scraper pageFunction returns. Re-captured 2026-06-21 to fix the bare-payload mismatch that hid the AREA/PRICE shape bug.",
     "redaction": "streetAddress / location / latitude / longitude / url / images / descriptiveAreaName redacted; screenReaderLabel street name+number stripped. Retained: soldPrice.raw, listPrice, soldPriceAbsoluteDiff, soldPricePercentageDiff.raw, soldDate, objectType, daysActive, displayAttributes.dataPoints (m2/rooms/tomt/kr-per-m2).",
     "soldCount": 35,
-    "note": "One record carries a null soldPrice.raw to exercise the null-tolerant normalizer + areaAvg-guard test cases."
+    "note": "One record carries a null soldPrice.raw to exercise the null-tolerant normalizer + areaAvg-guard test cases.",
+    "recapture": "Re-wrapped the previously-committed bare __APOLLO_STATE__ redacted payload (35 SoldProperty entries, areaIds=76 Nacka) into the live dataset-item wrapper. Redaction unchanged."
   },
-  "__APOLLO_STATE__": {
-    "SoldProperty:6129829": {
-      "__typename": "SoldProperty",
-      "id": "6129829",
-      "booliId": "6129829",
-      "amenities": [],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum radhus, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "99 + 22 m²"
-            },
-            "screenReaderLabel": "99 + 22 kvadratmeter"
+  "items": [
+    {
+      "hasApollo": true,
+      "__APOLLO_STATE__": {
+        "SoldProperty:6129829": {
+          "__typename": "SoldProperty",
+          "id": "6129829",
+          "booliId": "6129829",
+          "amenities": [],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum radhus, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "99 + 22 m²"
+                },
+                "screenReaderLabel": "99 + 22 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "170 m² tomt"
+                },
+                "screenReaderLabel": "170 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "53 300 kr/m²"
+                },
+                "screenReaderLabel": "53 300 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 280 000 kr",
+            "raw": 5280000,
+            "value": "5 280 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "170 m² tomt"
-            },
-            "screenReaderLabel": "170 kvadratmeter tomt"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-210 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "53 300 kr/m²"
-            },
-            "screenReaderLabel": "53 300 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 280 000 kr",
-        "raw": 5280000,
-        "value": "5 280 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-210 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-3,8%",
-        "raw": -3.8
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 490 000 kr"
-      },
-      "objectType": "Radhus",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 30,
-      "soldDate": "2026-06-20",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6111639": {
-      "__typename": "SoldProperty",
-      "id": "6111639",
-      "booliId": "6111639",
-      "amenities": [],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum radhus, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "113 m²"
-            },
-            "screenReaderLabel": "113 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-3,8%",
+            "raw": -3.8
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 490 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "496 m² tomt"
-            },
-            "screenReaderLabel": "496 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "64 300 kr/m²"
-            },
-            "screenReaderLabel": "64 300 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "7 270 000 kr",
-        "raw": 7270000,
-        "value": "7 270 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+320 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+4,6%",
-        "raw": 4.6
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 950 000 kr"
-      },
-      "objectType": "Radhus",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Sista bud",
-      "daysActive": 43,
-      "soldDate": "2026-06-19",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6163524": {
-      "__typename": "SoldProperty",
-      "id": "6163524",
-      "booliId": "6163524",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Radhus",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 30,
+          "soldDate": "2026-06-20",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "70 m²"
-            },
-            "screenReaderLabel": "70 kvadratmeter"
+        "SoldProperty:6111639": {
+          "__typename": "SoldProperty",
+          "id": "6111639",
+          "booliId": "6111639",
+          "amenities": [],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum radhus, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "113 m²"
+                },
+                "screenReaderLabel": "113 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "496 m² tomt"
+                },
+                "screenReaderLabel": "496 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "64 300 kr/m²"
+                },
+                "screenReaderLabel": "64 300 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "7 270 000 kr",
+            "raw": 7270000,
+            "value": "7 270 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 2"
-            },
-            "screenReaderLabel": "vån 2"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+320 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "67 900 kr/m²"
-            },
-            "screenReaderLabel": "67 900 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 750 000 kr",
-        "raw": 4750000,
-        "value": "4 750 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "±0 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+/-0%",
-        "raw": 0
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 750 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 6,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6154061": {
-      "__typename": "SoldProperty",
-      "id": "6154061",
-      "booliId": "6154061",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+4,6%",
+            "raw": 4.6
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 950 000 kr"
+          },
+          "objectType": "Radhus",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Sista bud",
+          "daysActive": 43,
+          "soldDate": "2026-06-19",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "62 m²"
+        "SoldProperty:6163524": {
+          "__typename": "SoldProperty",
+          "id": "6163524",
+          "booliId": "6163524",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
             },
-            "screenReaderLabel": "62 kvadratmeter"
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "70 m²"
+                },
+                "screenReaderLabel": "70 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 2"
+                },
+                "screenReaderLabel": "vån 2"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "67 900 kr/m²"
+                },
+                "screenReaderLabel": "67 900 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2 rum"
-            },
-            "screenReaderLabel": "2 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 750 000 kr",
+            "raw": 4750000,
+            "value": "4 750 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 1"
-            },
-            "screenReaderLabel": "vån 1"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "±0 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "73 400 kr/m²"
-            },
-            "screenReaderLabel": "73 400 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 550 000 kr",
-        "raw": 4550000,
-        "value": "4 550 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+300 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+7,1%",
-        "raw": 7.1
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 250 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Sista bud",
-      "daysActive": 13,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6152896": {
-      "__typename": "SoldProperty",
-      "id": "6152896",
-      "booliId": "6152896",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "5 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "150 + 10 m²"
-            },
-            "screenReaderLabel": "150 + 10 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+/-0%",
+            "raw": 0
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "5 rum"
-            },
-            "screenReaderLabel": "5 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 750 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "862 m² tomt"
-            },
-            "screenReaderLabel": "862 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "78 000 kr/m²"
-            },
-            "screenReaderLabel": "78 000 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "11 700 000 kr",
-        "raw": 11700000,
-        "value": "11 700 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+405 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+3,6%",
-        "raw": 3.6
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "11 295 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 14,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6150981": {
-      "__typename": "SoldProperty",
-      "id": "6150981",
-      "booliId": "6150981",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "72 m²"
-            },
-            "screenReaderLabel": "72 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 1"
-            },
-            "screenReaderLabel": "vån 1"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "43 100 kr/m²"
-            },
-            "screenReaderLabel": "43 100 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 100 000 kr",
-        "raw": 3100000,
-        "value": "3 100 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+105 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+3,5%",
-        "raw": 3.5
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 995 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 16,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6146288": {
-      "__typename": "SoldProperty",
-      "id": "6146288",
-      "booliId": "6146288",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 6,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "89,5 m²"
+        "SoldProperty:6154061": {
+          "__typename": "SoldProperty",
+          "id": "6154061",
+          "booliId": "6154061",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
             },
-            "screenReaderLabel": "89,5 kvadratmeter"
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "62 m²"
+                },
+                "screenReaderLabel": "62 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2 rum"
+                },
+                "screenReaderLabel": "2 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 1"
+                },
+                "screenReaderLabel": "vån 1"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "73 400 kr/m²"
+                },
+                "screenReaderLabel": "73 400 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 550 000 kr",
+            "raw": 4550000,
+            "value": "4 550 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 1"
-            },
-            "screenReaderLabel": "vån 1"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+300 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "36 900 kr/m²"
-            },
-            "screenReaderLabel": "36 900 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 300 000 kr",
-        "raw": 3300000,
-        "value": "3 300 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-195 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-5,6%",
-        "raw": -5.6
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 495 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Sista bud",
-      "daysActive": 17,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6076622": {
-      "__typename": "SoldProperty",
-      "id": "6076622",
-      "booliId": "6076622",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"patio\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum radhus, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "92 m²"
-            },
-            "screenReaderLabel": "92 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+7,1%",
+            "raw": 7.1
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 250 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "79 000 kr/m²"
-            },
-            "screenReaderLabel": "79 000 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "7 270 000 kr",
-        "raw": 7270000,
-        "value": "7 270 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+275 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+3,9%",
-        "raw": 3.9
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 995 000 kr"
-      },
-      "objectType": "Radhus",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 13,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6073226": {
-      "__typename": "SoldProperty",
-      "id": "6073226",
-      "booliId": "6073226",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Sista bud",
+          "daysActive": 13,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "66 m²"
-            },
-            "screenReaderLabel": "66 kvadratmeter"
+        "SoldProperty:6152896": {
+          "__typename": "SoldProperty",
+          "id": "6152896",
+          "booliId": "6152896",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "5 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "150 + 10 m²"
+                },
+                "screenReaderLabel": "150 + 10 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "5 rum"
+                },
+                "screenReaderLabel": "5 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "862 m² tomt"
+                },
+                "screenReaderLabel": "862 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "78 000 kr/m²"
+                },
+                "screenReaderLabel": "78 000 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "11 700 000 kr",
+            "raw": 11700000,
+            "value": "11 700 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 5"
-            },
-            "screenReaderLabel": "vån 5"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+405 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "50 000 kr/m²"
-            },
-            "screenReaderLabel": "50 000 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 300 000 kr",
-        "raw": 3300000,
-        "value": "3 300 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": null,
-      "soldPricePercentageDiff": null,
-      "listPrice": null,
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 1,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6004609": {
-      "__typename": "SoldProperty",
-      "id": "6004609",
-      "booliId": "6004609",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+3,6%",
+            "raw": 3.6
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "11 295 000 kr"
+          },
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 14,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
+        "SoldProperty:6150981": {
+          "__typename": "SoldProperty",
+          "id": "6150981",
+          "booliId": "6150981",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "72 m²"
+                },
+                "screenReaderLabel": "72 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 1"
+                },
+                "screenReaderLabel": "vån 1"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "43 100 kr/m²"
+                },
+                "screenReaderLabel": "43 100 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 100 000 kr",
+            "raw": 3100000,
+            "value": "3 100 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+105 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+3,5%",
+            "raw": 3.5
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 995 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 16,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"patio\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "5 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "115 m²"
+        "SoldProperty:6146288": {
+          "__typename": "SoldProperty",
+          "id": "6146288",
+          "booliId": "6146288",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
             },
-            "screenReaderLabel": "115 kvadratmeter"
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "89,5 m²"
+                },
+                "screenReaderLabel": "89,5 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 1"
+                },
+                "screenReaderLabel": "vån 1"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "36 900 kr/m²"
+                },
+                "screenReaderLabel": "36 900 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "5 rum"
-            },
-            "screenReaderLabel": "5 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 300 000 kr",
+            "raw": 3300000,
+            "value": "3 300 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "BV"
-            },
-            "screenReaderLabel": "BV"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-195 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "53 900 kr/m²"
-            },
-            "screenReaderLabel": "53 900 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 200 000 kr",
-        "raw": 6200000,
-        "value": "6 200 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+205 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+3,4%",
-        "raw": 3.4
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 995 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 99,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:5833156": {
-      "__typename": "SoldProperty",
-      "id": "5833156",
-      "booliId": "5833156",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "54 m²"
-            },
-            "screenReaderLabel": "54 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-5,6%",
+            "raw": -5.6
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 495 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 1"
-            },
-            "screenReaderLabel": "vån 1"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "76 100 kr/m²"
-            },
-            "screenReaderLabel": "76 100 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 110 000 kr",
-        "raw": 4110000,
-        "value": "4 110 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-85 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-2%",
-        "raw": -2
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 195 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 43,
-      "soldDate": "2026-06-18",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6159587": {
-      "__typename": "SoldProperty",
-      "id": "6159587",
-      "booliId": "6159587",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Sista bud",
+          "daysActive": 17,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"patio\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "87,5 m²"
-            },
-            "screenReaderLabel": "87,5 kvadratmeter"
+        "SoldProperty:6076622": {
+          "__typename": "SoldProperty",
+          "id": "6076622",
+          "booliId": "6076622",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"patio\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum radhus, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "92 m²"
+                },
+                "screenReaderLabel": "92 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "79 000 kr/m²"
+                },
+                "screenReaderLabel": "79 000 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "7 270 000 kr",
+            "raw": 7270000,
+            "value": "7 270 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "47 400 kr/m²"
-            },
-            "screenReaderLabel": "47 400 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "4 150 000 kr",
-        "raw": 4150000,
-        "value": "4 150 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": null,
-      "soldPricePercentageDiff": null,
-      "listPrice": null,
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 7,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6159310": {
-      "__typename": "SoldProperty",
-      "id": "6159310",
-      "booliId": "6159310",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "162 m²"
-            },
-            "screenReaderLabel": "162 kvadratmeter"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+275 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "735 m² tomt"
-            },
-            "screenReaderLabel": "735 kvadratmeter tomt"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+3,9%",
+            "raw": 3.9
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "56 800 kr/m²"
-            },
-            "screenReaderLabel": "56 800 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "9 200 000 kr",
-        "raw": 9200000,
-        "value": "9 200 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+425 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+4,8%",
-        "raw": 4.8
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "8 775 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 0,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6156775": {
-      "__typename": "SoldProperty",
-      "id": "6156775",
-      "booliId": "6156775",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3,5 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "89,5 m²"
-            },
-            "screenReaderLabel": "89,5 kvadratmeter"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 995 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3,5 rum"
-            },
-            "screenReaderLabel": "3,5 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 3"
-            },
-            "screenReaderLabel": "vån 3"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "67 800 kr/m²"
-            },
-            "screenReaderLabel": "67 800 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 070 000 kr",
-        "raw": 6070000,
-        "value": "6 070 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+875 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+16,8%",
-        "raw": 16.8
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 195 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 9,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6152188": {
-      "__typename": "SoldProperty",
-      "id": "6152188",
-      "booliId": "6152188",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "7 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "240 m²"
-            },
-            "screenReaderLabel": "240 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "7 rum"
-            },
-            "screenReaderLabel": "7 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2 299 m² tomt"
-            },
-            "screenReaderLabel": "2 299 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "63 800 kr/m²"
-            },
-            "screenReaderLabel": "63 800 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "15 300 000 kr",
-        "raw": 15300000,
-        "value": "15 300 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-200 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-1,3%",
-        "raw": -1.3
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "15 500 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 13,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6149170": {
-      "__typename": "SoldProperty",
-      "id": "6149170",
-      "booliId": "6149170",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum radhus, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "114 m²"
-            },
-            "screenReaderLabel": "114 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "224 m² tomt"
-            },
-            "screenReaderLabel": "224 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "34 200 kr/m²"
-            },
-            "screenReaderLabel": "34 200 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 900 000 kr",
-        "raw": 3900000,
-        "value": "3 900 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-75 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-1,9%",
-        "raw": -1.9
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 975 000 kr"
-      },
-      "objectType": "Radhus",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 15,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6141322": {
-      "__typename": "SoldProperty",
-      "id": "6141322",
-      "booliId": "6141322",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "60 m²"
-            },
-            "screenReaderLabel": "60 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2 rum"
-            },
-            "screenReaderLabel": "2 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 2"
-            },
-            "screenReaderLabel": "vån 2"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "31 700 kr/m²"
-            },
-            "screenReaderLabel": "31 700 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "1 900 000 kr",
-        "raw": 1900000,
-        "value": "1 900 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": null,
-      "soldPricePercentageDiff": null,
-      "listPrice": null,
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 3,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6133722": {
-      "__typename": "SoldProperty",
-      "id": "6133722",
-      "booliId": "6133722",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"patio\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "1 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "20 m²"
-            },
-            "screenReaderLabel": "20 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "1 rum"
-            },
-            "screenReaderLabel": "1 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "48 000 kr/m²"
-            },
-            "screenReaderLabel": "48 000 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "960 000 kr",
-        "raw": 960000,
-        "value": "960 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-35 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-3,5%",
-        "raw": -3.5
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "995 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 27,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6133678": {
-      "__typename": "SoldProperty",
-      "id": "6133678",
-      "booliId": "6133678",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "6 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "185 m²"
-            },
-            "screenReaderLabel": "185 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "6 rum"
-            },
-            "screenReaderLabel": "6 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "840 m² tomt"
-            },
-            "screenReaderLabel": "840 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "69 200 kr/m²"
-            },
-            "screenReaderLabel": "69 200 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "12 800 000 kr",
-        "raw": 12800000,
-        "value": "12 800 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+1 300 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+11,3%",
-        "raw": 11.3
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "11 500 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 26,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6114718": {
-      "__typename": "SoldProperty",
-      "id": "6114718",
-      "booliId": "6114718",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Radhus",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 13,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "81 m²"
+        "SoldProperty:6073226": {
+          "__typename": "SoldProperty",
+          "id": "6073226",
+          "booliId": "6073226",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
             },
-            "screenReaderLabel": "81 kvadratmeter"
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "66 m²"
+                },
+                "screenReaderLabel": "66 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 5"
+                },
+                "screenReaderLabel": "vån 5"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "50 000 kr/m²"
+                },
+                "screenReaderLabel": "50 000 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 300 000 kr",
+            "raw": 3300000,
+            "value": "3 300 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 4"
-            },
-            "screenReaderLabel": "vån 4"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "25 300 kr/m²"
-            },
-            "screenReaderLabel": "25 300 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 050 000 kr",
-        "raw": 2050000,
-        "value": "2 050 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-25 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-1,2%",
-        "raw": -1.2
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 075 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 39,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6109806": {
-      "__typename": "SoldProperty",
-      "id": "6109806",
-      "booliId": "6109806",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": null,
+          "soldPricePercentageDiff": null,
+          "listPrice": null,
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 1,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "73,5 m²"
+        "SoldProperty:6004609": {
+          "__typename": "SoldProperty",
+          "id": "6004609",
+          "booliId": "6004609",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
             },
-            "screenReaderLabel": "73,5 kvadratmeter"
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"patio\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "5 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "115 m²"
+                },
+                "screenReaderLabel": "115 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "5 rum"
+                },
+                "screenReaderLabel": "5 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "BV"
+                },
+                "screenReaderLabel": "BV"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "53 900 kr/m²"
+                },
+                "screenReaderLabel": "53 900 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 200 000 kr",
+            "raw": 6200000,
+            "value": "6 200 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 1"
-            },
-            "screenReaderLabel": "vån 1"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+205 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "102 000 kr/m²"
-            },
-            "screenReaderLabel": "102 000 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "7 500 000 kr",
-        "raw": 7500000,
-        "value": "7 500 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-295 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-3,8%",
-        "raw": -3.8
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "7 795 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 42,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6094927": {
-      "__typename": "SoldProperty",
-      "id": "6094927",
-      "booliId": "6094927",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+3,4%",
+            "raw": 3.4
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 995 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 99,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "40,5 m²"
-            },
-            "screenReaderLabel": "40,5 kvadratmeter"
+        "SoldProperty:5833156": {
+          "__typename": "SoldProperty",
+          "id": "5833156",
+          "booliId": "5833156",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "54 m²"
+                },
+                "screenReaderLabel": "54 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 1"
+                },
+                "screenReaderLabel": "vån 1"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "76 100 kr/m²"
+                },
+                "screenReaderLabel": "76 100 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2 rum"
-            },
-            "screenReaderLabel": "2 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 110 000 kr",
+            "raw": 4110000,
+            "value": "4 110 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 4"
-            },
-            "screenReaderLabel": "vån 4"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-85 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "61 600 kr/m²"
-            },
-            "screenReaderLabel": "61 600 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 495 000 kr",
-        "raw": 2495000,
-        "value": "2 495 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-100 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-3,9%",
-        "raw": -3.9
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 495 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 54,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6093446": {
-      "__typename": "SoldProperty",
-      "id": "6093446",
-      "booliId": "6093446",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "74,5 m²"
-            },
-            "screenReaderLabel": "74,5 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-2%",
+            "raw": -2
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 195 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "81 900 kr/m²"
-            },
-            "screenReaderLabel": "81 900 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 100 000 kr",
-        "raw": 6100000,
-        "value": "6 100 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+105 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+1,8%",
-        "raw": 1.8
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 995 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 54,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6085414": {
-      "__typename": "SoldProperty",
-      "id": "6085414",
-      "booliId": "6085414",
-      "amenities": [],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "6 rum radhus, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "91 + 37 m²"
-            },
-            "screenReaderLabel": "91 + 37 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "6 rum"
-            },
-            "screenReaderLabel": "6 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "116 m² tomt"
-            },
-            "screenReaderLabel": "116 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "60 400 kr/m²"
-            },
-            "screenReaderLabel": "60 400 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 500 000 kr",
-        "raw": 5500000,
-        "value": "5 500 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-95 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-1,7%",
-        "raw": -1.7
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "5 595 000 kr"
-      },
-      "objectType": "Radhus",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 60,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6080286": {
-      "__typename": "SoldProperty",
-      "id": "6080286",
-      "booliId": "6080286",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 43,
+          "soldDate": "2026-06-18",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "2,5 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "57 m²"
+        "SoldProperty:6159587": {
+          "__typename": "SoldProperty",
+          "id": "6159587",
+          "booliId": "6159587",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
             },
-            "screenReaderLabel": "57 kvadratmeter"
+            {
+              "__ref": "Amenity:{\"key\":\"patio\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "87,5 m²"
+                },
+                "screenReaderLabel": "87,5 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "47 400 kr/m²"
+                },
+                "screenReaderLabel": "47 400 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2,5 rum"
-            },
-            "screenReaderLabel": "2,5 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "4 150 000 kr",
+            "raw": 4150000,
+            "value": "4 150 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån -1"
-            },
-            "screenReaderLabel": "vån -1"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "50 800 kr/m²"
-            },
-            "screenReaderLabel": "50 800 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 895 000 kr",
-        "raw": 2895000,
-        "value": "2 895 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "±0 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+/-0%",
-        "raw": 0
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 895 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 56,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:5901854": {
-      "__typename": "SoldProperty",
-      "id": "5901854",
-      "booliId": "5901854",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": null,
+          "soldPricePercentageDiff": null,
+          "listPrice": null,
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 7,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "55 m²"
-            },
-            "screenReaderLabel": "55 kvadratmeter"
+        "SoldProperty:6159310": {
+          "__typename": "SoldProperty",
+          "id": "6159310",
+          "booliId": "6159310",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "162 m²"
+                },
+                "screenReaderLabel": "162 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "735 m² tomt"
+                },
+                "screenReaderLabel": "735 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "56 800 kr/m²"
+                },
+                "screenReaderLabel": "56 800 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "9 200 000 kr",
+            "raw": 9200000,
+            "value": "9 200 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 6"
-            },
-            "screenReaderLabel": "vån 6"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+425 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "56 400 kr/m²"
-            },
-            "screenReaderLabel": "56 400 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 100 000 kr",
-        "raw": 3100000,
-        "value": "3 100 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-395 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-11,3%",
-        "raw": -11.3
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "3 395 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Sista bud",
-      "daysActive": 229,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:5898917": {
-      "__typename": "SoldProperty",
-      "id": "5898917",
-      "booliId": "5898917",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+4,8%",
+            "raw": 4.8
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "8 775 000 kr"
+          },
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 0,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "106 m²"
-            },
-            "screenReaderLabel": "106 kvadratmeter"
+        "SoldProperty:6156775": {
+          "__typename": "SoldProperty",
+          "id": "6156775",
+          "booliId": "6156775",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3,5 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "89,5 m²"
+                },
+                "screenReaderLabel": "89,5 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3,5 rum"
+                },
+                "screenReaderLabel": "3,5 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 3"
+                },
+                "screenReaderLabel": "vån 3"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "67 800 kr/m²"
+                },
+                "screenReaderLabel": "67 800 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 070 000 kr",
+            "raw": 6070000,
+            "value": "6 070 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 10"
-            },
-            "screenReaderLabel": "vån 10"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+875 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "109 400 kr/m²"
-            },
-            "screenReaderLabel": "109 400 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "11 600 000 kr",
-        "raw": 11600000,
-        "value": "11 600 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-195 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-1,7%",
-        "raw": -1.7
-      },
-      "listPrice": null,
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 49,
-      "soldDate": "2026-06-17",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6161451": {
-      "__typename": "SoldProperty",
-      "id": "6161451",
-      "booliId": "6161451",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "6 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "210 + 88 m²"
-            },
-            "screenReaderLabel": "210 + 88 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+16,8%",
+            "raw": 16.8
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "6 rum"
-            },
-            "screenReaderLabel": "6 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 195 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "1 439 m² tomt"
-            },
-            "screenReaderLabel": "1 439 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "105 700 kr/m²"
-            },
-            "screenReaderLabel": "105 700 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "22 200 000 kr",
-        "raw": 22200000,
-        "value": "22 200 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+2 300 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+11,6%",
-        "raw": 11.6
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "19 900 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 5,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6147244": {
-      "__typename": "SoldProperty",
-      "id": "6147244",
-      "booliId": "6147244",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "44 m²"
-            },
-            "screenReaderLabel": "44 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2 rum"
-            },
-            "screenReaderLabel": "2 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "40 900 kr/m²"
-            },
-            "screenReaderLabel": "40 900 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "1 800 000 kr",
-        "raw": 1800000,
-        "value": "1 800 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+105 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+6,2%",
-        "raw": 6.2
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "1 695 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 15,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6129515": {
-      "__typename": "SoldProperty",
-      "id": "6129515",
-      "booliId": "6129515",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"patio\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum radhus, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "100 m²"
-            },
-            "screenReaderLabel": "100 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "69 500 kr/m²"
-            },
-            "screenReaderLabel": "69 500 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 950 000 kr",
-        "raw": 6950000,
-        "value": "6 950 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "±0 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+/-0%",
-        "raw": 0
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "6 950 000 kr"
-      },
-      "objectType": "Radhus",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 26,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6124144": {
-      "__typename": "SoldProperty",
-      "id": "6124144",
-      "booliId": "6124144",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"fireplace\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "4 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "113 + 13 m²"
-            },
-            "screenReaderLabel": "113 + 13 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "4 rum"
-            },
-            "screenReaderLabel": "4 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "763 m² tomt"
-            },
-            "screenReaderLabel": "763 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "82 300 kr/m²"
-            },
-            "screenReaderLabel": "82 300 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "9 300 000 kr",
-        "raw": 9300000,
-        "value": "9 300 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+350 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+3,9%",
-        "raw": 3.9
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "8 950 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 25,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6121899": {
-      "__typename": "SoldProperty",
-      "id": "6121899",
-      "booliId": "6121899",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 9,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "89 m²"
-            },
-            "screenReaderLabel": "89 kvadratmeter"
+        "SoldProperty:6152188": {
+          "__typename": "SoldProperty",
+          "id": "6152188",
+          "booliId": "6152188",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "7 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "240 m²"
+                },
+                "screenReaderLabel": "240 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "7 rum"
+                },
+                "screenReaderLabel": "7 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2 299 m² tomt"
+                },
+                "screenReaderLabel": "2 299 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "63 800 kr/m²"
+                },
+                "screenReaderLabel": "63 800 kr/kvadratmeter"
+              }
+            ]
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "3 rum"
-            },
-            "screenReaderLabel": "3 rum"
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "15 300 000 kr",
+            "raw": 15300000,
+            "value": "15 300 000",
+            "unit": "kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 2"
-            },
-            "screenReaderLabel": "vån 2"
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-200 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "25 800 kr/m²"
-            },
-            "screenReaderLabel": "25 800 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 300 000 kr",
-        "raw": 2300000,
-        "value": "2 300 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+105 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "+4,8%",
-        "raw": 4.8
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 195 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 32,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6053753": {
-      "__typename": "SoldProperty",
-      "id": "6053753",
-      "booliId": "6053753",
-      "amenities": [],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "7 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "142 + 79 m²"
-            },
-            "screenReaderLabel": "142 + 79 kvadratmeter"
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-1,3%",
+            "raw": -1.3
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "7 rum"
-            },
-            "screenReaderLabel": "7 rum"
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "15 500 000 kr"
           },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "1 836 m² tomt"
-            },
-            "screenReaderLabel": "1 836 kvadratmeter tomt"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "67 600 kr/m²"
-            },
-            "screenReaderLabel": "67 600 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "9 600 000 kr",
-        "raw": 9600000,
-        "value": "9 600 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": null,
-      "soldPricePercentageDiff": null,
-      "listPrice": null,
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 84,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6006166": {
-      "__typename": "SoldProperty",
-      "id": "6006166",
-      "booliId": "6006166",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"patio\"}"
-        }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "7 rum villa, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "210 m²"
-            },
-            "screenReaderLabel": "210 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "7 rum"
-            },
-            "screenReaderLabel": "7 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "65 700 kr/m²"
-            },
-            "screenReaderLabel": "65 700 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "13 800 000 kr",
-        "raw": 13800000,
-        "value": "13 800 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-1 695 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-10,9%",
-        "raw": -10.9
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "13 995 000 kr"
-      },
-      "objectType": "Villa",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 53,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "SoldProperty:6002851": {
-      "__typename": "SoldProperty",
-      "id": "6002851",
-      "booliId": "6002851",
-      "amenities": [
-        {
-          "__ref": "Amenity:{\"key\":\"elevator\"}"
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 13,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
         },
-        {
-          "__ref": "Amenity:{\"key\":\"balcony\"}"
+        "SoldProperty:6149170": {
+          "__typename": "SoldProperty",
+          "id": "6149170",
+          "booliId": "6149170",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum radhus, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "114 m²"
+                },
+                "screenReaderLabel": "114 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "224 m² tomt"
+                },
+                "screenReaderLabel": "224 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "34 200 kr/m²"
+                },
+                "screenReaderLabel": "34 200 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 900 000 kr",
+            "raw": 3900000,
+            "value": "3 900 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-75 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-1,9%",
+            "raw": -1.9
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 975 000 kr"
+          },
+          "objectType": "Radhus",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 15,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6141322": {
+          "__typename": "SoldProperty",
+          "id": "6141322",
+          "booliId": "6141322",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "60 m²"
+                },
+                "screenReaderLabel": "60 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2 rum"
+                },
+                "screenReaderLabel": "2 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 2"
+                },
+                "screenReaderLabel": "vån 2"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "31 700 kr/m²"
+                },
+                "screenReaderLabel": "31 700 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "1 900 000 kr",
+            "raw": 1900000,
+            "value": "1 900 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": null,
+          "soldPricePercentageDiff": null,
+          "listPrice": null,
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 3,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6133722": {
+          "__typename": "SoldProperty",
+          "id": "6133722",
+          "booliId": "6133722",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"patio\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "1 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "20 m²"
+                },
+                "screenReaderLabel": "20 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "1 rum"
+                },
+                "screenReaderLabel": "1 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "48 000 kr/m²"
+                },
+                "screenReaderLabel": "48 000 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "960 000 kr",
+            "raw": 960000,
+            "value": "960 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-35 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-3,5%",
+            "raw": -3.5
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "995 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 27,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6133678": {
+          "__typename": "SoldProperty",
+          "id": "6133678",
+          "booliId": "6133678",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "6 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "185 m²"
+                },
+                "screenReaderLabel": "185 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "6 rum"
+                },
+                "screenReaderLabel": "6 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "840 m² tomt"
+                },
+                "screenReaderLabel": "840 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "69 200 kr/m²"
+                },
+                "screenReaderLabel": "69 200 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "12 800 000 kr",
+            "raw": 12800000,
+            "value": "12 800 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+1 300 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+11,3%",
+            "raw": 11.3
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "11 500 000 kr"
+          },
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 26,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6114718": {
+          "__typename": "SoldProperty",
+          "id": "6114718",
+          "booliId": "6114718",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "81 m²"
+                },
+                "screenReaderLabel": "81 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 4"
+                },
+                "screenReaderLabel": "vån 4"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "25 300 kr/m²"
+                },
+                "screenReaderLabel": "25 300 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 050 000 kr",
+            "raw": 2050000,
+            "value": "2 050 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-25 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-1,2%",
+            "raw": -1.2
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 075 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 39,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6109806": {
+          "__typename": "SoldProperty",
+          "id": "6109806",
+          "booliId": "6109806",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "73,5 m²"
+                },
+                "screenReaderLabel": "73,5 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 1"
+                },
+                "screenReaderLabel": "vån 1"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "102 000 kr/m²"
+                },
+                "screenReaderLabel": "102 000 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "7 500 000 kr",
+            "raw": 7500000,
+            "value": "7 500 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-295 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-3,8%",
+            "raw": -3.8
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "7 795 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 42,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6094927": {
+          "__typename": "SoldProperty",
+          "id": "6094927",
+          "booliId": "6094927",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "40,5 m²"
+                },
+                "screenReaderLabel": "40,5 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2 rum"
+                },
+                "screenReaderLabel": "2 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 4"
+                },
+                "screenReaderLabel": "vån 4"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "61 600 kr/m²"
+                },
+                "screenReaderLabel": "61 600 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 495 000 kr",
+            "raw": 2495000,
+            "value": "2 495 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-100 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-3,9%",
+            "raw": -3.9
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 495 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 54,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6093446": {
+          "__typename": "SoldProperty",
+          "id": "6093446",
+          "booliId": "6093446",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "74,5 m²"
+                },
+                "screenReaderLabel": "74,5 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "81 900 kr/m²"
+                },
+                "screenReaderLabel": "81 900 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 100 000 kr",
+            "raw": 6100000,
+            "value": "6 100 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+105 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+1,8%",
+            "raw": 1.8
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 995 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 54,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6085414": {
+          "__typename": "SoldProperty",
+          "id": "6085414",
+          "booliId": "6085414",
+          "amenities": [],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "6 rum radhus, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "91 + 37 m²"
+                },
+                "screenReaderLabel": "91 + 37 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "6 rum"
+                },
+                "screenReaderLabel": "6 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "116 m² tomt"
+                },
+                "screenReaderLabel": "116 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "60 400 kr/m²"
+                },
+                "screenReaderLabel": "60 400 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 500 000 kr",
+            "raw": 5500000,
+            "value": "5 500 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-95 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-1,7%",
+            "raw": -1.7
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "5 595 000 kr"
+          },
+          "objectType": "Radhus",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 60,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6080286": {
+          "__typename": "SoldProperty",
+          "id": "6080286",
+          "booliId": "6080286",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "2,5 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "57 m²"
+                },
+                "screenReaderLabel": "57 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2,5 rum"
+                },
+                "screenReaderLabel": "2,5 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån -1"
+                },
+                "screenReaderLabel": "vån -1"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "50 800 kr/m²"
+                },
+                "screenReaderLabel": "50 800 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 895 000 kr",
+            "raw": 2895000,
+            "value": "2 895 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "±0 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+/-0%",
+            "raw": 0
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 895 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 56,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:5901854": {
+          "__typename": "SoldProperty",
+          "id": "5901854",
+          "booliId": "5901854",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "55 m²"
+                },
+                "screenReaderLabel": "55 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 6"
+                },
+                "screenReaderLabel": "vån 6"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "56 400 kr/m²"
+                },
+                "screenReaderLabel": "56 400 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 100 000 kr",
+            "raw": 3100000,
+            "value": "3 100 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-395 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-11,3%",
+            "raw": -11.3
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "3 395 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Sista bud",
+          "daysActive": 229,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:5898917": {
+          "__typename": "SoldProperty",
+          "id": "5898917",
+          "booliId": "5898917",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "106 m²"
+                },
+                "screenReaderLabel": "106 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 10"
+                },
+                "screenReaderLabel": "vån 10"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "109 400 kr/m²"
+                },
+                "screenReaderLabel": "109 400 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "11 600 000 kr",
+            "raw": 11600000,
+            "value": "11 600 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-195 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-1,7%",
+            "raw": -1.7
+          },
+          "listPrice": null,
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 49,
+          "soldDate": "2026-06-17",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6161451": {
+          "__typename": "SoldProperty",
+          "id": "6161451",
+          "booliId": "6161451",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "6 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "210 + 88 m²"
+                },
+                "screenReaderLabel": "210 + 88 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "6 rum"
+                },
+                "screenReaderLabel": "6 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "1 439 m² tomt"
+                },
+                "screenReaderLabel": "1 439 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "105 700 kr/m²"
+                },
+                "screenReaderLabel": "105 700 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "22 200 000 kr",
+            "raw": 22200000,
+            "value": "22 200 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+2 300 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+11,6%",
+            "raw": 11.6
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "19 900 000 kr"
+          },
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 5,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6147244": {
+          "__typename": "SoldProperty",
+          "id": "6147244",
+          "booliId": "6147244",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "44 m²"
+                },
+                "screenReaderLabel": "44 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2 rum"
+                },
+                "screenReaderLabel": "2 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "40 900 kr/m²"
+                },
+                "screenReaderLabel": "40 900 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "1 800 000 kr",
+            "raw": 1800000,
+            "value": "1 800 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+105 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+6,2%",
+            "raw": 6.2
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "1 695 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 15,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6129515": {
+          "__typename": "SoldProperty",
+          "id": "6129515",
+          "booliId": "6129515",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"patio\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum radhus, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "100 m²"
+                },
+                "screenReaderLabel": "100 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "69 500 kr/m²"
+                },
+                "screenReaderLabel": "69 500 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 950 000 kr",
+            "raw": 6950000,
+            "value": "6 950 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "±0 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+/-0%",
+            "raw": 0
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "6 950 000 kr"
+          },
+          "objectType": "Radhus",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 26,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6124144": {
+          "__typename": "SoldProperty",
+          "id": "6124144",
+          "booliId": "6124144",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"fireplace\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "4 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "113 + 13 m²"
+                },
+                "screenReaderLabel": "113 + 13 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "4 rum"
+                },
+                "screenReaderLabel": "4 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "763 m² tomt"
+                },
+                "screenReaderLabel": "763 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "82 300 kr/m²"
+                },
+                "screenReaderLabel": "82 300 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "9 300 000 kr",
+            "raw": 9300000,
+            "value": "9 300 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+350 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+3,9%",
+            "raw": 3.9
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "8 950 000 kr"
+          },
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 25,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6121899": {
+          "__typename": "SoldProperty",
+          "id": "6121899",
+          "booliId": "6121899",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "3 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "89 m²"
+                },
+                "screenReaderLabel": "89 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "3 rum"
+                },
+                "screenReaderLabel": "3 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 2"
+                },
+                "screenReaderLabel": "vån 2"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "25 800 kr/m²"
+                },
+                "screenReaderLabel": "25 800 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 300 000 kr",
+            "raw": 2300000,
+            "value": "2 300 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+105 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "+4,8%",
+            "raw": 4.8
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 195 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 32,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6053753": {
+          "__typename": "SoldProperty",
+          "id": "6053753",
+          "booliId": "6053753",
+          "amenities": [],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "7 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "142 + 79 m²"
+                },
+                "screenReaderLabel": "142 + 79 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "7 rum"
+                },
+                "screenReaderLabel": "7 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "1 836 m² tomt"
+                },
+                "screenReaderLabel": "1 836 kvadratmeter tomt"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "67 600 kr/m²"
+                },
+                "screenReaderLabel": "67 600 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "9 600 000 kr",
+            "raw": 9600000,
+            "value": "9 600 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": null,
+          "soldPricePercentageDiff": null,
+          "listPrice": null,
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 84,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6006166": {
+          "__typename": "SoldProperty",
+          "id": "6006166",
+          "booliId": "6006166",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"patio\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "7 rum villa, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "210 m²"
+                },
+                "screenReaderLabel": "210 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "7 rum"
+                },
+                "screenReaderLabel": "7 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "65 700 kr/m²"
+                },
+                "screenReaderLabel": "65 700 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "13 800 000 kr",
+            "raw": 13800000,
+            "value": "13 800 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-1 695 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-10,9%",
+            "raw": -10.9
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "13 995 000 kr"
+          },
+          "objectType": "Villa",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 53,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "SoldProperty:6002851": {
+          "__typename": "SoldProperty",
+          "id": "6002851",
+          "booliId": "6002851",
+          "amenities": [
+            {
+              "__ref": "Amenity:{\"key\":\"elevator\"}"
+            },
+            {
+              "__ref": "Amenity:{\"key\":\"balcony\"}"
+            }
+          ],
+          "images({\"limit\":5})": "<REDACTED>",
+          "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
+            "__typename": "DisplayAttributes",
+            "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
+            "dataPoints": [
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "68 m²"
+                },
+                "screenReaderLabel": "68 kvadratmeter"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "2 rum"
+                },
+                "screenReaderLabel": "2 rum"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "vån 3"
+                },
+                "screenReaderLabel": "vån 3"
+              },
+              {
+                "__typename": "DataPoint",
+                "value": {
+                  "__typename": "DisplayText",
+                  "plainText": "38 200 kr/m²"
+                },
+                "screenReaderLabel": "38 200 kr/kvadratmeter"
+              }
+            ]
+          },
+          "soldPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 600 000 kr",
+            "raw": 2600000,
+            "value": "2 600 000",
+            "unit": "kr"
+          },
+          "streetAddress": "<REDACTED>",
+          "soldPriceAbsoluteDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-150 000 kr"
+          },
+          "soldPricePercentageDiff": {
+            "__typename": "FormattedValue",
+            "formatted": "-5,5%",
+            "raw": -5.5
+          },
+          "listPrice": {
+            "__typename": "FormattedValue",
+            "formatted": "2 675 000 kr"
+          },
+          "objectType": "Lägenhet",
+          "descriptiveAreaName": "<REDACTED_AREA>",
+          "location": "<REDACTED>",
+          "soldPriceType": "Slutpris",
+          "daysActive": 127,
+          "soldDate": "2026-06-16",
+          "latitude": "<REDACTED>",
+          "longitude": "<REDACTED>",
+          "url": "<REDACTED>",
+          "primaryImage": "<REDACTED>"
+        },
+        "Area_V3:76": {
+          "__typename": "Area_V3",
+          "id": "76",
+          "name": "Nacka",
+          "displayName": "Nacka kommun",
+          "preposition": "i",
+          "type": "municipality",
+          "typeDisplayName": "Kommun",
+          "parentDisplayName": "Stockholms län",
+          "parent": "Stockholms län"
         }
-      ],
-      "images({\"limit\":5})": "<REDACTED>",
-      "displayAttributes({\"queryContext\":\"SERP_LIST_LISTING\"})": {
-        "__typename": "DisplayAttributes",
-        "screenReaderLabel": "2 rum lägenhet, Nacka kommun",
-        "dataPoints": [
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "68 m²"
-            },
-            "screenReaderLabel": "68 kvadratmeter"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "2 rum"
-            },
-            "screenReaderLabel": "2 rum"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "vån 3"
-            },
-            "screenReaderLabel": "vån 3"
-          },
-          {
-            "__typename": "DataPoint",
-            "value": {
-              "__typename": "DisplayText",
-              "plainText": "38 200 kr/m²"
-            },
-            "screenReaderLabel": "38 200 kr/kvadratmeter"
-          }
-        ]
-      },
-      "soldPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 600 000 kr",
-        "raw": 2600000,
-        "value": "2 600 000",
-        "unit": "kr"
-      },
-      "streetAddress": "<REDACTED>",
-      "soldPriceAbsoluteDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-150 000 kr"
-      },
-      "soldPricePercentageDiff": {
-        "__typename": "FormattedValue",
-        "formatted": "-5,5%",
-        "raw": -5.5
-      },
-      "listPrice": {
-        "__typename": "FormattedValue",
-        "formatted": "2 675 000 kr"
-      },
-      "objectType": "Lägenhet",
-      "descriptiveAreaName": "<REDACTED_AREA>",
-      "location": "<REDACTED>",
-      "soldPriceType": "Slutpris",
-      "daysActive": 127,
-      "soldDate": "2026-06-16",
-      "latitude": "<REDACTED>",
-      "longitude": "<REDACTED>",
-      "url": "<REDACTED>",
-      "primaryImage": "<REDACTED>"
-    },
-    "Area_V3:76": {
-      "__typename": "Area_V3",
-      "id": "76",
-      "name": "Nacka",
-      "displayName": "Nacka kommun",
-      "preposition": "i",
-      "type": "municipality",
-      "typeDisplayName": "Kommun",
-      "parentDisplayName": "Stockholms län",
-      "parent": "Stockholms län"
+      }
     }
-  }
+  ]
 }
