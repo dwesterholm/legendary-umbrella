@@ -41,14 +41,21 @@ const SCB_BASE = "https://api.scb.se/OV0104/v1/doris/en/ssd";
 // before querying (Pitfall 2); we never send arbitrary region strings.
 const SCB_TABLES = {
   // Population + age + sex by DeSO. Latest year 2025 (verified live).
+  // contentsCode "000007Y7" = "Number" (verified live against the table's value
+  // list — the old "BE0101N1" is not a member of this table and yielded HTTP 400).
   population: {
     path: "BE/BE0101/BE0101Y/FolkmDesoAldKon",
-    contentsCode: "BE0101N1",
+    contentsCode: "000007Y7",
     year: "2025",
   },
   // Disposable income by DeSO/RegSO. Latest year 2024 (income LAGS one year).
+  // The table is MANDATORY in InkomstTyp + Kon + ContentsCode — omitting them
+  // yielded HTTP 400. We query net income (NeInk), both sexes (1+2) and the
+  // headline "Median value, SEK thousands" content code "0000089U" (verified live).
   income: {
     path: "HE/HE0110/HE0110I/Tab1InkDesoRegso",
+    incomeType: "NeInk",
+    contentsCode: "0000089U",
     year: "2024",
   },
   // Tenure / upplåtelseform by DeSO. Latest year 2025.
@@ -58,14 +65,48 @@ const SCB_TABLES = {
   },
 } as const;
 
+// The SCB BE0101 5-year age bands (excludes the "totalt" aggregate so the
+// normalizer's sum-of-all-cells is the real population, not double-counted, and
+// the age map carries real bands). Stable SCB coding (verified live).
+const POPULATION_AGE_BANDS: readonly string[] = [
+  "-4",
+  "5-9",
+  "10-14",
+  "15-19",
+  "20-24",
+  "25-29",
+  "30-34",
+  "35-39",
+  "40-44",
+  "45-49",
+  "50-54",
+  "55-59",
+  "60-64",
+  "65-69",
+  "70-74",
+  "75-79",
+  "80-",
+] as const;
+
 /**
- * The SSD DeSO region value carries a year suffix, e.g. "0180C1010_DeSO2025"
- * (03-SPIKE §3, RESEARCH Pitfall 2). Build the exact region string a given
- * table+year expects. The DeSO code itself is validated upstream (resolveGeo
- * only emits codes present in the bundled SCB DeSO_2025 set).
+ * The DeSO GEOGRAPHY vintage encoded in the SSD region value suffix, e.g.
+ * "0180C3130_DeSO2025". This is the boundary set's vintage — it is DECOUPLED from
+ * a table's data `Tid` year. All three whitelisted tables key region by the 2025
+ * DeSO boundaries (verified live: income's `Tid` is 2024 but its region value is
+ * still `..._DeSO2025`). The bundled artifact is the SCB DeSO_2025 set, so this
+ * matches the codes resolveGeo emits. Coupling the suffix to the data year (the
+ * old bug) produced `_DeSO2024` for income → HTTP 400 → income silently null.
  */
-function desoRegionValue(desoCode: string, year: string): string {
-  return `${desoCode}_DeSO${year}`;
+const DESO_VINTAGE = "2025";
+
+/**
+ * Build the exact SSD region string for a DeSO code (03-SPIKE §3, RESEARCH
+ * Pitfall 2): the validated DeSO code + the geography vintage suffix. The DeSO
+ * code itself is validated upstream (resolveGeo only emits codes present in the
+ * bundled SCB DeSO_2025 set).
+ */
+function desoRegionValue(desoCode: string): string {
+  return `${desoCode}_DeSO${DESO_VINTAGE}`;
 }
 
 /**
@@ -161,8 +202,19 @@ export async function fetchScbDemographics(
         code: "Region",
         selection: {
           filter: "item",
-          values: [desoRegionValue(deso, SCB_TABLES.population.year)],
+          values: [desoRegionValue(deso)],
         },
+      },
+      // Alder + Kon are MANDATORY for this table; omitting them → HTTP 400. Select
+      // every 5-year band (NOT the "totalt" aggregate) + both sexes total so the
+      // normalizer sums real bands into population and keeps an age distribution.
+      {
+        code: "Alder",
+        selection: { filter: "item", values: [...POPULATION_AGE_BANDS] },
+      },
+      {
+        code: "Kon",
+        selection: { filter: "item", values: ["1+2"] },
       },
       {
         code: "ContentsCode",
@@ -185,7 +237,23 @@ export async function fetchScbDemographics(
         code: "Region",
         selection: {
           filter: "item",
-          values: [desoRegionValue(deso, SCB_TABLES.income.year)],
+          values: [desoRegionValue(deso)],
+        },
+      },
+      // InkomstTyp + Kon + ContentsCode are MANDATORY; omitting them → HTTP 400.
+      {
+        code: "InkomstTyp",
+        selection: { filter: "item", values: [SCB_TABLES.income.incomeType] },
+      },
+      {
+        code: "Kon",
+        selection: { filter: "item", values: ["1+2"] },
+      },
+      {
+        code: "ContentsCode",
+        selection: {
+          filter: "item",
+          values: [SCB_TABLES.income.contentsCode],
         },
       },
       {
@@ -202,7 +270,7 @@ export async function fetchScbDemographics(
         code: "Region",
         selection: {
           filter: "item",
-          values: [desoRegionValue(deso, SCB_TABLES.tenure.year)],
+          values: [desoRegionValue(deso)],
         },
       },
       {
