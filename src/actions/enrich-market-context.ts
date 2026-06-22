@@ -146,6 +146,25 @@ interface SoldWalkResult {
 }
 
 /**
+ * Thrown when EVERY attempted tier failed to fetch (the dead-source path, HIGH-1).
+ * Carries the number of renders actually attempted/billed before giving up so the
+ * caller can record real spend on the failure path (WR-02 — each Apify render is
+ * billed regardless of failure; under-reporting cost to 0 corrupts the ledger).
+ */
+class SoldWalkError extends Error {
+  readonly renders: number;
+  constructor(renders: number, cause: unknown) {
+    super(
+      cause instanceof Error
+        ? cause.message
+        : "Sold source unavailable across all tiers",
+    );
+    this.name = "SoldWalkError";
+    this.renders = renders;
+  }
+}
+
+/**
  * Walks the D-01 tier ladder (building → neighborhood → wide), STOPPING at the
  * first tier whose RECENT usable comps clear the thin threshold (recency + count,
  * 03-SPIKE.md §1.4). Bounded at MAX_SOURCE_CALLS renders (T-03-17): one render
@@ -189,9 +208,8 @@ async function walkSoldTiers(
     return { comps: last.comps, tier: last.tier, renders };
   }
   // Every attempted tier failed to fetch → a genuine source failure (HIGH-1).
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Sold source unavailable across all tiers");
+  // Surface the renders actually spent so the caller records real cost (WR-02).
+  throw new SoldWalkError(renders, lastError);
 }
 
 /** A source_unavailable PriceData — the dead-source honest state (HIGH-1). */
@@ -388,6 +406,10 @@ export async function enrichMarketContext(
       // HIGH-1: a fetch/normalize FAILURE (every tier unreachable/unparseable) is
       // a DEAD SOURCE — distinct from a real thin area. Log the error only (no
       // PII/payloads), set reason "source_unavailable". The AREA branch still runs.
+      // WR-02: the failed walk still billed up to MAX_SOURCE_CALLS renders — record
+      // them so market_cost_sek reflects real spend (the cost cap still applies).
+      renders =
+        error instanceof SoldWalkError ? error.renders : MAX_SOURCE_CALLS;
       console.error("[enrich-market] price", {
         analysisId,
         code: error instanceof Error ? error.message : "UNKNOWN",
