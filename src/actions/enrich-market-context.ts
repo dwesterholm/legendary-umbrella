@@ -347,6 +347,9 @@ export async function enrichMarketContext(
     // panel says "ej tillgänglig"); the AREA branch still degrades on its own.
     price = sourceUnavailablePrice();
   } else {
+    // Pin a single clock for the whole price branch so the walk-up recency gate
+    // and compare.ts's windowDays filter (WR-01) agree on "now".
+    const nowMs = Date.now();
     try {
       const walk = await walkSoldTiers(
         {
@@ -355,7 +358,7 @@ export async function enrichMarketContext(
           booliId: listing?.booliId ?? null,
           breadcrumbs: listing?.breadcrumbs ?? null,
         },
-        Date.now(),
+        nowMs,
       );
       renders = walk.renders;
 
@@ -363,6 +366,7 @@ export async function enrichMarketContext(
         listingPrisPerKvm,
         comps: walk.comps,
         tier: walk.tier,
+        nowMs,
       });
 
       price = {

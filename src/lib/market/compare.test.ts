@@ -174,6 +174,69 @@ describe("computePriceComparison — LOW: areaAvg-NaN guard (all comps null pris
   });
 });
 
+describe("computePriceComparison — 24-month window (windowDays, WR-01)", () => {
+  // Anchor "now" so the window is deterministic (the function is pure given nowMs).
+  const NOW = Date.parse("2026-06-22T00:00:00Z");
+
+  it("excludes comps sold older than windowDays from areaAvg/deltaPct/min/max", () => {
+    // Five RECENT comps (~88 000) + two STALE comps (sold > 2 years ago) at a
+    // wildly different price. If the window were NOT applied, the stale comps
+    // would drag areaAvg down and poison the ±% headline.
+    const withStale: SoldComp[] = [
+      ...healthyComps, // 2026 dates, in-window
+      comp(40000, "2022-01-01"), // ~4.5 yrs old → out of the 730-day window
+      comp(42000, "2023-01-01"), // ~3.5 yrs old → out of the 730-day window
+    ];
+    const result = computePriceComparison({
+      listingPrisPerKvm: 95200,
+      comps: withStale,
+      tier: "neighborhood",
+      nowMs: NOW,
+    });
+    // Only the 5 in-window comps count — the stale ones are dropped.
+    expect(result.sampleSize).toBe(5);
+    expect(result.areaAvg).toBeCloseTo(88000, -2);
+    expect(result.min).toBe(85000);
+    expect(result.max).toBe(90000);
+    expect(result.reason).toBe("ok");
+  });
+
+  it("drops to 'thin' when only stale (out-of-window) comps remain", () => {
+    const allStale: SoldComp[] = [
+      comp(85000, "2020-01-15"),
+      comp(87000, "2020-02-20"),
+      comp(88000, "2020-03-18"),
+      comp(90000, "2020-04-22"),
+      comp(90000, "2020-05-19"),
+    ];
+    const result = computePriceComparison({
+      listingPrisPerKvm: 95200,
+      comps: allStale,
+      tier: "neighborhood",
+      nowMs: NOW,
+    });
+    expect(result.sampleSize).toBe(0);
+    expect(result.reason).toBe("thin");
+    expect(result.areaAvg).toBeNull();
+    expect(result.deltaPct).toBeNull();
+  });
+
+  it("keeps undated comps (no staleness signal) in the usable sample", () => {
+    const withUndated: SoldComp[] = [
+      ...healthyComps,
+      comp(91000, ""), // no soldDate → kept per documented policy
+    ];
+    const result = computePriceComparison({
+      listingPrisPerKvm: 88000,
+      comps: withUndated,
+      tier: "neighborhood",
+      nowMs: NOW,
+    });
+    expect(result.sampleSize).toBe(6);
+    expect(result.reason).toBe("ok");
+  });
+});
+
 describe("PRICE_COMPARISON_THRESHOLDS — shared source of truth", () => {
   it("is exported so the methodology page and the comparator agree", () => {
     expect(PRICE_COMPARISON_THRESHOLDS).toBeDefined();

@@ -94,11 +94,35 @@ export interface PriceComparison {
 // Pure helpers
 // ---------------------------------------------------------------------------
 
-/** Returns the usable comps: those with a finite pris/kvm > 0. */
-function usableCompsOf(comps: SoldComp[]): SoldComp[] {
-  return comps.filter(
-    (c) => typeof c.prisPerKvm === "number" && Number.isFinite(c.prisPerKvm) && c.prisPerKvm > 0,
-  );
+/**
+ * Returns the usable comps: those with a finite pris/kvm > 0 AND sold within the
+ * `windowDays` comparison window (D-02), measured from `nowMs`.
+ *
+ * Window policy (documented, applied consistently here and in `computeTrendSlope`):
+ *  - a finite pris/kvm > 0 is mandatory (the comparison axis, D-03);
+ *  - a comp with NO parseable `soldDate` is INCLUDED (kept) — undated comps carry
+ *    no staleness signal, so excluding them would silently shrink already-thin
+ *    samples; they simply do not contribute to the trend regression (which needs
+ *    a date). A comp WITH a parseable date is kept only if it is within the window.
+ *
+ * Pure: parsing a stored ISO date is fine (not a "now" read); `nowMs` is passed
+ * in explicitly so the function never reads the clock itself.
+ */
+function usableCompsOf(comps: SoldComp[], nowMs: number): SoldComp[] {
+  const windowMs = PRICE_COMPARISON_THRESHOLDS.windowDays * 86_400_000;
+  return comps.filter((c) => {
+    if (
+      typeof c.prisPerKvm !== "number" ||
+      !Number.isFinite(c.prisPerKvm) ||
+      c.prisPerKvm <= 0
+    ) {
+      return false;
+    }
+    if (!c.soldDate) return true; // undated comp: keep (no staleness signal)
+    const t = Date.parse(c.soldDate);
+    if (!Number.isFinite(t)) return true; // unparseable date: keep, treat as undated
+    return nowMs - t <= windowMs;
+  });
 }
 
 /** Confidence from usable-comp count + tier (D-09). Pure, clamped to [0,1]. */
@@ -166,17 +190,22 @@ function computeTrendSlope(usable: SoldComp[]): number | null {
  *  4. otherwise reason "ok": deltaPct, distribution, trend, sample size, tier,
  *     and a sample+tier-driven confidence.
  *
- * @param input - the listing's pris/kvm, the tier-filtered comps, and the tier
+ * @param input - the listing's pris/kvm, the tier-filtered comps, the tier, and
+ *   an optional `nowMs` (the window anchor; defaults to `Date.now()` for callers
+ *   that do not pin a clock — passing it explicitly keeps the result reproducible
+ *   and is how the action/tests drive the `windowDays` filter deterministically).
  * @returns the deterministic comparison (statistics, never a valuation verdict)
  */
 export function computePriceComparison(input: {
   listingPrisPerKvm: number;
   comps: SoldComp[];
   tier: PriceTier;
+  nowMs?: number;
 }): PriceComparison {
   const { listingPrisPerKvm, comps, tier } = input;
+  const nowMs = input.nowMs ?? Date.now();
 
-  const usable = usableCompsOf(comps);
+  const usable = usableCompsOf(comps, nowMs);
   const usableCount = usable.length;
   const confidence = computeConfidence(usableCount, tier);
 
