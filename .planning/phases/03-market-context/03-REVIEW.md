@@ -32,7 +32,15 @@ findings:
   warning: 6
   info: 5
   total: 11
-status: issues_found
+warnings_resolved: 6
+warnings_resolved_list:
+  - WR-01  # 24-month window now enforced in compare.ts (usableCompsOf filters by windowDays)
+  - WR-02  # billed renders recorded on the all-tier-fail path (typed SoldWalkError carries renders)
+  - WR-03  # analysis page safe-parses listing_data (listingDataSchema.safeParse → notFound)
+  - WR-04  # tenure body selects Upplatelseform component forms + ContentsCode (no TOTALT double-count); fixture+test added
+  - WR-05  # deterministic SoldProperty displayAttributes variant pick (SERP-preferred, sorted, merged)
+  - WR-06  # trend arrow thresholded via classifyTrend dead-band (negligible slope → "stabil")
+status: resolved
 ---
 
 # Phase 3: Code Review Report
@@ -40,7 +48,7 @@ status: issues_found
 **Reviewed:** 2026-06-22
 **Depth:** standard
 **Files Reviewed:** 24
-**Status:** issues_found
+**Status:** resolved (all 6 warnings fixed 2026-06-22; 5 INFO findings left as noted)
 
 ## Summary
 
@@ -65,7 +73,15 @@ else on the page.
 
 ## Warnings
 
-### WR-01: 24-month comparison window (`windowDays: 730`) is declared but never applied
+### WR-01: 24-month comparison window (`windowDays: 730`) is declared but never applied — RESOLVED
+
+**Resolution:** `usableCompsOf(comps, nowMs)` now filters comps to the last
+`windowDays` (anchored on an explicit `nowMs` arg passed by the action; the fn
+stays pure). Undated/unparseable-date comps are KEPT by documented policy (no
+staleness signal); they still do not feed the trend regression. The action pins
+one `nowMs` for both the walk-up recency gate and the comparison.
+`compare.test.ts` covers in-window/out-of-window/undated cases.
+
 
 **File:** `src/lib/market/compare.ts:36`, `src/lib/market/compare.ts:184-234`
 **Issue:** `PRICE_COMPARISON_THRESHOLDS.windowDays = 730` is documented as "24-month
@@ -99,7 +115,14 @@ function usableCompsOf(comps: SoldComp[], nowMs: number): SoldComp[] {
 takes no clock — a deliberate purity choice. Pass it as an explicit arg to keep the
 function pure, as `walkSoldTiers`/`recencyOf` already do.)
 
-### WR-02: Sold-source cost is under-reported to 0 when every tier fails
+### WR-02: Sold-source cost is under-reported to 0 when every tier fails — RESOLVED
+
+**Resolution:** `walkSoldTiers` now throws a typed `SoldWalkError` carrying the
+renders actually spent before all tiers failed; the price-branch catch sets
+`renders` from it (falling back to `MAX_SOURCE_CALLS` for any non-typed error),
+so `market_cost_sek` reflects real Apify spend on the failure path. The cost-cap
+behavior is unchanged.
+
 
 **File:** `src/actions/enrich-market-context.ts:331-360`, `159-195`
 **Issue:** `renders` in `enrichMarketContext` is initialized to 0 and only assigned
@@ -124,7 +147,14 @@ and account for the spent renders in the catch:
 }
 ```
 
-### WR-03: `listing_data` handed to the UI without the CR-01 safe-parse guard
+### WR-03: `listing_data` handed to the UI without the CR-01 safe-parse guard — RESOLVED
+
+**Resolution:** the analysis page now uses
+`listingDataSchema.safeParse(analysis.listing_data).data` and calls `notFound()`
+when the row does not validate, matching the sibling
+`safeParseBrfData`/`safeParsePriceData`/`safeParseAreaData` discipline. The
+`.prisPerKvm` dereference is reached only after the non-null narrowing.
+
 
 **File:** `src/app/(app)/analysis/[id]/page.tsx:37`, `60`, `76`
 **Issue:** `brf_data`, `price_data`, and `area_data` are all defensively re-validated
@@ -144,7 +174,17 @@ if (!listingData) notFound(); // or render a degraded state
 // pass listingData?.prisPerKvm ?? null to MarketContextSection
 ```
 
-### WR-04: Tenure SCB query omits the table's mandatory dimensions — risks always-null tenure
+### WR-04: Tenure SCB query omits the table's mandatory dimensions — risks always-null tenure — RESOLVED
+
+**Resolution:** verified the `HushallT33Deso` table's dimensions live — it
+carries `Upplatelseform` (5 values incl. the `TOTALT` aggregate) +
+`ContentsCode` (`000007DQ`). The old Region+Tid-only body did NOT 400, but
+returned ALL forms INCLUDING `TOTALT`, which the normalizer summed into the
+tenure mix (double-counting). `tenureBody` now selects the four COMPONENT forms
+(`ÄG/ANDEL`, `BOSTADSRÄTT`, `HYRESRÄTT`, `ÖVRIGT`) + the content code
+explicitly. Added a redacted-live `scb-tenure.json` fixture + `scb.test.ts`
+cases (offline) guarding the per-form mix and suppressed-null-cell tolerance.
+
 
 **File:** `src/lib/market/scb.ts:267-282`
 **Issue:** The population and income query bodies each carry the comment "X + Y are
@@ -162,7 +202,14 @@ value list and add them to `tenureBody` (mirroring the population/income bodies)
 add a tenure json-stat2 fixture + `normalizeScbOutput` tenure test so the path is
 exercised offline.
 
-### WR-05: `dataPointsOf` prefix match can pick the wrong Apollo key
+### WR-05: `dataPointsOf` prefix match can pick the wrong Apollo key — RESOLVED
+
+**Resolution:** `dataPointsOf` now collects every `displayAttributes(...)` key,
+SORTS them for stable order, PREFERS the `SERP_LIST_LISTING` variant, and MERGES
+all variants' dataPoints (SERP first so its values win in `findDataPoint`).
+Array/wrapper/bare shape handling is unchanged. Added order-independence +
+SERP-preference regression tests.
+
 
 **File:** `src/lib/market/sold-schema.ts:152-161`
 **Issue:** `dataPointsOf` selects the comp's data points via
@@ -178,7 +225,15 @@ The fixture has a single variant so the test cannot catch this.
 `Object.keys(entry).find((k) => k.includes("SERP_LIST_LISTING"))` with a documented
 fallback, or iterate all `displayAttributes*` keys and merge their dataPoints.
 
-### WR-06: Trend label asserts "24 mån" with no window or minimum-span guard
+### WR-06: Trend label asserts "24 mån" with no window or minimum-span guard — RESOLVED
+
+**Resolution:** the slope now feeds the same `windowDays` filter as WR-01 (the
+trend regresses only over the windowed usable set), and a pure `classifyTrend`
+classifier in `compare.ts` applies a `trendStableEpsPerDay` dead-band so a
+negligible slope renders "→ stabil" instead of a confident ↑/↓. The price card
+classifies through it (hiding the line when the slope is null). `compare.ts`
+stays pure. Added classifier tests.
+
 
 **File:** `src/components/price-comparison-card.tsx:288-293`, `src/lib/market/compare.ts:120-148`
 **Issue:** The UI renders "Pristrend (24 mån): ↑ stigande / ↓ fallande / → stabil"
