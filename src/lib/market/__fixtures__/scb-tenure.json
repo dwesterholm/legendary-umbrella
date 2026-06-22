@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "source": "SCB PxWebApi HE/HE0111/HE0111YDeSo/HushallT33Deso (persons by region, tenure/upplåtelseform, year)",
+    "capturedShape": "json-stat2 (response.format='json-stat2')",
+    "deso": "0180C3130 (Stockholm/Södermalm), year 2025 — captured live with the corrected body (Upplatelseform + ContentsCode + Tid)",
+    "note": "Redacted from a real live SCB response. The four COMPONENT upplåtelseform codes are selected (NOT the TOTALT aggregate, which would otherwise be summed into the tenure mix — WR-04). ÄG/ANDEL is null here (SCB cell suppression) so the fixture also exercises the null-cell-tolerance of the normalizer. Population/income dimensions are intentionally absent so this fixture isolates the tenure metric."
+  },
+  "version": "2.0",
+  "class": "dataset",
+  "label": "Number of persons by region, tenure, observations and year",
+  "source": "Statistics Sweden",
+  "updated": "2026-04-17T06:00:00Z",
+  "id": ["Region", "Upplatelseform", "ContentsCode", "Tid"],
+  "size": [1, 4, 1, 1],
+  "dimension": {
+    "Region": {
+      "label": "region",
+      "category": {
+        "index": { "0180C3130_DeSO2025": 0 },
+        "label": { "0180C3130_DeSO2025": "0180C3130" }
+      }
+    },
+    "Upplatelseform": {
+      "label": "tenure",
+      "category": {
+        "index": {
+          "ÄG/ANDEL": 0,
+          "BOSTADSRÄTT": 1,
+          "HYRESRÄTT": 2,
+          "ÖVRIGT": 3
+        },
+        "label": {
+          "ÄG/ANDEL": "owner-occupied dwellings",
+          "BOSTADSRÄTT": "tenant-owned dwelling",
+          "HYRESRÄTT": "rented dwelling",
+          "ÖVRIGT": "data missing"
+        }
+      }
+    },
+    "ContentsCode": {
+      "label": "observations",
+      "category": {
+        "index": { "000007DQ": 0 },
+        "label": { "000007DQ": "Number of persons" }
+      }
+    },
+    "Tid": {
+      "label": "year",
+      "category": {
+        "index": { "2025": 0 },
+        "label": { "2025": "2025" }
+      }
+    }
+  },
+  "value": [null, 1275, 315, 26],
+  "role": {
+    "time": ["Tid"],
+    "metric": ["ContentsCode"]
+  }
+}

@@ -59,8 +59,17 @@ const SCB_TABLES = {
     year: "2024",
   },
   // Tenure / upplåtelseform by DeSO. Latest year 2025.
+  // Upplatelseform + ContentsCode are dimensions of this table (verified live
+  // against the value list). Omitting them returns the FULL set of forms
+  // INCLUDING the "TOTALT" aggregate — which the normalizer would then sum into
+  // the tenure map, double-counting (WR-04). We select the four COMPONENT forms
+  // (excluding TOTALT) + the "Number of persons" content code explicitly.
   tenure: {
     path: "HE/HE0111/HE0111YDeSo/HushallT33Deso",
+    // The four component upplåtelseform codes (verified live): owner-occupied,
+    // tenant-owned (bostadsrätt), rented (hyresrätt), data-missing — NOT TOTALT.
+    tenureForms: ["ÄG/ANDEL", "BOSTADSRÄTT", "HYRESRÄTT", "ÖVRIGT"],
+    contentsCode: "000007DQ",
     year: "2025",
   },
 } as const;
@@ -272,6 +281,18 @@ export async function fetchScbDemographics(
           filter: "item",
           values: [desoRegionValue(deso)],
         },
+      },
+      // Upplatelseform + ContentsCode are dimensions of this table; select the
+      // four COMPONENT forms (NOT the TOTALT aggregate) + the persons content
+      // code so the normalizer sums real tenure forms, never double-counting the
+      // total into the mix (WR-04).
+      {
+        code: "Upplatelseform",
+        selection: { filter: "item", values: [...SCB_TABLES.tenure.tenureForms] },
+      },
+      {
+        code: "ContentsCode",
+        selection: { filter: "item", values: [SCB_TABLES.tenure.contentsCode] },
       },
       {
         code: "Tid",
