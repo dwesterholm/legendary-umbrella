@@ -5,7 +5,7 @@ import { ComingSoonSection } from "@/components/coming-soon-section";
 import { BrfSection } from "@/components/brf-section";
 import { MarketContextSection } from "@/components/market-context-section";
 import { UrlInput } from "@/components/url-input";
-import type { ListingData } from "@/lib/schemas/listing";
+import { listingDataSchema } from "@/lib/schemas/listing";
 import { safeParseBrfData } from "@/lib/schemas/brf";
 import { safeParsePriceData } from "@/lib/market/sold-schema";
 import { safeParseAreaData } from "@/lib/market/scb-schema";
@@ -34,7 +34,14 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const listingData = analysis.listing_data as unknown as ListingData;
+  // CR-01 / T-03-20 (WR-03): re-validate the persisted listing_data against the
+  // Zod schema — same safe-parse discipline as brf_data/price_data/area_data
+  // below — so a malformed/shape-drifted row degrades to "not found" rather than
+  // crashing on the .prisPerKvm dereference.
+  const listingData = listingDataSchema.safeParse(analysis.listing_data).data;
+  if (!listingData) {
+    notFound();
+  }
   const isPartial = analysis.partial ?? false;
   // CR-01: re-validate the persisted JSONB against the Zod schema before it is
   // handed to the UI. A malformed/partial/shape-drifted row degrades to
