@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 // (mirrors the Phase 2 Wave-0 precedent in src/lib/brf/score.test.ts).
 import {
   computePriceComparison,
+  classifyTrend,
   PRICE_COMPARISON_THRESHOLDS,
   type PriceComparison,
   type SoldComp,
@@ -234,6 +235,27 @@ describe("computePriceComparison — 24-month window (windowDays, WR-01)", () =>
     });
     expect(result.sampleSize).toBe(6);
     expect(result.reason).toBe("ok");
+  });
+});
+
+describe("classifyTrend — thresholded direction (WR-06)", () => {
+  const eps = PRICE_COMPARISON_THRESHOLDS.trendStableEpsPerDay;
+
+  it("reads a negligible (sub-threshold) slope as 'stabil', not a confident ↑/↓", () => {
+    expect(classifyTrend(eps * 0.1)).toBe("stabil");
+    expect(classifyTrend(-eps * 0.1)).toBe("stabil");
+    expect(classifyTrend(0)).toBe("stabil");
+  });
+
+  it("reads a clearly positive slope as 'stigande' and a clearly negative as 'fallande'", () => {
+    expect(classifyTrend(eps * 5)).toBe("stigande");
+    expect(classifyTrend(-eps * 5)).toBe("fallande");
+  });
+
+  it("returns null for a null / non-finite slope so the trend line is hidden", () => {
+    expect(classifyTrend(null)).toBeNull();
+    expect(classifyTrend(Number.NaN)).toBeNull();
+    expect(classifyTrend(Number.POSITIVE_INFINITY)).toBeNull();
   });
 });
 

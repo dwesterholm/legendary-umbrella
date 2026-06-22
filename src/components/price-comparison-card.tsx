@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { PriceData, SoldComp } from "@/lib/market/sold-schema";
+import { classifyTrend } from "@/lib/market/compare";
 import { cn, formatSEK } from "@/lib/utils";
 
 interface PriceComparisonCardProps {
@@ -285,12 +286,23 @@ export function PriceComparisonCard({
               Spridning: {krPerKvm(priceData.min)} – {krPerKvm(priceData.max)}.
             </p>
           )}
-        {typeof priceData.trendSlope === "number" && (
-          <p className="text-sm text-warm-gray-700">
-            Pristrend (24 mån):{" "}
-            {priceData.trendSlope > 0 ? "↑ stigande" : priceData.trendSlope < 0 ? "↓ fallande" : "→ stabil"}
-          </p>
-        )}
+        {(() => {
+          // WR-06: classify the slope through the shared dead-band so a
+          // negligible slope reads "→ stabil" instead of a confident ↑/↓.
+          const dir = classifyTrend(priceData.trendSlope);
+          if (!dir) return null;
+          const label =
+            dir === "stigande"
+              ? "↑ stigande"
+              : dir === "fallande"
+                ? "↓ fallande"
+                : "→ stabil";
+          return (
+            <p className="text-sm text-warm-gray-700">
+              Pristrend (24 mån): {label}
+            </p>
+          );
+        })()}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

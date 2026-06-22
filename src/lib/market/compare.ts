@@ -34,6 +34,13 @@ export const PRICE_COMPARISON_THRESHOLDS = {
   thinMaxComps: 2,
   /** 24-month comparison window in days (D-02) — comps older are de-weighted. */
   windowDays: 730,
+  /**
+   * Trend dead-band in kr/m² PER DAY (WR-06). A `trendSlope` whose magnitude is
+   * below this is treated as flat ("stabil") rather than a confident ↑/↓, so a
+   * negligible least-squares slope from noisy data does not assert a direction.
+   * ~5 kr/m²/day ≈ ~1 800 kr/m²/year — below that, the market reads as stable.
+   */
+  trendStableEpsPerDay: 5,
   confidence: {
     /** usable-comp count → base confidence (monotonic, clamped to [0,1]). */
     sampleBands: [
@@ -169,6 +176,23 @@ function computeTrendSlope(usable: SoldComp[]): number | null {
   if (den === 0) return null; // all comps on the same day → no slope
   const slope = num / den;
   return Number.isFinite(slope) ? slope : null;
+}
+
+/** A thresholded trend direction (WR-06) — what the UI arrow should show. */
+export type TrendDirection = "stigande" | "fallande" | "stabil";
+
+/**
+ * Classifies a `trendSlope` (kr/m² per day) into a direction, applying the
+ * `trendStableEpsPerDay` dead-band so a negligible slope reads "stabil" rather
+ * than a confident ↑/↓ (WR-06). Pure. Returns null only when there is no slope
+ * to classify (null/non-finite), so the caller can hide the trend line entirely.
+ */
+export function classifyTrend(trendSlope: number | null): TrendDirection | null {
+  if (trendSlope == null || !Number.isFinite(trendSlope)) return null;
+  if (Math.abs(trendSlope) < PRICE_COMPARISON_THRESHOLDS.trendStableEpsPerDay) {
+    return "stabil";
+  }
+  return trendSlope > 0 ? "stigande" : "fallande";
 }
 
 // ---------------------------------------------------------------------------
