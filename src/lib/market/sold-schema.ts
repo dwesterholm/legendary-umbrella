@@ -148,16 +148,43 @@ function findDataPoint(
   return null;
 }
 
-/** Extracts the `displayAttributes(...).dataPoints[]` array from a raw entry. */
+/**
+ * Extracts the `displayAttributes(...).dataPoints[]` array from a raw entry.
+ *
+ * Apollo cache keys are field+args-encoded, e.g.
+ * `displayAttributes({"queryContext":"SERP_LIST_LISTING"})`. An entry can carry
+ * MORE THAN ONE `displayAttributes(...)` variant (different `queryContext`), so a
+ * first-by-insertion-order prefix match is NON-DETERMINISTIC and may pick the
+ * wrong variant (e.g. a detail-page context lacking the SERP pris/kvm dataPoint),
+ * dropping an otherwise-usable comp and biasing toward "thin" (WR-05).
+ *
+ * Determinism rules:
+ *  1. Collect every `displayAttributes(...)` key and SORT them (stable order
+ *     regardless of insertion order).
+ *  2. PREFER the SERP_LIST_LISTING variant (the one that carries the pris/kvm
+ *     SERP dataPoint) when present.
+ *  3. MERGE the dataPoints of all matched variants (documented fallback) so we
+ *     never lose a dataPoint that lives only on a non-preferred variant; the
+ *     SERP variant's points come first so its values win in findDataPoint.
+ */
 function dataPointsOf(entry: Record<string, unknown>): DataPoint[] {
-  // The Apollo key is `displayAttributes({"queryContext":"SERP_LIST_LISTING"})`.
-  const attrKey = Object.keys(entry).find((k) =>
-    k.startsWith("displayAttributes"),
-  );
-  if (!attrKey) return [];
-  const attr = entry[attrKey] as { dataPoints?: unknown } | null | undefined;
-  const points = attr?.dataPoints;
-  return Array.isArray(points) ? (points as DataPoint[]) : [];
+  const attrKeys = Object.keys(entry)
+    .filter((k) => k.startsWith("displayAttributes"))
+    .sort();
+  if (attrKeys.length === 0) return [];
+
+  // Preferred (SERP) variant first, then the remaining variants in stable order.
+  const preferred = attrKeys.filter((k) => k.includes("SERP_LIST_LISTING"));
+  const rest = attrKeys.filter((k) => !k.includes("SERP_LIST_LISTING"));
+  const ordered = [...preferred, ...rest];
+
+  const merged: DataPoint[] = [];
+  for (const key of ordered) {
+    const attr = entry[key] as { dataPoints?: unknown } | null | undefined;
+    const points = attr?.dataPoints;
+    if (Array.isArray(points)) merged.push(...(points as DataPoint[]));
+  }
+  return merged;
 }
 
 /**

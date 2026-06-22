@@ -56,3 +56,49 @@ describe("normalizeSoldOutput — live shape (Apify dataset-item array)", () => 
     expect(normalizeSoldOutput([{ hasApollo: false, __APOLLO_STATE__: null }])).toEqual([]);
   });
 });
+
+describe("normalizeSoldOutput — deterministic displayAttributes variant pick (WR-05)", () => {
+  // A SoldProperty entry carrying TWO displayAttributes(...) variants: a
+  // non-SERP detail-page variant (no pris/kvm dataPoint) and the SERP variant
+  // (which carries pris/kvm). A first-by-insertion-order prefix match could pick
+  // the detail variant and drop the comp; the deterministic pick must prefer SERP.
+  const twoVariantState = {
+    "SoldProperty:1": {
+      __typename: "SoldProperty",
+      soldDate: "2026-03-01",
+      // Non-SERP variant inserted FIRST — must NOT win.
+      'displayAttributes({"queryContext":"DETAIL_PAGE"})': {
+        dataPoints: [{ value: { plainText: "99 m²" } }],
+      },
+      // SERP variant carries the pris/kvm dataPoint.
+      'displayAttributes({"queryContext":"SERP_LIST_LISTING"})': {
+        dataPoints: [{ value: { plainText: "85 000 kr/m²" } }],
+      },
+    },
+  };
+
+  it("prefers the SERP_LIST_LISTING variant so the pris/kvm dataPoint is never dropped", () => {
+    const comps = normalizeSoldOutput({ __APOLLO_STATE__: twoVariantState });
+    expect(comps).toHaveLength(1);
+    expect(comps[0].prisPerKvm).toBe(85000);
+  });
+
+  it("is order-independent: the same entry with variants in reverse insertion order yields the same comp", () => {
+    const reversed = {
+      "SoldProperty:1": {
+        __typename: "SoldProperty",
+        soldDate: "2026-03-01",
+        'displayAttributes({"queryContext":"SERP_LIST_LISTING"})': {
+          dataPoints: [{ value: { plainText: "85 000 kr/m²" } }],
+        },
+        'displayAttributes({"queryContext":"DETAIL_PAGE"})': {
+          dataPoints: [{ value: { plainText: "99 m²" } }],
+        },
+      },
+    };
+    const comps = normalizeSoldOutput({ __APOLLO_STATE__: reversed });
+    expect(comps[0].prisPerKvm).toBe(85000);
+    // The m² dataPoint from the non-SERP variant is still merged (livingArea).
+    expect(comps[0].livingArea).toBe(99);
+  });
+});
