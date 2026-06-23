@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { normalizeSoldOutput, type SoldComp } from "@/lib/market/sold-schema";
+import {
+  normalizeSoldOutput,
+  safeParsePriceData,
+  type PriceData,
+  type SoldComp,
+} from "@/lib/market/sold-schema";
 // The committed fixture is a REAL redacted Booli slutpriser payload stored in the
 // TRUE live shape: `{ items: [{ hasApollo, __APOLLO_STATE__ }] }` — the exact
 // shape `fetchSoldComps` returns (an array of Apify dataset items). Tests run
@@ -100,5 +105,130 @@ describe("normalizeSoldOutput — deterministic displayAttributes variant pick (
     expect(comps[0].prisPerKvm).toBe(85000);
     // The m² dataPoint from the non-SERP variant is still merged (livingArea).
     expect(comps[0].livingArea).toBe(99);
+  });
+});
+
+describe("safeParsePriceData — persisted price_data read-guard (PRICE-01, CR-01 / RESEARCH Pattern 4)", () => {
+  // A complete, valid `ok`-state PriceData payload — the happy path the page
+  // reads back from the price_data jsonb column.
+  const okData: PriceData = {
+    reason: "ok",
+    areaAvg: 88000,
+    deltaPct: 8.2,
+    min: 85000,
+    max: 90000,
+    trendSlope: 12.5,
+    sampleSize: 5,
+    tier: "neighborhood",
+    confidence: 0.81,
+    comps: [
+      {
+        prisPerKvm: 85000,
+        soldDate: "2026-01-15",
+        soldPrice: 5280000,
+        soldVsListPct: 3.5,
+        objectType: "Lägenhet",
+        livingArea: 62,
+        rooms: 2,
+        floor: "vån 3",
+        daysActive: 14,
+      },
+      { prisPerKvm: 90000, soldDate: "2026-05-19" },
+    ],
+    source: "Booli",
+    sourceLabel: "sålda bostäder",
+    recency: "senaste 24 mån",
+  };
+
+  it("round-trips a valid `ok`-state PriceData object unchanged (typed equality)", () => {
+    const result = safeParsePriceData(okData);
+    expect(result).not.toBeNull();
+    expect(result).toEqual(okData);
+    // The discriminator and the D-05 receipt array survive the round-trip.
+    expect(result?.reason).toBe("ok");
+    expect(result?.comps).toHaveLength(2);
+    expect(result?.comps[0].prisPerKvm).toBe(85000);
+  });
+
+  it("round-trips a non-`ok` honest-state payload (source_unavailable, nullable figures)", () => {
+    // The honest-state contract: a dead/unparseable source persists with the
+    // reason discriminator + all figures null, NOT a fabricated comparison.
+    const honest: PriceData = {
+      reason: "source_unavailable",
+      areaAvg: null,
+      deltaPct: null,
+      min: null,
+      max: null,
+      trendSlope: null,
+      sampleSize: 0,
+      tier: null,
+      confidence: 0,
+      comps: [],
+      source: null,
+      sourceLabel: null,
+      recency: null,
+    };
+    const result = safeParsePriceData(honest);
+    expect(result).not.toBeNull();
+    expect(result).toEqual(honest);
+    expect(result?.reason).toBe("source_unavailable");
+    expect(result?.comps).toEqual([]);
+  });
+
+  it("returns null for null and undefined (not analysed yet)", () => {
+    expect(safeParsePriceData(null)).toBeNull();
+    expect(safeParsePriceData(undefined)).toBeNull();
+  });
+
+  it("returns null for non-object primitives (string, number, boolean)", () => {
+    expect(safeParsePriceData("price_data")).toBeNull();
+    expect(safeParsePriceData(42)).toBeNull();
+    expect(safeParsePriceData(true)).toBeNull();
+  });
+
+  // Strip a single key from a clone without an unused-binding lint warning.
+  const without = (key: keyof PriceData) => {
+    const clone: Record<string, unknown> = { ...okData };
+    delete clone[key];
+    return clone;
+  };
+
+  it("returns null and NEVER throws on a missing required `reason`", () => {
+    const noReason = without("reason");
+    expect(() => safeParsePriceData(noReason)).not.toThrow();
+    expect(safeParsePriceData(noReason)).toBeNull();
+  });
+
+  it("returns null and NEVER throws on an out-of-enum `reason`", () => {
+    const badReason = { ...okData, reason: "exploded" };
+    expect(() => safeParsePriceData(badReason)).not.toThrow();
+    expect(safeParsePriceData(badReason)).toBeNull();
+  });
+
+  it("returns null and NEVER throws on a missing required `sampleSize`", () => {
+    const noSample = without("sampleSize");
+    expect(() => safeParsePriceData(noSample)).not.toThrow();
+    expect(safeParsePriceData(noSample)).toBeNull();
+  });
+
+  it("returns null and NEVER throws on a missing required `confidence`", () => {
+    const noConfidence = without("confidence");
+    expect(() => safeParsePriceData(noConfidence)).not.toThrow();
+    expect(safeParsePriceData(noConfidence)).toBeNull();
+  });
+
+  it("returns null and NEVER throws on a wrong type for a required field (sampleSize as string)", () => {
+    const wrongType = { ...okData, sampleSize: "five" };
+    expect(() => safeParsePriceData(wrongType)).not.toThrow();
+    expect(safeParsePriceData(wrongType)).toBeNull();
+  });
+
+  it("returns null and NEVER throws on a shape-drifted comps receipt (comp missing required prisPerKvm)", () => {
+    const driftedComp = {
+      ...okData,
+      comps: [{ soldDate: "2026-01-15" }],
+    };
+    expect(() => safeParsePriceData(driftedComp)).not.toThrow();
+    expect(safeParsePriceData(driftedComp)).toBeNull();
   });
 });
