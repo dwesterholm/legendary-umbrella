@@ -118,12 +118,16 @@ Plans:
   3. User can download and share the complete analysis as a PDF report
   4. The AI summary references specific data points from the analysis (not generic advice)
 
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
 
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Deterministic core: reportSchema + read-guard, flag engine, fact-sheet assembler, Sonnet cost rates (RPRT-02/01)
+- [ ] 04-02-PLAN.md — Cross-phase BRF soft-signal extraction extension + prompt-version bump + Phase 2 eval re-run (RPRT-02)
+- [ ] 04-03-PLAN.md — Sonnet synthesis call + system prompt + 004_report.sql migration + human-gated DB push (RPRT-01)
+- [ ] 04-04-PLAN.md — generateReport server action: auth → assemble → synthesize → cost guard → persist + fingerprint (RPRT-01)
+- [ ] 04-05-PLAN.md — PDF subsystem: @react-pdf/renderer + TTF + ReportDocument + download action (RPRT-03)
+- [ ] 04-06-PLAN.md — On-page cohesion: summary anchor + woven flags + triggers + stale marker + guest gate (RPRT-01/02/03)
 
 ## Progress
 
