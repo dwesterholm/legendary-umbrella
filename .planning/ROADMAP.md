@@ -119,14 +119,23 @@ Plans:
   4. The AI summary references specific data points from the analysis (not generic advice)
 
 **Plans**: 6 plans
-
 Plans:
+**Wave 1**
 
 - [ ] 04-01-PLAN.md — Deterministic core: reportSchema + read-guard, flag engine, fact-sheet assembler, Sonnet cost rates (RPRT-02/01)
 - [ ] 04-02-PLAN.md — Cross-phase BRF soft-signal extraction extension + prompt-version bump + Phase 2 eval re-run (RPRT-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 04-03-PLAN.md — Sonnet synthesis call + system prompt + 004_report.sql migration + human-gated DB push (RPRT-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 04-04-PLAN.md — generateReport server action: auth → assemble → synthesize → cost guard → persist + fingerprint (RPRT-01)
 - [ ] 04-05-PLAN.md — PDF subsystem: @react-pdf/renderer + TTF + ReportDocument + download action (RPRT-03)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 04-06-PLAN.md — On-page cohesion: summary anchor + woven flags + triggers + stale marker + guest gate (RPRT-01/02/03)
 
 ## Progress
