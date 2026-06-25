@@ -12,6 +12,21 @@ export const USD_PER_MTOK = {
 } as const;
 
 /**
+ * Claude Sonnet 4.6 per-million-token (MTok) USD rates, verified 2026-06-23
+ * (04-RESEARCH §Synthesis Model Tiering, Pitfall 3): input $3, output $15,
+ * 5-minute cache write $3.75, cache read $0.30. The Phase 4 synthesis call runs
+ * on Sonnet, so its cost MUST be computed with these rates — billing Sonnet
+ * output at the Haiku $5 rate would under-report the priciest call ~3× and
+ * defeat the < 5 SEK budget guard (T-04-03).
+ */
+export const SONNET_USD_PER_MTOK = {
+  input: 3.0,
+  output: 15.0,
+  cacheWrite5m: 3.75,
+  cacheRead: 0.3,
+} as const;
+
+/**
  * USD→SEK conversion rate, exposed as a named config constant rather than
  * hardcoded inline (assumption A1, RESEARCH). Update this single value when the
  * FX rate moves materially; the < 5 SEK budget cap (Plan 04) reads `costSek`.
@@ -51,6 +66,32 @@ export function costSek(usage: ClaudeUsage): number {
       usage.output_tokens * USD_PER_MTOK.output +
       cacheWrite * USD_PER_MTOK.cacheWrite5m +
       cacheRead * USD_PER_MTOK.cacheRead) /
+    ONE_MTOK;
+
+  return usd * USD_SEK_RATE;
+}
+
+/**
+ * Computes the SEK cost of a single Claude SONNET call from its token usage.
+ *
+ * Identical arithmetic and `USD_SEK_RATE` to `costSek`, but billed at the
+ * Sonnet rates ($3/$15) instead of the Haiku rates ($1/$5). The Phase 4
+ * synthesis call (RPRT-01) MUST use this so the cost guard reads the correctly-
+ * rated figure (T-04-03 / RESEARCH Pitfall 3). The Haiku `costSek` path and its
+ * rates are left untouched. Pure function — no side effects, no network.
+ *
+ * @param usage - token counts from `message.usage`
+ * @returns the Sonnet call cost in SEK
+ */
+export function costSekSonnet(usage: ClaudeUsage): number {
+  const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+
+  const usd =
+    (usage.input_tokens * SONNET_USD_PER_MTOK.input +
+      usage.output_tokens * SONNET_USD_PER_MTOK.output +
+      cacheWrite * SONNET_USD_PER_MTOK.cacheWrite5m +
+      cacheRead * SONNET_USD_PER_MTOK.cacheRead) /
     ONE_MTOK;
 
   return usd * USD_SEK_RATE;
