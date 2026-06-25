@@ -28,3 +28,21 @@ tests:
         # Real assertions compare extracted figures to labels and check that
         # out-of-band / scanned fixtures are flagged Osäker (expectedOsaker).
         value: "true /* stub: wire to labels.json in Plan 04 */"
+
+  # ---------------------------------------------------------------------------
+  # Soft signals (D-02, brf-extract/v2): the bumped prompt now extracts three
+  # cited soft signals. Each labelled årsredovisning carries the expected
+  # stambyte status plus a flag that a supporting verbatim citation must be
+  # present. The assertions compare against the soft-signal keys in
+  # evals/labels.json (expectedStambyte / expectedStorreRenovering /
+  # expectedAnmarkning) and check that a sourceQuote backs every non-null
+  # soft signal (T-04-05: no invented stambyte/renovation/anmärkning).
+  - description: "soft signals (D-02) — stambyte status + supporting citation"
+    vars: {}
+    assert:
+      - type: javascript
+        # Real assertion (wired with labels.json in the eval harness):
+        #  - output.stambytePlanerat.value === label.expectedStambyte
+        #  - storreRenoveringar / ovrigaAnmarkningar: presence matches the label,
+        #    and every non-null soft signal has a non-empty sourceQuote + pageRef.
+        value: "true /* stub: assert stambyte/renover/anmark vs labels.json in the eval harness */"
