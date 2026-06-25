@@ -80,13 +80,20 @@ Task 3 is `checkpoint:human-verify gate="blocking"` (cross-phase extraction eval
 - `npm run test` (deterministic, no spend): **GREEN — 140 passed | 6 todo (146)**.
 - `ANTHROPIC_API_KEY`: a key line IS present in `.env.local` (operator should confirm it is a live key — relates to the STATE blocker "02-04 Task 3").
 - `npx promptfoo eval -c evals/promptfooconfig.yaml`: NOT run here (requires `RUN_LLM_EVALS`/live key + the gitignored `evals/labels.json` + `evals/fixtures/*.pdf`; the committed config is still a stub with placeholder assertions extended for the soft signals).
-- **HARNESS GAP (anticipated by the checkpoint):** `npm run eval` → `RUN_LLM_EVALS=1 vitest run evals/extractor.eval.ts`, but **`evals/extractor.eval.ts` is NOT committed in the repo**. The full Phase 2 extraction eval harness file is absent. Before approval, either the executor must scaffold `evals/extractor.eval.ts` (wiring `promptfooconfig.yaml` + `labels.json` against the fixtures) or the operator must locate it.
+- **HARNESS GAP — NOW SCAFFOLDED (commit `0f8a20f`):** the `npm run eval` target `evals/extractor.eval.ts` was missing. It has been created: it calls the real `extractBrfFinancials` (the shipping `brf-extract/v2` path) over `evals/fixtures/*.pdf`, with labels keyed by SHA-256 content hash from the gitignored `evals/labels.json` (shape = `labels.example.json`). It asserts (a) the four metrics do NOT regress vs labels (2% tolerance / null-exact) and (b) the three D-02 soft signals extract as labelled AND each non-null soft signal carries a `sourceQuote` + `pageRef` (T-04-05 invented-signal guard; `ej_nämnt` needs no citation). The live body is gated behind `RUN_LLM_EVALS=1` AND a present `ANTHROPIC_API_KEY` → it skips with no spend otherwise. `vitest.config.ts` `include` was extended to match `evals/**/*.eval.ts` so the explicit path resolves; this adds one self-skipping test to `npm run test` (140 passed | 1 skipped | 6 todo, still green) and `npx tsc --noEmit` stays clean.
+- **STILL A HUMAN GATE:** the harness is scaffolded but the actual live eval re-run has NOT been performed (no spend was incurred). The operator must run it and confirm green. Required inputs that are gitignored and not yet present in the working tree: `evals/fixtures/*.pdf` (the frozen reference årsredovisningar) and `evals/labels.json` (expert labels keyed by each PDF's SHA-256, including the new `expectedStambyte`/`expectedStorreRenovering`/`expectedAnmarkning` keys).
 
-**Awaiting from the human:** re-run the Phase 2 extraction eval against `brf-extract/v2` (confirm the four original metrics do NOT regress AND the three new soft signals extract with supporting citations), OR resolve the missing-harness gap and agree a scaffold path. Resume signal: type "approved", or describe the regression/blocker.
+**Awaiting from the human:** populate `evals/fixtures/*.pdf` + `evals/labels.json`, then run the live eval against `brf-extract/v2` and confirm the four original metrics do NOT regress AND the three new soft signals extract with supporting citations. Exact command:
+
+```
+RUN_LLM_EVALS=1 ANTHROPIC_API_KEY=<live-key> npm run eval
+```
+
+Green result = all assertions pass (no `expect` failures): every labelled fixture extracts its four metrics within tolerance, each soft signal matches its label, and every surfaced (non-`ej_nämnt`, non-null) soft signal has a `sourceQuote` + `pageRef`. Resume signal: type "approved" once the live eval is green, or describe the regression/blocker. Task 3 remains OPEN; the plan is NOT finalized.
 
 ## Known Stubs
 
-- `evals/promptfooconfig.yaml` remains a cost-gated stub with placeholder `value: "true"` assertions (existing Phase 2 posture). The soft-signal test rows were added but carry the same stub assertion pending the real harness wiring (`evals/extractor.eval.ts`) — resolved as part of the Task 3 checkpoint / a future eval-wiring step. This is the pre-existing eval-stub posture, not new stub debt introduced for the report goal.
+- `evals/promptfooconfig.yaml` remains a cost-gated stub with placeholder `value: "true"` assertions (existing Phase 2 posture). The soft-signal test rows were added but carry the same stub assertion. The REAL regression assertions now live in the committed `evals/extractor.eval.ts` (commit `0f8a20f`) which exercises the shipping `extractBrfFinancials` path directly; the promptfoo config stays a thin parallel skeleton. The remaining "stub" is data, not code: `evals/fixtures/*.pdf` + `evals/labels.json` are gitignored (PII/GDPR) and must be populated by the operator before the live eval (Task 3) can run.
 
 ## Threat Flags
 
