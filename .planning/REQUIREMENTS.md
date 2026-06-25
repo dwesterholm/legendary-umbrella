@@ -28,8 +28,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### AI Report
 
-- [ ] **RPRT-01**: Claude generates AI-synthesized "vad du bör tänka på" summary combining all available data into an opinionated assessment
-- [ ] **RPRT-02**: System displays red/green flags for risk indicators (high BRF debt, planned stambyte, avgiftshöjning, unusual patterns)
+- [x] **RPRT-01**: Claude generates AI-synthesized "vad du bör tänka på" summary combining all available data into an opinionated assessment
+- [x] **RPRT-02**: System displays red/green flags for risk indicators (high BRF debt, planned stambyte, avgiftshöjning, unusual patterns)
 - [ ] **RPRT-03**: User can download and share analysis as PDF report
 
 ## v1.1 Requirements
@@ -86,8 +86,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BRF-03 | Phase 2: BRF Financial Analysis | Complete |
 | PRICE-01 | Phase 3: Market Context | Complete |
 | AREA-01 | Phase 3: Market Context | Complete |
-| RPRT-01 | Phase 4: AI Report + Delivery | Pending |
-| RPRT-02 | Phase 4: AI Report + Delivery | Pending |
+| RPRT-01 | Phase 4: AI Report + Delivery | Complete |
+| RPRT-02 | Phase 4: AI Report + Delivery | Complete |
 | RPRT-03 | Phase 4: AI Report + Delivery | Pending |
 
 **Coverage:**

@@ -122,7 +122,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Deterministic core: reportSchema + read-guard, flag engine, fact-sheet assembler, Sonnet cost rates (RPRT-02/01)
+- [x] 04-01-PLAN.md — Deterministic core: reportSchema + read-guard, flag engine, fact-sheet assembler, Sonnet cost rates (RPRT-02/01)
 - [ ] 04-02-PLAN.md — Cross-phase BRF soft-signal extraction extension + prompt-version bump + Phase 2 eval re-run (RPRT-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -148,7 +148,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
 | 2. BRF Financial Analysis | 6/6 | Complete    | 2026-06-16 |
 | 3. Market Context | 6/6 | Complete   | 2026-06-22 |
-| 4. AI Report + Delivery | 0/0 | Not started | - |
+| 4. AI Report + Delivery | 1/6 | In Progress|  |
 
 ## Backlog
 
@@ -158,7 +158,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 **Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
 **Requirements:** TBD
-**Plans:** 6/6 plans complete
+**Plans:** 1/6 plans executed
 
 Plans:
 
