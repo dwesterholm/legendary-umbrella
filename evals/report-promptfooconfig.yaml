@@ -1,0 +1,79 @@
+# Promptfoo config skeleton for the cross-source report synthesis eval
+# (AI-SPEC §5). Prompt-regression for REPORT_SYNTHESIS_SYSTEM_PROMPT over a
+# frozen 4–6 fact-sheet subset.
+#
+# COST-GATED: not run in CI here (it spends ~4–6 Sonnet calls). Requires a frozen
+# fact-sheet subset under evals/report-fixtures/ (stringified structured data —
+# no raw årsredovisning PDFs, no plaintext financials beyond the synthetic set)
+# and expert labels in evals/report-fixtures/labels.json keyed by analysisId.
+#
+# This is a SCAFFOLD: the real provider/test wiring lands when the flywheel
+# (AI-SPEC §6) populates report-fixtures/. Run only when prompt.ts /
+# reportSchema changes, never in per-PR CI:
+#   npx promptfoo eval -c evals/report-promptfooconfig.yaml
+
+description: "Report synthesis fidelity vs expert labels (no verdict, every claim cites a datum, no originated flag)"
+
+prompts:
+  # The system prompt lives in production code so the eval tests EXACTLY what
+  # ships — the same REPORT_SYNTHESIS_SYSTEM_PROMPT synthesizeReport sends.
+  - file://../src/lib/report/prompt.ts:REPORT_SYNTHESIS_SYSTEM_PROMPT
+
+providers:
+  # Synthesis runs on Sonnet 4.6 (bare id, no date suffix) — the same tier and
+  # params synthesize.ts pins (AI-SPEC §4).
+  - id: anthropic:messages:claude-sonnet-4-6
+    config:
+      temperature: 0.4
+      max_tokens: 4096
+
+# Frozen reference subset (4–6 assembled fact sheets spanning the §1/§1b failure
+# surface: clean-strong, high-debt-old, new-build-inversion, partial-no-brf,
+# price-premium-vs-weak-finances, unit-trap). Each row points at a fact-sheet
+# fixture and its expert-labelled expected AiReport.
+defaultTest:
+  vars:
+    # The per-request user instruction synthesizeReport sends after the fact block.
+    instruction: "Skriv rapporten enligt schemat."
+
+tests:
+  # ---------------------------------------------------------------------------
+  # No-verdict line (D-04/FM2): the report must be opinionated but issue NO
+  # köp/sälj-råd, NO "rätt pris är X", NO värdering. Scored by the LLM judge in
+  # report-judge.ts (judgeNoVerdict), calibrated ≥0.7 corr vs köparmäklare labels.
+  # ---------------------------------------------------------------------------
+  - description: "no-verdict line — opinionated but never a buy/sell recommendation or valuation"
+    vars: {}
+    assert:
+      - type: javascript
+        # Real assertion (wired against report-fixtures/labels.json + report-judge.ts):
+        #  - the LLM judge (judgeNoVerdict) returns pass=true (no verdict/valuation),
+        #  - AND the report is not neutered (still takes a stance — Success Criterion 1).
+        value: "true /* scaffold: wire judgeNoVerdict + labels.json in the flywheel (§6) */"
+
+  # ---------------------------------------------------------------------------
+  # Generic-filler (FM5): every claim must say something specific about THIS
+  # listing's data — no "läs årsredovisningen noga" boilerplate that survives a
+  # copy-paste to a different listing. Scored by judgeGenericFiller.
+  # ---------------------------------------------------------------------------
+  - description: "no generic filler — every claim is specific to this listing's data"
+    vars: {}
+    assert:
+      - type: javascript
+        # Real assertion: judgeGenericFiller returns pass=true ("would this exact
+        # sentence be true of a different listing? if yes → filler").
+        value: "true /* scaffold: wire judgeGenericFiller + labels.json in the flywheel (§6) */"
+
+  # ---------------------------------------------------------------------------
+  # Cross-source lead-synthesis quality (D-05): leadSynthesis connects ≥2 sources
+  # in one judgement the cards cannot state alone, reads pris/kvm vs area with
+  # sample size in mind, and treats new-build leverage in context. Scored by
+  # judgeSynthesisQuality.
+  # ---------------------------------------------------------------------------
+  - description: "lead-synthesis quality — connects ≥2 sources, right band-for-byggår, no valuation"
+    vars: {}
+    assert:
+      - type: javascript
+        # Real assertion: judgeSynthesisQuality returns a rubric score ≥ threshold
+        # against the §1b dimensions (price-premium-AGAINST-finances thread).
+        value: "true /* scaffold: wire judgeSynthesisQuality + labels.json in the flywheel (§6) */"
