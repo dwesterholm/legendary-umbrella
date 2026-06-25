@@ -5,13 +5,13 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 4 context gathered
-last_updated: "2026-06-25T11:49:37.409Z"
+last_updated: "2026-06-25T11:56:12.962Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 21
-  completed_plans: 16
+  completed_plans: 17
   percent: 30
 ---
 
@@ -123,10 +123,11 @@ Recent decisions affecting current work:
 - **[RESOLVED — sold-source UNBLOCKED]** The earlier GraphQL/Cloudflare blocker was overturned: Booli server-renders full per-object slutpriser into the page HTML (`__NEXT_DATA__ → __APOLLO_STATE__`), read via `apify/playwright-scraper` chromium + RESIDENTIAL/SE proxy (200, full data; raw fetch even via proxy is 403). Validated GO, ~$18/mo worst case. PRICE-01 ships in FULL. The `/graphql` API is a separate stricter CF zone and is irrelevant. Canonical recipe in 03-SPIKE.md.
 - AREA-01: SCB DeSO availability fully de-risked (population 2025, income 2024, tenure 2025 all at DeSO level; income lags one year). Breadcrumbs shape pinned: `{label?,url?}[]`, wide→narrow, areaId in `?areaIds=<N>` (from the detail page, not SERP).
 - **Monitored (not blocking):** CF/transport fragility — depends on Apify Playwright continuing to clear CF; alert on `hasApollo === false`/non-200 + cache. Rural-locality staleness mitigated by D-01 walk-up on recency+count.
+- 04-02 Task 3 blocking checkpoint: eval re-run pending; evals/extractor.eval.ts not committed
 
 ## Session Continuity
 
-Last session: 2026-06-25T11:49:31.695Z
+Last session: 2026-06-25T11:56:02.585Z
 Stopped at: Phase 4 context gathered
 Resume file: .planning/phases/04-ai-report-delivery/04-CONTEXT.md
 Completed this session: 03-01 fully complete — 03-SPIKE.md rewritten to the working SSR source (a40b51e), real sold-comps fixture promoted + __probe__/ removed (e705597), four RED tests + scb-population fixture (c852f56), listing schema retains coords/booliId/breadcrumbs (0512ed1). PRICE-01 + AREA-01 met.
