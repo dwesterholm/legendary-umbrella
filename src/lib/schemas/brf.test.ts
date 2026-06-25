@@ -7,7 +7,31 @@ import {
 } from "@/lib/schemas/brf";
 import { computeBrfGrade } from "@/lib/brf/score";
 
-// A well-formed extraction: 4 fields, each {value, confidence, sourceQuote, pageRef}.
+// The three cited soft signals (D-02): each rides the SAME extractedField
+// shape as the four metrics → {value, confidence, sourceQuote, pageRef}.
+const wellFormedSoftSignals = {
+  stambytePlanerat: {
+    value: "planerat",
+    confidence: 0.9,
+    sourceQuote: "Stambyte planeras till 2027 enligt underhållsplanen",
+    pageRef: 8,
+  },
+  storreRenoveringar: {
+    value: "Takbyte 2023",
+    confidence: 0.8,
+    sourceQuote: "Taket byttes ut under verksamhetsåret 2023",
+    pageRef: 6,
+  },
+  ovrigaAnmarkningar: {
+    value: null,
+    confidence: 0.0,
+    sourceQuote: null,
+    pageRef: null,
+  },
+};
+
+// A well-formed extraction: 4 metrics + 3 soft signals, each
+// {value, confidence, sourceQuote, pageRef}.
 // Numbers + confidence + source ONLY — no grade/score field (D-08).
 const wellFormed = {
   skuldPerKvm: {
@@ -34,6 +58,7 @@ const wellFormed = {
     sourceQuote: "Underhållsplan upprättad och aktuell",
     pageRef: 4,
   },
+  ...wellFormedSoftSignals,
 };
 
 describe("brfExtractionSchema — well-formed parse", () => {
@@ -95,5 +120,69 @@ describe("normalizeBrfExtraction — contract feeds the scorer (D-08)", () => {
     });
     const normalized = normalizeBrfExtraction(withNull);
     expect(normalized.skuldPerKvm).toBeNull();
+  });
+});
+
+describe("soft signals (D-02) — three cited soft-signal fields", () => {
+  it("parses a payload carrying all three soft signals with citations", () => {
+    const parsed = brfExtractionSchema.parse(wellFormed);
+    expect(parsed.stambytePlanerat.value).toBe("planerat");
+    expect(parsed.stambytePlanerat.sourceQuote).toContain("Stambyte");
+    expect(parsed.stambytePlanerat.pageRef).toBe(8);
+    expect(parsed.storreRenoveringar.value).toBe("Takbyte 2023");
+    // A genuinely-absent soft signal is an explicit null, never a dropped key.
+    expect(parsed.ovrigaAnmarkningar.value).toBeNull();
+  });
+
+  it("rejects a stambytePlanerat value outside the enum", () => {
+    const bad = {
+      ...wellFormed,
+      stambytePlanerat: {
+        value: "kanske",
+        confidence: 0.5,
+        sourceQuote: "…",
+        pageRef: 1,
+      },
+    };
+    expect(brfExtractionSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("accepts each enum member of stambytePlanerat", () => {
+    for (const v of ["planerat", "nyligen_genomfort", "ej_nämnt"]) {
+      const ok = {
+        ...wellFormed,
+        stambytePlanerat: {
+          value: v,
+          confidence: 0.7,
+          sourceQuote: "…",
+          pageRef: 2,
+        },
+      };
+      expect(brfExtractionSchema.safeParse(ok).success).toBe(true);
+    }
+  });
+
+  it("treats each soft field's value as nullable (a null value parses)", () => {
+    const allNull = {
+      ...wellFormed,
+      stambytePlanerat: { value: null, confidence: 0, sourceQuote: null, pageRef: null },
+      storreRenoveringar: { value: null, confidence: 0, sourceQuote: null, pageRef: null },
+      ovrigaAnmarkningar: { value: null, confidence: 0, sourceQuote: null, pageRef: null },
+    };
+    expect(brfExtractionSchema.safeParse(allNull).success).toBe(true);
+  });
+
+  it("requires the soft-signal KEY to be present (omitting it fails — structured outputs force every key)", () => {
+    const { stambytePlanerat: _omit, ...withoutStambyte } = wellFormed;
+    void _omit;
+    expect(brfExtractionSchema.safeParse(withoutStambyte).success).toBe(false);
+  });
+
+  it("carries the soft signals through normalizeBrfExtraction to the normalized shape", () => {
+    const parsed = brfExtractionSchema.parse(wellFormed);
+    const normalized = normalizeBrfExtraction(parsed);
+    expect(normalized.stambytePlanerat).toBe("planerat");
+    expect(normalized.storreRenoveringar).toBe("Takbyte 2023");
+    expect(normalized.ovrigaAnmarkningar).toBeNull();
   });
 });

@@ -56,8 +56,26 @@ export const brfExtractionSchema = z.object({
   underhallsplanStatus: extractedField(
     z.enum(["finns_aktuell", "finns_inaktuell", "saknas", "oklart"]),
   ).describe("Status för underhållsplan"),
+  // Soft signals (D-02): each rides the SAME extractedField factory → gets
+  // {value, confidence, sourceQuote, pageRef} for free, the same cited (D-11)
+  // + confidence (D-10) trust pipeline as the four metrics. value stays
+  // .nullable() (from extractedField), NEVER .optional().
+  stambytePlanerat: extractedField(
+    z.enum(["planerat", "nyligen_genomfort", "ej_nämnt"]),
+  ).describe(
+    "Planerat eller nyligen genomfört stambyte — citera årsredovisningen",
+  ),
+  storreRenoveringar: extractedField(z.string()).describe(
+    "Planerade/genomförda större renoveringar (tak, fasad, hiss, fönster), ordagrant citat",
+  ),
+  ovrigaAnmarkningar: extractedField(z.string()).describe(
+    "Övriga noterbara anmärkningar i förvaltningsberättelsen/revisionsberättelsen",
+  ),
   // NO grade / score / rating field — code grades (D-08).
 });
+
+/** The stambyte soft-signal enum, narrowed for downstream consumers (nullable). */
+export type StambyteStatus = BrfExtraction["stambytePlanerat"]["value"];
 
 /** The Zod-validated extraction Claude returns (numbers + confidence + citation). */
 export type BrfExtraction = z.infer<typeof brfExtractionSchema>;
@@ -90,6 +108,15 @@ export interface NormalizedBrf {
   avgiftsniva: number | null;
   kassaflode: number | null;
   underhallsplanStatus: UnderhallsplanStatus | null;
+  // Soft signals (D-02): the enum feeds a deterministic flag (Plan 01); the two
+  // free-text fields become narrated context for synthesis (Plan 03). Optional
+  // on the type because the deterministic scorer (computeBrfGrade) consumes ONLY
+  // the four metrics — `normalizeBrfExtraction` always populates these, so the
+  // persist/read path carries them, while score fixtures that predate D-02 stay
+  // valid (the scorer never reads them).
+  stambytePlanerat?: StambyteStatus | null;
+  storreRenoveringar?: string | null;
+  ovrigaAnmarkningar?: string | null;
 }
 
 /**
@@ -141,6 +168,12 @@ export const brfDataSchema = z.object({
     underhallsplanStatus: z
       .enum(["finns_aktuell", "finns_inaktuell", "saknas", "oklart"])
       .nullable(),
+    // Soft signals (D-02) carried through the persist/read path.
+    stambytePlanerat: z
+      .enum(["planerat", "nyligen_genomfort", "ej_nämnt"])
+      .nullable(),
+    storreRenoveringar: z.string().nullable(),
+    ovrigaAnmarkningar: z.string().nullable(),
   }),
   grade: z.object({
     grade: z.enum(["A", "B", "C", "D", "E", "F"]),
@@ -189,5 +222,11 @@ export function normalizeBrfExtraction(parsed: BrfExtraction): NormalizedBrf {
     underhallsplanStatus: str(
       parsed.underhallsplanStatus.value,
     ) as UnderhallsplanStatus | null,
+    // Soft signals (D-02): null-tolerant, mirroring the metrics above.
+    stambytePlanerat: str(
+      parsed.stambytePlanerat.value,
+    ) as StambyteStatus | null,
+    storreRenoveringar: str(parsed.storreRenoveringar.value),
+    ovrigaAnmarkningar: str(parsed.ovrigaAnmarkningar.value),
   };
 }
