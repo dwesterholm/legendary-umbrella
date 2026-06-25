@@ -5,13 +5,13 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 4 context gathered
-last_updated: "2026-06-25T19:07:36.934Z"
+last_updated: "2026-06-25T19:15:49.534Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 21
-  completed_plans: 17
+  completed_plans: 18
   percent: 30
 ---
 
@@ -106,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 03-01]: SCB queries each metric's own latest year (income 2024 lags population/tenure 2025); all three DeSO-available — A3 resolved
 - [Phase 03-01]: Headline-poisoning guards locked in RED: listingPrisPerKvm<=0/null → reason 'listing_pris_okand' deltaPct null; all-null comps → 'thin', areaAvg never NaN/Infinity (HIGH-3 + areaAvg-NaN)
 - [Phase 03-01]: listing schema retains latitude/longitude/booliId/breadcrumbs (nullable) — join key for both Phase 3 panels; new rows only, no backfill
+- [Phase ?]: [Phase 04-03]: synthesizeReport = one messages.parse on bare claude-sonnet-4-6; output_config.format + zodOutputFormat(reportSchema); stop_reason branched before parsed_output; logs only {analysisId,code}
+- [Phase ?]: [Phase 04-03]: 004_report.sql adds five additive report_* columns idempotently, NO new RLS (existing SELECT/UPDATE cover them, mirrors 003); live push is operator-gated (Task 3 blocking checkpoint)
 
 ### Pending Todos
 
@@ -128,7 +130,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-25T19:07:36.929Z
+Last session: 2026-06-25T19:15:30.721Z
 Stopped at: Phase 4 context gathered
 Resume file: .planning/phases/04-ai-report-delivery/04-CONTEXT.md
 Completed this session: 03-01 fully complete — 03-SPIKE.md rewritten to the working SSR source (a40b51e), real sold-comps fixture promoted + __probe__/ removed (e705597), four RED tests + scb-population fixture (c852f56), listing schema retains coords/booliId/breadcrumbs (0512ed1). PRICE-01 + AREA-01 met.
