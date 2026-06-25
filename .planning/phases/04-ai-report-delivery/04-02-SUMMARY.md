@@ -3,7 +3,7 @@ phase: 04-ai-report-delivery
 plan: 02
 subsystem: brf-extraction
 tags: [schema, prompt, soft-signals, eval, cross-phase]
-status: paused-at-checkpoint
+status: code-complete-eval-deferred
 requires:
   - "src/lib/schemas/brf.ts extractedField factory (Phase 2)"
   - "src/lib/brf/prompt.ts BRF_EXTRACTION_SYSTEM_PROMPT (Phase 2)"
@@ -30,6 +30,7 @@ key-files:
 decisions:
   - "Soft-signal fields are OPTIONAL on the NormalizedBrf TYPE (scorer reads only the 4 metrics); normalizeBrfExtraction always populates them so the persist/read path carries them while pre-D-02 score fixtures stay valid"
   - "extract.ts max_tokens left at 2048 — no live truncation observed; pre-emptive bump avoided per plan; live confirmation deferred to the Task 3 human-gated eval"
+  - "Task 3 live v2 extraction eval DEFERRED (not failed): the labeled reference dataset (evals/fixtures/*.pdf + evals/labels.json) does not exist yet; building it is separate eval-infrastructure work. Harness is committed and green; downstream Plan 04-03 depends only on the committed schema/prompt, not the eval run. Naturally revisited at the 04-06 end-to-end human-verify checkpoint."
 metrics:
   duration: ~4min
   tasks_completed: 2
@@ -73,9 +74,21 @@ Extended the Phase 2 Haiku BRF extraction with three structured, cited soft sign
 
 - Task 1 was `tdd="true"`: tests written first and confirmed RED (4 soft-signal assertions failing — `undefined`/`true` mismatches), then GREEN after implementing the schema/normalize fields (12/12 pass). Committed as a single `feat` (test + impl together) because the schema extension is the smallest meaningful unit; the RED state is documented above and in the commit body.
 
-## Checkpoint Reached (Task 3 — blocking human gate)
+## Task 3 — Live v2 Extraction Eval: DEFERRED (not failed, not silently skipped)
 
-Task 3 is `checkpoint:human-verify gate="blocking"` (cross-phase extraction eval re-run). Auto-advance is OFF, so execution STOPPED here and the gate was NOT self-resolved. State surfaced to the operator:
+**Resolution:** the plan is CODE-COMPLETE. Tasks 1–2 (schema + prompt-v2) and the eval harness (Task 3 scaffold) are committed and green. The Task 3 *live* extraction eval re-run is **DEFERRED** because the labeled reference dataset it requires (`evals/fixtures/*.pdf` + `evals/labels.json`) does not exist yet — building a frozen, expert-labeled subset of 4–6 årsredovisningar is separate eval-infrastructure work. Downstream Plan 04-03 depends only on the committed schema/prompt, not on the eval run, so it is unblocked.
+
+### Deferred / Follow-up
+
+- **Build the labeled BRF extraction eval dataset** — 4–6 diverse årsredovisningar under `evals/fixtures/*.pdf` (gitignored, PII/GDPR) + `evals/labels.json` (gitignored) keyed by each PDF's SHA-256, following `evals/labels.example.json` (includes the new `expectedStambyte` / `expectedStorreRenovering` / `expectedAnmarkning` keys).
+- **Then run the `brf-extract/v2` regression eval** — the harness is ready at `evals/extractor.eval.ts`:
+  ```
+  RUN_LLM_EVALS=1 ANTHROPIC_API_KEY=<live-key> npm run eval
+  ```
+  Green = all assertions pass: the four metrics within tolerance vs labels (no regression), each D-02 soft signal matches its label, and every surfaced (non-`ej_nämnt`, non-null) soft signal carries a `sourceQuote` + `pageRef`.
+- This will **naturally be revisited at the Plan 04-06 end-to-end human-verify checkpoint** (which likewise needs a live key + the applied migration). Tracked in STATE.md "Pending Todos" so it persists across sessions.
+
+### Pre-deferral state surfaced to the operator
 
 - `npm run test` (deterministic, no spend): **GREEN — 140 passed | 6 todo (146)**.
 - `ANTHROPIC_API_KEY`: a key line IS present in `.env.local` (operator should confirm it is a live key — relates to the STATE blocker "02-04 Task 3").
