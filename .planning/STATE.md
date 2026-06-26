@@ -5,13 +5,13 @@ milestone_name: milestone
 current_plan: 1
 status: executing
 stopped_at: Phase 4 context gathered
-last_updated: "2026-06-26T08:33:35.298Z"
+last_updated: "2026-06-26T08:39:45.227Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 21
-  completed_plans: 18
+  completed_plans: 19
   percent: 30
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 04 (ai-report-delivery) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 **Phase:** 3 of 4 (market context)
 **Current Plan:** 1
 **Status:** Ready to execute
@@ -65,6 +65,7 @@ Progress: [██████████] 100% of Phase 3 (6/6 plans)
 | Phase 03-market-context P06 | ~90min | 3 tasks | 8 files |
 | Phase 04 P01 | 4min | 3 tasks | 7 files |
 | Phase 04 P02 | ~4min | 2 tasks | 6 files |
+| Phase 04 P04 | 6min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,7 @@ Recent decisions affecting current work:
 - [Phase 03-01]: listing schema retains latitude/longitude/booliId/breadcrumbs (nullable) — join key for both Phase 3 panels; new rows only, no backfill
 - [Phase ?]: [Phase 04-03]: synthesizeReport = one messages.parse on bare claude-sonnet-4-6; output_config.format + zodOutputFormat(reportSchema); stop_reason branched before parsed_output; logs only {analysisId,code}
 - [Phase ?]: [Phase 04-03]: 004_report.sql adds five additive report_* columns idempotently, NO new RLS (existing SELECT/UPDATE cover them, mirrors 003); live push is operator-gated (Task 3 blocking checkpoint)
+- [Phase 04-04]: generateReport mirrors analyze-brf.ts; report_status=generating in-flight lock short-circuits a concurrent run (no double-spend on the priciest Sonnet call); cost guarded with costSekSonnet (Sonnet rates) not Haiku costSek; sha256(factSheet) persisted as report_data_fingerprint for D-08 staleness; price_data source_unavailable maps to thin for the flag engine
 
 ### Pending Todos
 
@@ -130,7 +132,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-25T19:15:30.721Z
+Last session: 2026-06-26T08:39:07.114Z
 Stopped at: Phase 4 context gathered
 Resume file: .planning/phases/04-ai-report-delivery/04-CONTEXT.md
 Completed this session: 03-01 fully complete — 03-SPIKE.md rewritten to the working SSR source (a40b51e), real sold-comps fixture promoted + __probe__/ removed (e705597), four RED tests + scb-population fixture (c852f56), listing schema retains coords/booliId/breadcrumbs (0512ed1). PRICE-01 + AREA-01 met.
