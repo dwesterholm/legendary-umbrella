@@ -299,7 +299,12 @@ export async function generateReport(
 
   // ---- The single Sonnet synthesis call -----------------------------------
   let parsed;
-  let sek: number;
+  // WR-03: `sek` is hoisted and starts null so the catch can persist the cost we
+  // ACTUALLY incurred. If the Sonnet call returned (we have usage) but
+  // reportSchema.parse then throws on drifted output, the call was still billed
+  // — we must record that spend, not silently under-count the failure mode most
+  // likely to be retried + re-billed.
+  let sek: number | null = null;
   try {
     const result = await synthesizeReport({ factSheet, analysisId });
 
@@ -324,7 +329,14 @@ export async function generateReport(
     // user-facing Swedish message can distinguish the failure mode (WR-06).
     const code = error instanceof Error ? error.message : "UNKNOWN";
     console.error("[generateReport]", { analysisId, code });
-    await writeFailedStatus(supabase, analysisId);
+    // WR-03: record the spend we actually incurred (if the Sonnet call returned
+    // before the parse threw). On a pre-spend failure `sek` is still null and we
+    // write `failed` with no cost.
+    await writeFailedStatus(
+      supabase,
+      analysisId,
+      sek != null ? { report_cost_sek: sek } : {},
+    );
     return { ok: false, error: messageForCode(code) };
   }
 
