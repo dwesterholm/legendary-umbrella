@@ -27,13 +27,11 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 04 (ai-report-delivery) — EXECUTING
-Plan: 6 of 6
-**Phase:** 3 of 4 (market context)
-**Current Plan:** 1
-**Status:** Ready to execute
+Plan: 6 of 6 — Tasks 1–2 done, PAUSED at Task 3 blocking human-verify checkpoint
+**Status:** Awaiting human verification (D-00 cohesion + live synthesis + PDF glyphs + stale/regenerate + guest gate + partial-data honesty)
 **Last activity:** 2026-06-26
 
-Progress: [██████████] 100% of Phase 3 (6/6 plans)
+Progress: [█████████░] Phase 4 Plan 6 of 6 (on-page integration wired; checkpoint pending)
 
 ## Performance Metrics
 
@@ -67,6 +65,7 @@ Progress: [██████████] 100% of Phase 3 (6/6 plans)
 | Phase 04 P02 | ~4min | 2 tasks | 6 files |
 | Phase 04 P04 | 6min | 1 tasks | 2 files |
 | Phase 04-ai-report-delivery P05 | 9min | 3 tasks | 12 files |
+| Phase 04-ai-report-delivery P06 | ~12min | 2 of 3 tasks (paused at checkpoint) | 4 files |
 
 ## Accumulated Context
 
@@ -112,6 +111,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 04-03]: 004_report.sql adds five additive report_* columns idempotently, NO new RLS (existing SELECT/UPDATE cover them, mirrors 003); live push is operator-gated (Task 3 blocking checkpoint)
 - [Phase 04-04]: generateReport mirrors analyze-brf.ts; report_status=generating in-flight lock short-circuits a concurrent run (no double-spend on the priciest Sonnet call); cost guarded with costSekSonnet (Sonnet rates) not Haiku costSek; sha256(factSheet) persisted as report_data_fingerprint for D-08 staleness; price_data source_unavailable maps to thin for the flag engine
 - [Phase ?]: [Phase 04-05]: PDF via @react-pdf/renderer (pure-JS, no Chromium); Open Sans OFL TTF traced in next.config for å/ä/ö; renderReportPdf reads persisted report_data only (no re-synthesis, D-11); downloadReportPdf login-gated+ownership-checked returns an application/pdf Blob (D-09/D-10); react-pdf NOT in serverExternalPackages (build-confirmed)
+- [Phase 04-06]: AiReportSection anchors the analysis page as the LEAD (above the source cards) per D-00; the page recomputes the D-08 staleness fingerprint by replicating the action's toFlagBrf/toFlagPrice/toSoftSignals mapping + assembleFactSheet + sha256 (full fact sheet, NOT a partial hash — T-04-24), since those mappers are not exported from generate-report.ts; both AI Rapport ComingSoonSection placeholders removed. Plan paused at the Task 3 blocking human-verify checkpoint (live synthesis + PDF glyphs + cohesion need a real ANTHROPIC_API_KEY + human eye).
 
 ### Pending Todos
 
@@ -135,7 +135,7 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-06-26T08:49:37.010Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-ai-report-delivery/04-CONTEXT.md
-Completed this session: 03-01 fully complete — 03-SPIKE.md rewritten to the working SSR source (a40b51e), real sold-comps fixture promoted + __probe__/ removed (e705597), four RED tests + scb-population fixture (c852f56), listing schema retains coords/booliId/breadcrumbs (0512ed1). PRICE-01 + AREA-01 met.
-Next step: Run `/gsd-execute-phase 3` to dispatch Plan 03-05 (methodology + orchestration: persist area_data, render the area panel). AREA-01 deterministic core (resolveGeo + fetchScbDemographics + normalizeScbOutput) is complete and GREEN; area_data is the durable cache of record for Plan 05 to write.
+Stopped at: Plan 04-06 Tasks 1–2 complete; PAUSED at Task 3 blocking human-verify checkpoint
+Resume file: .planning/phases/04-ai-report-delivery/04-06-PLAN.md
+Completed this session: 04-06 Tasks 1–2 — AiReportSection + ReportFlags components (51acf40); analysis page wired with D-00 anchor + D-08 staleness recompute + both AI Rapport placeholders removed (e49cb49). tsc clean.
+Next step: Resolve the Task 3 blocking human-verify checkpoint — set ANTHROPIC_API_KEY in .env.local + apply the 004 migration, then run `npm run build` + `npm run dev` and verify: D-00 cohesion (summary anchors, flags woven), opinionated-no-verdict synthesis, PDF å/ä/ö glyphs + section order + disclaimer, D-08 stale/regenerate, guest teaser gate, and partial-data ej_tillgänglig honesty. Type "approved" to complete the plan, or describe what reads as bolted-on/wrong.

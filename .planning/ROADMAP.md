@@ -136,7 +136,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 04-06-PLAN.md — On-page cohesion: summary anchor + woven flags + triggers + stale marker + guest gate (RPRT-01/02/03)
+- [ ] 04-06-PLAN.md — On-page cohesion: summary anchor + woven flags + triggers + stale marker + guest gate (RPRT-01/02/03) — Tasks 1–2 wired (51acf40, e49cb49); PAUSED at Task 3 blocking human-verify
 
 ## Progress
 
