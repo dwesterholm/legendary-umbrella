@@ -156,6 +156,40 @@ export function AiReportSection({
 
   const isGenerating = reportStatus === "generating" || isPending;
 
+  // ---- OWNER + last generation failed → honest failure + retry (CR-01) ----
+  // The over-cap / synthesis-failure branches of generateReport flip
+  // report_status to "failed" but may leave the prior report_data persisted.
+  // report_status === "failed" is AUTHORITATIVE here: we MUST never render that
+  // stale report as a clean, current result (the trust/honesty contract — the
+  // user must see that the regeneration failed and can retry, not silent stale
+  // output presented as fresh). This branch takes precedence over the
+  // report-present anchor render below.
+  if (reportStatus === "failed" && !isGenerating) {
+    return (
+      <Card className="w-full max-w-2xl border-warm-gray-200">
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold text-warm-gray-900">
+            AI-rapport
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-terracotta-600">
+            Den senaste rapportgenereringen misslyckades. Försök igen.
+          </p>
+          <Button
+            type="button"
+            className="mt-3 h-11 bg-sage-600 px-6 text-white hover:bg-sage-700"
+            disabled={isGenerating}
+            onClick={triggerGenerate}
+          >
+            {isGenerating ? "Genererar rapport…" : "Försök igen"}
+          </Button>
+          {error && <p className="mt-3 text-sm text-terracotta-600">{error}</p>}
+        </CardContent>
+      </Card>
+    );
+  }
+
   // ---- OWNER + no report yet → the manual trigger (D-07) ----
   if (!report) {
     return (
