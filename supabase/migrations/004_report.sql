@@ -32,16 +32,8 @@
 --                             (current input fingerprint != stored -> "uppdatera").
 --    report_prompt_version  : the REPORT_SYNTHESIS_PROMPT_VERSION the report was
 --                             generated with (trace, AI-SPEC §7).
---    report_generating_started_at : WR-05 stale-lock guard. Stamped when the
---                             in-flight lock is acquired (status -> 'generating').
---                             If the process dies mid-synthesis the row would
---                             otherwise stick on 'generating' forever and block
---                             every retry; a 'generating' row whose timestamp is
---                             older than the stale window is treated as reclaimable
---                             so the report can be re-generated.
 alter table public.analyses add column if not exists report_data jsonb;
 alter table public.analyses add column if not exists report_status text;
 alter table public.analyses add column if not exists report_cost_sek numeric;
 alter table public.analyses add column if not exists report_data_fingerprint text;
 alter table public.analyses add column if not exists report_prompt_version text;
-alter table public.analyses add column if not exists report_generating_started_at timestamptz;

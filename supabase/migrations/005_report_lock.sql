@@ -1,0 +1,14 @@
+-- AI report in-flight lock recovery (WR-05 stale-lock guard).
+-- Separate, additive migration: 004_report.sql was already applied to the live
+-- database, and Supabase will not re-run an already-tracked migration, so the
+-- column added by the code-review fix must ship in its own migration. Covered by
+-- the EXISTING per-user RLS (SELECT 001, UPDATE 002) — declares NO new RLS policy.
+--
+--    report_generating_started_at : Stamped when the in-flight lock is acquired
+--                             (report_status -> 'generating'). If the process dies
+--                             mid-synthesis the row would otherwise stick on
+--                             'generating' forever and block every retry; a
+--                             'generating' row whose timestamp is older than the
+--                             stale window is treated as reclaimable so the report
+--                             can be re-generated (no double-spend, no permanent wedge).
+alter table public.analyses add column if not exists report_generating_started_at timestamptz;
