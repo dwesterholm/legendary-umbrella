@@ -10,8 +10,12 @@ const nextConfig: NextConfig = {
   // would otherwise not see the dynamic read and could omit the artifact from the
   // server bundle → readFileSync throws → empty DeSO set → AREA panel null. Trace
   // it in explicitly so `next build`/`next start` ships it.
+  // src/lib/report/pdf/fonts.ts also reads .ttf files at runtime via an absolute
+  // process.cwd() path (server-only PDF render). Same dynamic-read tracing gap as
+  // the geojson — trace the fonts in so the production server bundle keeps them
+  // (RESEARCH Pitfall 2); without this Font.register throws ENOENT in prod.
   outputFileTracingIncludes: {
-    "/**": ["./src/data/deso.geojson"],
+    "/**": ["./src/data/deso.geojson", "./src/lib/report/pdf/fonts/*.ttf"],
   },
 };
 
