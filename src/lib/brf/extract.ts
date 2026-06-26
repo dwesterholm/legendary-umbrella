@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { toFile } from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { brfExtractionSchema, type BrfExtraction } from "@/lib/schemas/brf";
+import { z } from "zod/v4";
+import { type BrfExtraction } from "@/lib/schemas/brf";
 import { BRF_EXTRACTION_SYSTEM_PROMPT } from "@/lib/brf/prompt";
 import type { ClaudeUsage } from "@/lib/brf/cost";
 
@@ -27,7 +28,112 @@ const BASE64_MAX_BYTES = 5 * 1024 * 1024; // ~5 MB
 const FILES_API_BETA = "files-api-2025-04-14";
 
 const USER_INSTRUCTION =
-  "Extrahera nyckeltalen enligt schemat. Lämna fält null om de inte finns.";
+  "Extrahera nyckeltalen enligt schemat. Lämna value null (och sourceQuote tom sträng, pageRef 0) om ett fält inte finns.";
+
+/**
+ * The CLAUDE-FACING extraction schema (the one handed to `output_config.format`).
+ *
+ * This is a deliberately slimmed mirror of `brfExtractionSchema`
+ * (src/lib/schemas/brf.ts). The canonical schema CANNOT be sent to Anthropic
+ * strict structured outputs — it trips two hard limits of the grammar compiler:
+ *   1. `confidence.min(0).max(1)` + `pageRef.int().positive()` across 7 fields
+ *      → 400 "The compiled grammar is too large".
+ *   2. 28 nullable→union params (7 fields × {value,confidence,sourceQuote,pageRef},
+ *      all `.nullable()`) → 400 "Schemas contains too many parameters with union
+ *      types".
+ * So here: ONLY `value` is nullable (28→7 unions) and there are NO numeric
+ * range/int constraints. The `.describe()` steering text is preserved verbatim
+ * so extraction quality is unchanged. `toCanonicalField` below maps the result
+ * back to the canonical `{value, confidence(0–1), sourceQuote|null, pageRef|null}`
+ * shape, and analyze-brf.ts re-validates it against `brfExtractionSchema` — so any
+ * enum drift between the two surfaces as a parse failure, never silently.
+ */
+const claudeField = <T extends z.ZodTypeAny>(value: T) =>
+  z.object({
+    value: value
+      .nullable()
+      .describe("Null if the figure is not present in the document"),
+    confidence: z.number().describe("Model's confidence in this value, 0–1"),
+    sourceQuote: z
+      .string()
+      .describe(
+        "Verbatim text from the PDF this value came from, or empty string if none",
+      ),
+    pageRef: z
+      .number()
+      .describe("1-based page number of the source quote, or 0 if none"),
+  });
+
+const claudeExtractionSchema = z.object({
+  skuldPerKvm: claudeField(z.number()).describe(
+    "Skuld per kvm bostadsrättsyta, SEK/m²",
+  ),
+  avgiftsniva: claudeField(z.number()).describe("Årsavgift per kvm, SEK/m²/år"),
+  kassaflode: claudeField(z.number()).describe(
+    "Kassaflöde från löpande verksamhet, SEK",
+  ),
+  underhallsplanStatus: claudeField(
+    z.enum(["finns_aktuell", "finns_inaktuell", "saknas", "oklart"]),
+  ).describe("Status för underhållsplan"),
+  stambytePlanerat: claudeField(
+    z.enum(["planerat", "nyligen_genomfort", "ej_nämnt"]),
+  ).describe(
+    "Planerat eller nyligen genomfört stambyte — citera årsredovisningen",
+  ),
+  storreRenoveringar: claudeField(z.string()).describe(
+    "Planerade/genomförda större renoveringar (tak, fasad, hiss, fönster), ordagrant citat",
+  ),
+  ovrigaAnmarkningar: claudeField(z.string()).describe(
+    "Övriga noterbara anmärkningar i förvaltningsberättelsen/revisionsberättelsen",
+  ),
+});
+
+/** The slim, Claude-returned field shape (sentinels instead of nulls). */
+type ClaudeField<T> = {
+  value: T | null;
+  confidence: number;
+  sourceQuote: string;
+  pageRef: number;
+};
+
+/**
+ * Maps one slim Claude field back to the canonical `extractedField` shape:
+ * clamps confidence into [0,1], and converts the `""`/`0` sentinels back to
+ * `null` so the rest of the pipeline (normalize, score, citations, UI) sees the
+ * exact shape `brfExtractionSchema` defines — unchanged by this transport fix.
+ */
+function toCanonicalField<T>(f: ClaudeField<T>): {
+  value: T | null;
+  confidence: number;
+  sourceQuote: string | null;
+  pageRef: number | null;
+} {
+  const confidence = Number.isFinite(f.confidence)
+    ? Math.max(0, Math.min(1, f.confidence))
+    : 0;
+  const sourceQuote =
+    typeof f.sourceQuote === "string" && f.sourceQuote.trim() !== ""
+      ? f.sourceQuote
+      : null;
+  const pageRef =
+    Number.isInteger(f.pageRef) && f.pageRef > 0 ? f.pageRef : null;
+  return { value: f.value, confidence, sourceQuote, pageRef };
+}
+
+/** Maps the full slim extraction back to the canonical `BrfExtraction`. */
+function toCanonicalExtraction(
+  slim: z.infer<typeof claudeExtractionSchema>,
+): BrfExtraction {
+  return {
+    skuldPerKvm: toCanonicalField(slim.skuldPerKvm),
+    avgiftsniva: toCanonicalField(slim.avgiftsniva),
+    kassaflode: toCanonicalField(slim.kassaflode),
+    underhallsplanStatus: toCanonicalField(slim.underhallsplanStatus),
+    stambytePlanerat: toCanonicalField(slim.stambytePlanerat),
+    storreRenoveringar: toCanonicalField(slim.storreRenoveringar),
+    ovrigaAnmarkningar: toCanonicalField(slim.ovrigaAnmarkningar),
+  };
+}
 
 /** A per-field citation mapped from the model's returned char/page locations. */
 export interface FieldCitation {
@@ -168,7 +274,7 @@ export async function extractBrfFinancials(
             ],
           },
         ],
-        output_config: { format: zodOutputFormat(brfExtractionSchema) },
+        output_config: { format: zodOutputFormat(claudeExtractionSchema) },
       });
 
     let message = await runOnce();
@@ -191,7 +297,10 @@ export async function extractBrfFinancials(
     }
 
     return {
-      parsed: message.parsed_output,
+      // Map the slim Claude shape back to the canonical BrfExtraction (sentinels
+      // → null, confidence clamped). analyze-brf.ts re-validates this against
+      // brfExtractionSchema before persisting.
+      parsed: toCanonicalExtraction(message.parsed_output),
       usage: toClaudeUsage(message.usage),
       citations: collectCitations(
         message.content as Array<{ type: string; citations?: unknown }>,
