@@ -146,7 +146,12 @@ export function AiReportSection({
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ai-rapport-${analysisId}.pdf`;
+      // WR-06: sanitize defensively before using the id as a filesystem-facing
+      // filename. The id is a server-sourced UUID today, but stripping anything
+      // outside [A-Za-z0-9_-] removes path separators / control chars so a future
+      // id source (e.g. a slug) can never inject into the saved-file name.
+      const safeId = analysisId.replace(/[^a-zA-Z0-9_-]/g, "");
+      a.download = `ai-rapport-${safeId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
