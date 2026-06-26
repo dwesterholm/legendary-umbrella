@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -94,6 +95,7 @@ export function AiReportSection({
   reportStatus,
   isStale,
 }: AiReportSectionProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, startDownload] = useTransition();
@@ -128,9 +130,15 @@ export function AiReportSection({
       const result = await generateReport(analysisId);
       if (!result.ok) {
         setError(result.error);
+        return;
       }
-      // On success the page is re-fetched on the next navigation/refresh; the
-      // server is the source of truth for the persisted report (D-11).
+      // generateReport runs the synthesis to a terminal status (done/failed)
+      // before returning, so on success the persisted report exists NOW. Re-fetch
+      // server state so the report renders without a manual reload — otherwise the
+      // stale `report` prop stays null and the trigger button keeps inviting
+      // re-clicks (a double-spend / "genereras redan" trap). The server is the
+      // source of truth for the persisted report (D-11).
+      router.refresh();
     });
   };
 

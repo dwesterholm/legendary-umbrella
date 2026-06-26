@@ -367,6 +367,16 @@ export async function generateReport(
     .eq("id", analysisId);
 
   if (persistError) {
+    // The terminal `done` write failed, so `report_status` is still pinned at
+    // `generating` — the in-flight lock. Release it (best-effort write of
+    // `failed`, preserving the incurred Sonnet cost) so the row does not wedge
+    // until STALE_LOCK_MS and the user can retry immediately instead of seeing
+    // "En AI-rapport genereras redan" for 5 minutes.
+    await writeFailedStatus(
+      supabase,
+      analysisId,
+      sek != null ? { report_cost_sek: sek } : {},
+    );
     return { ok: false, error: "Kunde inte spara rapporten. Försök igen." };
   }
 
