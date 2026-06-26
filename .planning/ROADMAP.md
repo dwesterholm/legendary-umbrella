@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation + Core Pipeline** - App shell, Booli scraping, and listing data display (completed 2026-06-06)
 - [x] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring (completed 2026-06-16 — UAT 7/7, security 20/20 threats closed)
 - [x] **Phase 3: Market Context** - Comparable sold prices and area demographics (completed 2026-06-22)
-- [ ] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export
+- [ ] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export (all 6 plans code-complete 2026-06-26; phase completion pending UAT via /gsd-verify-work)
 
 ## Phase Details
 
@@ -136,7 +136,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 04-06-PLAN.md — On-page cohesion: summary anchor + woven flags + triggers + stale marker + guest gate (RPRT-01/02/03) — Tasks 1–2 wired (51acf40, e49cb49); PAUSED at Task 3 blocking human-verify
+- [x] 04-06-PLAN.md — On-page cohesion: summary anchor + woven flags + triggers + stale marker + guest gate (RPRT-01/02/03) — CODE-COMPLETE (51acf40, e49cb49); Task 3 human-verify deferred to phase UAT (/gsd-verify-work)
 
 ## Progress
 
@@ -148,7 +148,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
 | 2. BRF Financial Analysis | 6/6 | Complete    | 2026-06-16 |
 | 3. Market Context | 6/6 | Complete   | 2026-06-22 |
-| 4. AI Report + Delivery | 5/6 | In Progress|  |
+| 4. AI Report + Delivery | 6/6 | Code-complete — UAT pending | |
 
 ## Backlog
 
@@ -158,7 +158,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 **Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
 **Requirements:** TBD
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
