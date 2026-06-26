@@ -2,7 +2,7 @@
 phase: 04-ai-report-delivery
 plan: 03
 subsystem: ai-report
-status: paused-at-checkpoint
+status: complete
 tags: [ai, synthesis, sonnet, migration, evals, gdpr]
 requires:
   - "src/lib/schemas/report.ts (reportSchema, AiReport) — Plan 04-01"
@@ -12,11 +12,11 @@ requires:
 provides:
   - "synthesizeReport — the one Sonnet 4.6 synthesis call (RPRT-01)"
   - "REPORT_SYNTHESIS_SYSTEM_PROMPT + REPORT_SYNTHESIS_PROMPT_VERSION"
-  - "supabase/migrations/004_report.sql — five additive report_* columns (FILE only; NOT yet applied)"
+  - "supabase/migrations/004_report.sql — five additive report_* columns (APPLIED to live DB)"
   - "evals/report-promptfooconfig.yaml + evals/report-judge.ts — synthesis eval scaffolds"
 affects:
   - "src/actions/generate-report.ts (Plan 04 — consumes synthesizeReport + persists to report_* columns)"
-  - "public.analyses (live DB — five report_* columns, pending the human-gated push)"
+  - "public.analyses (live DB — five report_* columns now live)"
 tech-stack:
   added: []
   patterns:
@@ -36,17 +36,17 @@ key-files:
 decisions:
   - "synthesize.ts uses plain client.messages.parse (no Files API / beta needed) — bare claude-sonnet-4-6 id"
   - "Tests mock @anthropic-ai/sdk via a globalThis-hung vi.fn() to dodge the vi.mock hoist TDZ — runs with no ANTHROPIC_API_KEY, no spend"
-  - "Migration FILE committed but NOT pushed — live DB push is the operator's human-gated action (Task 3)"
+  - "Migration applied to the live DB via operator-gated supabase db push — five report_* columns now live on public.analyses (no RLS/duplicate-policy error)"
 metrics:
   duration: ~6min
-  completed: 2026-06-25
-  tasks_completed: 2
+  completed: 2026-06-26
+  tasks_completed: 3
   tasks_total: 3
 ---
 
 # Phase 4 Plan 03: Cross-Source Synthesis Call + Report Migration Summary
 
-The one Sonnet 4.6 synthesis call (`synthesizeReport`) plus its versioned no-verdict/no-originated-flag system prompt, the additive `004_report.sql` migration FILE (five `report_*` columns, no RLS), and the synthesis eval scaffolds (promptfoo config + LLM judges). **Paused at Task 3** — the live DB push is a blocking `checkpoint:human-action` the operator must run.
+The one Sonnet 4.6 synthesis call (`synthesizeReport`) plus its versioned no-verdict/no-originated-flag system prompt, the additive `004_report.sql` migration (five `report_*` columns, no RLS — now applied to the live DB), and the synthesis eval scaffolds (promptfoo config + LLM judges). RPRT-01's persistence surface is live; the synthesis call is schema-constrained with full coded-error + GDPR-safe-log discipline.
 
 ## What Was Built
 
@@ -74,9 +74,11 @@ The one Sonnet 4.6 synthesis call (`synthesizeReport`) plus its versioned no-ver
 
 None — Tasks 1–2 executed as written. One implementation note: the stop-reason/log-redaction tests mock `@anthropic-ai/sdk`; because `vi.mock` is hoisted above the module body, the mock `vi.fn()` is created inside the factory and hung off `globalThis` (a top-level `const` would be in its temporal dead zone when the mocked `new Anthropic()` runs at synthesize.ts load). This is a test-harness mechanism only — no production code affected.
 
-## Checkpoint — Task 3 (BLOCKING, human-action)
+### Task 3 — apply 004_report.sql to the live database (operator-gated push) — COMPLETE
 
-Task 3 is the human-gated live DB push of `004_report.sql`. It was NOT auto-run: a `checkpoint:human-action` cannot be automated, and the live migration follows the Phase 2/3 operator-review precedent. The plan pauses here; the operator applies the migration and resumes. The exact push steps and resume signal are returned to the orchestrator.
+The human-gated push was performed by the operator (the executor did NOT run any live mutation — a `checkpoint:human-action` cannot be automated, and this follows the Phase 2/3 operator-review precedent). Operator `supabase db push` output: "Applying migration 004_report.sql... Finished supabase db push." — only `004_report.sql` was pending; it applied with **NO RLS / duplicate-policy error**. The five `report_*` columns (`report_data`, `report_status`, `report_cost_sek`, `report_data_fingerprint`, `report_prompt_version`) are now live on `public.analyses`, giving Plan 04's `generate-report.ts` action its persistence surface.
+
+A confirmatory `supabase db diff` was not runnable in the executor context (it requires a local Docker shadow database, which is not running here); the clean operator push output is the verification of record. No live DB mutation was run by the executor.
 
 ## Known Stubs
 
@@ -91,3 +93,4 @@ Task 3 is the human-gated live DB push of `004_report.sql`. It was NOT auto-run:
 - FOUND: evals/report-judge.ts
 - FOUND commit: 2533564 (Task 1)
 - FOUND commit: b537d27 (Task 2)
+- LIVE: five report_* columns applied to public.analyses (operator supabase db push, clean output, no RLS error) — Task 3
