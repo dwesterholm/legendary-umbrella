@@ -1,14 +1,62 @@
+import { createHash } from "node:crypto";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ListingSummary } from "@/components/listing-summary";
-import { ComingSoonSection } from "@/components/coming-soon-section";
 import { BrfSection } from "@/components/brf-section";
 import { MarketContextSection } from "@/components/market-context-section";
+import { AiReportSection } from "@/components/ai-report-section";
 import { UrlInput } from "@/components/url-input";
 import { listingDataSchema } from "@/lib/schemas/listing";
 import { safeParseBrfData } from "@/lib/schemas/brf";
 import { safeParsePriceData } from "@/lib/market/sold-schema";
 import { safeParseAreaData } from "@/lib/market/scb-schema";
+import { safeParseReportData } from "@/lib/schemas/report";
+import {
+  computeFlags,
+  type FlagBrfInput,
+  type FlagPriceInput,
+  type FlagSoftSignals,
+} from "@/lib/report/flags";
+import { assembleFactSheet } from "@/lib/report/fact-sheet";
+
+/**
+ * Maps the persisted, safeParse'd sources onto the deterministic flag-engine
+ * inputs — byte-for-byte the SAME mapping `generateReport` uses (toFlagBrf /
+ * toFlagPrice / toSoftSignals in generate-report.ts), so the fingerprint
+ * recomputed here matches the one the action stored. Diverging here would
+ * silently break the D-08 stale detection (T-04-24).
+ */
+function toFlagBrf(
+  brf: ReturnType<typeof safeParseBrfData>,
+): FlagBrfInput | null {
+  if (!brf) return null;
+  return {
+    skuldPerKvm: brf.normalized.skuldPerKvm,
+    avgiftsniva: brf.normalized.avgiftsniva,
+    kassaflode: brf.normalized.kassaflode,
+  };
+}
+
+function toFlagPrice(
+  price: ReturnType<typeof safeParsePriceData>,
+): FlagPriceInput | null {
+  if (!price) return null;
+  const reason: FlagPriceInput["reason"] =
+    price.reason === "source_unavailable" ? "thin" : price.reason;
+  return { reason, deltaPct: price.deltaPct, sampleSize: price.sampleSize };
+}
+
+function toSoftSignals(
+  brf: ReturnType<typeof safeParseBrfData>,
+): FlagSoftSignals | null {
+  if (!brf) return null;
+  const e = brf.extraction;
+  return {
+    stambytePlanerat: e.stambytePlanerat,
+    storreRenoveringar: e.storreRenoveringar,
+    ovrigaAnmarkningar: e.ovrigaAnmarkningar,
+  };
+}
 
 interface AnalysisPageProps {
   params: Promise<{ id: string }>;
@@ -53,6 +101,40 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   const priceData = safeParsePriceData(analysis.price_data);
   const areaData = safeParseAreaData(analysis.area_data);
 
+  // CR-01: re-validate the persisted report_data on READ. null → "not generated
+  // yet" affordance, never a crash on a shape-drifted row.
+  const reportData = safeParseReportData(analysis.report_data);
+
+  // D-08 staleness: recompute the CURRENT-input fingerprint from the FULL stable
+  // fact sheet (the SAME assembleFactSheet bytes generateReport hashed), then
+  // compare to the stored report_data_fingerprint. A partial/ad-hoc hash over a
+  // subset of fields would silently desync from the action's stored fingerprint
+  // and break stale detection (T-04-24) — so we re-run the exact same pipeline.
+  const softSignals = toSoftSignals(brfData);
+  const currentFlags = computeFlags({
+    brf: toFlagBrf(brfData),
+    price: toFlagPrice(priceData),
+    softSignals,
+  });
+  const currentFactSheet = assembleFactSheet({
+    listing: listingData,
+    brf: brfData,
+    price: priceData,
+    area: areaData,
+    flags: currentFlags,
+    softSignals,
+  });
+  const currentFingerprint = createHash("sha256")
+    .update(currentFactSheet)
+    .digest("hex");
+  // Only meaningful once a report exists with a stored fingerprint; a missing
+  // stored fingerprint (no report yet) is NOT "stale".
+  const isStale =
+    reportData !== null &&
+    typeof analysis.report_data_fingerprint === "string" &&
+    analysis.report_data_fingerprint.length > 0 &&
+    analysis.report_data_fingerprint !== currentFingerprint;
+
   return (
     <div className="flex flex-col items-center gap-8">
       {/* New analysis input */}
@@ -66,7 +148,23 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
       {/* Listing summary */}
       <ListingSummary data={listingData} partial={isPartial} />
 
-      {/* Coming soon sections */}
+      {/* D-00/D-05: the AI report anchors the page as the lead second opinion —
+          the connective tissue across pris/BRF/område, not a bolted-on card at
+          the bottom. It also carries the manual trigger (D-07), the guest teaser
+          (D-09), the stale/regenerate marker (D-08), and the PDF download
+          (RPRT-03). The themed flags it surfaces are the same deterministic
+          signals the cards below expose, spoken in one trust language (D-00). */}
+      <div className="w-full max-w-2xl">
+        <AiReportSection
+          analysisId={analysis.id}
+          report={reportData}
+          isGuest={!user}
+          reportStatus={analysis.report_status}
+          isStale={isStale}
+        />
+      </div>
+
+      {/* The supporting source cards the report is built from. */}
       <div className="w-full max-w-2xl space-y-3">
         <BrfSection
           analysisId={analysis.id}
@@ -83,7 +181,6 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           listingPrisPerKvm={listingData.prisPerKvm}
           marketStatus={analysis.market_status}
         />
-        <ComingSoonSection title="AI Rapport" />
       </div>
     </div>
   );

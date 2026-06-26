@@ -51,7 +51,6 @@ export default function Home() {
               <ComingSoonSection title="BRF Analys" />
               <ComingSoonSection title="Prisjamforelse" />
               <ComingSoonSection title="Omradesstatistik" />
-              <ComingSoonSection title="AI Rapport" />
             </div>
           </div>
         )}
