@@ -29,6 +29,49 @@ let mockRowError: { code: string } | null;
 let updates: Array<Record<string, unknown>>;
 /** Forces the next persist `.update().eq()` to report a DB error. */
 let persistError: { code: string } | null;
+/** Forces the atomic lock-acquire CAS (`.select().maybeSingle()`) to error. */
+let lockError: { code: string } | null;
+
+/**
+ * Builds a chainable, awaitable fake for `.update(payload)...`. WR-01 made the
+ * lock acquire an atomic CAS: `update().eq().neq().select().maybeSingle()`. The
+ * chain mirrors that — every `eq`/`neq`/`select` returns the same chainable; the
+ * chain is thenable (resolves to `{ error }` for the directly-awaited terminal
+ * writes), and `maybeSingle()` resolves the CAS result (a row when the lock is
+ * free, null when a fresh `generating` lock is held — the no-double-spend path).
+ */
+function updateChain(payload: Record<string, unknown>) {
+  updates.push(payload);
+  // Resolved value for a directly-awaited chain (writeFailedStatus / persist).
+  const awaited = {
+    error:
+      payload.report_status === "done"
+        ? persistError
+        : null,
+  };
+  const chain: Record<string, unknown> = {
+    eq: () => chain,
+    neq: () => chain,
+    select: () => chain,
+    maybeSingle: async () => {
+      // The CAS acquire (status -> generating WITH a started_at timestamp).
+      // It fails closed on lockError; otherwise the acquire succeeds (returns a
+      // row). A FRESH concurrent lock is refused by the action's up-front guard
+      // BEFORE the CAS is ever reached, so this acquire is only reached when the
+      // row is genuinely acquirable (not-generating or a reclaimed stale lock).
+      if (
+        payload.report_status === "generating" &&
+        "report_generating_started_at" in payload
+      ) {
+        if (lockError) return { data: null, error: lockError };
+        return { data: { id: "a1" }, error: null };
+      }
+      return { data: null, error: null };
+    },
+    then: (resolve: (v: typeof awaited) => unknown) => resolve(awaited),
+  };
+  return chain;
+}
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -41,17 +84,7 @@ vi.mock("@/lib/supabase/server", () => ({
           single: async () => ({ data: mockRow, error: mockRowError }),
         }),
       }),
-      update: (payload: Record<string, unknown>) => {
-        updates.push(payload);
-        return {
-          eq: async () => ({
-            // The terminal persist write reports persistError when set; status
-            // writes (generating/failed) always succeed.
-            error:
-              payload.report_status === "done" ? persistError : null,
-          }),
-        };
-      },
+      update: (payload: Record<string, unknown>) => updateChain(payload),
     }),
   }),
 }));
@@ -114,6 +147,7 @@ beforeEach(() => {
   mockRowError = null;
   updates = [];
   persistError = null;
+  lockError = null;
 });
 
 describe("generateReport — module surface", () => {
@@ -165,11 +199,41 @@ describe("generateReport — status flow + in-flight lock (T-04-14)", () => {
     expect(synthesizeReport).toHaveBeenCalledTimes(1);
   });
 
-  it("short-circuits without a second Sonnet call when the row is already 'generating' (no double-spend)", async () => {
-    mockRow = { ...(mockRow as object), report_status: "generating" };
+  it("short-circuits without a second Sonnet call when the row is already 'generating' (no double-spend, WR-01)", async () => {
+    // A FRESH lock (timestamp = now) → a live concurrent run holds it.
+    mockRow = {
+      ...(mockRow as object),
+      report_status: "generating",
+      report_generating_started_at: new Date().toISOString(),
+    };
     const result = await generateReport("a1");
     expect(result.ok).toBe(false);
     expect(synthesizeReport).not.toHaveBeenCalled();
+  });
+
+  it("fails closed (never spends on Sonnet) when the atomic lock-acquire write errors (WR-01)", async () => {
+    lockError = { code: "XX000" };
+    const result = await generateReport("a1");
+    expect(result.ok).toBe(false);
+    expect(synthesizeReport).not.toHaveBeenCalled();
+  });
+
+  it("reclaims a STALE 'generating' lock and re-generates (WR-05)", async () => {
+    // A 'generating' row whose lock is older than the stale window → presumed
+    // dead. The CAS acquire must succeed and the report regenerate to 'done'.
+    synthesizeReport.mockResolvedValue({ parsed: fakeReport(), usage: CHEAP_USAGE });
+    mockRow = {
+      ...(mockRow as object),
+      report_status: "generating",
+      report_generating_started_at: new Date(
+        Date.now() - 60 * 60 * 1000,
+      ).toISOString(),
+    };
+    const result = await generateReport("a1");
+    expect(result.ok).toBe(true);
+    expect(synthesizeReport).toHaveBeenCalledTimes(1);
+    const statuses = updates.map((u) => u.report_status);
+    expect(statuses).toContain("done");
   });
 
   it("writes 'failed' (not 'done') when synthesize throws a coded error", async () => {

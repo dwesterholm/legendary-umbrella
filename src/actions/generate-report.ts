@@ -27,6 +27,16 @@ import { costSekSonnet } from "@/lib/brf/cost";
  */
 const COST_CAP_SEK = 5;
 
+/**
+ * Stale-lock window (WR-05). A `generating` row whose lock was acquired longer
+ * ago than this is presumed dead (the process crashed/timed out between
+ * acquiring the lock and writing a terminal status) and is reclaimable — the
+ * atomic CAS acquire below allows re-locking it so the report can be
+ * re-generated rather than wedging on `generating` forever. Comfortably longer
+ * than one Sonnet call + one truncation retry.
+ */
+const STALE_LOCK_MS = 5 * 60 * 1000;
+
 /** The model id the report is generated with — persisted for trace (AI-SPEC §7). */
 const REPORT_MODEL = "claude-sonnet-4-6";
 
@@ -166,7 +176,7 @@ export async function generateReport(
   const { data: row, error: rowError } = await supabase
     .from("analyses")
     .select(
-      "id, user_id, report_status, listing_data, brf_data, price_data, area_data",
+      "id, user_id, report_status, report_generating_started_at, listing_data, brf_data, price_data, area_data",
     )
     .eq("id", analysisId)
     .single();
@@ -175,20 +185,90 @@ export async function generateReport(
     return { ok: false, error: "Analysen hittades inte." };
   }
 
-  // In-flight lock (T-04-14 / RESEARCH Pitfall 5): a concurrent run already
-  // holds the lock — refuse rather than fire a second (priciest) Sonnet call.
-  if (row.report_status === "generating") {
+  // In-flight lock (WR-01 / WR-05, T-04-14 / RESEARCH Pitfall 5). The acquire
+  // is an ATOMIC compare-and-swap: a single conditional UPDATE that only flips
+  // a row to `generating` when it is NOT already actively locked, then RETURNS
+  // the affected row. This closes the TOCTOU double-spend window — two
+  // concurrent calls cannot both pass a read-then-write guard, because the DB
+  // serialises the conditional update and exactly one of them gets the row back.
+  //
+  // WR-05 stale-lock reclamation: a `generating` row whose lock is older than
+  // STALE_LOCK_MS (process died mid-synthesis) is reclaimable, so we only
+  // refuse when the row is `generating` AND its lock is still fresh. We compute
+  // the "fresh lock" cutoff in app code and exclude rows locked after it.
+  const staleCutoffIso = new Date(Date.now() - STALE_LOCK_MS).toISOString();
+  const nowIso = new Date().toISOString();
+
+  // Refuse up-front if a FRESH lock is already held (a live concurrent run).
+  // This is a fast, friendly path; the CAS below is the authoritative guard.
+  if (
+    row.report_status === "generating" &&
+    typeof row.report_generating_started_at === "string" &&
+    row.report_generating_started_at > staleCutoffIso
+  ) {
     return {
       ok: false,
       error: "En AI-rapport genereras redan. Vänta ett ögonblick.",
     };
   }
 
-  // Acquire the lock BEFORE the Sonnet call. The page polls this column.
-  await supabase
+  // Atomic CAS acquire BEFORE the Sonnet call. The page polls report_status.
+  // `.not("report_status", "eq", "generating")` OR a stale lock would be ideal
+  // as one predicate, but PostgREST cannot express "stale OR not-generating" in
+  // a single .neq; we instead acquire when the row is NOT generating, and the
+  // stale-row case is handled by first clearing a stale lock, below.
+  if (
+    row.report_status === "generating" &&
+    (typeof row.report_generating_started_at !== "string" ||
+      row.report_generating_started_at <= staleCutoffIso)
+  ) {
+    // Reclaim a stale lock atomically: only succeeds if the row is STILL
+    // pinned to the exact stale timestamp we observed (no live run has since
+    // re-acquired it). If someone else reclaimed first, `reclaimed` is null and
+    // we fall through to the standard CAS, which will then refuse.
+    await supabase
+      .from("analyses")
+      .update({ report_status: "failed" })
+      .eq("id", analysisId)
+      .eq("report_status", "generating")
+      .eq(
+        "report_generating_started_at",
+        row.report_generating_started_at as string,
+      );
+  }
+
+  // The authoritative atomic acquire: flip to `generating` only when the row is
+  // NOT currently `generating`, and return the affected row so we can detect a
+  // lost race. If the update writes zero rows (`locked` is null), a concurrent
+  // run holds the lock — refuse rather than double-spend.
+  const { data: locked, error: lockErr } = await supabase
     .from("analyses")
-    .update({ report_status: "generating" })
-    .eq("id", analysisId);
+    .update({
+      report_status: "generating",
+      report_generating_started_at: nowIso,
+    })
+    .eq("id", analysisId)
+    .neq("report_status", "generating")
+    .select("id")
+    .maybeSingle();
+  if (lockErr) {
+    // Fail closed: never proceed to spend on Sonnet if the lock write errored
+    // (RLS / transient DB error). GDPR: log only { analysisId, code }.
+    console.error("[generateReport] lock acquire failed", {
+      analysisId,
+      code: lockErr.code,
+    });
+    return {
+      ok: false,
+      error: "Vi kunde inte starta AI-rapporten just nu. Försök igen senare.",
+    };
+  }
+  if (!locked) {
+    return {
+      ok: false,
+      error: "En AI-rapport genereras redan. Vänta ett ögonblick.",
+    };
+  }
 
   // safeParse the four sources INDEPENDENTLY — a malformed/partial source
   // degrades to null (no flag fabricated), never throws (D-07).
