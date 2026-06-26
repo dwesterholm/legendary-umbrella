@@ -10,6 +10,15 @@ interface ReportFlagsProps {
   /** Optional: only render flags whose id is in this allow-list (e.g. weave the
    *  BRF flags beside the BRF card, the price flags beside the price card). */
   only?: readonly string[];
+  /**
+   * Optional ORDERING hint (WR-02 / D-11): ids listed here are rendered first,
+   * in this order; every remaining real flag still renders after them. This may
+   * only emphasise — it can NEVER filter a real, code-raised flag off the
+   * screen. Ids that don't resolve to a real flag (e.g. a hallucinated id from
+   * the model's `prioritizedFlagIds`) are ignored. Mirrors the PDF renderer's
+   * prioritized-then-remaining ordering so the screen and PDF agree.
+   */
+  priority?: readonly string[];
   /** Optional heading shown above the chips when this group is woven into a card. */
   title?: string;
   className?: string;
@@ -70,8 +79,29 @@ function severityChip(severity: FlagSeverity): string {
  * quote + confidence) so the flag is auditable, mirroring the BRF card's
  * source-quote discipline (D-06/D-11).
  */
-export function ReportFlags({ flags, only, title, className }: ReportFlagsProps) {
-  const shown = only ? flags.filter((f) => only.includes(f.id)) : flags;
+export function ReportFlags({
+  flags,
+  only,
+  priority,
+  title,
+  className,
+}: ReportFlagsProps) {
+  // `only` is a legitimate allow-list for weaving a SUBSET beside a card.
+  const visible = only ? flags.filter((f) => only.includes(f.id)) : flags;
+  // WR-02 / D-11: `priority` may ONLY reorder/emphasise — never filter. Render
+  // the prioritized real flags first (in the given order), then every remaining
+  // visible flag, so a hallucinated or empty priority list can never hide a
+  // real code-raised flag. Mirrors report-document.tsx:184-191.
+  let shown = visible;
+  if (priority && priority.length > 0) {
+    const visibleById = new Map(visible.map((f) => [f.id, f]));
+    const prioritized = priority
+      .map((id) => visibleById.get(id))
+      .filter((f): f is Flag => Boolean(f));
+    const prioritizedIds = new Set(prioritized.map((f) => f.id));
+    const remaining = visible.filter((f) => !prioritizedIds.has(f.id));
+    shown = [...prioritized, ...remaining];
+  }
   if (shown.length === 0) return null;
 
   return (

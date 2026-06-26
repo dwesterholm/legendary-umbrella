@@ -264,12 +264,15 @@ export function AiReportSection({
           <ThemedSectionBlock title={SECTION_TITLES.omrade} section={ai.omrade} />
         </div>
 
-        {/* D-00: the prioritized flags, in the shared sage/terracotta language. */}
+        {/* D-00: the prioritized flags, in the shared sage/terracotta language.
+            WR-02: prioritizedFlagIds may only ORDER/emphasise (priority), never
+            FILTER (only) — every real, code-raised flag stays on screen, matching
+            the PDF (D-11). A hallucinated/empty priority list cannot hide a flag. */}
         {flags.length > 0 && (
           <ReportFlags
             flags={flags}
             title="Flaggor"
-            only={
+            priority={
               ai.prioritizedFlagIds.length > 0
                 ? ai.prioritizedFlagIds
                 : undefined
