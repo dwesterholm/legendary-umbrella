@@ -15,6 +15,15 @@ interface BrfProgressProps {
 /** Poll cadence — light enough for status text, responsive enough for the UX (D-13). */
 const POLL_MS = 1500;
 
+/**
+ * Hard safety ceiling on polling. One extraction is a single Haiku call (+ one
+ * truncation retry) — comfortably under a minute. If no terminal status lands
+ * within this window the run is wedged (a crashed action, a dropped terminal
+ * write); stop spinning and surface a failure so the user can retry rather than
+ * watching step 1 forever.
+ */
+const MAX_POLL_MS = 90_000;
+
 /** D-13 step labels keyed by the persisted `brf_status` value. */
 const STEPS: { status: string; label: string }[] = [
   { status: "reading", label: "Laser dokumentet..." },
@@ -39,6 +48,7 @@ export function BrfProgress({
   initialStatus,
 }: BrfProgressProps) {
   const [status, setStatus] = useState<string | null>(initialStatus ?? "reading");
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -59,6 +69,7 @@ export function BrfProgress({
       if (next === "done" || next === "failed") {
         active = false;
         clearInterval(interval);
+        clearTimeout(timeout);
         onComplete?.(next);
       }
     }
@@ -67,9 +78,21 @@ export function BrfProgress({
     void poll();
     const interval = setInterval(poll, POLL_MS);
 
+    // Safety ceiling: a wedged run never reaches done/failed, so the poll would
+    // spin forever. After MAX_POLL_MS, stop and surface a failure (the parent
+    // routes "failed" to a retry affordance).
+    const timeout = setTimeout(() => {
+      if (!active) return;
+      active = false;
+      clearInterval(interval);
+      setTimedOut(true);
+      onComplete?.("failed");
+    }, MAX_POLL_MS);
+
     return () => {
       active = false;
       clearInterval(interval);
+      clearTimeout(timeout);
     };
   }, [analysisId, onComplete]);
 
@@ -81,6 +104,11 @@ export function BrfProgress({
         <h3 className="text-lg font-medium text-warm-gray-700">
           Analyserar arsredovisningen
         </h3>
+        {timedOut && (
+          <p className="mt-1 text-sm text-terracotta-600">
+            Det tar langre tid an vantat. Forsok igen.
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <ol className="space-y-3">

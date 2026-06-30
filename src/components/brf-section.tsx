@@ -51,6 +51,9 @@ export function BrfSection({
 }: BrfSectionProps) {
   const [view, setView] = useState<View>(() => initialView(brfStatus, brfData));
   const [data, setData] = useState<BrfData | null>(brfData ?? null);
+  // The actual server-action error (e.g. upload/persist failure). Owned here
+  // because BrfUpload unmounts on the onStarted view switch (D-13 / WR-04).
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Guest teaser (D-05) — defence-in-depth UI; the hard gate is the server action.
   if (isGuest) {
@@ -133,14 +136,21 @@ export function BrfSection({
       <Card className="w-full max-w-2xl border-warm-gray-200">
         <div className="rounded-t-xl bg-terracotta-50 px-6 py-3">
           <p className="text-sm text-terracotta-600">
-            Vi kunde inte lasa dokumentet automatiskt. Forsok igen.
+            {errorMsg ?? "Vi kunde inte lasa dokumentet automatiskt. Forsok igen."}
           </p>
         </div>
         <CardContent className="pt-6">
           <BrfUpload
             analysisId={analysisId}
             agencyListingUrl={agencyListingUrl}
-            onStarted={() => setView("progress")}
+            onStarted={() => {
+              setErrorMsg(null);
+              setView("progress");
+            }}
+            onFailed={(msg) => {
+              setErrorMsg(msg);
+              setView("failed");
+            }}
           />
         </CardContent>
       </Card>
@@ -154,7 +164,14 @@ export function BrfSection({
       <BrfUpload
         analysisId={analysisId}
         agencyListingUrl={agencyListingUrl}
-        onStarted={() => setView("progress")}
+        onStarted={() => {
+          setErrorMsg(null);
+          setView("progress");
+        }}
+        onFailed={(msg) => {
+          setErrorMsg(msg);
+          setView("failed");
+        }}
       />
     </div>
   );

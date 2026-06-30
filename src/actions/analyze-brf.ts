@@ -216,6 +216,11 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
     bytes,
   );
   if (uploadError) {
+    // WR-04: the client switched to the progress view optimistically and is
+    // already polling brf_status. Without a terminal write the poller spins on
+    // step 1 forever (the BrfUpload error is hidden once it unmounts). Write
+    // `failed` so the poll terminates and a reload shows the failure.
+    await writeFailedStatus(supabase, analysisId);
     return { ok: false, error: "Kunde inte spara PDF:en. Försök igen." };
   }
 
@@ -312,6 +317,10 @@ export async function analyzeBrf(formData: FormData): Promise<AnalyzeBrfResult> 
     .eq("id", analysisId);
 
   if (persistError) {
+    // The terminal `done` write failed, leaving brf_status pinned at `scoring`
+    // (the poller would hang on step 3). Release it to `failed` so the poll
+    // terminates and the user can retry. Preserve the incurred Claude cost.
+    await writeFailedStatus(supabase, analysisId, { brf_cost_sek: cost });
     return { ok: false, error: "Kunde inte spara analysen. Försök igen." };
   }
 

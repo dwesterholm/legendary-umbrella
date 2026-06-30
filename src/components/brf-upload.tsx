@@ -8,6 +8,12 @@ interface BrfUploadProps {
   analysisId: string;
   /** Called when the upload kicks off so the parent can switch to progress. */
   onStarted?: () => void;
+  /**
+   * Called when the server action returns an error. The parent switches to
+   * "progress" on onStarted and unmounts this component, so a local setError
+   * would be invisible — the parent must own failure display.
+   */
+  onFailed?: (error: string) => void;
   /** Optional broker listing URL — a non-blocking deep-link to find the PDF (D-02). */
   agencyListingUrl?: string;
 }
@@ -28,6 +34,7 @@ const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20 MB
 export function BrfUpload({
   analysisId,
   onStarted,
+  onFailed,
   agencyListingUrl,
 }: BrfUploadProps) {
   const [file, setFile] = useState<File | null>(null);
@@ -83,7 +90,10 @@ export function BrfUpload({
 
       const result: AnalyzeBrfResult = await analyzeBrf(formData);
       if (!result.ok) {
+        // Hand the error to the parent — this component has been unmounted by the
+        // onStarted view switch, so a local setError would never render.
         setError(result.error);
+        onFailed?.(result.error);
       }
     });
   }
