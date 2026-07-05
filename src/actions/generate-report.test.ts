@@ -52,6 +52,7 @@ function updateChain(payload: Record<string, unknown>) {
   const chain: Record<string, unknown> = {
     eq: () => chain,
     neq: () => chain,
+    is: () => chain,
     select: () => chain,
     maybeSingle: async () => {
       // The CAS acquire (status -> generating WITH a started_at timestamp).
@@ -234,6 +235,26 @@ describe("generateReport — status flow + in-flight lock (T-04-14)", () => {
     expect(synthesizeReport).toHaveBeenCalledTimes(1);
     const statuses = updates.map((u) => u.report_status);
     expect(statuses).toContain("done");
+  });
+
+  it("reclaims a wedged 'generating' lock with a NULL start-time and re-generates", async () => {
+    // A row pinned at 'generating' with report_generating_started_at = null (e.g.
+    // set before migration 005 added the column) is otherwise PERMANENTLY wedged:
+    // the reclaim must use `.is(null)`, not `.eq(null)`, or it never clears and
+    // every call returns "genereras redan" (survives reloads / elapsed time).
+    // NOTE: this mock cannot simulate PostgREST's null-matching semantics (both
+    // .eq and .is just return the chain), so this guards the null BRANCH + happy
+    // path; the .eq-vs-.is correctness itself rests on PostgREST behaviour.
+    synthesizeReport.mockResolvedValue({ parsed: fakeReport(), usage: CHEAP_USAGE });
+    mockRow = {
+      ...(mockRow as object),
+      report_status: "generating",
+      report_generating_started_at: null,
+    };
+    const result = await generateReport("a1");
+    expect(result.ok).toBe(true);
+    expect(synthesizeReport).toHaveBeenCalledTimes(1);
+    expect(updates.map((u) => u.report_status)).toContain("done");
   });
 
   it("writes 'failed' (not 'done') when synthesize throws a coded error", async () => {

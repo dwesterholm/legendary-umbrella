@@ -222,19 +222,27 @@ export async function generateReport(
     (typeof row.report_generating_started_at !== "string" ||
       row.report_generating_started_at <= staleCutoffIso)
   ) {
-    // Reclaim a stale lock atomically: only succeeds if the row is STILL
-    // pinned to the exact stale timestamp we observed (no live run has since
-    // re-acquired it). If someone else reclaimed first, `reclaimed` is null and
-    // we fall through to the standard CAS, which will then refuse.
-    await supabase
+    // Reclaim a stale lock atomically: only succeeds if the row is STILL pinned
+    // to the exact lock state we observed (no live run has since re-acquired it).
+    // If someone else reclaimed first the update writes zero rows and we fall
+    // through to the standard CAS. Two shapes of reclaimable lock:
+    //   - EXPIRED timestamp: match the exact value we read.
+    //   - NULL timestamp: a row wedged at `generating` with no start time (e.g.
+    //     set before report_generating_started_at existed, migration 005). This
+    //     MUST use `.is(null)` — PostgREST `.eq(col, null)` does NOT match SQL
+    //     NULL, so an `.eq` here silently reclaims nothing and the row stays
+    //     PERMANENTLY wedged (never stale-reclaimable, survives reloads).
+    const reclaim = supabase
       .from("analyses")
       .update({ report_status: "failed" })
       .eq("id", analysisId)
-      .eq("report_status", "generating")
-      .eq(
-        "report_generating_started_at",
-        row.report_generating_started_at as string,
-      );
+      .eq("report_status", "generating");
+    await (typeof row.report_generating_started_at === "string"
+      ? reclaim.eq(
+          "report_generating_started_at",
+          row.report_generating_started_at,
+        )
+      : reclaim.is("report_generating_started_at", null));
   }
 
   // The authoritative atomic acquire: flip to `generating` only when the row is
