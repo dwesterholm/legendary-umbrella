@@ -3,7 +3,7 @@ status: testing
 phase: 04-ai-report-delivery
 source: [04-VERIFICATION.md]
 started: 2026-06-26
-updated: 2026-06-26
+updated: 2026-07-05
 ---
 
 ## Current Test
@@ -11,12 +11,12 @@ updated: 2026-06-26
 number: 1
 name: Live synthesis quality — generate a report on an owned analysis
 expected: |
-  Both blocking bugs are now FIXED + verified live (BRF extraction returns 200 via
-  real extractBrfFinancials; report synthesis healthy; lock releases on persist
-  failure; UI refreshes on success). Re-test in the browser: upload a real BRF PDF,
-  click "Generera AI-rapport", confirm a grounded cross-source synthesis with cited
-  claims and NO buy/sell verdict.
-awaiting: in-browser re-test by user
+  BRF upload → extract → grade now works end-to-end in the browser (user-confirmed
+  2026-07-05, after fixing 3 root causes: extraction schema, swallowed-error hang,
+  Server Action 1 MB body limit). NEXT: with real BRF data present, click
+  "Generera AI-rapport" and confirm a grounded cross-source synthesis — every claim
+  cites a data point (D-06), NO buy/sell verdict and NO "rätt pris är X" (D-04).
+awaiting: user to generate the AI report and judge synthesis quality
 
 ## Tests
 
@@ -102,4 +102,23 @@ blocked: 0
     - "Give the 'genereras redan' state a recovery affordance (it self-heals after 5 min; surface that or allow reclaim)."
   debug_session: ""
   fix: "FIXED two ways: (1) generate-report.ts now calls writeFailedStatus on the terminal-persist-failure path, so a failed 'done' write no longer wedges report_status at 'generating' — the lock is released and the user can retry immediately. (2) ai-report-section.tsx now calls router.refresh() on a successful generation (generateReport runs synthesis to a terminal status before returning, so the report exists on success); the report renders without a manual reload and the trigger button stops re-inviting clicks. Any pre-existing wedged row self-heals via the existing 5-min stale-lock reclaim. Note: exact original wedge trigger on the user's machine was not confirmed from logs, but both known wedge paths are now closed. All 173 unit tests pass incl. the persist-failure case."
+  fix_status: resolved
+
+- truth: "A real BRF PDF (>1 MB) uploads and analyzes end-to-end"
+  status: failed
+  reason: "Server log on retest: 'Error: Body exceeded 1 MB limit' / statusCode 413, POST 500 — surfaced to the user as the generic 'Vi kunde inte läsa dokumentet' fallback, so it masqueraded as an extraction failure."
+  severity: blocker
+  test: 1
+  root_cause: "PDFs are uploaded through the analyzeBrf Server Action as multipart FormData. Next.js Server Actions default to a 1 MB request-body cap, so any real årsredovisning (>1 MB) was rejected with a framework-level 413 BEFORE the action ran — making the app's own 20 MB MAX_PDF_BYTES check unreachable. The action threw (didn't return {ok:false}), so onFailed never fired and errorMsg stayed null → generic fallback message. Found only via the dev-server console (not reproducible with synthetic PDFs, which uploaded fine below 1 MB)."
+  artifacts:
+    - path: "next.config.ts"
+      issue: "No experimental.serverActions.bodySizeLimit → 1 MB default."
+    - path: "src/components/brf-upload.tsx"
+      issue: "analyzeBrf call not wrapped in try/catch → a thrown 413 became an unhandled rejection + silent hang."
+  missing:
+    - "Set experimental.serverActions.bodySizeLimit above the 20 MB app cap (restart required)."
+    - "try/catch the server-action call so a throw surfaces via onFailed."
+    - "PROD FOLLOW-UP (not done): Vercel caps request body ~4.5 MB regardless — needs client-direct upload to Supabase Storage (signed URL) before deploying there."
+  debug_session: ""
+  fix: "FIXED (commit ce27f73): next.config.ts serverActions.bodySizeLimit='25mb' + try/catch in brf-upload.tsx. User-confirmed working end-to-end in browser 2026-07-05. Vercel platform-cap refactor remains an open follow-up."
   fix_status: resolved
