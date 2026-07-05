@@ -17,6 +17,20 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["./src/data/deso.geojson", "./src/lib/report/pdf/fonts/*.ttf"],
   },
+  experimental: {
+    // BRF årsredovisning PDFs are uploaded through the `analyzeBrf` Server Action
+    // as multipart FormData. Server Actions default to a 1 MB request-body cap,
+    // which rejected any real PDF (>1 MB) with a framework-level 413 BEFORE the
+    // action ran — making the client-/server-side 20 MB MAX_PDF_BYTES check
+    // unreachable. Raise the limit above that 20 MB app cap, with headroom for
+    // multipart boundary overhead. NOTE: platform limits still apply on top of
+    // this — e.g. Vercel caps a serverless request body at ~4.5 MB regardless of
+    // this setting; a production deploy there would need client-direct upload to
+    // Supabase Storage (signed URL) instead of passing the file through the action.
+    serverActions: {
+      bodySizeLimit: "25mb",
+    },
+  },
 };
 
 export default nextConfig;

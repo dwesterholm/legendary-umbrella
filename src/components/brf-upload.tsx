@@ -88,12 +88,23 @@ export function BrfUpload({
       formData.set("file", file);
       formData.set("analysisId", analysisId);
 
-      const result: AnalyzeBrfResult = await analyzeBrf(formData);
-      if (!result.ok) {
-        // Hand the error to the parent — this component has been unmounted by the
-        // onStarted view switch, so a local setError would never render.
-        setError(result.error);
-        onFailed?.(result.error);
+      try {
+        const result: AnalyzeBrfResult = await analyzeBrf(formData);
+        if (!result.ok) {
+          // Hand the error to the parent — this component has been unmounted by
+          // the onStarted view switch, so a local setError would never render.
+          setError(result.error);
+          onFailed?.(result.error);
+        }
+      } catch {
+        // A server action can THROW instead of returning {ok:false} — e.g. the
+        // framework's 413 "Body exceeded N MB limit" reject fires before the
+        // action body runs. Without this, the throw is an unhandled rejection and
+        // onFailed never fires (silent hang + null error). Surface it instead.
+        const msg =
+          "Kunde inte ladda upp PDF:en. Kontrollera att det ar en giltig PDF (max 20 MB) och forsok igen.";
+        setError(msg);
+        onFailed?.(msg);
       }
     });
   }
