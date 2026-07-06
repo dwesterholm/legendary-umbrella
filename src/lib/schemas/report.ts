@@ -86,9 +86,16 @@ const persistedFlagSchema = z.object({
   id: z.string(),
   severity: z.enum(["red", "green", "neutral"]),
   sourceRef: z.string(),
-  sourceQuote: z.string().nullable(),
-  pageRef: z.number().nullable(),
-  confidence: z.number().nullable(),
+  // `.nullish()` (= nullable + optional), NOT `.nullable()`: the write-side Flag
+  // type (flags.ts) declares these three OPTIONAL, and the numeric BRF/price
+  // flags omit them entirely. Persisted to JSONB, an omitted key is dropped, so
+  // on read it is `undefined` — which `.nullable()` REJECTS ("expected string,
+  // received undefined"), failing the whole safeParse → report_data reads back
+  // null → the page shows the "Generera" trigger for a report that IS 'done'
+  // (no error, no log). `.nullish()` accepts present-value, null, AND absent.
+  sourceQuote: z.string().nullish(),
+  pageRef: z.number().nullish(),
+  confidence: z.number().nullish(),
 });
 
 export const reportDataSchema = z.object({

@@ -8,6 +8,7 @@ import {
   safeParseReportData,
   type AiReport,
 } from "@/lib/schemas/report";
+import { computeFlags } from "@/lib/report/flags";
 
 // A minimal, valid AiReport per AI-SPEC §4b (lines 374-407).
 const validReport: AiReport = {
@@ -121,5 +122,31 @@ describe("safeParseReportData — CR-01 read-path guard", () => {
     expect(result).not.toBeNull();
     expect(reportDataSchema.safeParse(validSnapshot).success).toBe(true);
     expect(result?.report.leadSynthesis).toContain("Priset");
+  });
+
+  // REGRESSION (04-UAT Test 1): a report generated with a numeric BRF/price flag
+  // persisted with report_status='done' but read back as null — the numeric
+  // flags produced by computeFlags OMIT sourceQuote/pageRef/confidence, JSONB
+  // drops the undefined keys, and the read schema's `.nullable()` rejected the
+  // absent keys. The page then showed the "Generera" trigger for a DONE report
+  // (no error, no log). This exercises the REAL producer through a JSONB-shaped
+  // round-trip so a `.nullable()`-vs-`.nullish()` regression fails here, not live.
+  it("reads back a snapshot whose flags come from computeFlags (numeric flags omit optional keys)", () => {
+    const flags = computeFlags({
+      brf: { skuldPerKvm: 20000, avgiftsniva: 800, kassaflode: -5 },
+      price: { reason: "ok", deltaPct: 12, sampleSize: 8 },
+      softSignals: null,
+    });
+    expect(flags.length).toBeGreaterThan(0);
+    // The offending flag really does lack the optional keys.
+    expect("sourceQuote" in flags[0]).toBe(false);
+    const snapshot = {
+      ...validSnapshot,
+      // Simulate Supabase JSONB serialization (drops undefined keys).
+      flags: JSON.parse(JSON.stringify(flags)),
+    };
+    const result = safeParseReportData(snapshot);
+    expect(result).not.toBeNull();
+    expect(result?.flags[0].id).toBe(flags[0].id);
   });
 });

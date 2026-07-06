@@ -206,6 +206,13 @@ export async function generateReport(
     typeof row.report_generating_started_at === "string" &&
     row.report_generating_started_at > staleCutoffIso
   ) {
+    // DIAGNOSTIC (04-UAT Test 1 re-test): this fresh-lock path is otherwise
+    // silent. Log status + lock age so an orphaned-but-fresh lock is visible.
+    console.warn("[generateReport] refused: fresh lock held", {
+      analysisId,
+      report_status: row.report_status,
+      lockAgeMs: Date.now() - Date.parse(row.report_generating_started_at),
+    });
     return {
       ok: false,
       error: "En AI-rapport genereras redan. Vänta ett ögonblick.",
@@ -255,8 +262,15 @@ export async function generateReport(
       report_status: "generating",
       report_generating_started_at: nowIso,
     })
+    // Acquire when the row is NOT actively `generating`. This MUST match a NULL
+    // report_status too: PostgREST `.neq("report_status","generating")` compiles
+    // to `report_status <> 'generating'`, and `NULL <> 'generating'` is NULL
+    // (unknown) — so a `.neq` alone SILENTLY EXCLUDES every NULL row, wedging any
+    // analysis whose report_status was never set (old rows / pre-backfill) at
+    // "genereras redan" forever. `.or(is.null, neq)` includes both. Same family
+    // as the `.eq(col, null)` reclaim trap fixed earlier.
     .eq("id", analysisId)
-    .neq("report_status", "generating")
+    .or("report_status.is.null,report_status.neq.generating")
     .select("id")
     .maybeSingle();
   if (lockErr) {
@@ -272,6 +286,19 @@ export async function generateReport(
     };
   }
   if (!locked) {
+    // DIAGNOSTIC (04-UAT Test 1 re-test): CAS wrote zero rows. Log what we
+    // observed pre-acquire so we can tell a live race from a reclaim that
+    // failed to clear a stale/NULL lock.
+    console.warn("[generateReport] refused: CAS acquire wrote zero rows", {
+      analysisId,
+      observed_status: row.report_status,
+      observed_started_at_kind:
+        typeof row.report_generating_started_at === "string"
+          ? row.report_generating_started_at > staleCutoffIso
+            ? "fresh"
+            : "stale"
+          : "null",
+    });
     return {
       ok: false,
       error: "En AI-rapport genereras redan. Vänta ett ögonblick.",

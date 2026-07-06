@@ -52,6 +52,7 @@ function updateChain(payload: Record<string, unknown>) {
   const chain: Record<string, unknown> = {
     eq: () => chain,
     neq: () => chain,
+    or: () => chain,
     is: () => chain,
     select: () => chain,
     maybeSingle: async () => {
