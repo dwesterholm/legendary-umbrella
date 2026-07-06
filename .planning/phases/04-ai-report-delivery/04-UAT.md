@@ -11,12 +11,17 @@ updated: 2026-07-05
 number: 1
 name: Live synthesis quality — generate a report on an owned analysis
 expected: |
-  BRF upload → extract → grade now works end-to-end in the browser (user-confirmed
-  2026-07-05, after fixing 3 root causes: extraction schema, swallowed-error hang,
-  Server Action 1 MB body limit). NEXT: with real BRF data present, click
-  "Generera AI-rapport" and confirm a grounded cross-source synthesis — every claim
-  cites a data point (D-06), NO buy/sell verdict and NO "rätt pris är X" (D-04).
-awaiting: user to generate the AI report and judge synthesis quality
+  BRF upload → extract → grade works end-to-end in the browser (user-confirmed
+  2026-07-05). AI-report generation was blocked by a permanently-wedged report
+  lock (report_status='generating' + NULL start-time; PostgREST .eq(null) reclaim
+  bug) — FIXED in commit fbfa135 (self-heals on next click, no restart needed).
+awaiting: |
+  ⏳ VERIFY LATER — user could not run the dev server on 2026-07-06 (port taken by
+  another project). When free: click "Generera AI-rapport" on an owned analysis
+  that has BRF data and confirm (a) it no longer says "genereras redan" (the lock
+  self-heals), (b) a grounded cross-source lead synthesis renders, (c) every claim
+  cites a data point (D-06), (d) NO buy/sell verdict and NO "rätt pris är X" (D-04).
+  This is the last step to flip Test 1 from `issue` → `pass`.
 
 ## Tests
 
