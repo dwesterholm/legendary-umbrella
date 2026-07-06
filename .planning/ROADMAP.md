@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation + Core Pipeline** - App shell, Booli scraping, and listing data display (completed 2026-06-06)
 - [x] **Phase 2: BRF Financial Analysis** - PDF upload, financial extraction, and A-F health scoring (completed 2026-06-16 — UAT 7/7, security 20/20 threats closed)
 - [x] **Phase 3: Market Context** - Comparable sold prices and area demographics (completed 2026-06-22)
-- [ ] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export (all 6 plans code-complete 2026-06-26; phase completion pending UAT via /gsd-verify-work)
+- [x] **Phase 4: AI Report + Delivery** - Synthesized AI assessment, risk flags, and PDF export (all 6 plans code-complete 2026-06-26; phase completion pending UAT via /gsd-verify-work) (completed 2026-07-06)
 
 ## Phase Details
 
@@ -148,7 +148,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation + Core Pipeline | 3/3 | Complete | 2026-06-06 |
 | 2. BRF Financial Analysis | 6/6 | Complete    | 2026-06-16 |
 | 3. Market Context | 6/6 | Complete   | 2026-06-22 |
-| 4. AI Report + Delivery | 6/6 | Code-complete — UAT pending | |
+| 4. AI Report + Delivery | 6/6 | Complete    | 2026-07-06 |
 
 ## Backlog
 
@@ -251,6 +251,7 @@ Plans:
 **Goal:** [Captured for future planning] Flip the input model: instead of pasting ONE listing URL, the user describes what they want in free text + a few hardcoded filters, and an AI agent scraper finds matching objects — including criteria a "normal Booli filter" can't express because they require understanding the listing's text AND its images.
 
 **Shape (complexity is moderate, but several moving parts):**
+
 1. Scrape all objects in an area (reuse the acquisition layer — see 999.6 owned GraphQL / 999.2 deeper extraction; Phase 3 already scopes areas).
 2. Per listing, analyze the description text + gallery images with a vision model to derive soft attributes a filter lacks — e.g. bathroom needs renovation or not, kitchen modern or dated, overall condition.
 3. **The biggest opportunity — the "Planlösning" (floor-plan) image** (essentially always in the gallery): a specialized architect / home-renovation agent reads the floor plan for remodel potential — e.g. take down a wall to turn a 2-bedroom into a 3-room, move the kitchen, add a kitchen island.
