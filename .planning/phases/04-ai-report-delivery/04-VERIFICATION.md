@@ -1,7 +1,9 @@
 ---
 phase: 04-ai-report-delivery
 verified: 2026-06-26T22:15:00Z
-status: human_needed
+status: passed
+human_verification_resolved: 2026-07-06
+resolution: "The 5 runtime/visual/live-LLM items below were executed and signed off in 04-UAT.md (status: complete, 5/5 pass) on 2026-07-06 — live synthesis quality, PDF glyphs, stale/regenerate, guest gate, partial-data honesty all confirmed. Three blockers surfaced and were fixed during UAT (BRF strict-grammar schema, null-status lock CAS trap, read-path flag schema). Item 6 (live brf-extract/v2 eval) remains an explicit, non-gating deferral (needs a labeled dataset). Phase therefore passes."
 score: 4/4 must-haves verified
 overrides_applied: 0
 deferred:
