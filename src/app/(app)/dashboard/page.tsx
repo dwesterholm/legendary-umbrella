@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { UrlInput } from "@/components/url-input";
 import { AnalysisCard } from "@/components/analysis-card";
-import type { ListingData } from "@/lib/schemas/listing";
+import { listingDataSchema } from "@/lib/schemas/listing";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -43,14 +43,22 @@ export default async function DashboardPage() {
             Tidigare analyser
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {analyses.map((analysis) => (
-              <AnalysisCard
-                key={analysis.id}
-                id={analysis.id}
-                listingData={analysis.listing_data as unknown as ListingData}
-                createdAt={analysis.created_at}
-              />
-            ))}
+            {analyses.map((analysis) => {
+              // CR-01 read-path guard (LSTG-02): re-validate persisted JSONB
+              // against the Zod schema — same discipline as the analysis page —
+              // so a shape-drifted row is skipped rather than crashing the whole
+              // dashboard on AnalysisCard's unguarded field dereferences.
+              const parsed = listingDataSchema.safeParse(analysis.listing_data);
+              if (!parsed.success) return null;
+              return (
+                <AnalysisCard
+                  key={analysis.id}
+                  id={analysis.id}
+                  listingData={parsed.data}
+                  createdAt={analysis.created_at}
+                />
+              );
+            })}
           </div>
         </div>
       ) : (
