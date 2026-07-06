@@ -245,3 +245,37 @@ Plans:
 Plans:
 
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.7: AI free-text listing discovery + vision-analyzing scraper (BACKLOG)
+
+**Goal:** [Captured for future planning] Flip the input model: instead of pasting ONE listing URL, the user describes what they want in free text + a few hardcoded filters, and an AI agent scraper finds matching objects — including criteria a "normal Booli filter" can't express because they require understanding the listing's text AND its images.
+
+**Shape (complexity is moderate, but several moving parts):**
+1. Scrape all objects in an area (reuse the acquisition layer — see 999.6 owned GraphQL / 999.2 deeper extraction; Phase 3 already scopes areas).
+2. Per listing, analyze the description text + gallery images with a vision model to derive soft attributes a filter lacks — e.g. bathroom needs renovation or not, kitchen modern or dated, overall condition.
+3. **The biggest opportunity — the "Planlösning" (floor-plan) image** (essentially always in the gallery): a specialized architect / home-renovation agent reads the floor plan for remodel potential — e.g. take down a wall to turn a 2-bedroom into a 3-room, move the kitchen, add a kitchen island.
+4. Rank / match objects against the user's free-text intent.
+
+**Intent is configurable — renovation upside is only ONE niche.** Others: turnkey objects where everything is in top condition (the opposite), or objects with a high likelihood of an imminent bathroom *stambyte* (most buyers avoid these, but some want them because the BRF pays for the new bathroom). The niche is whatever the searcher describes.
+
+**Related:** builds on 999.2 (deeper listing/image extraction) and 999.6 (owned area-wide acquisition); leans on Phase 2 BRF/stambyte signals for the stambyte niche and Phase 3 for area scoping; natural pairing with 999.8 (both are vision-driven listing enrichment).
+**Requirements:** TBD (new discovery/search capability; vision analysis; agentic scraping)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.8: Walkable 3D model from listing images (BACKLOG)
+
+**Goal:** [Captured for future planning] Generate a 3D model of an apartment that the user can walk around inside, reconstructed from the images in the listing gallery.
+
+**Feasibility:** verified — the user has seen someone build exactly this using existing libraries, so it's a known-possible, not a research bet.
+
+**Related:** companion to 999.7 (both are image/vision-driven enrichment of a listing); consumes the same gallery images 999.7's condition/floor-plan analysis uses.
+**Requirements:** TBD (3D reconstruction from photos; interactive viewer)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (promote with /gsd-review-backlog when ready)
