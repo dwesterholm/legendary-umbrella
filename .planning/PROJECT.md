@@ -12,24 +12,26 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Paste a Booli URL → structured listing analysis — v1.0 (LSTG-01/02)
+- ✓ Scrape listing data (price, size, avgift, BRF name, address, byggår, våning, rum) from Booli via Apify — v1.0
+- ✓ Claude generates a structured report from the combined data — v1.0 (RPRT-01)
+- ✓ Upload BRF årsredovisning PDF — v1.0 (BRF-03)
+- ✓ Claude parses BRF årsredovisning → key financials (skuld/kvm, avgiftsnivå, kassaflöde, underhåll) — v1.0 (BRF-01)
+- ✓ BRF health score (A–F) with transparent methodology — v1.0 (BRF-02)
+- ✓ Scrape comparable sold prices from Booli for the area — v1.0 (PRICE-01)
+- ✓ Price comparison: listing vs area sold prices (pris/kvm vs snitt, trend, confidence) — v1.0 (PRICE-01)
+- ✓ Area demographics from SCB (population, income, tenure) at DeSO precision — v1.0 (AREA-01)
+- ✓ Red/green risk flags (high BRF debt, planned stambyte, avgiftshöjning, unusual patterns) — v1.0 (RPRT-02)
+- ✓ AI summary "vad du bör tänka på" — synthesized, cited, no buy/sell verdict — v1.0 (RPRT-01)
+- ✓ Partial reports when a source fails — honest "Ej tillgänglig", no fabrication — v1.0 (D-07)
+- ✓ Download analysis as PDF report (å/ä/ö correct, login-gated) — v1.0 (RPRT-03)
 
-### Active
+### Active (next milestone candidates)
 
-- [ ] User can paste a Booli URL and get a structured AI analysis of the listing
-- [ ] System scrapes listing data (price, size, avgift, BRF name, address, byggår, våning, rum) from Booli via Apify
-- [ ] Claude generates a structured report from scraped listing data
-- [ ] System auto-fetches BRF årsredovisning from Allabrf/Bolagsverket when available
-- [ ] User can upload BRF årsredovisning PDF as fallback when auto-fetch fails
-- [ ] Claude parses BRF årsredovisning and extracts key financials (skuld/kvm, avgiftstrend, underhållsplan, kassaflöde)
-- [ ] BRF health score (A–F) based on financial metrics
-- [ ] System scrapes comparable sold prices from Booli for the same area/building
-- [ ] Price comparison: listing vs sold prices in area (pris/kvm vs snitt, trend)
-- [ ] Area statistics from SCB (demographics, income), BRÅ (crime), Skolverket (schools)
-- [ ] Red/green flags: high BRF debt, planned stambyte, recent renovations, avgiftshöjning
-- [ ] AI summary: "vad du bör tänka på" — synthesized assessment
-- [ ] Partial reports when some data sources fail, with prompts to fill gaps
-- [ ] Payment via Stripe (SEK 149/analysis or SEK 349/month subscription)
+- [ ] Auto-fetch BRF årsredovisning from Allabrf/Bolagsverket (only PDF-upload path shipped in v1.0)
+- [ ] Area statistics from BRÅ (crime) and Skolverket (schools) — only SCB demographics shipped in v1.0
+- [ ] Payment via Stripe (SEK 149/analysis or SEK 349/month subscription) — PAY-01/02, deferred from v1.0
+- [ ] Deeper enrichment + advanced analysis — see ROADMAP Backlog (999.1–999.8)
 
 ### Out of Scope
 
@@ -58,7 +60,9 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 
 **Tech:** Claude handles Swedish real estate terminology well. BRF årsredovisningar follow standardized K2/K3 formats — good for LLM parsing.
 
-**Validation:** No validation done yet. Plan is to build MVP first, then validate with real users. Kill criteria: need paying users within first months of launch.
+**Validation:** No user validation done yet. MVP is now built (v1.0 shipped 2026-07-06) — the paste-URL → BRF score → market context → AI report → PDF flow works end-to-end. Next: validate with real users. Kill criteria: need paying users within first months of launch (payment not yet built — deferred to a post-v1.0 milestone).
+
+**Current state (v1.0, 2026-07-06):** ~11.5k LOC TypeScript. Stack: Next.js 16, Supabase (auth + Postgres/RLS), Tailwind v4, Claude (Haiku for BRF extraction, Sonnet for report synthesis), Apify (Booli listing + slutpriser scraping), SCB PxWebApi, @react-pdf/renderer. All 4 phases verified; 175 unit tests green. Known tech debt tracked in MILESTONES.md and the v1.0 audit.
 
 ## Constraints
 
@@ -72,11 +76,12 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Booli as listing data source (not Hemnet directly) | Apify scraper exists, less legal exposure than Hemnet | — Pending |
-| BRF analysis as core differentiator | Public data, proven willingness to pay (Allabrf pricing), unique AI angle | — Pending |
-| Build MVP before validation | Developer wants working product to validate with, not just landing page | — Pending |
-| Per-analysis + subscription pricing | SEK 149/analysis captures casual users, SEK 349/month captures active searchers | — Pending |
-| Claude for analysis (not custom models) | Handles Swedish well, no ML infrastructure needed, fast iteration on prompts | — Pending |
+| Booli as listing data source (not Hemnet directly) | Apify scraper exists, less legal exposure than Hemnet | ✓ Good — shipped v1.0; slutpriser also read via Apify Playwright after the Cloudflare blocker |
+| BRF analysis as core differentiator | Public data, proven willingness to pay (Allabrf pricing), unique AI angle | ✓ Good — A–F score shipped v1.0 with transparent methodology |
+| Build MVP before validation | Developer wants working product to validate with, not just landing page | ✓ Good — full MVP shipped v1.0, ready to validate |
+| Per-analysis + subscription pricing | SEK 149/analysis captures casual users, SEK 349/month captures active searchers | — Pending — payment not yet built (deferred post-v1.0) |
+| Claude for analysis (not custom models) | Handles Swedish well, no ML infrastructure needed, fast iteration on prompts | ✓ Good — Haiku (BRF extract) + Sonnet (synthesis) shipped; deterministic flags/score kept in code, not the LLM |
+| Deterministic flags/score in code, LLM for synthesis only | Trust + reproducibility: no model-minted flags, no buy/sell verdict, every claim cited | ✓ Good — v1.0; enforced by schema (no verdict field) + pure computeFlags |
 
 ---
-*Last updated: 2026-02-24 after initialization*
+*Last updated: 2026-07-06 after v1.0 MVP milestone*
