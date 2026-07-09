@@ -1,0 +1,789 @@
+{
+  "__typename": "Listing",
+  "id": "4463691",
+  "addressId": "0",
+  "adTargetingProperties": [
+    {
+      "__typename": "KeyValueOutput",
+      "key": "municipality",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "county",
+      "value": "2"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "suburb",
+      "value": "115341"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "district",
+      "value": "115341,883816"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "room",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "priceGroup",
+      "value": "5"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "constructionYearEra",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "objectType",
+      "value": "4"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "plotAreaGroup",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "status",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "address",
+      "value": "Testgatan 1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "livingAreaGroup",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "zipCode",
+      "value": "859686"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "upcomingSale",
+      "value": "0"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "brokerAgency",
+      "value": "16"
+    }
+  ],
+  "booliId": "4463691",
+  "buildingFloors": 3,
+  "residenceId": "305443",
+  "breadcrumbs": [
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Stockholms län",
+      "url": "/sok/till-salu?areaIds=2&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Stockholms kommun",
+      "url": "/sok/till-salu?areaIds=1&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Södermalm",
+      "url": "/sok/till-salu?areaIds=115341&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Testgatan 1",
+      "url": "/sok/till-salu?areaIds=102186&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "HSB BRF Metern",
+      "url": "/bostadsrattsforening/82768"
+    }
+  ],
+  "relatedSearchUrl": "/sok/till-salu?areaIds=115341&objectType=Lägenhet",
+  "breadcrumbsJsonLd": "{\"@context\":\"http://schema.org\",\"@type\":\"BreadcrumbList\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Stockholms län\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=2&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Stockholms kommun\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=1&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":3,\"name\":\"Södermalm\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=115341&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":4,\"name\":\"Testgatan 1\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=102186&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":5,\"name\":\"HSB BRF Metern\",\"item\":\"https://www.booli.se/bostadsrattsforening/82768\"}]}",
+  "propertyType": "active",
+  "objectType": "Lägenhet",
+  "streetAddress": "Testgatan 1",
+  "descriptiveAreaName": "Södermalm",
+  "latitude": 59.31,
+  "longitude": 18.07,
+  "constructionYear": 1926,
+  "housingCoop": {
+    "__ref": "HousingCoop:82768"
+  },
+  "rooms": {
+    "__typename": "FormattedValue",
+    "formatted": "1 rum",
+    "value": "1",
+    "raw": 1,
+    "unit": "rum"
+  },
+  "livingArea": {
+    "__typename": "FormattedValue",
+    "formatted": "36 m²",
+    "value": "36",
+    "raw": 36,
+    "unit": "m²"
+  },
+  "additionalArea": null,
+  "plotArea": null,
+  "rent": {
+    "__typename": "FormattedValue",
+    "raw": 3329,
+    "value": "3 329",
+    "unit": "kr/mån"
+  },
+  "operatingCost": {
+    "__typename": "FormattedValue",
+    "raw": 483,
+    "value": "483",
+    "unit": "kr/mån"
+  },
+  "primaryArea": {
+    "__typename": "Area_V3",
+    "name": "Södermalm",
+    "preposition": "på"
+  },
+  "displayAttributes({\"queryContext\":\"PROPERTY_PAGE_LISTING\"})": {
+    "__typename": "DisplayAttributes",
+    "dataPoints": [
+      {
+        "__typename": "DataPoint",
+        "key": "livingArea",
+        "label": "Boarea",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "36 m²",
+          "markdown": "**36 m²**"
+        }
+      },
+      {
+        "__typename": "DataPoint",
+        "key": "rooms",
+        "label": "Rum",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "1 rum",
+          "markdown": "**1 rum**"
+        }
+      },
+      {
+        "__typename": "DataPoint",
+        "key": "rent",
+        "label": "Avgift",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "3 329 kr/mån",
+          "markdown": "**3 329 kr/mån**"
+        }
+      },
+      {
+        "__typename": "DataPoint",
+        "key": "constructionYear",
+        "label": "Byggår",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "1926",
+          "markdown": "**1926**"
+        }
+      }
+    ]
+  },
+  "areas": [
+    {
+      "__ref": "Area_V3:1"
+    },
+    {
+      "__ref": "Area_V3:2"
+    },
+    {
+      "__ref": "Area_V3:143"
+    },
+    {
+      "__ref": "Area_V3:77104"
+    },
+    {
+      "__ref": "Area_V3:102186"
+    },
+    {
+      "__ref": "Area_V3:115341"
+    },
+    {
+      "__ref": "Area_V3:351791"
+    },
+    {
+      "__ref": "Area_V3:859686"
+    },
+    {
+      "__ref": "Area_V3:883816"
+    },
+    {
+      "__ref": "Area_V3:973576"
+    },
+    {
+      "__ref": "Area_V3:1002244"
+    },
+    {
+      "__ref": "Area_V3:1016315"
+    }
+  ],
+  "location": {
+    "__typename": "Location",
+    "namedAreas": [
+      "Södermalm"
+    ],
+    "region": {
+      "__typename": "Region",
+      "municipalityName": "Stockholm"
+    }
+  },
+  "salesOfResidence": null,
+  "url": "/bostad/305443",
+  "tenureForm": "Bostadsrätt",
+  "infoSections": [
+    {
+      "__typename": "InfoSection",
+      "key": "propertyInfo",
+      "title": "Bostaden",
+      "type": "tab",
+      "lazyLoad": false,
+      "tracking": {
+        "__typename": "TrackingEvent",
+        "eventName": "component_clicked",
+        "properties": {
+          "component": "tab",
+          "name": "property_info",
+          "section": "info_section"
+        }
+      },
+      "content": {
+        "__typename": "InfoSectionContent",
+        "infoPoints": [
+          {
+            "__typename": "InfoPoint",
+            "key": "tenureForm",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Den här lägenheten är en **bostadsrätt**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "ApartmentFilled",
+                "svg": "https://bcdn.se/assets/shared/icons/ApartmentFilled.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "rent",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Den har **3 329** kr/mån i avgift"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "CreditCard",
+                "svg": "https://bcdn.se/assets/shared/icons/CreditCard.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "operatingCost",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Driftskostnaden är **483** kr/mån"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "SizeSelect",
+                "svg": "https://bcdn.se/assets/shared/icons/SizeSelect.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "listSqmPrice",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Utropspriset per kvadratmeter är **125 000** kr/m²"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "AreaChart",
+                "svg": "https://bcdn.se/assets/shared/icons/AreaChart.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "propertyCalculator",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "[Räkna på ditt boende](#property-calculator)"
+            },
+            "logos": [],
+            "icons": [],
+            "sponsored": false,
+            "url": "#property-calculator",
+            "action": "scrollToTarget",
+            "tracking": {
+              "__typename": "TrackingEvent",
+              "eventName": "link_clicked",
+              "properties": {
+                "text": "Räkna på ditt boende",
+                "type": "anchor",
+                "href": "#property-calculator"
+              }
+            },
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "floor",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Den ligger på **våning 3 av 3**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "ElevatorOutlined",
+                "svg": "https://bcdn.se/assets/shared/icons/ElevatorOutlined.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "apartmentNumber",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Lägenhetsnumret är **0000**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "Hashtag",
+                "svg": "https://bcdn.se/assets/shared/icons/Hashtag.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "energyScore",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Huset har **energiklass E**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "BookWithBookmark",
+                "svg": "https://bcdn.se/assets/shared/icons/BookWithBookmark.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "pageviews",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Bostaden har **3618** sidvisningar på Booli"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "MagnifyingGlassInBox",
+                "svg": "https://bcdn.se/assets/shared/icons/MagnifyingGlassInBox.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "daysActive",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Bostaden har varit till salu i **31** dagar"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "Calendar",
+                "svg": "https://bcdn.se/assets/shared/icons/Calendar.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          }
+        ],
+        "ctas": [
+          {
+            "__typename": "Cta",
+            "key": "listingUrlLink",
+            "label": "Läs mer hos mäklaren",
+            "type": "primary",
+            "url": "https://www.maklare.example.se/objekt/annons/REDACTED?utm_source=booli&utm_medium=referral&utm_campaign=till-salu&utm_content=Testgatan 1%2B36n",
+            "action": "openExternalUrl",
+            "tracking": {
+              "__typename": "TrackingEvent",
+              "eventName": "link_clicked",
+              "properties": {
+                "destination": "agency_outbound",
+                "type": "external",
+                "href": "https://www.maklare.example.se/objekt/annons/REDACTED?utm_source=booli&utm_medium=referral&utm_campaign=till-salu&utm_content=Testgatan 1%2B36n"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "__typename": "InfoSection",
+      "key": "housingCoopInfo",
+      "title": "Föreningen",
+      "type": "tab",
+      "lazyLoad": true,
+      "tracking": {
+        "__typename": "TrackingEvent",
+        "eventName": "component_clicked",
+        "properties": {
+          "component": "tab",
+          "name": "housing_coop_info",
+          "section": "info_section"
+        }
+      },
+      "content": {
+        "__typename": "InfoSectionContent",
+        "infoPoints": [],
+        "ctas": []
+      }
+    }
+  ],
+  "priceInfo": {
+    "__typename": "PriceInfo",
+    "label": "Utropspris",
+    "displayPrice": "4 500 000 kr",
+    "displayPriceChange": "510 000 kr (+12,8%)",
+    "positivePriceChange": true,
+    "description": null
+  },
+  "amenities": [
+    {
+      "__ref": "Amenity:{\"key\":\"balcony\"}"
+    }
+  ],
+  "apartmentNumber": {
+    "__typename": "FormattedValue",
+    "value": "0000"
+  },
+  "agentId": "0",
+  "agencyId": "16",
+  "agency({\"queryContext\":\"PROPERTY_PAGE_LISTING\"})": {
+    "__typename": "Agency",
+    "name": "Redacted Mäklare AB",
+    "thumbnail": "https://redacted.example/logo.jpg"
+  },
+  "assessments": [],
+  "isNewConstruction": false,
+  "biddingOpen": 0,
+  "blockedImages": false,
+  "enableStreetView": true,
+  "floor": {
+    "__typename": "FormattedValue",
+    "raw": 3
+  },
+  "heating": null,
+  "images": [
+    {
+      "__ref": "Image:54015116"
+    },
+    {
+      "__ref": "Image:54015109"
+    },
+    {
+      "__ref": "Image:54015110"
+    },
+    {
+      "__ref": "Image:54015111"
+    },
+    {
+      "__ref": "Image:54015112"
+    },
+    {
+      "__ref": "Image:54015113"
+    },
+    {
+      "__ref": "Image:54015114"
+    },
+    {
+      "__ref": "Image:54015115"
+    },
+    {
+      "__ref": "Image:54015117"
+    },
+    {
+      "__ref": "Image:54015118"
+    },
+    {
+      "__ref": "Image:54015119"
+    },
+    {
+      "__ref": "Image:54015120"
+    },
+    {
+      "__ref": "Image:54015121"
+    },
+    {
+      "__ref": "Image:54015122"
+    },
+    {
+      "__ref": "Image:54015123"
+    },
+    {
+      "__ref": "Image:54015124"
+    },
+    {
+      "__ref": "Image:54015125"
+    },
+    {
+      "__ref": "Image:54015126"
+    },
+    {
+      "__ref": "Image:54015127"
+    },
+    {
+      "__ref": "Image:54015128"
+    },
+    {
+      "__ref": "Image:54015129"
+    },
+    {
+      "__ref": "Image:54015130"
+    },
+    {
+      "__ref": "Image:54015131"
+    },
+    {
+      "__ref": "Image:54015132"
+    },
+    {
+      "__ref": "Image:54015133"
+    },
+    {
+      "__ref": "Image:54015134"
+    },
+    {
+      "__ref": "Image:54015135"
+    },
+    {
+      "__ref": "Image:54015136"
+    },
+    {
+      "__ref": "Image:28030438"
+    },
+    {
+      "__ref": "Image:54015137"
+    },
+    {
+      "__ref": "Image:54015138"
+    },
+    {
+      "__ref": "Image:54015139"
+    },
+    {
+      "__ref": "Image:54015140"
+    },
+    {
+      "__ref": "Image:54015141"
+    },
+    {
+      "__ref": "Image:54015142"
+    },
+    {
+      "__ref": "Image:54015143"
+    },
+    {
+      "__ref": "Image:54015144"
+    },
+    {
+      "__ref": "Image:54015145"
+    },
+    {
+      "__ref": "Image:54015146"
+    },
+    {
+      "__ref": "Image:44379515"
+    },
+    {
+      "__ref": "Image:44379517"
+    },
+    {
+      "__ref": "Image:44379516"
+    },
+    {
+      "__ref": "Image:54015148"
+    },
+    {
+      "__ref": "Image:54015151"
+    },
+    {
+      "__ref": "Image:54015153"
+    },
+    {
+      "__ref": "Image:54015155"
+    },
+    {
+      "__ref": "Image:54015156"
+    },
+    {
+      "__ref": "Image:54015158"
+    },
+    {
+      "__ref": "Image:16173517"
+    },
+    {
+      "__ref": "Image:16052422"
+    },
+    {
+      "__ref": "Image:16299757"
+    },
+    {
+      "__ref": "Image:17426686"
+    },
+    {
+      "__ref": "Image:16173522"
+    },
+    {
+      "__ref": "Image:54015160"
+    },
+    {
+      "__ref": "Image:54015161"
+    },
+    {
+      "__ref": "Image:54015163"
+    }
+  ],
+  "listPrice": {
+    "__typename": "FormattedValue",
+    "value": "4 500 000",
+    "unit": "kr",
+    "raw": 4500000,
+    "formatted": "4 500 000 kr"
+  },
+  "listSqmPrice": {
+    "__typename": "FormattedValue",
+    "raw": 125000,
+    "value": "125 000",
+    "unit": "kr/m²",
+    "formatted": "125 000 kr/m²"
+  },
+  "listingUrl": "https://www.maklare.example/objekt/annons/REDACTED",
+  "phase": "Till salu",
+  "published": "2026-06-05 10:56:02",
+  "showingsV2": [],
+  "upcomingSale": false,
+  "listPriceChange": {
+    "__typename": "FormattedValue",
+    "formatted": "510 000 kr",
+    "raw": 510000
+  },
+  "listPricePercentageDiff": {
+    "__typename": "FormattedValue",
+    "formatted": "+12,8%",
+    "raw": 12.8
+  },
+  "source": {
+    "__ref": "Source:1610"
+  },
+  "estimate": {
+    "__typename": "Estimate",
+    "price": {
+      "__typename": "FormattedValue",
+      "formatted": "4 110 000 kr",
+      "raw": 4110000,
+      "value": "4 110 000",
+      "unit": "kr"
+    },
+    "low": {
+      "__typename": "FormattedValue",
+      "value": "3 910 000"
+    },
+    "high": {
+      "__typename": "FormattedValue",
+      "formatted": "4 320 000 kr"
+    },
+    "show": "PRICE",
+    "basis": {
+      "__typename": "EstimateBasis",
+      "water": null,
+      "sewer": null
+    }
+  },
+  "mortgageDeed": null
+}

@@ -77,6 +77,7 @@ describe("04-01 assembleFactSheet — stable key order + ej_tillgänglig (D-07)"
       brf: { normalized: { skuldPerKvm: 13_000 } },
       price: { deltaPct: 8, reason: "ok" },
       area: { metrics: { population: 1200 } },
+      macro: null,
       flags,
       softSignals: null,
     };
@@ -89,6 +90,7 @@ describe("04-01 assembleFactSheet — stable key order + ej_tillgänglig (D-07)"
       brf: null,
       price: null,
       area: null,
+      macro: null,
       flags,
       softSignals: null,
     });
@@ -97,6 +99,7 @@ describe("04-01 assembleFactSheet — stable key order + ej_tillgänglig (D-07)"
       brf: null,
       price: null,
       area: null,
+      macro: null,
       flags,
       softSignals: null,
     });
@@ -109,12 +112,14 @@ describe("04-01 assembleFactSheet — stable key order + ej_tillgänglig (D-07)"
       brf: null,
       price: { deltaPct: 8, reason: "ok" },
       area: null,
+      macro: null,
       flags: [],
       softSignals: null,
     });
     const parsed = JSON.parse(out);
     expect(parsed.brf).toEqual({ status: "ej_tillgänglig" });
     expect(parsed.area).toEqual({ status: "ej_tillgänglig" });
+    expect(parsed.macro).toEqual({ status: "ej_tillgänglig" });
     expect(out).toContain('"status":"ej_tillgänglig"');
   });
 
@@ -124,6 +129,7 @@ describe("04-01 assembleFactSheet — stable key order + ej_tillgänglig (D-07)"
       brf: { normalized: { skuldPerKvm: 13_000 } },
       price: null,
       area: null,
+      macro: null,
       flags: [],
       softSignals: null,
     });
@@ -138,6 +144,7 @@ describe("04-01 assembleFactSheet — stable key order + ej_tillgänglig (D-07)"
       brf: null,
       price: null,
       area: null,
+      macro: null,
       flags,
       softSignals: null,
     });

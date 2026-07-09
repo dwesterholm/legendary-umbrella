@@ -1,0 +1,22 @@
+{
+  "class": "dataset",
+  "id": ["ContentsCode", "Tid"],
+  "size": [1, 1],
+  "dimension": {
+    "ContentsCode": {
+      "label": "contents",
+      "category": {
+        "index": { "000007ZM": 0 },
+        "label": { "000007ZM": "CPIF, annual changes, 2020=100" }
+      }
+    },
+    "Tid": {
+      "label": "month",
+      "category": {
+        "index": { "2026M05": 0 },
+        "label": { "2026M05": "2026M05" }
+      }
+    }
+  },
+  "value": [1.4]
+}

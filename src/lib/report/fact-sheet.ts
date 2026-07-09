@@ -39,6 +39,7 @@ export interface FactSheetInput {
   brf: unknown | null;
   price: unknown | null;
   area: unknown | null;
+  macro: unknown | null;
   flags: FlagSet;
   softSignals: FlagSoftSignals | null;
 }
@@ -86,6 +87,7 @@ export function assembleFactSheet(input: FactSheetInput): string {
     brf: slot(input.brf),
     flags: input.flags,
     listing: slot(input.listing),
+    macro: slot(input.macro),
     price: slot(input.price),
     softSignals: input.softSignals ?? null,
   };

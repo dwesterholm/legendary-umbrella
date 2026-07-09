@@ -149,16 +149,16 @@ export interface BrfExtractionResult {
   citations: FieldCitation[];
 }
 
-/** Input to the extraction call. */
-export interface ExtractBrfInput {
-  /** The PDF bytes. */
-  bytes: Uint8Array;
-  /**
-   * A content hash of the PDF — logged for traceability WITHOUT exposing bytes
-   * or financials (T-02-12 / GDPR). Never log the PDF itself.
-   */
-  contentHash: string;
-}
+/**
+ * Input to the extraction call — a discriminated union so the SAME extraction
+ * schema/prompt/output_config is fed either raw PDF bytes (manual upload) or
+ * iXBRL-derived plain text (Phase 8 auto-fetch, already stripped by
+ * `ixbrlToPlainText`). `contentHash` is kept on both branches for safe
+ * traceability logging (T-02-12 / GDPR) — never log the underlying bytes/text.
+ */
+export type ExtractBrfInput =
+  | { kind: "pdf"; bytes: Uint8Array; contentHash: string }
+  | { kind: "ixbrl-text"; text: string; contentHash: string };
 
 /** Maps the SDK's typed usage onto our `ClaudeUsage` cost shape. */
 function toClaudeUsage(usage: {
@@ -194,44 +194,61 @@ function collectCitations(
 }
 
 /**
- * Extracts the four BRF financial figures from a PDF via ONE Haiku call.
+ * Extracts the four BRF financial figures from a document via ONE Haiku call.
+ * Accepts either PDF bytes (manual upload) or iXBRL-derived plain text
+ * (Phase 8 auto-fetch) — `output_config.format` / `claudeExtractionSchema`
+ * are UNCHANGED across both; only the `document` content block's `source`
+ * differs (T-08-01: untrusted document content is sent as data, never
+ * concatenated into the system prompt, so it cannot rewrite the extraction
+ * contract).
  *
  * - `messages.parse` with `zodOutputFormat(brfExtractionSchema)` guarantees the
  *   response shape. D-11 trust (source quotes + page refs) is carried by the
  *   schema's own `sourceQuote`/`pageRef` fields, NOT API citations — the two are
  *   mutually exclusive (see the document-block note below). The document block
- *   carries `cache_control: ephemeral` (D-13 cost — the PDF dominates input
+ *   carries `cache_control: ephemeral` (D-13 cost — the document dominates input
  *   tokens, so caching it makes a retry/re-run cheap; T-02-13).
  * - Transport: base64-inline for PDFs ≤ ~5 MB; the Files API for larger/scanned
- *   PDFs (avoids the request-size cap — RESEARCH pitfall 1).
+ *   PDFs (avoids the request-size cap — RESEARCH pitfall 1); a `text/plain`
+ *   document block (base64/Files-API-free) for iXBRL-derived text, which is
+ *   always small enough to inline.
  * - `stop_reason === "refusal"` throws immediately with NO retry (do not loop on
  *   a guardrail trip). `"max_tokens"` retries once, then throws.
  * - try/catch logs ONLY the content hash + a stable failure code server-side,
- *   NEVER raw bytes, financials, or quotes (T-02-12 / GDPR, AI-SPEC §7), then
- *   rethrows a CODED error (CLAUDE_REFUSAL / CLAUDE_MAX_TOKENS /
+ *   NEVER raw bytes, text, financials, or quotes (T-02-12 / GDPR, AI-SPEC §7),
+ *   then rethrows a CODED error (CLAUDE_REFUSAL / CLAUDE_MAX_TOKENS /
  *   CLAUDE_PARSE_EMPTY / CLAUDE_CALL_FAILED) so the action layer can
  *   distinguish failure modes (WR-06). The user-facing Swedish message is
  *   produced at the action layer, not here.
  *
- * @param input - the PDF bytes plus a content hash for safe logging
+ * @param input - the document (PDF bytes or iXBRL text) plus a content hash for safe logging
  * @returns parsed figures, token usage, and the raw citation locations
  */
 export async function extractBrfFinancials(
   input: ExtractBrfInput,
 ): Promise<BrfExtractionResult> {
-  const { bytes, contentHash } = input;
+  const { contentHash } = input;
 
   try {
-    const useFilesApi = bytes.byteLength > BASE64_MAX_BYTES;
+    // iXBRL-derived text never needs the Files API — it's already small,
+    // plain-text, and has no "large PDF" size concern (RESEARCH pitfall 1 is
+    // PDF-specific). Only the "pdf" branch can trigger the Files API switch.
+    const useFilesApi =
+      input.kind === "pdf" && input.bytes.byteLength > BASE64_MAX_BYTES;
 
-    // Build the document source: base64-inline for small PDFs, Files API for large.
+    // Build the document source: base64-inline/Files API for PDFs, a plain
+    // text/plain document block for iXBRL-derived text — a valid sibling
+    // source type, no schema change (08-RESEARCH.md Code Examples).
     let documentSource:
       | { type: "base64"; media_type: "application/pdf"; data: string }
-      | { type: "file"; file_id: string };
+      | { type: "file"; file_id: string }
+      | { type: "text"; media_type: "text/plain"; data: string };
 
-    if (useFilesApi) {
+    if (input.kind === "ixbrl-text") {
+      documentSource = { type: "text", media_type: "text/plain", data: input.text };
+    } else if (useFilesApi) {
       const uploaded = await client.beta.files.upload({
-        file: await toFile(bytes, "brf.pdf", {
+        file: await toFile(input.bytes, "brf.pdf", {
           type: "application/pdf",
         }),
         betas: [FILES_API_BETA],
@@ -241,7 +258,7 @@ export async function extractBrfFinancials(
       documentSource = {
         type: "base64",
         media_type: "application/pdf",
-        data: Buffer.from(bytes).toString("base64"),
+        data: Buffer.from(input.bytes).toString("base64"),
       };
     }
 
@@ -251,7 +268,7 @@ export async function extractBrfFinancials(
         max_tokens: 2048,
         temperature: 0,
         system: BRF_EXTRACTION_SYSTEM_PROMPT,
-        // Files API requires its beta header; harmless for the base64 path.
+        // Files API requires its beta header; harmless for the base64/text path.
         ...(useFilesApi ? { betas: [FILES_API_BETA] } : {}),
         messages: [
           {

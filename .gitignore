@@ -19,6 +19,12 @@ coverage/
 evals/fixtures/
 evals/labels.json
 
+# Vision eval harness (Phase 11, DISC-04) — real listing image sets +
+# manually-labeled ground truth. Covered by evals/fixtures/ above (fixtures
+# live under evals/fixtures/vision/); only vision-labels.example.json
+# (synthetic) is committed.
+evals/vision-labels.json
+
 # next.js
 /.next/
 /out/
@@ -49,3 +55,4 @@ next-env.d.ts
 
 # Supabase CLI local state
 supabase/.temp/
+src/lib/booli/__fixtures__/listing-detail.raw.json

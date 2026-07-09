@@ -54,6 +54,38 @@ export const listingDataSchema = z.object({
   longitude: z.number().nullable(),
   booliId: z.string().nullable(),
   breadcrumbs: z.array(breadcrumbSchema).nullable(),
+  // Phase 6 (LSTG-03/04) — five "fields Booli lacks" per the ROADMAP; three
+  // (floor/balcony/brfName) are recovered from the Apollo entity with no
+  // broker fetch (client.ts reshapeListingEntity), the other two
+  // (renovationStatus/description) are broker-page-sourced gap-fill
+  // candidates (Plan 02). Additive .nullable() only — no migration, JSONB
+  // `listing_data` column absorbs these directly (STATE.md additive-nullable
+  // posture).
+  floor: z.number().nullable(),
+  balcony: z.boolean().nullable(),
+  renovationStatus: z.string().nullable(),
+  description: z.string().nullable(),
+  // Phase 6 Plan 03 (LSTG-04) — per-field provenance for the five recovered
+  // fields above, so the UI can render a "Källa: Booli" / "Källa: Mäklarens
+  // annons" caption per populated field (UI-SPEC Copywriting Contract).
+  // Additive + nullable/optional — old persisted rows simply lack this key
+  // and the UI treats a missing entry the same as a null value (no caption).
+  fieldSources: z
+    .object({
+      floor: z.enum(["booli", "maklare"]).nullable(),
+      balcony: z.enum(["booli", "maklare"]).nullable(),
+      brfName: z.enum(["booli", "maklare"]).nullable(),
+      renovationStatus: z.enum(["booli", "maklare"]).nullable(),
+      description: z.enum(["booli", "maklare"]).nullable(),
+    })
+    .nullable()
+    .optional(),
+  // Whether the broker-page enrichment fetch failed (T-06-08) — surfaced to
+  // ListingSummary as a soft, non-blocking banner. Persisted inside the
+  // existing JSONB listing_data blob (no new DB column/migration) so it
+  // survives the authenticated redirect-to-DB-row path the same way
+  // `partial` does today.
+  brokerFetchFailed: z.boolean().nullable().optional(),
 });
 
 export type ScraperOutput = z.infer<typeof scraperOutputSchema>;
@@ -76,6 +108,28 @@ export interface NormalizedListing {
   longitude: number | null;
   booliId: string | null;
   breadcrumbs: Breadcrumb[] | null;
+  // Phase 6 (LSTG-03/04) — see listingDataSchema comment above.
+  floor: number | null;
+  balcony: boolean | null;
+  renovationStatus: string | null;
+  description: string | null;
+}
+
+/**
+ * Provenance tag for a Phase 6 gap-filled field (LSTG-04): which source, if
+ * any, ultimately supplied the value. `null` means neither source had it.
+ */
+export type ListingSource = "booli" | "maklare" | null;
+
+/**
+ * A single gap-filled field paired with its provenance. Plan 02's
+ * merge-listing-fields.ts populates these; analyze.ts and listing-summary.tsx
+ * both consume the shape, so it's co-located here with the other schema
+ * types rather than buried in a broker-specific module.
+ */
+export interface Sourced<T> {
+  value: T | null;
+  source: ListingSource;
 }
 
 /**
@@ -118,5 +172,14 @@ export function normalizeScraperOutput(
     longitude: num(raw.longitude),
     booliId: idStr(raw.booliId),
     breadcrumbs: crumbs(raw.breadcrumbs),
+    // Phase 6 (LSTG-03) — floor/balcony recovered from the Apollo entity via
+    // client.ts's reshapeListingEntity (floor as a bare number after rawOf,
+    // but tolerate a bare number here too in case a future source surfaces
+    // it directly); renovationStatus/description are broker-page gap-fill
+    // candidates (Plan 02) with no representation in the Apollo entity today.
+    floor: num(raw.floor) ?? rawOf(raw.floor),
+    balcony: typeof raw.balcony === "boolean" ? raw.balcony : null,
+    renovationStatus: str(raw.renovationStatus),
+    description: str(raw.description),
   };
 }

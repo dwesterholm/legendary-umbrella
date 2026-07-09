@@ -32,6 +32,12 @@ const STEPS: { status: string; label: string }[] = [
 ];
 
 function stepIndex(status: string | null): number {
+  // `auto_fetching` is a Phase 8 pre-step transient status that precedes this
+  // component's 3-step sequence entirely (BrfAutoFetchProgress owns its own
+  // separate step list for it) — treat it as "not yet reading" (index 0, no
+  // steps done yet) rather than falling through the same -1 branch reading/
+  // extracting/scoring would, keeping the two sequences visually distinct.
+  if (status === "auto_fetching") return 0;
   const i = STEPS.findIndex((s) => s.status === status);
   return i === -1 ? 0 : i;
 }

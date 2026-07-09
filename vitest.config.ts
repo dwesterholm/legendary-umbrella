@@ -14,6 +14,14 @@ export default defineConfig({
       "**/*.{test,spec}.?(c|m)[jt]s?(x)",
       "evals/**/*.eval.?(c|m)[jt]s?(x)",
     ],
+    // Phase 8 Plan 4: the first React-component tests in this repo (RTL render
+    // of brf-confirm.tsx / brf-section.tsx) need a DOM. Each such test file
+    // opts into jsdom via a `// @vitest-environment jsdom` docblock at the top
+    // of the file (Vitest's per-file environment override) rather than
+    // flipping the global default — every other test (actions/lib) stays on
+    // the lighter "node" environment unchanged, avoiding any risk of
+    // destabilizing the existing 384-test suite.
+    setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {
     alias: {

@@ -18,6 +18,7 @@ import {
 } from "@/lib/market/compare";
 import { soldSourceCostSek, SOLD_SOURCE_COST_CAP_SEK } from "@/lib/market/cost";
 import { fetchScbDemographics, type AreaData } from "@/lib/market/scb";
+import { fetchMacroSnapshot, type MacroData } from "@/lib/market/macro";
 import { listingDataSchema, type ListingData } from "@/lib/schemas/listing";
 
 /**
@@ -81,7 +82,14 @@ const RECENCY_WINDOW_DAYS = 365;
 
 /** Discriminated result returned to the client (mirrors AnalyzeBrfResult). */
 export type EnrichMarketResult =
-  | { ok: true; data: { price: PriceData | null; area: AreaData | null } }
+  | {
+      ok: true;
+      data: {
+        price: PriceData | null;
+        area: AreaData | null;
+        macro: MacroData | null;
+      };
+    }
   | { ok: false; error: string };
 
 /** A minimal slice of the Supabase client this module needs (status writes). */
@@ -167,10 +175,18 @@ class SoldWalkError extends Error {
 /**
  * Walks the D-01 tier ladder (building → neighborhood → wide), STOPPING at the
  * first tier whose RECENT usable comps clear the thin threshold (recency + count,
- * 03-SPIKE.md §1.4). Bounded at MAX_SOURCE_CALLS renders (T-03-17): one render
- * per tier, short-circuit on the first sufficient tier. If no tier is sufficient
- * the last (widest) attempt's comps are returned so compare.ts can still tag them
- * "thin" honestly — that is a REAL sparse area, NOT a dead source.
+ * 03-SPIKE.md §1.4). Bounded at MAX_SOURCE_CALLS tier ATTEMPTS (T-03-17):
+ * short-circuit on the first sufficient tier, at most one attempt per ladder
+ * entry. If no tier is sufficient the last (widest) attempt's comps are
+ * returned so compare.ts can still tag them "thin" honestly — that is a REAL
+ * sparse area, NOT a dead source.
+ *
+ * WR-02: `renders` accumulates the REAL render cost `fetchSoldComps` reports
+ * per tier (`rendersUsed` — 1 on the happy rung-1 path, up to 2 when the
+ * shared fallback tree degrades to rung 2) rather than assuming a flat 1 per
+ * tier attempted. Post Phase-5 absorption, a single tier can burn 2 real
+ * Apify renders, so the cost ledger must sum the actual count, not the tier
+ * count, or `market_cost_sek` under-reports real spend by up to 2x per tier.
  *
  * Throws (propagating the fetchSoldComps HIGH-1 throw) only when EVERY attempted
  * tier failed to fetch — the caller maps that to reason "source_unavailable".
@@ -181,14 +197,16 @@ async function walkSoldTiers(
 ): Promise<SoldWalkResult> {
   const thin = PRICE_COMPARISON_THRESHOLDS.thinMaxComps;
   let renders = 0;
+  let tiersAttempted = 0;
   let last: { comps: SoldComp[]; tier: PriceTier } | null = null;
   let lastError: unknown = null;
 
   for (const tier of TIER_LADDER) {
-    if (renders >= MAX_SOURCE_CALLS) break;
-    renders += 1;
+    if (tiersAttempted >= MAX_SOURCE_CALLS) break;
+    tiersAttempted += 1;
     try {
-      const raw = await fetchSoldComps({ ...base, tier });
+      const { data: raw, rendersUsed } = await fetchSoldComps({ ...base, tier });
+      renders += rendersUsed;
       const comps = normalizeSoldOutput(raw);
       last = { comps, tier };
       // Sufficient = enough RECENT usable comps (recency + count). Short-circuit.
@@ -198,6 +216,10 @@ async function walkSoldTiers(
     } catch (error) {
       // This tier's source call failed — try the next (broader) tier within the
       // call budget. Keep the error so we can rethrow if NO tier ever succeeds.
+      // A failed fetchSoldComps call still burned MAX renders of its own
+      // fallback tree (own-playwright + own-playwright-retry both threw) —
+      // account for that real spend even though this tier yielded no data.
+      renders += 2;
       lastError = error;
     }
   }
@@ -445,6 +467,29 @@ export async function enrichMarketContext(
     area = null;
   }
 
+  // ====================================================================
+  // MACRO branch (independent — its failure never touches PRICE or AREA;
+  // macro is best-effort context and is NOT a term in terminalStatus below,
+  // MACRO-01/07-RESEARCH independent-degradation).
+  // ====================================================================
+  let macro: MacroData | null = null;
+  try {
+    const lanCode = geo.kommunCode ? geo.kommunCode.slice(0, 2) : null;
+    // `as never` mirrors macro.test.ts's cast: SupabaseLike is a minimal
+    // structural interface and the concrete SupabaseClient's deeply generic
+    // builder chain does not structurally narrow to it (TS2589), even though
+    // it satisfies the shape at runtime.
+    macro = await fetchMacroSnapshot(supabase as never, lanCode);
+  } catch (error) {
+    // Riksbank/SCB failure → macro null WITHOUT aborting price/area (D-08).
+    // Log only analysisId + error code — never coords/payloads (GDPR).
+    console.error("[enrich-market] macro", {
+      analysisId,
+      code: error instanceof Error ? error.message : "UNKNOWN",
+    });
+    macro = null;
+  }
+
   // ---- Terminal status (D-08): "done" on ANY partial success ----
   // Usable price = anything except source_unavailable (ok/thin/listing_pris_okand
   // are all honest, displayable states). Usable area = at least one metric present
@@ -455,14 +500,16 @@ export async function enrichMarketContext(
   const terminalStatus: "done" | "failed" =
     priceUsable || areaUsable ? "done" : "failed";
 
-  // ---- Persist BOTH columns in one write (D-08 independent persistence) ----
-  // Each of price_data / area_data is written even when the OTHER is null /
-  // source_unavailable — one source failing never blanks the other.
+  // ---- Persist all THREE columns in one write (D-08 independent persistence) ----
+  // Each of price_data / area_data / macro_data is written even when the
+  // OTHERS are null / source_unavailable — one source failing never blanks
+  // another. macro_data is best-effort context and never gates terminalStatus.
   const { error: persistError } = await supabase
     .from("analyses")
     .update({
       price_data: price,
       area_data: area,
+      macro_data: macro,
       market_status: terminalStatus,
       market_source: SOLD_SOURCE_NAME,
       market_cost_sek: cost,
@@ -477,5 +524,5 @@ export async function enrichMarketContext(
     return { ok: false, error: "Kunde inte spara marknadsdata. Försök igen." };
   }
 
-  return { ok: true, data: { price, area } };
+  return { ok: true, data: { price, area, macro } };
 }

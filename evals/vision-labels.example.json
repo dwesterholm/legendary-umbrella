@@ -1,0 +1,24 @@
+{
+  "_comment": "EXAMPLE manifest only — synthetic, NOT real data. The real evals/vision-labels.json (gitignored) follows this exact shape: keyed by booliId (matching the booliId in the corresponding evals/fixtures/vision/<booliId>.json fixture, itself { booliId, imageUrls }). expectedDirection is one of renovated | dated | no_claim per attribute (kitchen/bathroom/overall) — 'no_claim' means a human reviewer independently judged the images do NOT show enough to assess that attribute, matching the model's own low-confidence-suppression posture. expectedAssessable records whether a human believes the attribute COULD be judged from the images at all (used for the suppression-correctness check — an overly-cautious model that suppresses everything should not trivially pass). expectedNoHallucination must be true for every listing in a passing eval (100% hard gate, T-11-06) — set false only to intentionally fail-test the harness. citationsVerifiedTrue is a per-attribute human check that the model's cited imageIndex ACTUALLY shows what whatWasSeen describes — omit an attribute key if the model made no claim there. See 11-RESEARCH.md 'Evaluation Strategy' for the full rubric.",
+  "1234567890123": {
+    "kitchen": { "expectedDirection": "renovated", "expectedAssessable": true },
+    "bathroom": { "expectedDirection": "dated", "expectedAssessable": true },
+    "overall": { "expectedDirection": "renovated", "expectedAssessable": true },
+    "expectedNoHallucination": true,
+    "citationsVerifiedTrue": { "kitchen": true, "bathroom": true, "overall": true }
+  },
+  "2345678901234": {
+    "kitchen": { "expectedDirection": "no_claim", "expectedAssessable": false },
+    "bathroom": { "expectedDirection": "dated", "expectedAssessable": true },
+    "overall": { "expectedDirection": "dated", "expectedAssessable": true },
+    "expectedNoHallucination": true,
+    "citationsVerifiedTrue": { "bathroom": true, "overall": true }
+  },
+  "3456789012345": {
+    "kitchen": { "expectedDirection": "renovated", "expectedAssessable": true },
+    "bathroom": { "expectedDirection": "renovated", "expectedAssessable": true },
+    "overall": { "expectedDirection": "no_claim", "expectedAssessable": false },
+    "expectedNoHallucination": true,
+    "citationsVerifiedTrue": { "kitchen": false, "bathroom": true }
+  }
+}

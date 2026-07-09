@@ -133,6 +133,7 @@ describe("BRF extraction eval (brf-extract/v2 regression gate, D-02)", () => {
       // bad fixture reports its own filename rather than masking the rest.
       for (const c of cases) {
         const { parsed } = await extractBrfFinancials({
+          kind: "pdf",
           bytes: c.bytes,
           contentHash: c.hash,
         });
