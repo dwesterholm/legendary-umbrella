@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
- * resolve-area.test.ts — proves the probe-then-seed BRANCHING logic with a
- * mocked transport (09-02-PLAN.md Task 1's acceptance criteria). The live
- * probe interaction itself is a manual checkpoint (Task 2, operator-approved
- * Apify spend) — these tests never invoke a real Apify render.
+ * resolve-area.test.ts — proves the probe-then-seed BRANCHING logic + the
+ * `pickBestSuggestion` ranker with a mocked transport. The live probe
+ * interaction itself is exercised by a real Apify render (operator-approved
+ * spend); these tests never invoke one.
+ *
+ * The suggestion fixtures below are a faithful subset of a REAL
+ * `areaSuggestionSearch` response captured live 2026-07-09.
  */
 
 const runPlaywrightRender = vi.fn();
@@ -13,23 +16,76 @@ vi.mock("@/lib/booli/transport", () => ({
 }));
 
 // Imported AFTER the mock is registered.
-import { resolveArea } from "@/lib/discovery/resolve-area";
-import { AREA_SEED } from "@/lib/discovery/area-seed";
-import { seedResolve } from "@/lib/discovery/area-seed";
+import { resolveArea, pickBestSuggestion } from "@/lib/discovery/resolve-area";
+import { AREA_SEED, seedResolve } from "@/lib/discovery/area-seed";
+import type { AreaSuggestion } from "@/lib/booli/area-suggestion-page-function";
+
+function sug(overrides: Partial<AreaSuggestion>): AreaSuggestion {
+  return {
+    id: "0",
+    type: "userDefined",
+    typeDisplayName: "Område",
+    displayName: "X",
+    parent: "Stockholm",
+    parentId: "1",
+    parentDisplayName: "Stockholms kommun",
+    ...overrides,
+  };
+}
+
+// Faithful subset of the live "vasastan" capture (order preserved = Booli relevance).
+const VASASTAN: AreaSuggestion[] = [
+  sug({ type: "SubAdministrativeArea", typeDisplayName: "Stadsdel", id: "115349", displayName: "Vasastan", parent: "Stockholm", parentId: "1", parentDisplayName: "Stockholms kommun" }),
+  sug({ type: "locality", typeDisplayName: "Stadsdel", id: "386735", displayName: "Vasastan", parent: "Linköping", parentId: "393", parentDisplayName: "Linköpings kommun" }),
+  sug({ type: "userDefined", typeDisplayName: "Område", id: "1012465", displayName: "Vasastan", parent: "Göteborg", parentId: "22", parentDisplayName: "Göteborgs kommun" }),
+  sug({ type: "undefined", typeDisplayName: "Område", id: "1015394", displayName: "Östermalm/Vasastan/Norra Djurgården", parent: "Stockholm", parentId: "1", parentDisplayName: "Stockholms kommun" }),
+  sug({ type: "Street", typeDisplayName: "Gata", id: "90988", displayName: "Sankt Eriksgatan", parent: "Stockholm", parentId: "1", parentDisplayName: "Stockholms kommun" }),
+];
 
 beforeEach(() => {
   runPlaywrightRender.mockReset();
 });
 
+describe("pickBestSuggestion", () => {
+  it("prefers the exact-name Stockholm district over same-name matches in other municipalities and over streets", () => {
+    const best = pickBestSuggestion("Vasastan", VASASTAN);
+    expect(best?.id).toBe("115349"); // Stockholm stadsdel, Booli-ranked first
+  });
+
+  it("ignores partial matches (compound area names) in favour of an exact display-name match", () => {
+    // Only the compound "Östermalm/Vasastan/..." + a street would match loosely;
+    // the exact "Vasastan" entries must win.
+    const best = pickBestSuggestion("vasastan", VASASTAN);
+    expect(best?.displayName).toBe("Vasastan");
+  });
+
+  it("falls back to the type-ranked first entry when no exact match exists", () => {
+    const partialOnly: AreaSuggestion[] = [
+      sug({ typeDisplayName: "Gata", id: "90988", displayName: "Sankt Eriksgatan" }),
+      sug({ typeDisplayName: "Område", id: "1015394", displayName: "Östermalm/Vasastan/Norra Djurgården" }),
+    ];
+    // No exact "Vasastan" → prefer the Område over the Gata.
+    expect(pickBestSuggestion("Vasastan", partialOnly)?.id).toBe("1015394");
+  });
+
+  it("returns null for an empty/absent suggestion list", () => {
+    expect(pickBestSuggestion("Vasastan", [])).toBeNull();
+    expect(pickBestSuggestion("Vasastan", null)).toBeNull();
+    expect(pickBestSuggestion("Vasastan", undefined)).toBeNull();
+  });
+});
+
 describe("resolveArea", () => {
-  it("resolves via the probe when the render returns a usable areaIds= URL", async () => {
-    runPlaywrightRender.mockResolvedValue([
-      { hasApollo: true, resolvedUrl: "https://www.booli.se/sok/till-salu?areaIds=115341" },
-    ]);
+  it("resolves via the probe to the best suggestion's areaId + label", async () => {
+    runPlaywrightRender.mockResolvedValue([{ hasApollo: true, suggestions: VASASTAN }]);
 
-    const result = await resolveArea("Södermalm");
+    const result = await resolveArea("Vasastan");
 
-    expect(result).toEqual({ areaId: "115341", source: "probe" });
+    expect(result).toEqual({
+      areaId: "115349",
+      source: "probe",
+      label: "Vasastan, Stockholms kommun",
+    });
   });
 
   it("falls back to the seed list when the probe throws", async () => {
@@ -40,8 +96,8 @@ describe("resolveArea", () => {
     expect(result).toEqual({ areaId: AREA_SEED["södermalm"], source: "seed" });
   });
 
-  it("falls back to the seed list when the probe returns no usable areaIds= value", async () => {
-    runPlaywrightRender.mockResolvedValue([{ hasApollo: false, resolvedUrl: null }]);
+  it("falls back to the seed list when the probe returns no suggestions", async () => {
+    runPlaywrightRender.mockResolvedValue([{ hasApollo: true, suggestions: [] }]);
 
     const result = await resolveArea("nacka");
 
@@ -49,11 +105,18 @@ describe("resolveArea", () => {
   });
 
   it("returns null when both the probe and the seed list miss", async () => {
-    runPlaywrightRender.mockResolvedValue([{ hasApollo: false, resolvedUrl: null }]);
+    runPlaywrightRender.mockResolvedValue([{ hasApollo: true, suggestions: [] }]);
 
     const result = await resolveArea("Timbuktu");
 
     expect(result).toBeNull();
+  });
+
+  it("resolves the newly-seeded districts (Östermalm, Vasastan) even when the probe misses", async () => {
+    runPlaywrightRender.mockResolvedValue([{ hasApollo: true, suggestions: [] }]);
+
+    expect((await resolveArea("Östermalm"))?.areaId).toBe("115348");
+    expect((await resolveArea("Vasastan"))?.areaId).toBe("115349");
   });
 });
 
