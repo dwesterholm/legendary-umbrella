@@ -5,6 +5,8 @@ Bostad AI — an AI-powered property analysis tool for the Swedish market.
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1–4 (shipped 2026-07-06) — [archive](milestones/v1.0-ROADMAP.md) · [audit](milestones/v1.0-MILESTONE-AUDIT.md)
+- ✅ **v1.1 Owned Data Layer & Intelligent Discovery** — Phases 5–12 (shipped code-complete 2026-07-07) — [archive](milestones/v1.1-ROADMAP.md) · [audit](milestones/v1.1-MILESTONE-AUDIT.md)
+  - Discovery surface (Phases 9–12) ships behind `DISCOVERY_ENABLED` (OFF) pending operator legal go/no-go + live validation gates.
 
 ## Phases
 
@@ -16,7 +18,24 @@ Bostad AI — an AI-powered property analysis tool for the Swedish market.
 - [x] Phase 3: Market Context (6/6 plans) — completed 2026-06-22
 - [x] Phase 4: AI Report + Delivery (6/6 plans) — completed 2026-07-06
 
-Full phase details, goals, and success criteria: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md).
+Full phase details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md).
+
+</details>
+
+<details>
+<summary>✅ v1.1 Owned Data Layer & Intelligent Discovery (Phases 5–12) — SHIPPED (code-complete) 2026-07-07</summary>
+
+- [x] Phase 5: Owned Booli Acquisition (5/5 plans) — completed 2026-07-06
+- [x] Phase 6: Deeper Listing Extraction (3/3 plans) — completed 2026-07-06
+- [x] Phase 7: Macro Price Context (3/3 plans) — completed 2026-07-06
+- [x] Phase 8: BRF Auto-Fetch (4/4 plans + gap-closure) — completed 2026-07-07
+- [x] Phase 9: Discovery Foundation (4/4 plans) — completed 2026-07-07
+- [x] Phase 10: Niche Ranking (2/2 plans) — completed 2026-07-07
+- [x] Phase 11: Gallery Condition Vision (3/3 plans) — completed 2026-07-07
+- [x] Phase 12: Floor-Plan & Sun-Path (4/4 plans) — completed 2026-07-07
+
+Full phase details, goals, and success criteria: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md).
+Deferred operator verification (legal go/no-go, live validation gates, UAT): [milestones/v1.1-MILESTONE-AUDIT.md](milestones/v1.1-MILESTONE-AUDIT.md) and phase `*-UAT.md` files.
 
 </details>
 
@@ -28,36 +47,30 @@ Full phase details, goals, and success criteria: [milestones/v1.0-ROADMAP.md](mi
 | 2. BRF Financial Analysis | v1.0 | 6/6 | Complete | 2026-06-16 |
 | 3. Market Context | v1.0 | 6/6 | Complete | 2026-06-22 |
 | 4. AI Report + Delivery | v1.0 | 6/6 | Complete | 2026-07-06 |
+| 5. Owned Booli Acquisition | v1.1 | 5/5 | Complete | 2026-07-06 |
+| 6. Deeper Listing Extraction | v1.1 | 3/3 | Complete | 2026-07-06 |
+| 7. Macro Price Context | v1.1 | 3/3 | Complete | 2026-07-06 |
+| 8. BRF Auto-Fetch | v1.1 | 4/4 | Complete | 2026-07-07 |
+| 9. Discovery Foundation | v1.1 | 4/4 | Complete | 2026-07-07 |
+| 10. Niche Ranking | v1.1 | 2/2 | Complete | 2026-07-07 |
+| 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
+| 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
 
 ## Backlog
+
+Items captured for future planning. Promote via `/gsd-review-backlog` when ready. Four former backlog items (999.6, 999.2, 999.3, 999.7) were promoted into v1.1 Phases 5–12.
+
+- **999.6 → promoted to Phase 5** (Owned Booli Acquisition)
+- **999.2 → promoted to Phase 6** (Deeper Listing Extraction)
+- **999.3 → promoted to Phase 7** (Macro Price Context)
+- **999.7 → promoted to Phases 9–12** (Discovery Foundation, Niche Ranking, Gallery Condition Vision, Floor-Plan & Sun-Path)
 
 ### Phase 999.1: Proprietary price estimator (BACKLOG)
 
 **Goal:** [Captured for future planning] Build a price estimator that beats Booli's "value based price." Booli's dropdown exposes which reference objects drive their estimate — ours would weigh historical data, trends, floor level, balcony, BRF debt, and more. Prior art: a friend's hand-built scraper + estimator outperformed Booli's during his own apartment search. Synergy: actor already returns Booli's `estimate` and `listSqmPrice` for benchmarking.
 
-**Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher).
-**Requirements:** TBD
-**Plans:** 6/6 plans complete
-
-Plans:
-
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 999.2: Deeper listing extraction via broker sites (BACKLOG)
-
-**Goal:** [Captured for future planning] Extract more detail per listing than the Booli actor provides — potentially following through to the broker's own page (actor already returns `agencyListingUrl`, e.g. Vitec links). Could recover fields the actor lacks: floor, balcony, BRF name, renovation status, full description.
-**Requirements:** TBD
-**Plans:** 0 plans
-
-Plans:
-
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 999.3: Macro-driven price estimates (BACKLOG)
-
-**Goal:** [Captured for future planning] Feed macroeconomic indicators (interest rates, inflation, regional price indices — SCB/Riksbank data) into valuations so estimates aren't purely based on a few comparable sales. Natural companion to 999.1 (estimator) and Phase 3 (SCB integration groundwork).
-**Requirements:** TBD
-**Plans:** 0 plans
+**Sun exposure tracking:** Track how the sun hits the apartment from the address (friend did this via a mix of sun-tracking websites — feasibility unconfirmed but probably doable). The actor already returns `latitude`/`longitude`, so sun-path computation (e.g. suncalc-style libraries or APIs) is a candidate beyond scraping websites. Standalone value even outside the estimator: a UI where the user sees a map preview (Google Maps) and can visually drag the sun's position through the day — possibly via iframe embed of an existing sun-tracking site (e.g. ShadeMap/SunCalc.org-style tools), or built natively. Sun exposure is also a plausible estimator feature (sunny balconies price higher). *(Note: theoretical sun-path landed in v1.1 Phase 12; this backlog item is the richer interactive/map-based version.)*
+**Requirements:** EST-01 (Future). MACRO-01 (Phase 7) lays groundwork.
 
 Plans:
 
@@ -76,8 +89,7 @@ Plans:
 **FIRST STEP — investigate data availability (gates everything else).** Before any modelling, spike what's actually extractable across a sample of real årsredovisningar (and broker loan data sheets where available): is the loan book present (amounts, per-loan rates, expiry/refinancing dates)? Is renovation history present (last stambyte / fasadrenovering / inglasning, planned maintenance / underhållsplan)? Each risk signal below is only as good as the data feeding it, and availability is the main unknown — confirm feasibility per signal before committing to build.
 
 **Design constraints:** keep the deterministic core as the auditable baseline; advanced signals layer on top as explained adjustments/flags. Any rule of thumb (e.g. stambyte interval) must cite a verifiable source. Degrade gracefully when a signal's data is absent (don't fabricate risk from missing data — surface "uppgift saknas" instead).
-**Requirements:** relates to ADV-01, ADV-02 (v2 Advanced Analysis) — likely promote/merge with them
-**Plans:** 0 plans
+**Requirements:** ADV-01, ADV-02 (v2 Advanced Analysis) — likely promote/merge with them
 
 Plans:
 
@@ -97,50 +109,7 @@ Plans:
 6. Final synthesized AI report + risk flags + PDF — Phase 4.
 
 **Behavior:** each step shows done / pending / not-applicable, explains *why it matters* in plain Swedish, and ends with a "nothing critical missed" confidence summary. Gracefully handles steps the buyer can't complete (data unavailable) — shows them as known gaps rather than silently dropping them, so the buyer understands the limits of the analysis. Cross-cutting across Phases 1–4 + 999.4; best built once those data sources exist, as the connective UX tissue over them.
-**Requirements:** TBD (cross-cutting; spans LSTG/BRF/PRICE/AREA/RPRT + 999.4)
-**Plans:** 0 plans
-
-Plans:
-
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 999.6: Own the Booli acquisition layer — replace the paid Apify actor (BACKLOG)
-
-**Goal:** [Captured for future planning] Replace the paid Apify Booli actor (`bpf1JaYRBbia2nQU9`, ~$29/mo) for active-listing extraction with our own fetch against Booli's keyless GraphQL (`www.booli.se/graphql`), reusing the same fallback tree as the Phase 3 sold-price source: **direct from server → same call via the Apify SE residential proxy (existing `APIFY_API_TOKEN`) → paid actor as last resort**. Unifies active + sold acquisition behind ONE owned `booli-graphql` client + one fallback tree, so we control the data shape, can add metadata / richer fields over time, and stop depending on a third-party actor's maintenance.
-
-**Brief spike already done (2026-06-20) — see `.planning/spikes/booli-own-acquisition-SPIKE.md`:**
-
-- **Field parity confirmed (HIGH):** a real `searchForSale` GraphQL response carries the exact field names we normalize today (`streetAddress`, `price`/`listPrice`/`listSqmPrice`/`estimate` in the same `{raw,value,formatted,unit}` shape, `livingArea`, `rooms`, `objectType`, `tenureForm`, `latitude`/`longitude`/`booliId`). The actor appears to be a thin wrapper over this GraphQL — moving loses no fields.
-- **Transport identical to the Phase 3 sold-source spike (HIGH):** same Cloudflare posture, same direct→Apify-proxy fallback — Phase 3's transport evidence carries straight over.
-- **The one real unknown (MEDIUM):** single-listing-by-URL retrieval. Our flow is paste one URL → that listing; the MCP reference says direct lookup-by-id is "not supported" by the queries they tried. The thorough investigation must confirm the path: (1) a detail GraphQL query the site uses on `/bostad/{id}`, (2) the detail page's embedded `__NEXT_DATA__`/Apollo state (fetch HTML via proxy, extract JSON — not DOM scraping), or (3) `searchForSale` + filter + match on `booliId`.
-
-**FIRST STEP — thorough feasibility spike (gates the migration).** Pin down the single-listing-by-URL retrieval path from our actual server runtime, confirm full field coverage incl. the gaps the actor also lacks (brfName/floor — overlaps 999.2), measure reliability/rate-limit, and decide whether to drop the actor subscription or keep it only as the last-resort fallback. Best sequenced AFTER the Phase 3 sold-source spike has proven the GraphQL+proxy transport.
-
-**Cost note:** likely keep Apify for the residential proxy even after dropping the actor — saving is partial; the real win is ownership + control.
-**Related:** companion to 999.2 (deeper listing extraction — recovers fields like floor/balcony/brfName, possibly via broker pages); shares the transport layer with Phase 3 PRICE-01.
-**Requirements:** TBD (relates to LSTG-01 acquisition; infra/ownership)
-**Plans:** 0 plans
-
-Plans:
-
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 999.7: AI free-text listing discovery + vision-analyzing scraper (BACKLOG)
-
-**Goal:** [Captured for future planning] Flip the input model: instead of pasting ONE listing URL, the user describes what they want in free text + a few hardcoded filters, and an AI agent scraper finds matching objects — including criteria a "normal Booli filter" can't express because they require understanding the listing's text AND its images.
-
-**Shape (complexity is moderate, but several moving parts):**
-
-1. Scrape all objects in an area (reuse the acquisition layer — see 999.6 owned GraphQL / 999.2 deeper extraction; Phase 3 already scopes areas).
-2. Per listing, analyze the description text + gallery images with a vision model to derive soft attributes a filter lacks — e.g. bathroom needs renovation or not, kitchen modern or dated, overall condition.
-3. **The biggest opportunity — the "Planlösning" (floor-plan) image** (essentially always in the gallery): a specialized architect / home-renovation agent reads the floor plan for remodel potential — e.g. take down a wall to turn a 2-bedroom into a 3-room, move the kitchen, add a kitchen island.
-4. Rank / match objects against the user's free-text intent.
-
-**Intent is configurable — renovation upside is only ONE niche.** Others: turnkey objects where everything is in top condition (the opposite), or objects with a high likelihood of an imminent bathroom *stambyte* (most buyers avoid these, but some want them because the BRF pays for the new bathroom). The niche is whatever the searcher describes.
-
-**Related:** builds on 999.2 (deeper listing/image extraction) and 999.6 (owned area-wide acquisition); leans on Phase 2 BRF/stambyte signals for the stambyte niche and Phase 3 for area scoping; natural pairing with 999.8 (both are vision-driven listing enrichment).
-**Requirements:** TBD (new discovery/search capability; vision analysis; agentic scraping)
-**Plans:** 0 plans
+**Requirements:** DUE-01 (Future; cross-cutting; spans LSTG/BRF/PRICE/AREA/RPRT + 999.4)
 
 Plans:
 
@@ -152,9 +121,8 @@ Plans:
 
 **Feasibility:** verified — the user has seen someone build exactly this using existing libraries, so it's a known-possible, not a research bet.
 
-**Related:** companion to 999.7 (both are image/vision-driven enrichment of a listing); consumes the same gallery images 999.7's condition/floor-plan analysis uses.
-**Requirements:** TBD (3D reconstruction from photos; interactive viewer)
-**Plans:** 0 plans
+**Related:** companion to 999.7 (both are image/vision-driven enrichment of a listing); consumes the same gallery images 999.7's condition/floor-plan analysis uses (now Phases 11–12).
+**Requirements:** VIZ-01 (Future; 3D reconstruction from photos; interactive viewer)
 
 Plans:
 

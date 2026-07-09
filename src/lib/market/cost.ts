@@ -27,11 +27,17 @@ export const USD_PER_RENDER = 0.0055 as const;
 export const USD_SEK_RATE = 11;
 
 /**
- * The per-analysis sold-source spend cap in SEK. A worst-case 3-render
- * paginated analysis costs ~$0.0166 ≈ 0.18 SEK; the cap sits well above that
- * with headroom for transport-retry overhead, while still bounding a runaway
- * fetch-walk (the D-01 tier walk is itself capped at ≤3 source calls — see
- * the threat register T-03-13). Plan 05 refuses to persist over this cap.
+ * The per-analysis sold-source spend cap in SEK. A worst-case walk (3 tiers ×
+ * up to 2 renders each) tops out around 0.36 SEK, so at 1.0 SEK this gate is
+ * INTENTIONALLY unreachable in normal operation.
+ *
+ * WR-04 (shard-3 review): this is deliberate, not a mis-set threshold. The REAL
+ * spend bound is the structural `MAX_SOURCE_CALLS` tier-walk cap (T-03-13); this
+ * constant is a defence-in-depth *persistence* mirror of analyze-brf.ts's
+ * `COST_CAP_SEK`, kept slack on purpose so it only ever fires if a future change
+ * removes the tier-count bound (i.e. it catches a regression that unbounds the
+ * walk, not day-to-day spend). Do NOT tighten it to "make it fire" — that would
+ * false-trip legitimate multi-render walks; the tier cap is the operational bound.
  */
 export const SOLD_SOURCE_COST_CAP_SEK = 1.0;
 

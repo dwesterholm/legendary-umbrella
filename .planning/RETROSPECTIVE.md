@@ -40,6 +40,42 @@
 
 ---
 
+## Milestone: v1.1 — Owned Data Layer & Intelligent Discovery
+
+**Shipped (code-complete):** 2026-07-07 · **Phases:** 8 (5–12) · **Plans:** 27 · **Tests:** 629 · **Migrations:** 006–011 live
+
+### What Was Built
+Owned Booli acquisition (single + area, observable fallback tree); broker-page field recovery (SSRF-hardened, PII-excluded, gap-fill-only); descriptive Riksbank/SCB macro context; BRF årsredovisning auto-fetch (Allabrf-primary + manual fallback); a cost-capped background discovery job (free-text → area search via DB-row queue + atomic RPC + client-tick slices); deterministic cited-signal niche ranking; two-pass image-cited hedged gallery/floor-plan vision; and deterministic theoretical sun-path. Discovery (9–12) ships behind `DISCOVERY_ENABLED` (OFF).
+
+### What Worked
+- **Per-phase full pipeline** (discuss→research→ui-spec→pattern-map→plan→plan-check→execute→verify→code-review→fix) caught real, load-bearing bugs *before* they shipped: DNS-rebinding SSRF (P6), shared-cache poisoning (P7), RPC ownership bypass + unauth cron (P9), vision cost-overshoot/stranded-job/double-spend race (P11), and a load-bearing-verdict safety leak (P12). Every one was a Critical the executor's own tests had missed.
+- **Adversarial code review as a distinct pass** (separate from the goal-verifier) was the highest-leverage step — the verifier confirmed "does it meet the goal", the reviewer found "how it breaks".
+- **Structural-separation invariant enforced by a grep-based test** kept vision/sun-path out of the deterministic scorer across 3 phases.
+- **`.nullable().default(null)` additive-nullable candidate extensions** let Phases 10/11/12 extend the discovery candidate with zero migrations and backward-safe parsing.
+
+### What Was Inefficient
+- **Executors repeatedly over-claimed enforcement** ("code-enforced disclaimer", "banned-word rejection") that the review pass found was only cosmetic (P12 CR-01) or absent — trust-but-verify on SUMMARY claims was essential.
+- **`.nullable().optional()` vs `.default(null)`** mismatch (P10 CR-01) silently produced NaN sort corruption on legacy rows — a subtle Zod contract trap worth a lint.
+- Model model-id/schema drift risk (Anthropic 400 on wide schemas) needed a live smoke that can't run in autonomous mode — deferred to operator each vision phase.
+
+### Patterns Established
+- Feature-flag-OFF-by-default + fail-closed at action/route/UI for a legally-sensitive surface.
+- Separate incremental cost caps per spend class (`CAP_SEK_MAX` scrape vs `CAP_VISION_SEK_MAX` vision), checked before each call, never blended.
+- Atomic single-row CAS via PostgREST `.eq().neq().select().maybeSingle()` for status transitions; `FOR UPDATE SKIP LOCKED` RPC (SECURITY DEFINER, owner-scoped) for cross-row queue claims.
+- Hedged, image-cited, structurally-separate presentation for all AI/vision output; deterministic verdicts never derived from a 2D plan.
+
+### Key Lessons
+- **The code-review→fix loop is where correctness actually lands** in autonomous execution — budget for it on every phase, not just risky ones.
+- **Legal/business go/no-go gates belong to the operator** — a provisional GO + flag-OFF lets the build proceed without pre-empting the decision.
+- **Backward-compatible persistence is a first-class review dimension** once a JSONB shape has live rows.
+
+### Cost Observations
+- Model mix (approx): planning/critical-review on Opus; execution/verification/review on Sonnet; extraction/pre-filter on Haiku.
+- ~272 commits across the milestone; one interruption (session spend limit) cleanly resumed from committed state.
+- Notable: single-plan-per-wave phases ran sequentially on the main tree (no worktree parallelism needed); review-fixers used isolated worktrees to avoid mid-run conflicts.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution

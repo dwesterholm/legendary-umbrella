@@ -1,0 +1,18 @@
+-- Adds macro_data to analyses (Phase 7 Plan 2 — MACRO-01/MACRO-02).
+--
+-- Additive-nullable only, mirrors 003_market_context.sql's price_data /
+-- area_data columns: this is a per-user OWNED column on the existing
+-- `analyses` row, covered by the EXISTING per-user RLS (SELECT from
+-- 001_analyses.sql, UPDATE from 002_brf.sql) — NOT the shared
+-- `macro_snapshots` cache table from 006 (which has its own "any
+-- authenticated user" RLS because it has no user_id). This migration
+-- defines NO new RLS policy.
+--
+-- macro_data: the per-analysis snapshot of Riksbank policy rate / SCB CPIF
+--   inflation / SCB regional (län) BRF price at enrichment time — the
+--   `MacroData` shape from macro-schema.ts (macro.ts's fetchMacroSnapshot
+--   return value). Persisted alongside price_data/area_data in the SAME
+--   independent-branch write (enrich-market-context.ts's 4th MACRO branch);
+--   a macro-fetch failure degrades this column to null WITHOUT touching
+--   price_data/area_data or market_status (independent degradation, D-08).
+alter table public.analyses add column if not exists macro_data jsonb;

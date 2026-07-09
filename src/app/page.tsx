@@ -12,11 +12,17 @@ export default function Home() {
     data: ListingData;
     partial: boolean;
     missingFields?: string[];
+    brokerFetchFailed?: boolean;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  function handleResult(data: ListingData, partial: boolean, missingFields?: string[]) {
-    setResult({ data, partial, missingFields });
+  function handleResult(
+    data: ListingData,
+    partial: boolean,
+    missingFields?: string[],
+    brokerFetchFailed?: boolean
+  ) {
+    setResult({ data, partial, missingFields, brokerFetchFailed });
   }
 
   return (
@@ -44,6 +50,7 @@ export default function Home() {
               data={result.data}
               partial={result.partial}
               missingFields={result.missingFields}
+              brokerFetchFailed={result.brokerFetchFailed}
             />
 
             {/* Coming soon sections */}

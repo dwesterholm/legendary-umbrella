@@ -6,6 +6,7 @@ import { safeParseBrfData } from "@/lib/schemas/brf";
 import { listingDataSchema } from "@/lib/schemas/listing";
 import { safeParsePriceData } from "@/lib/market/sold-schema";
 import { safeParseAreaData } from "@/lib/market/scb";
+import { safeParseMacroData } from "@/lib/market/macro-schema";
 import {
   computeFlags,
   type FlagBrfInput,
@@ -135,6 +136,10 @@ function messageForCode(code: string): string {
     case "CLAUDE_MAX_TOKENS":
     case "CLAUDE_PARSE_EMPTY":
       return "AI-rapporten blev ofullständig. Försök igen.";
+    case "BANNED_PREDICTIVE_PHRASE":
+      // BL-2: the synthesis contained a predictive/buy-sell phrase and was
+      // rejected before persistence. Treated like a refusal from the user's POV.
+      return "AI-rapporten kunde inte skapas just nu. Försök igen senare.";
     default:
       return "Vi kunde inte skapa AI-rapporten just nu. Försök igen senare.";
   }
@@ -176,7 +181,7 @@ export async function generateReport(
   const { data: row, error: rowError } = await supabase
     .from("analyses")
     .select(
-      "id, user_id, report_status, report_generating_started_at, listing_data, brf_data, price_data, area_data",
+      "id, user_id, report_status, report_generating_started_at, listing_data, brf_data, price_data, area_data, macro_data",
     )
     .eq("id", analysisId)
     .single();
@@ -312,6 +317,10 @@ export async function generateReport(
   const brf = safeParseBrfData(row.brf_data);
   const price = safeParsePriceData(row.price_data);
   const area = safeParseAreaData(row.area_data);
+  // Macro is best-effort context (MACRO-01) — a malformed/absent macro_data
+  // degrades to null via the read-path guard, same D-08 discipline as the
+  // other three sources; it never blocks report synthesis.
+  const macro = safeParseMacroData(row.macro_data);
 
   // Deterministic flags + cited soft signals (pure TS — D-01a/D-03).
   const softSignals = toSoftSignals(brf);
@@ -328,6 +337,7 @@ export async function generateReport(
     brf,
     price,
     area,
+    macro,
     flags,
     softSignals,
   });

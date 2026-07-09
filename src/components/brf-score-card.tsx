@@ -27,6 +27,25 @@ interface BrfScoreCardProps {
   brfData: BrfData;
   /** Lifts a re-scored payload to the parent so the row data stays in sync. */
   onCorrected?: (data: BrfData) => void;
+  /** The document's fiscal year, when known (UI-SPEC §4). */
+  fiscalYear?: number | null;
+  /** Provenance of the source document — drives the "Källa: X" caption. */
+  fetchSource?: "auto_allabrf" | "auto_bolagsverket" | "manual" | null;
+  /** False when a newer årsredovisning is known to exist; null when unknown. */
+  isMostRecent?: boolean | null;
+}
+
+/** UI-SPEC Copywriting Contract — provenance captions, `text-xs text-warm-gray-500`. */
+const FETCH_SOURCE_CAPTIONS: Record<"auto_allabrf" | "auto_bolagsverket" | "manual", string> = {
+  auto_allabrf: "Källa: Allabrf",
+  auto_bolagsverket: "Källa: Bolagsverket",
+  manual: "Källa: Manuellt uppladdad",
+};
+
+function fetchSourceCaptionFor(
+  source: "auto_allabrf" | "auto_bolagsverket" | "manual" | null | undefined,
+) {
+  return source ? FETCH_SOURCE_CAPTIONS[source] : undefined;
 }
 
 /** Swedish labels + units per metric for the breakdown table (D-07). */
@@ -131,6 +150,9 @@ export function BrfScoreCard({
   analysisId,
   brfData,
   onCorrected,
+  fiscalYear,
+  fetchSource,
+  isMostRecent,
 }: BrfScoreCardProps) {
   // The card owns the current payload so an inline correction re-renders the
   // grade + breakdown immediately from the re-scored result (D-12).
@@ -207,6 +229,25 @@ export function BrfScoreCard({
             BRF-betyg
           </CardTitle>
           <p className="mt-1 text-sm text-warm-gray-500">{gradeCaption(grade)}</p>
+          {/* UI-SPEC §4: fiscal-year + provenance header row, plus an inline
+              (not full-card) terracotta staleness caption when the fetched
+              year is not the most recent available. */}
+          {fiscalYear != null && (
+            <p className="mt-2 text-sm text-warm-gray-500">
+              Räkenskapsår {fiscalYear}
+            </p>
+          )}
+          {fetchSourceCaptionFor(fetchSource) && (
+            <p className="text-xs text-warm-gray-500">
+              {fetchSourceCaptionFor(fetchSource)}
+            </p>
+          )}
+          {isMostRecent === false && (
+            <p className="mt-1 text-xs text-terracotta-600">
+              Nyare årsredovisning kan finnas — denna är från {fiscalYear},
+              inte det senaste tillgängliga räkenskapsåret.
+            </p>
+          )}
         </div>
         {/* D-07: prominent colour-coded A–F grade. */}
         <div

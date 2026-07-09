@@ -10,6 +10,7 @@ import { listingDataSchema } from "@/lib/schemas/listing";
 import { safeParseBrfData } from "@/lib/schemas/brf";
 import { safeParsePriceData } from "@/lib/market/sold-schema";
 import { safeParseAreaData } from "@/lib/market/scb-schema";
+import { safeParseMacroData } from "@/lib/market/macro-schema";
 import { safeParseReportData } from "@/lib/schemas/report";
 import {
   computeFlags,
@@ -91,6 +92,20 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     notFound();
   }
   const isPartial = analysis.partial ?? false;
+  // WR-02: missingFields is computed at analyze-time but never persisted into
+  // listing_data, so it must be re-derived here from the persisted values —
+  // the same required-display-field rules analyze.ts uses — rather than left
+  // undefined. Without this, ListingSummary's isMissing() is always false on
+  // this page and silently relies on the `=== 0`/`=== null` OR-fallbacks in
+  // each MetricCard instead of the intended missingFields signal.
+  const missingFields: string[] = [];
+  if (!listingData.address) missingFields.push("address");
+  if (listingData.price === 0) missingFields.push("price");
+  if (listingData.livingArea === 0) missingFields.push("livingArea");
+  if (listingData.rooms === 0) missingFields.push("rooms");
+  if (listingData.monthlyFee === null) missingFields.push("monthlyFee");
+  if (listingData.buildYear === null) missingFields.push("buildYear");
+  if (!listingData.brfName) missingFields.push("brfName");
   // CR-01: re-validate the persisted JSONB against the Zod schema before it is
   // handed to the UI. A malformed/partial/shape-drifted row degrades to
   // "no analysis yet" (the upload affordance) rather than crashing the score card.
@@ -100,6 +115,10 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   // affordance / honest marker) rather than crashing the page (Success Criterion 3).
   const priceData = safeParsePriceData(analysis.price_data);
   const areaData = safeParseAreaData(analysis.area_data);
+  // Macro is best-effort context (MACRO-01) — same read-path guard as the
+  // other three sources; must byte-match generate-report.ts's assembleFactSheet
+  // input below or the D-08 fingerprint recompute silently desyncs (T-04-24).
+  const macroData = safeParseMacroData(analysis.macro_data);
 
   // CR-01: re-validate the persisted report_data on READ. null → "not generated
   // yet" affordance, never a crash on a shape-drifted row.
@@ -121,6 +140,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
     brf: brfData,
     price: priceData,
     area: areaData,
+    macro: macroData,
     flags: currentFlags,
     softSignals,
   });
@@ -146,7 +166,12 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
       </div>
 
       {/* Listing summary */}
-      <ListingSummary data={listingData} partial={isPartial} />
+      <ListingSummary
+        data={listingData}
+        partial={isPartial}
+        missingFields={missingFields}
+        brokerFetchFailed={listingData.brokerFetchFailed ?? false}
+      />
 
       {/* D-00/D-05: the AI report anchors the page as the lead second opinion —
           the connective tissue across pris/BRF/område, not a bolted-on card at
@@ -166,11 +191,21 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
 
       {/* The supporting source cards the report is built from. */}
       <div className="w-full max-w-2xl space-y-3">
+        {/* ROADMAP Success Criterion 4: fiscalYear/isMostRecent are read off
+            the safeParse'd brf_data JSONB (BrfData, additive-optional fields)
+            rather than hardcoded — populated on the auto-fetch path via
+            confirmAndAnalyze -> runBrfExtraction's fetchMeta; absent/null on
+            the manual-upload path (no auto-detected fiscal year), which the
+            score card's existing null handling already degrades gracefully. */}
         <BrfSection
           analysisId={analysis.id}
           isGuest={!user}
           brfStatus={analysis.brf_status}
           brfData={brfData}
+          listingData={{ brfName: listingData.brfName }}
+          brfFetchSource={analysis.brf_fetch_source}
+          fiscalYear={brfData?.fiscalYear ?? null}
+          isMostRecent={brfData?.isMostRecent ?? null}
         />
         {/* Phase 3: price comparison + SCB demographics, owner-only, each panel
             degrades independently (no isGuest — the page is owner-only). */}
@@ -178,6 +213,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           analysisId={analysis.id}
           priceData={priceData}
           areaData={areaData}
+          macroData={macroData}
           listingPrisPerKvm={listingData.prisPerKvm}
           marketStatus={analysis.market_status}
         />

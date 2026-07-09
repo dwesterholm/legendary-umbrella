@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PriceComparisonCard } from "@/components/price-comparison-card";
 import { AreaStatsCard } from "@/components/area-stats-card";
+import { MacroContextCard } from "@/components/macro-context-card";
 import { enrichMarketContext } from "@/actions/enrich-market-context";
 import type { PriceData } from "@/lib/market/sold-schema";
 import type { AreaData } from "@/lib/market/scb-schema";
+import type { MacroData } from "@/lib/market/macro-schema";
 
 interface MarketContextSectionProps {
   analysisId: string;
@@ -15,6 +17,8 @@ interface MarketContextSectionProps {
   priceData: PriceData | null;
   /** Persisted, re-validated area_data (null = absent on this row). */
   areaData: AreaData | null;
+  /** Persisted, re-validated macro_data (null = absent on this row). */
+  macroData: MacroData | null;
   /**
    * The listing's own pris/kvm off the row — passed through to the price card so
    * the "ok" headline can show "Denna bostad: X kr/m²" without recomputation.
@@ -68,6 +72,7 @@ export function MarketContextSection({
   analysisId,
   priceData,
   areaData,
+  macroData,
   listingPrisPerKvm,
   marketStatus,
 }: MarketContextSectionProps) {
@@ -75,6 +80,7 @@ export function MarketContextSection({
   // panels without a full reload (mirrors brf-section seeding).
   const [price, setPrice] = useState<PriceData | null>(priceData);
   const [area, setArea] = useState<AreaData | null>(areaData);
+  const [macro, setMacro] = useState<MacroData | null>(macroData);
   const [status, setStatus] = useState<string | null>(marketStatus ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -92,6 +98,7 @@ export function MarketContextSection({
       }
       setPrice(result.data.price);
       setArea(result.data.area);
+      setMacro(result.data.macro);
       setStatus("done");
     });
   };
@@ -128,12 +135,41 @@ export function MarketContextSection({
     );
   }
 
-  // ---- in progress ----
-  if (status === "fetching" || (isPending && !isTerminal)) {
+  // ---- in progress (THIS tab's own enrich transition) ----
+  if (isPending && !isTerminal) {
     return (
       <Card className="w-full max-w-2xl border-warm-gray-200">
         <CardContent className="py-6">
           <p className="text-sm text-warm-gray-500">Hämtar marknadsdata…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ---- persisted "fetching" with NO active transition (WR-05, shard-5 review) ----
+  // Unlike BrfProgress, this component has no poller, so a row that loads
+  // already at market_status === "fetching" (an enrich started in another
+  // tab/session, or one that crashed mid-run) would otherwise spin FOREVER.
+  // Treat it as recoverable — offer a re-fetch affordance instead of an
+  // unbounded spinner (enrichMarketContext is safe to re-run: it re-fetches and
+  // rewrites the terminal status).
+  if (status === "fetching") {
+    return (
+      <Card className="w-full max-w-2xl border-warm-gray-200">
+        <CardContent className="py-6">
+          <p className="text-sm text-warm-gray-500">
+            Hämtningen av marknadsdata slutfördes inte (kan ha startats i en
+            annan flik). Försök igen.
+          </p>
+          <Button
+            type="button"
+            className="mt-3 h-11 bg-sage-600 px-6 text-white hover:bg-sage-700"
+            disabled={isPending}
+            onClick={triggerEnrich}
+          >
+            {isPending ? "Hämtar marknadsdata…" : "Hämta igen"}
+          </Button>
+          {error && <p className="mt-3 text-sm text-terracotta-600">{error}</p>}
         </CardContent>
       </Card>
     );
@@ -175,6 +211,30 @@ export function MarketContextSection({
               </p>
               <p className="mt-1 text-sm text-warm-gray-500">
                 Vi kunde inte hämta SCB-data för det här området just nu.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Macro panel — independent: a null macro NEVER blanks price/area above,
+          and vice versa (D-08 extended, MACRO-01). */}
+      {macro ? (
+        <MacroContextCard macroData={macro} />
+      ) : (
+        <Card className="w-full max-w-2xl border-warm-gray-200">
+          <CardHeader>
+            <CardTitle className="text-2xl font-semibold text-warm-gray-900">
+              Makroekonomisk kontext
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg bg-warm-gray-50 p-4">
+              <p className="text-base font-medium text-warm-gray-700">
+                Makroekonomisk kontext ej tillgänglig
+              </p>
+              <p className="mt-1 text-sm text-warm-gray-500">
+                Vi kunde inte hämta makrodata just nu.
               </p>
             </div>
           </CardContent>

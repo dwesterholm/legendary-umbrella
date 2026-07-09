@@ -1,0 +1,30 @@
+-- Phase 8 (BRF Auto-Fetch): additive-nullable document-source provenance.
+--
+-- 002_brf.sql is ALREADY APPLIED/pushed — per project convention we never
+-- edit an already-applied migration to add a column (db push will not
+-- re-run it), we add a new numbered one (see .claude memory: "Supabase
+-- migration already applied"). 008 is the latest applied migration, so 009
+-- is the free slot.
+--
+-- brf_fetch_source records WHERE the extracted document came from:
+--   'manual'              — user-uploaded PDF (the pre-Phase-8 path, unchanged)
+--   'auto_bolagsverket'   — auto-fetched via the (deferred-in-v1) Bolagsverket rung
+--   'auto_allabrf'        — auto-fetched via the Allabrf fallback rung
+-- Written by runBrfExtraction's terminal persist alongside the existing
+-- brf_data/brf_status/brf_cost_sek/brf_pdf_hash/brf_scanned columns
+-- (ENRICH-01 provenance decision — 08-RESEARCH.md Architectural
+-- Responsibility Map: "brf_fetch_source provenance ... Additive-nullable
+-- column, same convention as brf_pdf_hash/brf_scanned").
+alter table public.analyses add column if not exists brf_fetch_source text;
+
+-- brf_status gains a new transient value 'auto_fetching' (covers both org.nr
+-- resolution and document fetch, per 08-RESEARCH.md Open Question 4). This
+-- requires NO DDL: brf_status is a bare `text` column with no check
+-- constraint anywhere in migrations 001-008 (confirmed via
+-- `grep -rin "brf_status" supabase/migrations/` — every hit is a column
+-- declaration or a comment, never a `check (...)` clause). Only application
+-- code (brf-progress.tsx STEPS, brf-section.tsx View union — Plans 02-04)
+-- needs updating to recognize the new value.
+--
+-- Additive-nullable only: no backfill, no NOT NULL, no default beyond
+-- implicit null. No existing rows are altered by this migration.

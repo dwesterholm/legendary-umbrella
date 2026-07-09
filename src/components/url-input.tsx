@@ -8,7 +8,12 @@ import { analyzeUrl, type AnalyzeResult } from "@/actions/analyze";
 import type { ListingData } from "@/lib/schemas/listing";
 
 interface UrlInputProps {
-  onResult?: (data: ListingData, partial: boolean, missingFields?: string[]) => void;
+  onResult?: (
+    data: ListingData,
+    partial: boolean,
+    missingFields?: string[],
+    brokerFetchFailed?: boolean
+  ) => void;
   onLoadingChange?: (loading: boolean) => void;
 }
 
@@ -52,7 +57,12 @@ export function UrlInput({ onResult, onLoadingChange }: UrlInputProps) {
       }
 
       if (result.data) {
-        onResult?.(result.data, result.partial ?? false, result.missingFields);
+        onResult?.(
+          result.data,
+          result.partial ?? false,
+          result.missingFields,
+          result.brokerFetchFailed
+        );
       }
     });
   }

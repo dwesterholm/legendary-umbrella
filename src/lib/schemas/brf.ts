@@ -187,6 +187,11 @@ export const brfDataSchema = z.object({
     }),
   ),
   manualFields: z.array(z.string()).optional(),
+  // ROADMAP Success Criterion 4 / ENRICH-02: additive-optional so rows
+  // persisted before this field existed still parse (CR-01). Absent/undefined
+  // on the manual-upload path (no auto-detected fiscal year).
+  fiscalYear: z.number().nullable().optional(),
+  isMostRecent: z.boolean().nullable().optional(),
 });
 
 /**

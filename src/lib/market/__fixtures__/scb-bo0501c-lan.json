@@ -1,0 +1,30 @@
+{
+  "class": "dataset",
+  "id": ["Region", "ContentsCode", "Tid"],
+  "size": [1, 1, 2],
+  "dimension": {
+    "Region": {
+      "label": "region",
+      "category": {
+        "index": { "01": 0 },
+        "label": { "01": "01 Stockholm county" }
+      }
+    },
+    "ContentsCode": {
+      "label": "contents",
+      "category": {
+        "index": { "BO0501R8": 0 },
+        "label": { "BO0501R8": "Median price, SEK thousand" }
+      }
+    },
+    "Tid": {
+      "label": "year",
+      "category": {
+        "index": { "2024": 0, "2025": 1 },
+        "label": { "2024": "2024", "2025": "2025" }
+      }
+    }
+  },
+  "value": [3400, 3500],
+  "note": ["Most recent year's figures are preliminary."]
+}

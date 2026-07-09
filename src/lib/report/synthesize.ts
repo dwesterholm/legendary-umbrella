@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { reportSchema, type AiReport } from "@/lib/schemas/report";
 import { REPORT_SYNTHESIS_SYSTEM_PROMPT } from "@/lib/report/prompt";
+import { containsBannedPredictivePhrase } from "@/lib/report/banned-phrases";
 import type { ClaudeUsage } from "@/lib/brf/cost";
 
 /**
@@ -136,6 +137,16 @@ export async function synthesizeReport(
       throw new Error("CLAUDE_PARSE_EMPTY");
     }
 
+    // Tertiary no-prediction enforcement (BL-2): the schema (no verdict field)
+    // and the prompt's ABSOLUT REGEL are layers 1-2; this scans the actually-
+    // synthesized text against the shared banned list and treats a hit as a
+    // guardrail trip — thrown here, so the catch logs it (code only, never the
+    // factSheet) and the action layer routes to a failed status WITHOUT
+    // persisting the offending report.
+    if (containsBannedPredictivePhrase(message.parsed_output)) {
+      throw new Error("BANNED_PREDICTIVE_PHRASE");
+    }
+
     return {
       parsed: message.parsed_output,
       usage: toClaudeUsage(message.usage),
@@ -159,6 +170,7 @@ const KNOWN_SYNTHESIS_CODES = new Set([
   "CLAUDE_REFUSAL",
   "CLAUDE_MAX_TOKENS",
   "CLAUDE_PARSE_EMPTY",
+  "BANNED_PREDICTIVE_PHRASE",
 ]);
 
 /** True when `error` is one of the deliberate stop-reason codes from `runOnce`. */

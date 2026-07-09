@@ -1,7 +1,35 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UrlInput } from "@/components/url-input";
 import { AnalysisCard } from "@/components/analysis-card";
 import { listingDataSchema } from "@/lib/schemas/listing";
+
+/**
+ * The discovery entry-point section, styled identically to "Ny analys"
+ * (same heading treatment). Renders `null` — full absence, no disabled
+ * button, no "coming soon" — when the flag is off (09-UI-SPEC.md Feature
+ * Flag Contract). This is a UX nicety only; `startDiscovery`'s own
+ * literal-first-line flag check (Plan 03) is the real security boundary.
+ */
+function DiscoveryEntryPoint() {
+  if (process.env.DISCOVERY_ENABLED !== "true") {
+    return null;
+  }
+
+  return (
+    <div>
+      <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-warm-gray-500">
+        Sök efter drömbostad
+      </h2>
+      <Link
+        href="/discover"
+        className="inline-flex h-11 items-center rounded-md bg-sage-600 px-6 text-sm font-medium text-white hover:bg-sage-700"
+      >
+        Starta ny sökning
+      </Link>
+    </div>
+  );
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -35,6 +63,9 @@ export default async function DashboardPage() {
         </h2>
         <UrlInput />
       </div>
+
+      {/* Discovery entry point — fully absent when DISCOVERY_ENABLED is off. */}
+      <DiscoveryEntryPoint />
 
       {/* Analysis card grid or empty state */}
       {analyses && analyses.length > 0 ? (
