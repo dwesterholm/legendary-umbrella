@@ -444,6 +444,9 @@ describe("runVisionPass", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
       ...overrides,
     };
   }

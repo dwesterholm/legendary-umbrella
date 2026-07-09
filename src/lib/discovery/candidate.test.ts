@@ -28,6 +28,10 @@ const ALLOWLIST_KEYS = [
   "longitude",
   "floor",
   "orientation",
+  // Ranking/status factors — balcony + coming-soon/new-production discriminators.
+  "balcony",
+  "upcomingSale",
+  "isNewConstruction",
 ].sort();
 
 describe("toCandidate — PII-safe allowlist mapper", () => {
@@ -97,6 +101,9 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
       longitude: 18.06,
       floor: 3,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     });
   });
 
@@ -516,6 +523,9 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     },
     {
       address: "B",
@@ -535,6 +545,9 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     },
   ];
 
@@ -553,6 +566,27 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
     expect(result.shown).toHaveLength(1);
     expect(result.shown[0]?.address).toBe("A");
     expect(result.scanned).toBe(2);
+  });
+
+  it("always excludes upcomingSale (kommande) and new-production listings, regardless of the numeric filter", () => {
+    const mixed: DiscoveryCandidate[] = [
+      { ...candidates[0], address: "active", upcomingSale: false, isNewConstruction: false },
+      { ...candidates[0], address: "kommande", upcomingSale: true },
+      { ...candidates[0], address: "nyproduktion", isNewConstruction: true },
+    ];
+    const noopFilter: DiscoveryFilter = {
+      areaQuery: "Södermalm",
+      priceMax: null,
+      roomsMin: null,
+      sizeMin: null,
+      objectType: "Alla",
+      confidence: 0.9,
+    };
+
+    const result = filterCandidates(mixed, noopFilter);
+
+    expect(result.shown.map((c) => c.address)).toEqual(["active"]);
+    expect(result.scanned).toBe(3);
   });
 
   it("ignores null filter fields (never treats null as a match-nothing constraint)", () => {
@@ -590,6 +624,9 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     }));
 
     const noopFilter: DiscoveryFilter = {

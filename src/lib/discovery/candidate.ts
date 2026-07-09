@@ -10,6 +10,7 @@ const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 const str = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null;
+const bool = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
 /** Non-empty string array or null — mirrors num()/str()'s null-tolerant discipline. */
 const arrOfStr = (v: unknown): string[] | null =>
   Array.isArray(v) && v.every((item) => typeof item === "string" && item.length > 0)
@@ -122,6 +123,12 @@ export interface DiscoveryCandidate {
   longitude: number | null;
   floor: number | null;
   orientation: { facades: Facade[]; confidence: number } | null;
+  /** Has a balcony (a ranking factor + livability signal). */
+  balcony: boolean | null;
+  /** "Kommande" listing — no asking price yet; discovery filters these out. */
+  upcomingSale: boolean | null;
+  /** New-production unit — no renovation upside; discovery filters these out. */
+  isNewConstruction: boolean | null;
 }
 
 /**
@@ -194,6 +201,9 @@ export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
     // this returned object literal (no-spread construction + explicit
     // omission keeps the derived-only PII contract structurally enforced).
     orientation: extractOrientationFromDescription(str(raw.description)),
+    balcony: bool(raw.balcony),
+    upcomingSale: bool(raw.upcomingSale),
+    isNewConstruction: bool(raw.isNewConstruction),
   };
 }
 
@@ -271,6 +281,9 @@ export const discoveryCandidateSchema = z.object({
     })
     .nullable()
     .default(null),
+  balcony: z.boolean().nullable().default(null),
+  upcomingSale: z.boolean().nullable().default(null),
+  isNewConstruction: z.boolean().nullable().default(null),
 });
 
 /** Result of filtering a candidate array: what's shown vs. how many matched. */
@@ -312,6 +325,10 @@ export function filterCandidates(
   cap: number = CAP_CANDIDATES_MAX,
 ): FilterCandidatesResult {
   const matched = candidates.filter((candidate) => {
+    // Always exclude "kommande" (no asking price yet, can't assess) and
+    // new-production (no renovation upside) — these are not real, rankable
+    // for-sale objects for discovery, regardless of the numeric filter.
+    if (candidate.upcomingSale === true || candidate.isNewConstruction === true) return false;
     if (filter.priceMax !== null) {
       if (candidate.price === null || candidate.price > filter.priceMax) return false;
     }

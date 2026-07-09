@@ -28,6 +28,9 @@ function makeCandidate(overrides: Partial<DiscoveryCandidate> = {}): DiscoveryCa
     longitude: null,
     floor: null,
     orientation: null,
+    balcony: null,
+    upcomingSale: null,
+    isNewConstruction: null,
     ...overrides,
   };
 }

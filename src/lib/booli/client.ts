@@ -181,10 +181,51 @@ export function brfNameFromBreadcrumbs(breadcrumbs: unknown): string | null {
 // degrades on `imageUrls: null` regardless of WHY it's null.
 // ---------------------------------------------------------------------------
 
-/** One assumed Apollo image-ref item shape (RESEARCH Assumption A1/A2). */
+/**
+ * A resolved image: a real bcdn.se URL + its `primaryLabel` type ("interior",
+ * "floorplan", "kitchen", …). Produced by `resolveImageRefs` from the Apollo
+ * `images: [{__ref:"Image:ID"}]` refs (live shape confirmed 2026-07-09 —
+ * the assumed inline-`{url}` shape never existed).
+ */
 interface ApolloImageRef {
   url?: string;
   type?: string;
+}
+
+/** Booli image CDN URL template — the Image entity carries only `id`, not a URL. */
+const bcdnImageUrl = (id: string): string => `https://bcdn.se/images/cache/${id}_1440x0.webp`;
+
+/**
+ * Resolves a Listing entity's `images: [{__ref:"Image:<id>"}]` refs against the
+ * FULL Apollo state (where the `Image:<id>` entities live) into `{url, type}`
+ * items. The `Image` entity has no URL — only `id` + `primaryLabel` — so the
+ * bcdn.se gallery URL is built from the id (`bcdnImageUrl`). Never throws: a
+ * missing field, a non-array `images`, or an unresolvable ref degrades to
+ * being skipped. Called from `collectListingEntities`, the one place that
+ * still has the Apollo state; the resolved array is written back onto the
+ * entity's `images` field so `reshapeListingEntity`/`extractImageUrls` (which
+ * see only the flat entity) can consume it.
+ */
+function resolveImageRefs(
+  entry: Record<string, unknown>,
+  state: Record<string, unknown>,
+): ApolloImageRef[] {
+  const refs = entry.images;
+  if (!Array.isArray(refs)) return [];
+  const out: ApolloImageRef[] = [];
+  for (const r of refs) {
+    const ref =
+      r && typeof r === "object" && "__ref" in r ? (r as { __ref: unknown }).__ref : null;
+    if (typeof ref !== "string" || !ref.startsWith("Image:")) continue;
+    const img = state[ref] as { id?: unknown; primaryLabel?: unknown } | undefined;
+    const id = img && typeof img.id === "string" ? img.id : null;
+    if (!id) continue;
+    out.push({
+      url: bcdnImageUrl(id),
+      type: typeof img?.primaryLabel === "string" ? img.primaryLabel : undefined,
+    });
+  }
+  return out;
 }
 
 /**
@@ -207,12 +248,14 @@ interface ApolloImageRef {
  * widening it ahead of confirmation would speculatively expand the SSRF
  * surface.
  *
- * UAT FOLLOW-UP: if the deferred live probe (`scripts/probe-booli-images.ts`,
- * run by the operator against a real listing per its own doc comment) finds
- * that Booli actually serves gallery images from a distinct `bcdn.se`
- * (or other) CDN host, add it back here with a citation to the probe
- * output/an updated `PROBE-FINDINGS.md` entry — never speculatively ahead of
- * that confirmation.
+ * UAT FOLLOW-UP RESOLVED (2026-07-09): a live headless render of a real Booli
+ * detail page (`/bostad/708259`) confirmed Booli serves ALL gallery/interior/
+ * floor-plan images from `bcdn.se` (e.g. `https://bcdn.se/images/cache/
+ * 54356971_1440x0.webp`), never from `booli.se`. `bcdn.se` is therefore added
+ * here WITH that probe confirmation (not speculatively) — without it,
+ * `extractImageUrls` filtered out every image and the vision pass could never
+ * run (always `no_images`). `hm.bcdn.se` (broker-logo subdomain) is covered by
+ * the `.bcdn.se` suffix match.
  *
  * WR-03 (12-REVIEW.md): exported (was module-private) so `candidate.ts`'s
  * READ-path Zod guard (`discoveryCandidateSchema`) can re-apply this SAME
@@ -223,8 +266,12 @@ interface ApolloImageRef {
 export function isAllowedImageHost(url: string): boolean {
   try {
     const { hostname, protocol } = new URL(url);
+    if (protocol !== "https:") return false;
     return (
-      protocol === "https:" && (hostname === "booli.se" || hostname.endsWith(".booli.se"))
+      hostname === "booli.se" ||
+      hostname.endsWith(".booli.se") ||
+      hostname === "bcdn.se" ||
+      hostname.endsWith(".bcdn.se")
     );
   } catch {
     return false;
@@ -253,11 +300,15 @@ export function isAllowedImageHost(url: string): boolean {
  *   so `toCandidate`'s `arrOfStr` normalizes this to `null`.
  */
 function extractImageUrls(entry: Record<string, unknown>): string[] | undefined {
-  const images = argKeyedFieldOf(entry, "images(") as ApolloImageRef[] | undefined;
+  // `entry.images` is the RESOLVED `{url,type}[]` written back by
+  // `resolveImageRefs` in collectListingEntities (the raw `[{__ref}]` refs
+  // cannot be resolved here — the flat entity no longer has the Apollo state).
+  const images = Array.isArray(entry.images) ? (entry.images as ApolloImageRef[]) : undefined;
   if (!Array.isArray(images)) return undefined;
 
   const isFloorPlan = (item: ApolloImageRef): boolean =>
-    typeof item?.type === "string" && /floor.?plan|planritning|plan(ritning)?/i.test(item.type);
+    typeof item?.type === "string" &&
+    /floor.?plan|planritning|planlösning|layout/i.test(item.type);
 
   const withUrls = images.filter(
     (item): item is ApolloImageRef & { url: string } =>
@@ -310,6 +361,13 @@ function reshapeListingEntity(entry: Record<string, unknown>): Record<string, un
     listSqmPrice: entry.listSqmPrice ?? undefined,
     objectType: str(entry.objectType) ?? undefined,
     tenureForm: str(entry.tenureForm) ?? undefined,
+    // Listing status discriminators (live-confirmed 2026-07-09) — a "kommande"
+    // (upcomingSale) listing has NO asking price yet, and new-production has no
+    // renovation upside, so discovery filters both out. Passed through as-is
+    // (booleans) for toCandidate to read.
+    upcomingSale: typeof entry.upcomingSale === "boolean" ? entry.upcomingSale : undefined,
+    isNewConstruction:
+      typeof entry.isNewConstruction === "boolean" ? entry.isNewConstruction : undefined,
     // Join-key fields (03-SPIKE.md contract) — retained unchanged.
     latitude: num(entry.latitude) ?? undefined,
     longitude: num(entry.longitude) ?? undefined,
@@ -341,7 +399,7 @@ function reshapeListingEntity(entry: Record<string, unknown>): Record<string, un
     // normalizeScraperOutput reads these via `raw.floor`/`raw.balcony`. Do
     // NOT re-derive any of these three from a broker page — Apollo is the
     // more reliable first-party source (RESEARCH Anti-Pattern).
-    balcony: amenityKeys(entry.amenities).includes("balcony"),
+    balcony: amenityKeys(entry.amenities).includes("balcony") || entry.balcony === true,
     brfName: brfNameFromBreadcrumbs(entry.breadcrumbs) ?? undefined,
   };
 }
@@ -360,7 +418,12 @@ function collectListingEntities(items: unknown[]): Record<string, unknown>[] {
     for (const [key, value] of Object.entries(state as Record<string, unknown>)) {
       if (!key.startsWith(LISTING_ENTITY_PREFIX)) continue;
       if (!value || typeof value !== "object") continue;
-      out.push(value as Record<string, unknown>);
+      const entity = value as Record<string, unknown>;
+      // Resolve image refs HERE, the only place with the Apollo state — write
+      // the resolved {url,type}[] back onto `images` so reshapeListingEntity /
+      // extractImageUrls (which see only the flat entity) can read them.
+      entity.images = resolveImageRefs(entity, state as Record<string, unknown>);
+      out.push(entity);
     }
   }
   return out;

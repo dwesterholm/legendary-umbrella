@@ -180,6 +180,9 @@ describe("runSlice — happy path scrape + persist", () => {
         "longitude",
         "floor",
         "orientation",
+        "balcony",
+        "upcomingSale",
+        "isNewConstruction",
       ].sort(),
     );
     expect(results[0]).toEqual({
@@ -200,6 +203,9 @@ describe("runSlice — happy path scrape + persist", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     });
 
     expect(payload.candidate_count).toBe(1);
@@ -301,6 +307,9 @@ function makeCandidate(overrides: Partial<DiscoveryCandidate> = {}): DiscoveryCa
     longitude: null,
     floor: null,
     orientation: null,
+    balcony: null,
+    upcomingSale: null,
+    isNewConstruction: null,
     ...overrides,
   };
 }

@@ -23,6 +23,7 @@ import {
   fetchSoldComps,
   amenityKeys,
   brfNameFromBreadcrumbs,
+  isAllowedImageHost,
   type SoldSourceQuery,
 } from "@/lib/booli/client";
 
@@ -514,41 +515,54 @@ describe("reshapeListingEntity (via fetchListing) — description surfaced from 
  * never-throwing), not the unconfirmed field names themselves.
  */
 describe("reshapeListingEntity imageUrls extractor (via fetchListing) — Phase 11 DISC-04", () => {
-  const IMG = (n: number, opts: { type?: string } = {}) => ({
-    url: `https://bcdn.booli.se/img/${n}.jpg`,
-    ...opts,
-  });
-
-  it("caps a 6-image images( ref at CAP_IMAGES_PER_LISTING (4), floor plan first when discriminable", async () => {
-    succeedRun();
-    const entity = {
-      ...listingDetailFixture,
-      'images({"queryContext":"PROPERTY_PAGE_LISTING"})': [
-        IMG(1),
-        IMG(2, { type: "floorplan" }),
-        IMG(3),
-        IMG(4),
-        IMG(5),
-        IMG(6),
-      ],
+  // REAL shape (live-confirmed 2026-07-09, replacing the earlier ASSUMED
+  // inline-`{url}` shape): the Listing entity holds `images: [{__ref:"Image:<id>"}]`;
+  // each `Image:<id>` entity carries only {id, primaryLabel}; the gallery URL is
+  // BUILT as https://bcdn.se/images/cache/<id>_1440x0.webp and resolved by
+  // collectListingEntities against the Apollo state.
+  const bcdn = (id: string) => `https://bcdn.se/images/cache/${id}_1440x0.webp`;
+  const stateWith = (imgs: Array<{ id: string; primaryLabel?: string }>) => {
+    const entities: Record<string, Record<string, unknown>> = {
+      "Listing:4463691": {
+        ...listingDetailFixture,
+        images: imgs.map((im) => ({ __ref: `Image:${im.id}` })),
+      },
     };
+    for (const im of imgs) {
+      entities[`Image:${im.id}`] = { __typename: "Image", id: im.id, primaryLabel: im.primaryLabel };
+    }
+    return entities;
+  };
+
+  it("resolves image refs to bcdn.se URLs, caps at CAP_IMAGES_PER_LISTING (4), floor plan (primaryLabel) first", async () => {
+    succeedRun();
     listItems.mockResolvedValue({
-      items: [apolloItem({ "Listing:4463691": entity })],
+      items: [
+        apolloItem(
+          stateWith([
+            { id: "1", primaryLabel: "interior" },
+            { id: "2", primaryLabel: "floorplan" },
+            { id: "3" },
+            { id: "4" },
+            { id: "5" },
+            { id: "6" },
+          ]),
+        ),
+      ],
     });
 
     const result = await fetchListing(DETAIL_URL);
 
-    expect(Array.isArray(result.imageUrls)).toBe(true);
     const urls = result.imageUrls as string[];
     expect(urls).toHaveLength(4);
-    expect(urls[0]).toBe("https://bcdn.booli.se/img/2.jpg"); // floor plan first
+    expect(urls[0]).toBe(bcdn("2")); // floor plan first
+    expect(urls.every((u) => u.startsWith("https://bcdn.se/"))).toBe(true);
   });
 
-  it("yields imageUrls:undefined (never a throw) when no images( ref exists — degrades via toCandidate to null", async () => {
+  it("yields imageUrls:undefined (never a throw) when the entity has no image refs — degrades via toCandidate to null", async () => {
     succeedRun();
-    const entity = { ...listingDetailFixture };
     listItems.mockResolvedValue({
-      items: [apolloItem({ "Listing:4463691": entity })],
+      items: [apolloItem({ "Listing:4463691": { ...listingDetailFixture } })],
     });
 
     const result = await fetchListing(DETAIL_URL);
@@ -557,85 +571,57 @@ describe("reshapeListingEntity imageUrls extractor (via fetchListing) — Phase 
     expect(toCandidate(result).imageUrls).toBeNull();
   });
 
-  it("skips an image item with a missing/non-string url, never coercing it to a broken string", async () => {
+  it("skips a ref that doesn't resolve to an Image entity with an id, never fabricating a URL", async () => {
     succeedRun();
-    const entity = {
-      ...listingDetailFixture,
-      'images({"queryContext":"PROPERTY_PAGE_LISTING"})': [
-        IMG(1),
-        { type: "gallery" }, // no url
-        { url: 12345 }, // non-string url
-        IMG(2),
-      ],
-    };
+    const entities = stateWith([{ id: "1", primaryLabel: "interior" }]);
+    (entities["Listing:4463691"].images as unknown[]).push(
+      { __ref: "Image:missing" }, // no matching entity
+      { __ref: "Image:noid" }, // entity present but no id
+    );
+    entities["Image:noid"] = { __typename: "Image" };
+    listItems.mockResolvedValue({ items: [apolloItem(entities)] });
+
+    const result = await fetchListing(DETAIL_URL);
+
+    expect(result.imageUrls).toEqual([bcdn("1")]);
+  });
+
+  it("allows bcdn.se — Booli's real image CDN (probe-confirmed 2026-07-09)", async () => {
+    succeedRun();
     listItems.mockResolvedValue({
-      items: [apolloItem({ "Listing:4463691": entity })],
+      items: [apolloItem(stateWith([{ id: "42", primaryLabel: "kitchen" }]))],
     });
 
     const result = await fetchListing(DETAIL_URL);
 
-    expect(result.imageUrls).toEqual([
-      "https://bcdn.booli.se/img/1.jpg",
-      "https://bcdn.booli.se/img/2.jpg",
-    ]);
+    expect(result.imageUrls).toEqual([bcdn("42")]);
   });
 
-  it("drops an image URL whose host is NOT on the Booli CDN allowlist (SSRF defense-in-depth)", async () => {
+  it("toCandidate maps imageUrls; vision and visionSkippedReason default to null", async () => {
     succeedRun();
-    const entity = {
-      ...listingDetailFixture,
-      'images({"queryContext":"PROPERTY_PAGE_LISTING"})': [
-        { url: "https://evil.example/steal.jpg" },
-        IMG(1),
-        { url: "https://bcdn.booli.se.evil.example/x.jpg" }, // substring bypass attempt
-      ],
-    };
     listItems.mockResolvedValue({
-      items: [apolloItem({ "Listing:4463691": entity })],
-    });
-
-    const result = await fetchListing(DETAIL_URL);
-
-    expect(result.imageUrls).toEqual(["https://bcdn.booli.se/img/1.jpg"]);
-  });
-
-  it("WR-03 (11-REVIEW.md): drops a bare bcdn.se host — NOT a *.booli.se subdomain, never confirmed by RESEARCH.md or a live probe", async () => {
-    succeedRun();
-    const entity = {
-      ...listingDetailFixture,
-      'images({"queryContext":"PROPERTY_PAGE_LISTING"})': [
-        { url: "https://bcdn.se/gallery/unverified.jpg" },
-        IMG(1),
-      ],
-    };
-    listItems.mockResolvedValue({
-      items: [apolloItem({ "Listing:4463691": entity })],
-    });
-
-    const result = await fetchListing(DETAIL_URL);
-
-    expect(result.imageUrls).toEqual(["https://bcdn.booli.se/img/1.jpg"]);
-  });
-
-  it("toCandidate maps raw.imageUrls via arrOfStr; vision and visionSkippedReason default to null", async () => {
-    succeedRun();
-    const entity = {
-      ...listingDetailFixture,
-      'images({"queryContext":"PROPERTY_PAGE_LISTING"})': [IMG(1), IMG(2)],
-    };
-    listItems.mockResolvedValue({
-      items: [apolloItem({ "Listing:4463691": entity })],
+      items: [apolloItem(stateWith([{ id: "1" }, { id: "2" }]))],
     });
 
     const raw = await fetchListing(DETAIL_URL);
     const candidate = toCandidate(raw);
 
-    expect(candidate.imageUrls).toEqual([
-      "https://bcdn.booli.se/img/1.jpg",
-      "https://bcdn.booli.se/img/2.jpg",
-    ]);
+    expect(candidate.imageUrls).toEqual([bcdn("1"), bcdn("2")]);
     expect(candidate.vision).toBeNull();
     expect(candidate.visionSkippedReason).toBeNull();
+  });
+
+  it("isAllowedImageHost: allows booli.se + bcdn.se (https only), rejects other hosts + substring-bypass attempts", () => {
+    expect(isAllowedImageHost("https://booli.se/x.jpg")).toBe(true);
+    expect(isAllowedImageHost("https://img.booli.se/x.jpg")).toBe(true);
+    expect(isAllowedImageHost("https://bcdn.se/images/cache/1_1440x0.webp")).toBe(true);
+    expect(isAllowedImageHost("https://hm.bcdn.se/logo.png")).toBe(true);
+    // rejected
+    expect(isAllowedImageHost("http://bcdn.se/x.jpg")).toBe(false); // not https
+    expect(isAllowedImageHost("https://evil.example/x.jpg")).toBe(false);
+    expect(isAllowedImageHost("https://bcdn.se.evil.example/x.jpg")).toBe(false); // substring bypass
+    expect(isAllowedImageHost("https://booli.se.evil.example/x.jpg")).toBe(false);
+    expect(isAllowedImageHost("not a url")).toBe(false);
   });
 
   it("discoveryCandidateSchema.safeParse succeeds on a legacy row with NO imageUrls/vision/visionSkippedReason keys, normalizing all three to null", () => {
