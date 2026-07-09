@@ -10,10 +10,13 @@ import {
   type AnalyzeBrfResult,
 } from "@/lib/brf/run-extraction";
 
-// Re-exported so existing importers (brf-section.tsx, brf-score-card.tsx,
-// brf-upload.tsx, page.tsx) keep resolving these names from this module after
-// the refactor — the public import surface is preserved exactly.
-export type { BrfData, AnalyzeBrfResult };
+// NOTE: do NOT re-export these types from this "use server" module. Turbopack's
+// server-action loader (Next 16) enumerates `export type { … }` re-export
+// SPECIFIERS as if they were server actions and emits
+// `registerServerReference(BrfData, …)` against a type that has no runtime
+// binding → `ReferenceError: BrfData is not defined` at import time. Importers
+// pull these types directly from `@/lib/brf/run-extraction` instead. (Inline
+// `export type Foo = …` aliases are safe — only the specifier form breaks.)
 
 /** Server-side upload limit (D-14). */
 const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20 MB

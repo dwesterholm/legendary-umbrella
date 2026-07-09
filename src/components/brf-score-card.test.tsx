@@ -7,7 +7,7 @@ vi.mock("@/actions/analyze-brf", () => ({
 }));
 
 import { BrfScoreCard } from "@/components/brf-score-card";
-import type { BrfData } from "@/actions/analyze-brf";
+import type { BrfData } from "@/lib/brf/run-extraction";
 
 /**
  * Regression suite for the ROADMAP Success Criterion 4 gap closure

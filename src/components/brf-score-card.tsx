@@ -10,7 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { correctBrfField, type BrfData } from "@/actions/analyze-brf";
+import { correctBrfField } from "@/actions/analyze-brf";
+import type { BrfData } from "@/lib/brf/run-extraction";
 import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
 import type {
   BrfGrade,

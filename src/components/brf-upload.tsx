@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { analyzeBrf, type AnalyzeBrfResult } from "@/actions/analyze-brf";
+import { analyzeBrf } from "@/actions/analyze-brf";
+import type { AnalyzeBrfResult } from "@/lib/brf/run-extraction";
 
 interface BrfUploadProps {
   analysisId: string;
