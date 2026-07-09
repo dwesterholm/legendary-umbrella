@@ -128,7 +128,7 @@ export async function runSlice(
 
   // (2) Resolve the area. A miss is an honest "we don't cover that area yet"
   // failure, never a fabricated areaId (resolveArea's own contract).
-  const resolution = await resolveArea(filters.areaQuery);
+  const resolution = await resolveArea(filters.areaQuery, supabase);
   if (!resolution) {
     await updateJob(supabase, jobId, { status: "failed" });
     return;
