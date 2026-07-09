@@ -5,6 +5,13 @@ import {
   type AreaSuggestion,
 } from "@/lib/booli/area-suggestion-page-function";
 import { seedResolve } from "@/lib/discovery/area-seed";
+import type { createClient } from "@/lib/supabase/server";
+
+/** Supabase client shape resolveArea needs for the shared area cache. */
+type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
+
+/** Shared, learn-as-you-go area-name → areaId cache table (migration 012). */
+const CACHE_TABLE = "area_cache";
 
 /**
  * resolve-area.ts — turns a free-text Swedish area name (e.g. "Södermalm",
@@ -32,8 +39,8 @@ import { seedResolve } from "@/lib/discovery/area-seed";
 
 export interface AreaResolution {
   areaId: string;
-  source: "probe" | "seed";
-  /** Human label for the resolved area (probe only), e.g. "Vasastan, Stockholms kommun". */
+  source: "probe" | "seed" | "cache";
+  /** Human label for the resolved area (probe/cache), e.g. "Vasastan, Stockholms kommun". */
   label?: string;
 }
 
@@ -111,24 +118,85 @@ async function probeResolve(name: string): Promise<AreaResolution | null> {
   }
 }
 
+/** Reads a previously-cached resolution. Never throws — a miss/error is `null`. */
+async function readAreaCache(supabase: SupabaseServer, key: string): Promise<AreaResolution | null> {
+  try {
+    const { data, error } = await supabase
+      .from(CACHE_TABLE)
+      .select("area_id, label")
+      .eq("query_key", key)
+      .maybeSingle();
+    if (error || !data) return null;
+    const row = data as { area_id: string; label: string | null };
+    return { areaId: row.area_id, source: "cache", label: row.label ?? undefined };
+  } catch (e) {
+    console.error("[resolve-area] cache read failed", e);
+    return null;
+  }
+}
+
+/** Persists a resolution so the next search for this area is a free DB read. Never throws. */
+async function writeAreaCache(supabase: SupabaseServer, key: string, res: AreaResolution): Promise<void> {
+  try {
+    await supabase.from(CACHE_TABLE).upsert(
+      {
+        query_key: key,
+        area_id: res.areaId,
+        label: res.label ?? null,
+        source: res.source,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "query_key" },
+    );
+  } catch (e) {
+    // Non-fatal: a cache write failure must never break resolution.
+    console.error("[resolve-area] cache write failed", e);
+  }
+}
+
 /**
- * Resolves a free-text Swedish area name to a Booli `areaId`, trying the live
- * probe first and falling back to the static seed list. Never fabricates an id
- * — returns `null` when neither path resolves.
+ * Resolves a free-text Swedish area name to a Booli `areaId`. Resolution order:
+ *   1. our own DB cache (`area_cache`) — a previously-resolved area is free,
+ *   2. the static seed list — instant, curated launch-region areas,
+ *   3. the live Booli probe — the expensive headless-render path; a hit is
+ *      PERSISTED to the cache so the next search for this area skips Booli.
+ *
+ * Over time the cache absorbs the popular areas and Booli's own search is hit
+ * less and less. Never fabricates an id — returns `null` when all paths miss.
+ * The cache is only consulted/written when a `supabase` client is supplied;
+ * without one (e.g. unit tests), behaviour is the original seed+probe path.
  *
  * @param name - free-text area name (e.g. "Södermalm", "Hornstull")
+ * @param supabase - optional client for the shared area cache (read + write)
  */
-export async function resolveArea(name: string): Promise<AreaResolution | null> {
-  const probed = await probeResolve(name);
-  if (probed) {
-    console.error("[resolve-area] served by probe");
-    return probed;
+export async function resolveArea(
+  name: string,
+  supabase?: SupabaseServer,
+): Promise<AreaResolution | null> {
+  const key = name.trim().toLowerCase();
+
+  // (1) Our own DB cache first.
+  if (supabase && key) {
+    const cached = await readAreaCache(supabase, key);
+    if (cached) {
+      console.error("[resolve-area] served by cache");
+      return cached;
+    }
   }
 
+  // (2) Static seed — free, curated, never needs Booli.
   const seedAreaId = seedResolve(name);
   if (seedAreaId) {
     console.error("[resolve-area] served by seed");
     return { areaId: seedAreaId, source: "seed" };
+  }
+
+  // (3) Live Booli probe — persist the hit so the NEXT search is a cache read.
+  const probed = await probeResolve(name);
+  if (probed) {
+    console.error("[resolve-area] served by probe");
+    if (supabase && key) await writeAreaCache(supabase, key, probed);
+    return probed;
   }
 
   return null;

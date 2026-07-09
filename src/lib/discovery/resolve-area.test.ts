@@ -42,6 +42,23 @@ const VASASTAN: AreaSuggestion[] = [
   sug({ type: "Street", typeDisplayName: "Gata", id: "90988", displayName: "Sankt Eriksgatan", parent: "Stockholm", parentId: "1", parentDisplayName: "Stockholms kommun" }),
 ];
 
+/** Minimal area_cache-capable Supabase stub: one cached row + captured upserts. */
+function makeSupabase(cacheRow: { area_id: string; label: string | null } | null) {
+  const upserts: Array<Record<string, unknown>> = [];
+  const client = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: cacheRow, error: null }) }),
+      }),
+      upsert: async (row: Record<string, unknown>) => {
+        upserts.push(row);
+        return { error: null };
+      },
+    }),
+  };
+  return { client: client as unknown as Parameters<typeof resolveArea>[1], upserts };
+}
+
 beforeEach(() => {
   runPlaywrightRender.mockReset();
 });
@@ -76,15 +93,24 @@ describe("pickBestSuggestion", () => {
 });
 
 describe("resolveArea", () => {
-  it("resolves via the probe to the best suggestion's areaId + label", async () => {
-    runPlaywrightRender.mockResolvedValue([{ hasApollo: true, suggestions: VASASTAN }]);
+  it("resolves via the probe to the best suggestion's areaId + label (non-seeded area)", async () => {
+    // Hornstull is NOT in the seed, so resolution reaches the probe.
+    runPlaywrightRender.mockResolvedValue([
+      {
+        hasApollo: true,
+        suggestions: [
+          sug({ type: "SubAdministrativeArea", typeDisplayName: "Stadsdel", id: "845555", displayName: "Hornstull", parent: "Stockholm", parentId: "1", parentDisplayName: "Stockholms kommun" }),
+          sug({ type: "Street", typeDisplayName: "Gata", id: "90988", displayName: "Hornsgatan", parent: "Stockholm", parentId: "1", parentDisplayName: "Stockholms kommun" }),
+        ],
+      },
+    ]);
 
-    const result = await resolveArea("Vasastan");
+    const result = await resolveArea("Hornstull");
 
     expect(result).toEqual({
-      areaId: "115349",
+      areaId: "845555",
       source: "probe",
-      label: "Vasastan, Stockholms kommun",
+      label: "Hornstull, Stockholms kommun",
     });
   });
 
@@ -117,6 +143,50 @@ describe("resolveArea", () => {
 
     expect((await resolveArea("Östermalm"))?.areaId).toBe("115348");
     expect((await resolveArea("Vasastan"))?.areaId).toBe("115349");
+  });
+});
+
+describe("resolveArea — area_cache (migration 012)", () => {
+  it("returns a cached resolution first, without touching the seed or Booli", async () => {
+    const { client } = makeSupabase({ area_id: "845555", label: "Hornstull, Stockholms kommun" });
+
+    const result = await resolveArea("Hornstull", client);
+
+    expect(result).toEqual({
+      areaId: "845555",
+      source: "cache",
+      label: "Hornstull, Stockholms kommun",
+    });
+    expect(runPlaywrightRender).not.toHaveBeenCalled();
+  });
+
+  it("persists a probe hit to the cache so the next lookup is free", async () => {
+    runPlaywrightRender.mockResolvedValue([
+      {
+        hasApollo: true,
+        suggestions: [
+          sug({ typeDisplayName: "Stadsdel", id: "845555", displayName: "Hornstull", parentDisplayName: "Stockholms kommun" }),
+        ],
+      },
+    ]);
+    const { client, upserts } = makeSupabase(null); // cache miss
+
+    const result = await resolveArea("Hornstull", client);
+
+    expect(result?.source).toBe("probe");
+    expect(result?.areaId).toBe("845555");
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]).toMatchObject({ query_key: "hornstull", area_id: "845555", source: "probe" });
+  });
+
+  it("does not persist a seed hit (seed is already free, never cost Booli)", async () => {
+    const { client, upserts } = makeSupabase(null); // cache miss → seed hit
+
+    const result = await resolveArea("Södermalm", client);
+
+    expect(result?.source).toBe("seed");
+    expect(upserts).toHaveLength(0);
+    expect(runPlaywrightRender).not.toHaveBeenCalled();
   });
 });
 
