@@ -401,10 +401,40 @@ describe("runVisionForCandidate", () => {
     expect(remodelClaim?.claim).toContain(
       "Planlösningen antyder att en vägg eventuellt kan vara värt att undersöka.",
     );
-    // ...with the mandatory disclaimer appended, unconditionally.
+    // ...and because it proposes a WALL change, the structural disclaimer is appended.
     expect(remodelClaim?.claim).toContain("kräver konstruktör");
     // And still no banned load-bearing verdict word anywhere in the final text.
     expect(remodelClaim?.claim).not.toMatch(/\bbärande\b|\bicke-bärande\b/i);
+  });
+
+  it("a COSMETIC (non-structural) remodelPotential claim is kept verbatim WITHOUT the konstruktör disclaimer", async () => {
+    // Broadened prompt yields non-wall value-adds; the wall disclaimer must NOT
+    // be bolted onto e.g. a repaint/mikrocement/kitchen-refresh suggestion.
+    parse
+      .mockResolvedValueOnce({
+        parsed_output: { worthDeepPass: true },
+        usage: baseUsage(),
+        stop_reason: "end_turn",
+      })
+      .mockResolvedValueOnce({
+        parsed_output: deepPassOutput({
+          remodelPotential: attr({
+            claim:
+              "Köket ser daterat ut och skulle kunna målas om i en modernare kulör och få nya vitvaror för att höja värdet.",
+            imageIndex: 1,
+            whatWasSeen: "kök med äldre luckor",
+            confidence: 0.7,
+          }),
+        }),
+        usage: baseUsage(),
+        stop_reason: "end_turn",
+      });
+
+    const result = await runVisionForCandidate("booli-12", ["https://img.example/1.jpg"]);
+    const remodelClaim = result.result?.claims.find((c) => c.attribute === "remodelPotential");
+
+    expect(remodelClaim?.claim).toContain("målas om i en modernare kulör");
+    expect(remodelClaim?.claim).not.toContain("kräver konstruktör"); // no wall → no structural disclaimer
   });
 
   it("logs ONLY { booliId, code } on a thrown Anthropic error and rethrows a coded error", async () => {
@@ -444,6 +474,9 @@ describe("runVisionPass", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
       ...overrides,
     };
   }

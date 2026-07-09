@@ -57,10 +57,10 @@ Bedöm kök, badrum och allmänt skick var för sig. För varje del:
 - Ange alltid vilken bild (imageIndex, 1-baserat) och vilken specifik synlig detalj (whatWasSeen) som stödjer bedömningen — fysiska ytskikt/inredning (t.ex. vitvaror, kakel, golv, armaturer), ALDRIG personer eller identifierbara detaljer.
 - Ange din konfidens (0-1) i bedömningen.
 
-Bedöm ÄVEN planlösningens potential för framtida ombyggnad utifrån planritningen, om en sådan finns bland bilderna (remodelPotential):
-- Peka ALDRIG ut en vägg som bärande eller icke-bärande som ett FAKTUM. Formulera ENDAST som en fråga att utreda vidare, t.ex. "planlösningen antyder att en vägg eventuellt kan vara värt att undersöka".
-- Avsluta ALLTID denna bedömning med frasen "kräver konstruktör / väggutredning".
-- Använd ALDRIG orden "bärande", "icke-bärande", "garanterat", "definitivt" eller frasen "kan enkelt rivas" i denna bedömning.
-- Om ingen planritning finns bland bilderna, eller planlösningen inte går att bedöma, lämna claim null — hitta inte på en bedömning.
+Bedöm ÄVEN bostadens VÄRDEHÖJANDE potential som en professionell renoverare skulle se den (remodelPotential) — enklare åtgärder som relativt snabbt kan höja bostadens värde. Exempel (inte uttömmande): ta ner en vägg för mer ljus/öppen yta, sätta upp en vägg för att skapa ett extra rum (t.ex. 1:a → 2:a), måla om i en modernare/trendig kulör, fräscha upp ett daterat badrum (t.ex. mikrocement över gammalt kakel), renovera köket (nya vitvaror, måla luckor, ny bänkskiva), eller ett tydligt förestående stambyte som ger nytt badrum. Utgå ENBART från vad bilderna (inklusive planritning om en sådan finns) faktiskt visar.
+- Håll bedömningen HEDGAD ("verkar", "ser ut att", "tyder på", "skulle kunna") — uttala dig ALDRIG som en dom.
+- Om den föreslagna åtgärden rör en VÄGG eller annan bärande/strukturell förändring: peka ALDRIG ut en vägg som bärande eller icke-bärande som ett FAKTUM — formulera det ENDAST som något att utreda vidare. Använd ALDRIG orden "bärande", "icke-bärande", "garanterat", "definitivt" eller frasen "kan enkelt rivas".
+- Ange alltid vilken bild (imageIndex, 1-baserat) och vilken synlig detalj (whatWasSeen) som motiverar förslaget — precis som för kök/badrum/allmänt skick.
+- Om bilderna inte ger stöd för någon konkret värdehöjande åtgärd, lämna claim null — hitta ALDRIG på en åtgärd.
 
 Svara ENDAST enligt schemat.`;

@@ -10,6 +10,7 @@ const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 const str = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null;
+const bool = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
 /** Non-empty string array or null — mirrors num()/str()'s null-tolerant discipline. */
 const arrOfStr = (v: unknown): string[] | null =>
   Array.isArray(v) && v.every((item) => typeof item === "string" && item.length > 0)
@@ -28,6 +29,34 @@ const rawOf = (v: unknown): number | null =>
   v && typeof v === "object" && "raw" in v
     ? num((v as { raw: unknown }).raw)
     : null;
+/** Unwraps a bare number OR an Apollo `{raw:N}` FormattedValue to a number, else null. */
+const numOrRaw = (v: unknown): number | null => num(v) ?? rawOf(v);
+
+/**
+ * Booli's AREA-search Apollo entity does NOT carry flat `rooms`/`livingArea`/
+ * `floor` numbers the way a single-listing DETAIL entity does — they arrive only
+ * as human-readable `displayDataPoints` strings ("93 m²", "3 rum", "vån 2",
+ * "3 731 kr/mån"). `toCandidate` runs on `reshapeListingEntity`'s output for BOTH
+ * paths, so on the discovery (fetchAreaListings) path those numeric fields are
+ * absent and must be recovered here or every candidate ranks with null size/rooms.
+ *
+ * Scans `displayDataPoints[].value.plainText` for the first match of `re` and
+ * parses capture group 1 as a Swedish-formatted number (space thousand-separators,
+ * comma decimal). Returns null on no match / no data points — never throws.
+ */
+function dataPointNum(dp: unknown, re: RegExp): number | null {
+  if (!Array.isArray(dp)) return null;
+  for (const d of dp) {
+    const text = (d as { value?: { plainText?: unknown } } | null)?.value?.plainText;
+    if (typeof text !== "string") continue;
+    const m = text.match(re);
+    if (m && m[1]) {
+      const n = Number(m[1].replace(/\s/g, "").replace(",", "."));
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
 
 /**
  * The PII-safe, persisted candidate shape (DISC-07 guardrail). This is a
@@ -94,6 +123,12 @@ export interface DiscoveryCandidate {
   longitude: number | null;
   floor: number | null;
   orientation: { facades: Facade[]; confidence: number } | null;
+  /** Has a balcony (a ranking factor + livability signal). */
+  balcony: boolean | null;
+  /** "Kommande" listing — no asking price yet; discovery filters these out. */
+  upcomingSale: boolean | null;
+  /** New-production unit — no renovation upside; discovery filters these out. */
+  isNewConstruction: boolean | null;
 }
 
 /**
@@ -130,11 +165,21 @@ export function pricePerSqm(
  * @returns the PII-safe candidate shape
  */
 export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
+  const dp = raw.displayDataPoints;
   return {
     address: str(raw.streetAddress),
-    price: num(raw.price),
-    rooms: num(raw.rooms),
-    livingArea: num(raw.livingArea),
+    // `price` (realized sale price) is null for an active listing; the asking
+    // price is `listPrice`. The area-search shape carries neither for most
+    // listings, so this is best-effort — but when listPrice IS present it must
+    // be used (was previously dropped, leaving every candidate price-null).
+    price: num(raw.price) ?? numOrRaw(raw.listPrice),
+    // rooms/livingArea: flat on a DETAIL entity, but on the area-search entity
+    // only in displayDataPoints ("3 rum", "93 m²" / "72+8 m²" → primary area).
+    rooms: num(raw.rooms) ?? rawOf(raw.rooms) ?? dataPointNum(dp, /(\d+(?:[.,]\d+)?)\s*rum/),
+    livingArea:
+      num(raw.livingArea) ??
+      rawOf(raw.livingArea) ??
+      dataPointNum(dp, /(\d+(?:[.,]\d+)?)\s*(?:\+\s*\d+(?:[.,]\d+)?)?\s*m²/),
     areaLabel: str(raw.descriptiveAreaName),
     thumbnailUrl: str(raw.thumbnailUrl),
     sourceListingUrl: str(raw.url),
@@ -150,12 +195,15 @@ export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
     // 5): toCandidate receives reshapeListingEntity's output DIRECTLY on the
     // fetchAreaListings/job.ts path, where floor is still the raw Apollo
     // `{raw: N}` FormattedValue shape, not a bare number.
-    floor: num(raw.floor) ?? rawOf(raw.floor),
+    floor: num(raw.floor) ?? rawOf(raw.floor) ?? dataPointNum(dp, /vån\s*(\d+)/),
     // `raw.description` is read ONLY as a local argument here, fed into the
     // deterministic extractor, and discarded — it is NEVER added as a key on
     // this returned object literal (no-spread construction + explicit
     // omission keeps the derived-only PII contract structurally enforced).
     orientation: extractOrientationFromDescription(str(raw.description)),
+    balcony: bool(raw.balcony),
+    upcomingSale: bool(raw.upcomingSale),
+    isNewConstruction: bool(raw.isNewConstruction),
   };
 }
 
@@ -233,6 +281,9 @@ export const discoveryCandidateSchema = z.object({
     })
     .nullable()
     .default(null),
+  balcony: z.boolean().nullable().default(null),
+  upcomingSale: z.boolean().nullable().default(null),
+  isNewConstruction: z.boolean().nullable().default(null),
 });
 
 /** Result of filtering a candidate array: what's shown vs. how many matched. */
@@ -274,6 +325,10 @@ export function filterCandidates(
   cap: number = CAP_CANDIDATES_MAX,
 ): FilterCandidatesResult {
   const matched = candidates.filter((candidate) => {
+    // Always exclude "kommande" (no asking price yet, can't assess) and
+    // new-production (no renovation upside) — these are not real, rankable
+    // for-sale objects for discovery, regardless of the numeric filter.
+    if (candidate.upcomingSale === true || candidate.isNewConstruction === true) return false;
     if (filter.priceMax !== null) {
       if (candidate.price === null || candidate.price > filter.priceMax) return false;
     }

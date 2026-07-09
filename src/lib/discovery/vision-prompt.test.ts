@@ -31,13 +31,18 @@ describe("vision-prompt", () => {
     expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("bör köpas");
   });
 
-  it("the deep-pass prompt includes a floor-plan (planlösning) remodel-potential instruction", () => {
-    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("planlösning");
+  it("the deep-pass prompt includes a remodel-potential (värdehöjande) instruction citing the floor plan", () => {
+    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("remodelPotential");
+    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("värdehöjande");
     expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("planritning");
   });
 
-  it("the floor-plan instruction mandates the 'kräver konstruktör / väggutredning' disclaimer phrase", () => {
-    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("kräver konstruktör / väggutredning");
+  it("the remodel instruction frames BROAD professional-renovator value-adds, not only wall changes", () => {
+    // Broadened (this session): walls both ways, cosmetic, bathroom, kitchen, stambyte.
+    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("1:a → 2:a"); // add a wall for a room
+    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("mikrocement"); // dated-bathroom refresh
+    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("måla om"); // cosmetic repaint
+    expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("stambyte"); // imminent stambyte → new bathroom
   });
 
   it("the floor-plan instruction bans definitive load-bearing verdict words", () => {

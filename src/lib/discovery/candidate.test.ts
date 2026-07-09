@@ -28,6 +28,10 @@ const ALLOWLIST_KEYS = [
   "longitude",
   "floor",
   "orientation",
+  // Ranking/status factors — balcony + coming-soon/new-production discriminators.
+  "balcony",
+  "upcomingSale",
+  "isNewConstruction",
 ].sort();
 
 describe("toCandidate — PII-safe allowlist mapper", () => {
@@ -97,6 +101,9 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
       longitude: 18.06,
       floor: 3,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     });
   });
 
@@ -123,6 +130,46 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
     expect(result.longitude).toBeNull();
     expect(result.floor).toBeNull();
     expect(result.orientation).toBeNull();
+  });
+
+  it("recovers rooms/livingArea/floor from displayDataPoints + asking price from listPrice (area-search shape)", () => {
+    // Booli's AREA-search entity carries no flat rooms/livingArea/floor and no
+    // realized `price` — rooms/area/floor live only in displayDataPoints, and
+    // the asking price is `listPrice`. Without the fallbacks every discovery
+    // candidate ranked with null size/rooms/price.
+    const raw = {
+      streetAddress: "Torkel Knutssonsgatan 35",
+      listPrice: 4_250_000,
+      displayDataPoints: [
+        { value: { plainText: "72+8 m²" } }, // primary area 72 (biarea ignored)
+        { value: { plainText: "2,5 rum" } },
+        { value: { plainText: "vån 2" } },
+        { value: { plainText: "3 731 kr/mån" } }, // fee — must NOT be read as price
+      ],
+    };
+
+    const result = toCandidate(raw);
+
+    expect(result.livingArea).toBe(72);
+    expect(result.rooms).toBe(2.5);
+    expect(result.floor).toBe(2);
+    expect(result.price).toBe(4_250_000);
+  });
+
+  it("prefers flat detail-entity fields over displayDataPoints when both exist (detail path unaffected)", () => {
+    const raw = {
+      streetAddress: "Helgagatan 36N",
+      price: 4_500_000,
+      rooms: 1,
+      livingArea: 36,
+      displayDataPoints: [{ value: { plainText: "99 m²" } }, { value: { plainText: "9 rum" } }],
+    };
+
+    const result = toCandidate(raw);
+
+    expect(result.price).toBe(4_500_000);
+    expect(result.rooms).toBe(1);
+    expect(result.livingArea).toBe(36);
   });
 
   it("unwraps floor from the raw {raw: N} FormattedValue shape (reshapeListingEntity's un-normalized passthrough, RESEARCH.md Open Question 5)", () => {
@@ -476,6 +523,9 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     },
     {
       address: "B",
@@ -495,6 +545,9 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     },
   ];
 
@@ -513,6 +566,27 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
     expect(result.shown).toHaveLength(1);
     expect(result.shown[0]?.address).toBe("A");
     expect(result.scanned).toBe(2);
+  });
+
+  it("always excludes upcomingSale (kommande) and new-production listings, regardless of the numeric filter", () => {
+    const mixed: DiscoveryCandidate[] = [
+      { ...candidates[0], address: "active", upcomingSale: false, isNewConstruction: false },
+      { ...candidates[0], address: "kommande", upcomingSale: true },
+      { ...candidates[0], address: "nyproduktion", isNewConstruction: true },
+    ];
+    const noopFilter: DiscoveryFilter = {
+      areaQuery: "Södermalm",
+      priceMax: null,
+      roomsMin: null,
+      sizeMin: null,
+      objectType: "Alla",
+      confidence: 0.9,
+    };
+
+    const result = filterCandidates(mixed, noopFilter);
+
+    expect(result.shown.map((c) => c.address)).toEqual(["active"]);
+    expect(result.scanned).toBe(3);
   });
 
   it("ignores null filter fields (never treats null as a match-nothing constraint)", () => {
@@ -550,6 +624,9 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       longitude: null,
       floor: null,
       orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
     }));
 
     const noopFilter: DiscoveryFilter = {
