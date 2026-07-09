@@ -28,6 +28,34 @@ const rawOf = (v: unknown): number | null =>
   v && typeof v === "object" && "raw" in v
     ? num((v as { raw: unknown }).raw)
     : null;
+/** Unwraps a bare number OR an Apollo `{raw:N}` FormattedValue to a number, else null. */
+const numOrRaw = (v: unknown): number | null => num(v) ?? rawOf(v);
+
+/**
+ * Booli's AREA-search Apollo entity does NOT carry flat `rooms`/`livingArea`/
+ * `floor` numbers the way a single-listing DETAIL entity does — they arrive only
+ * as human-readable `displayDataPoints` strings ("93 m²", "3 rum", "vån 2",
+ * "3 731 kr/mån"). `toCandidate` runs on `reshapeListingEntity`'s output for BOTH
+ * paths, so on the discovery (fetchAreaListings) path those numeric fields are
+ * absent and must be recovered here or every candidate ranks with null size/rooms.
+ *
+ * Scans `displayDataPoints[].value.plainText` for the first match of `re` and
+ * parses capture group 1 as a Swedish-formatted number (space thousand-separators,
+ * comma decimal). Returns null on no match / no data points — never throws.
+ */
+function dataPointNum(dp: unknown, re: RegExp): number | null {
+  if (!Array.isArray(dp)) return null;
+  for (const d of dp) {
+    const text = (d as { value?: { plainText?: unknown } } | null)?.value?.plainText;
+    if (typeof text !== "string") continue;
+    const m = text.match(re);
+    if (m && m[1]) {
+      const n = Number(m[1].replace(/\s/g, "").replace(",", "."));
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
 
 /**
  * The PII-safe, persisted candidate shape (DISC-07 guardrail). This is a
@@ -130,11 +158,21 @@ export function pricePerSqm(
  * @returns the PII-safe candidate shape
  */
 export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
+  const dp = raw.displayDataPoints;
   return {
     address: str(raw.streetAddress),
-    price: num(raw.price),
-    rooms: num(raw.rooms),
-    livingArea: num(raw.livingArea),
+    // `price` (realized sale price) is null for an active listing; the asking
+    // price is `listPrice`. The area-search shape carries neither for most
+    // listings, so this is best-effort — but when listPrice IS present it must
+    // be used (was previously dropped, leaving every candidate price-null).
+    price: num(raw.price) ?? numOrRaw(raw.listPrice),
+    // rooms/livingArea: flat on a DETAIL entity, but on the area-search entity
+    // only in displayDataPoints ("3 rum", "93 m²" / "72+8 m²" → primary area).
+    rooms: num(raw.rooms) ?? rawOf(raw.rooms) ?? dataPointNum(dp, /(\d+(?:[.,]\d+)?)\s*rum/),
+    livingArea:
+      num(raw.livingArea) ??
+      rawOf(raw.livingArea) ??
+      dataPointNum(dp, /(\d+(?:[.,]\d+)?)\s*(?:\+\s*\d+(?:[.,]\d+)?)?\s*m²/),
     areaLabel: str(raw.descriptiveAreaName),
     thumbnailUrl: str(raw.thumbnailUrl),
     sourceListingUrl: str(raw.url),
@@ -150,7 +188,7 @@ export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
     // 5): toCandidate receives reshapeListingEntity's output DIRECTLY on the
     // fetchAreaListings/job.ts path, where floor is still the raw Apollo
     // `{raw: N}` FormattedValue shape, not a bare number.
-    floor: num(raw.floor) ?? rawOf(raw.floor),
+    floor: num(raw.floor) ?? rawOf(raw.floor) ?? dataPointNum(dp, /vån\s*(\d+)/),
     // `raw.description` is read ONLY as a local argument here, fed into the
     // deterministic extractor, and discarded — it is NEVER added as a key on
     // this returned object literal (no-spread construction + explicit

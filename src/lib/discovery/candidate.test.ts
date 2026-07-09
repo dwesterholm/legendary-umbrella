@@ -125,6 +125,46 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
     expect(result.orientation).toBeNull();
   });
 
+  it("recovers rooms/livingArea/floor from displayDataPoints + asking price from listPrice (area-search shape)", () => {
+    // Booli's AREA-search entity carries no flat rooms/livingArea/floor and no
+    // realized `price` — rooms/area/floor live only in displayDataPoints, and
+    // the asking price is `listPrice`. Without the fallbacks every discovery
+    // candidate ranked with null size/rooms/price.
+    const raw = {
+      streetAddress: "Torkel Knutssonsgatan 35",
+      listPrice: 4_250_000,
+      displayDataPoints: [
+        { value: { plainText: "72+8 m²" } }, // primary area 72 (biarea ignored)
+        { value: { plainText: "2,5 rum" } },
+        { value: { plainText: "vån 2" } },
+        { value: { plainText: "3 731 kr/mån" } }, // fee — must NOT be read as price
+      ],
+    };
+
+    const result = toCandidate(raw);
+
+    expect(result.livingArea).toBe(72);
+    expect(result.rooms).toBe(2.5);
+    expect(result.floor).toBe(2);
+    expect(result.price).toBe(4_250_000);
+  });
+
+  it("prefers flat detail-entity fields over displayDataPoints when both exist (detail path unaffected)", () => {
+    const raw = {
+      streetAddress: "Helgagatan 36N",
+      price: 4_500_000,
+      rooms: 1,
+      livingArea: 36,
+      displayDataPoints: [{ value: { plainText: "99 m²" } }, { value: { plainText: "9 rum" } }],
+    };
+
+    const result = toCandidate(raw);
+
+    expect(result.price).toBe(4_500_000);
+    expect(result.rooms).toBe(1);
+    expect(result.livingArea).toBe(36);
+  });
+
   it("unwraps floor from the raw {raw: N} FormattedValue shape (reshapeListingEntity's un-normalized passthrough, RESEARCH.md Open Question 5)", () => {
     // toCandidate receives reshapeListingEntity's output DIRECTLY on the
     // fetchAreaListings/job.ts path (no normalizeScraperOutput step) — floor
