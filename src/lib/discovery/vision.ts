@@ -78,6 +78,20 @@ const REMODEL_BANNED_PATTERN =
   /\bbärande\b|\bicke-bärande\b|\bgaranterat\b|\bdefinitivt\b|kan enkelt rivas/i;
 
 /**
+ * Detects whether a (broadened, professional-renovator) `remodelPotential`
+ * claim proposes a STRUCTURAL/wall change — the only kind that carries the
+ * load-bearing-wall liability. The broadened prompt (vision-prompt.ts) now also
+ * yields non-structural value-adds (repaint, mikrocement over dated tiles,
+ * kitchen refresh, imminent stambyte); appending "kräver konstruktör /
+ * väggutredning" to "måla om köket" would be absurd, so REMODEL_DISCLAIMER is
+ * appended ONLY when this pattern matches. The generic fallback claim is itself
+ * wall-framed, so a banned-word rejection always lands back in the structural
+ * branch and keeps its disclaimer.
+ */
+const REMODEL_STRUCTURAL_PATTERN =
+  /\bvägg(en|ar|arna)?\b|\briva\b|\brivning\b|öppna upp|slå (ihop|samman)|skiljevägg|dela av|\bstruktur/i;
+
+/**
  * The mandatory, code-appended `remodelPotential` disclaimer (T-12-03,
  * belt-and-suspenders). CR-02 (12-REVIEW.md): deliberately rewritten to
  * avoid the literal word "bärande" — the prompt bans the MODEL from using
@@ -99,6 +113,22 @@ const REMODEL_DISCLAIMER =
  */
 const REMODEL_FALLBACK_CLAIM =
   "Planlösningen antyder att en vägg eventuellt kan vara värt att undersöka.";
+
+/**
+ * Builds the final, safe `remodelPotential` claim from the model's raw text:
+ *  1. banned-word REJECTION — a load-bearing/wall-removal VERDICT is dropped and
+ *     replaced with the hedged, investigation-framed fallback (never shown even
+ *     briefly), regardless of whether the suggestion is structural.
+ *  2. CONDITIONAL disclaimer — the "kräver konstruktör / väggutredning"
+ *     liability disclaimer is appended ONLY for STRUCTURAL (wall) suggestions;
+ *     a cosmetic value-add (repaint, mikrocement, kitchen refresh, stambyte)
+ *     keeps just the prompt-enforced hedged language. The banned-word check
+ *     runs on the RAW model text BEFORE any disclaimer is appended (CR-02).
+ */
+function buildRemodelClaim(raw: string): string {
+  const base = REMODEL_BANNED_PATTERN.test(raw) ? REMODEL_FALLBACK_CLAIM : raw;
+  return REMODEL_STRUCTURAL_PATTERN.test(base) ? `${base}${REMODEL_DISCLAIMER}` : base;
+}
 
 function isKnownVisionCode(error: unknown): boolean {
   return error instanceof Error && KNOWN_VISION_CODES.has(error.message);
@@ -311,7 +341,7 @@ export async function runVisionForCandidate(
         // removes the claim type entirely (config/flag flip, not a rewrite).
         claim:
           attribute === "remodelPotential"
-            ? `${REMODEL_BANNED_PATTERN.test(attr.claim as string) ? REMODEL_FALLBACK_CLAIM : (attr.claim as string)}${REMODEL_DISCLAIMER}`
+            ? buildRemodelClaim(attr.claim as string)
             : (attr.claim as string),
         imageIndex: attr.imageIndex,
         whatWasSeen: attr.whatWasSeen,
