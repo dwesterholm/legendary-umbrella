@@ -64,7 +64,24 @@ export async function fetchBrokerListingPage(url: string): Promise<BrokerFields 
     // TOCTOU mitigation, T-06-04, Pitfall 2). Combined with the pinned
     // dispatcher above, even the INITIAL request cannot diverge from the
     // validated address.
-    const res = await fetch(url, { redirect: "manual", dispatcher: pinnedAgent } as RequestInit);
+    //
+    // Send realistic browser request headers. A bare (UA-less) fetch is 403'd
+    // by most broker CMS / Cloudflare / Akamai front-ends, which was the
+    // dominant cause of broker enrichment silently failing. This does NOT relax
+    // the SSRF posture — the connection is still pinned to the guard-validated
+    // address and redirects are still refused; only the request headers change.
+    const res = await fetch(url, {
+      redirect: "manual",
+      dispatcher: pinnedAgent,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
+      },
+    } as RequestInit);
 
     if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
       console.error("[broker]", `refused redirect response for ${safeUrlForLog(url)}`);
