@@ -3,51 +3,61 @@ import { resolveSafeExternalUrl } from "./url-guard";
 import { parseBrokerPage, type BrokerFields } from "./parse-broker-page";
 
 /**
- * fetch-broker-page.ts — SSRF-guarded, best-effort fetch + parse of a
- * broker's own listing page (LSTG-03/04). Adapts `src/lib/market/scb.ts`'s
- * `fetchScbTable` house pattern (native `fetch`, try/catch → null, no
- * Playwright — broker CMS sites are not behind Booli's Cloudflare wall) to a
- * GET request against an arbitrary third-party URL.
+ * fetch-broker-page.ts — SSRF-guarded, best-effort fetch + parse of a broker's
+ * own listing page (LSTG-03/04). Every failure path (guard rejection, non-2xx,
+ * an unfollowable redirect, network error, malformed HTML) returns `null` —
+ * this function NEVER throws, so a broker-page failure can never fail the
+ * primary analysis (independent-degradation, T-06-07).
  *
- * Every failure path (guard rejection, non-2xx, redirect, network error,
- * malformed HTML) returns `null` — this function NEVER throws. The caller
- * (Plan 03's `analyzeUrl`) relies on null-not-throw so a broker-page failure
- * can never fail the primary listing analysis (independent-degradation
- * pattern, T-06-07).
+ * DNS-rebinding TOCTOU fix (CR-01): `resolveSafeExternalUrl` resolves the
+ * hostname EXACTLY ONCE and returns the validated address, pinned as the TCP
+ * connection target via a per-request undici `Agent` (`connect.lookup`
+ * override). The URL's hostname is still sent as Host/SNI, so the request
+ * reaches the right vhost, but `fetch()` can never re-resolve to a different
+ * (attacker-rebound) address.
  *
- * CR-01 — DNS-rebinding TOCTOU fix: `resolveSafeExternalUrl` resolves the
- * hostname EXACTLY ONCE and returns the validated address. That resolved
- * address is then pinned as the actual TCP connection target via a
- * per-request undici `Agent` with a custom `connect.lookup` override — the
- * URL's original hostname is still sent as the Host header / TLS SNI (only
- * the connect-time address resolution is overridden), so the request still
- * reaches the correct virtual host, but `fetch()` can never independently
- * re-resolve the hostname to a different (attacker-rebound) address. The
- * address validated by the guard is therefore guaranteed to be the address
- * the socket actually connects to.
+ * ONE SAFE REDIRECT HOP (2026-07-10): real broker CMSs almost always answer
+ * the Booli-supplied `agencyListingUrl` with a 3xx (http→https, trailing
+ * slash, canonical host) — refusing all redirects made broker enrichment
+ * (text AND images) silently always-empty. We now follow at most ONE hop, and
+ * the redirect target is re-validated through the SAME resolve-then-pin guard
+ * (`guardedGet`), so the SSRF/rebinding posture is preserved: a redirect to an
+ * internal address is still rejected. No chains — a second redirect is refused.
  */
-export async function fetchBrokerListingPage(url: string): Promise<BrokerFields | null> {
-  // `let` at function scope so the `finally` can always tear the Agent down
-  // (WR-02 — sibling of allabrf.ts's leak). resolveSafeExternalUrl stays INSIDE
-  // the try so even a defensive throw from it still degrades to null, never
-  // propagating (this function's never-throw contract, T-06-07).
+
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
+} as const;
+
+type GetOutcome =
+  | { kind: "html"; html: string }
+  | { kind: "redirect"; location: string | null }
+  | { kind: "fail" };
+
+/**
+ * Fetches ONE url through the resolve-then-pin SSRF guard. Returns the HTML, a
+ * redirect signal (with the raw Location), or a generic fail — never throws.
+ * Owns its Agent's full lifecycle (destroyed in `finally`).
+ */
+async function guardedGet(url: string): Promise<GetOutcome> {
   let pinnedAgent: Agent | null = null;
   try {
     const resolved = await resolveSafeExternalUrl(url);
     if (!resolved) {
       console.error("[broker]", `rejected unsafe URL: ${safeUrlForLog(url)}`);
-      return null;
+      return { kind: "fail" };
     }
 
     pinnedAgent = new Agent({
       connect: {
         lookup: (_hostname, options, callback) => {
-          // WR-01 (shard-2 review): honor undici's requested address family.
-          // We validated exactly ONE address; if undici explicitly asks for the
-          // other family (dual-stack host), we cannot satisfy it without a
-          // second, UNVALIDATED resolution — so fail closed (→ fetch error →
-          // null) rather than returning a family-mismatched address that would
-          // surface as an opaque connect failure. family 0 = "any" is fine.
+          // Honor undici's requested address family (WR-01); we validated
+          // exactly one address, so fail closed on a family we can't satisfy.
           const wantFamily = typeof options?.family === "number" ? options.family : 0;
           if (wantFamily !== 0 && wantFamily !== resolved.family) {
             callback(new Error("SSRF_GUARD_FAMILY_MISMATCH"), []);
@@ -58,64 +68,76 @@ export async function fetchBrokerListingPage(url: string): Promise<BrokerFields 
       },
     });
 
-    // redirect: "manual" — a redirect response is treated as a failure
-    // rather than followed, so a 3xx cannot smuggle the request to an
-    // internal target after the SSRF guard already passed (DNS-rebinding /
-    // TOCTOU mitigation, T-06-04, Pitfall 2). Combined with the pinned
-    // dispatcher above, even the INITIAL request cannot diverge from the
-    // validated address.
-    //
-    // Send realistic browser request headers. A bare (UA-less) fetch is 403'd
-    // by most broker CMS / Cloudflare / Akamai front-ends, which was the
-    // dominant cause of broker enrichment silently failing. This does NOT relax
-    // the SSRF posture — the connection is still pinned to the guard-validated
-    // address and redirects are still refused; only the request headers change.
     const res = await fetch(url, {
       redirect: "manual",
       dispatcher: pinnedAgent,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "sv-SE,sv;q=0.9,en;q=0.8",
-      },
+      headers: BROWSER_HEADERS,
     } as RequestInit);
 
-    if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
-      console.error("[broker]", `refused redirect response for ${safeUrlForLog(url)}`);
-      return null;
+    if (res.type === "opaqueredirect") return { kind: "redirect", location: null };
+    if (res.status >= 300 && res.status < 400) {
+      return { kind: "redirect", location: res.headers.get("location") };
     }
-
     if (!res.ok) {
       console.error("[broker]", `${safeUrlForLog(url)} → HTTP ${res.status}`);
-      return null;
+      return { kind: "fail" };
     }
-
-    const html = await res.text();
-    return parseBrokerPage(html);
+    return { kind: "html", html: await res.text() };
   } catch (error) {
-    // WR-02: log the sanitized target + the error's message/name only — never
-    // the raw error object (whose message can embed the full URL, incl. any
-    // userinfo credentials).
+    // Log the sanitized target + error name only — never the raw error (whose
+    // message can embed the full URL incl. any userinfo credentials) (WR-02).
     console.error("[broker]", `fetch failed for ${safeUrlForLog(url)}`, {
       code: error instanceof Error ? error.name : "UNKNOWN",
     });
-    return null;
+    return { kind: "fail" };
   } finally {
-    // WR-02 (shard-4 review): tear down the per-request Agent's connection pool
-    // (null if we failed before/at resolution).
     if (pinnedAgent) await pinnedAgent.destroy().catch(() => undefined);
   }
 }
 
+export async function fetchBrokerListingPage(url: string): Promise<BrokerFields | null> {
+  let outcome = await guardedGet(url);
+
+  // One safe redirect hop — the target is re-validated by guardedGet's own
+  // resolve-then-pin guard, so SSRF/rebinding protection is preserved.
+  if (outcome.kind === "redirect") {
+    const target = resolveRedirectTarget(url, outcome.location);
+    if (!target) {
+      console.error("[broker]", `refused redirect response for ${safeUrlForLog(url)}`);
+      return null;
+    }
+    outcome = await guardedGet(target);
+    if (outcome.kind === "redirect") {
+      // No chains — one hop only.
+      console.error("[broker]", `refused second redirect for ${safeUrlForLog(target)}`);
+      return null;
+    }
+  }
+
+  if (outcome.kind !== "html") return null;
+  return parseBrokerPage(outcome.html);
+}
+
 /**
- * WR-02 (shard-2 review): a broker URL is attacker-influenceable (Booli-sourced
- * `agencyListingUrl`) and `new URL` preserves any `user:pass@` userinfo, so
- * logging the raw URL could leak credentials into server logs. Reduce to
- * `origin + pathname` (drops userinfo, query, and fragment); fall back to a
- * fixed placeholder if the string won't even parse.
+ * Resolves a redirect `Location` (absolute or relative) against the origin url
+ * into an absolute https URL, or `null` if absent/unparseable/non-https. Only
+ * https targets are followed (guardedGet re-validates the address regardless).
+ */
+function resolveRedirectTarget(fromUrl: string, location: string | null): string | null {
+  if (!location) return null;
+  try {
+    const target = new URL(location, fromUrl);
+    return target.protocol === "https:" ? target.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A broker URL is attacker-influenceable (Booli-sourced `agencyListingUrl`) and
+ * `new URL` preserves any `user:pass@` userinfo, so logging the raw URL could
+ * leak credentials. Reduce to `origin + pathname` (drops userinfo/query/
+ * fragment); fall back to a placeholder if the string won't parse (WR-02).
  */
 function safeUrlForLog(url: string): string {
   try {

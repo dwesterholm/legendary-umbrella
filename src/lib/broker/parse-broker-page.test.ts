@@ -204,11 +204,67 @@ describe("fetchBrokerListingPage", () => {
     await expect(fetchBrokerListingPage("https://broker.example/gone")).resolves.toBeNull();
   });
 
-  it("returns null (never throws) on a redirect response", async () => {
+  it("follows ONE redirect hop, re-validating the target through the guard, then parses", async () => {
     resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
-    globalFetch.mockResolvedValue({ ok: false, status: 302, type: "basic" });
+    globalFetch
+      .mockResolvedValueOnce({
+        status: 301,
+        type: "basic",
+        headers: { get: (k: string) => (k === "location" ? "https://broker.example/listing/1/" : null) },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        type: "basic",
+        text: () => Promise.resolve(domHtml),
+      });
+
+    const result = await fetchBrokerListingPage("https://broker.example/listing/1");
+
+    expect(result?.description).toContain("rymlig tvåa");
+    expect(globalFetch).toHaveBeenCalledTimes(2);
+    expect(globalFetch.mock.calls[1][0]).toBe("https://broker.example/listing/1/");
+    // The redirect target is re-run through the SSRF guard (resolve-then-pin).
+    expect(resolveSafeExternalUrl).toHaveBeenCalledTimes(2);
+    expect(resolveSafeExternalUrl).toHaveBeenLastCalledWith("https://broker.example/listing/1/");
+  });
+
+  it("refuses a SECOND redirect (one hop only) → null", async () => {
+    resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
+    globalFetch.mockResolvedValue({
+      status: 302,
+      type: "basic",
+      headers: { get: (k: string) => (k === "location" ? "https://broker.example/again" : null) },
+    });
 
     await expect(fetchBrokerListingPage("https://broker.example/redirect")).resolves.toBeNull();
+    expect(globalFetch).toHaveBeenCalledTimes(2); // original + one hop, then stop
+  });
+
+  it("refuses a redirect to a non-https target → null, without a second fetch", async () => {
+    resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
+    globalFetch.mockResolvedValueOnce({
+      status: 302,
+      type: "basic",
+      headers: { get: (k: string) => (k === "location" ? "http://broker.example/insecure" : null) },
+    });
+
+    await expect(fetchBrokerListingPage("https://broker.example/x")).resolves.toBeNull();
+    expect(globalFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a redirect whose TARGET the guard refuses (SSRF re-validation on the hop) → null", async () => {
+    resolveSafeExternalUrl
+      .mockResolvedValueOnce(PUBLIC_ADDRESS) // original ok
+      .mockResolvedValueOnce(null); // redirect target refused (e.g. resolves internal)
+    globalFetch.mockResolvedValueOnce({
+      status: 301,
+      type: "basic",
+      headers: { get: (k: string) => (k === "location" ? "https://broker.example/internal" : null) },
+    });
+
+    await expect(fetchBrokerListingPage("https://broker.example/x")).resolves.toBeNull();
+    expect(globalFetch).toHaveBeenCalledTimes(1); // guard rejected the target before the 2nd fetch
   });
 
   it("returns null (never throws) when fetch itself rejects", async () => {
