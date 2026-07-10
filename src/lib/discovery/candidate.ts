@@ -33,6 +33,23 @@ const rawOf = (v: unknown): number | null =>
 const numOrRaw = (v: unknown): number | null => num(v) ?? rawOf(v);
 
 /**
+ * Normalizes a Booli listing URL to ABSOLUTE. The AREA-search Apollo entity's
+ * `url` is RELATIVE (e.g. "/bostad/3914794"), unlike the DETAIL entity's
+ * absolute url — and a relative value breaks BOTH the UI "view on Booli" link
+ * (it would resolve against our own origin) AND detail enrichment
+ * (`fetchListing` → `isBooliUrl` rejects a non-absolute URL). Prepend the Booli
+ * origin for a root-relative path; pass an already-absolute Booli-ish URL
+ * through; anything else → null (never fabricate a link).
+ */
+const absoluteBooliUrl = (v: unknown): string | null => {
+  const s = str(v);
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return `https://www.booli.se${s}`;
+  return null;
+};
+
+/**
  * Booli's AREA-search Apollo entity does NOT carry flat `rooms`/`livingArea`/
  * `floor` numbers the way a single-listing DETAIL entity does — they arrive only
  * as human-readable `displayDataPoints` strings ("93 m²", "3 rum", "vån 2",
@@ -182,7 +199,7 @@ export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
       dataPointNum(dp, /(\d+(?:[.,]\d+)?)\s*(?:\+\s*\d+(?:[.,]\d+)?)?\s*m²/),
     areaLabel: str(raw.descriptiveAreaName),
     thumbnailUrl: str(raw.thumbnailUrl),
-    sourceListingUrl: str(raw.url),
+    sourceListingUrl: absoluteBooliUrl(raw.url),
     constructionYear: num(raw.constructionYear),
     brfName: str(raw.brfName),
     tenureForm: str(raw.tenureForm),

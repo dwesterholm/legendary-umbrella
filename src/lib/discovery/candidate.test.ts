@@ -107,6 +107,20 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
     });
   });
 
+  it("absolutizes a RELATIVE area-search url so the Booli link + detail enrichment work", () => {
+    // Area-search entities carry a root-relative url; a relative sourceListingUrl
+    // breaks both the UI link and fetchListing (isBooliUrl rejects it).
+    expect(toCandidate({ url: "/bostad/3914794" }).sourceListingUrl).toBe(
+      "https://www.booli.se/bostad/3914794",
+    );
+    // An already-absolute url (detail entity) passes through unchanged.
+    expect(toCandidate({ url: "https://www.booli.se/annons/1" }).sourceListingUrl).toBe(
+      "https://www.booli.se/annons/1",
+    );
+    // A non-URL / garbage value never fabricates a link.
+    expect(toCandidate({ url: "not a url" }).sourceListingUrl).toBeNull();
+  });
+
   it("yields null (never throws, never fabricates) for missing rooms/livingArea/imageUrls/latitude/longitude/floor/orientation", () => {
     const raw = {
       streetAddress: "Sveavägen 1",
