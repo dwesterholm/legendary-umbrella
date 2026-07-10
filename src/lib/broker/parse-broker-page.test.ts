@@ -43,7 +43,7 @@ describe("parseBrokerPage", () => {
 
   it("never throws on empty HTML, malformed JSON-LD, or HTML with no recognizable content", () => {
     expect(() => parseBrokerPage("")).not.toThrow();
-    expect(parseBrokerPage("")).toEqual({ renovationStatus: null, description: null });
+    expect(parseBrokerPage("")).toEqual({ renovationStatus: null, description: null, images: [] });
 
     const malformed = `<html><head><script type="application/ld+json">{"@type":"RealEstateListing","description":"x",}</script></head><body></body></html>`;
     expect(() => parseBrokerPage(malformed)).not.toThrow();
@@ -91,6 +91,39 @@ describe("parseBrokerPage", () => {
     expect(result.description).toContain("nyrenoverat kök från 2020");
     expect(result.description).not.toContain("cookies");
     expect(result.description).not.toContain("Anna");
+  });
+
+  it("extracts the gallery image URLs from a JSON-LD image[] (string[] and ImageObject[])", () => {
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify({
+      "@type": "RealEstateListing",
+      image: [
+        "https://cdn.maklare.example/kok.jpg",
+        { "@type": "ImageObject", url: "https://cdn.maklare.example/badrum.jpg" },
+        "http://cdn.maklare.example/insecure.jpg", // dropped — not https
+      ],
+    })}</script></head><body></body></html>`;
+    const result = parseBrokerPage(html);
+    expect(result.images).toEqual([
+      "https://cdn.maklare.example/kok.jpg",
+      "https://cdn.maklare.example/badrum.jpg",
+    ]);
+  });
+
+  it("falls back to main/article <img> when no JSON-LD image[] exists, skipping logos/avatars", () => {
+    const html = `<html><body><main>
+      <img src="https://cdn.maklare.example/logo.svg" />
+      <img src="https://cdn.maklare.example/gallery-1.jpg" />
+      <img src="https://cdn.maklare.example/maklare-avatar.jpg" />
+      <img src="http://cdn.maklare.example/insecure.jpg" />
+    </main></body></html>`;
+    const result = parseBrokerPage(html);
+    expect(result.images).toEqual(["https://cdn.maklare.example/gallery-1.jpg"]);
+  });
+
+  it("returns images:[] when the page has no gallery", () => {
+    expect(parseBrokerPage("<html><body><p>Ingen bildgalleri här.</p></body></html>").images).toEqual(
+      [],
+    );
   });
 });
 

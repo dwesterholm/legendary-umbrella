@@ -1,4 +1,6 @@
 import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli/client";
+import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
+import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { resolveArea } from "@/lib/discovery/resolve-area";
 import { toCandidate, filterCandidates, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
@@ -326,19 +328,34 @@ export async function claimVisionSlice(
  */
 const VISION_ENRICH_LIMIT = 8;
 
+/** Max broker-gallery images fetched (as bytes) per candidate — bounds bandwidth. */
+const BROKER_IMAGES_PER_CANDIDATE = 4;
+
+/** Result of enrichment: the (image-populated) candidates + per-index broker bytes. */
+export interface EnrichmentResult {
+  candidates: DiscoveryCandidate[];
+  /** candidate array index → broker-gallery bytes (analyze-only, transient — never persisted). */
+  brokerImages: Map<number, BrokerImageBytes[]>;
+}
+
 /**
  * Detail-fetches up to `limit` candidates that lack images, populating
  * `imageUrls` (from the bcdn.se detail gallery) and backfilling
  * floor/constructionYear/orientation/balcony from the richer detail entity.
- * Returns a NEW array; the input is never mutated. Never throws — a failed or
- * image-less detail fetch leaves that candidate unchanged (vision then skips it
- * as "no_images"), so enrichment can only ever ADD coverage, never break a job.
+ * ALSO fetches that listing's BROKER gallery images as bytes (through the SSRF
+ * guard, analyze-only) — e.g. bathroom photos Booli lacks — returned in a
+ * per-index map for the vision pass, NEVER persisted (GDPR: no stored broker
+ * imagery). Returns NEW data; the input is never mutated. Never throws — a
+ * failed/image-less detail or broker fetch just leaves that candidate as-is
+ * (vision then skips or analyzes whatever it has), so enrichment can only ADD
+ * coverage, never break a job.
  */
 export async function enrichCandidateImages(
   candidates: DiscoveryCandidate[],
   limit: number,
-): Promise<DiscoveryCandidate[]> {
+): Promise<EnrichmentResult> {
   const out = [...candidates];
+  const brokerImages = new Map<number, BrokerImageBytes[]>();
   let fetched = 0;
   for (let i = 0; i < out.length && fetched < limit; i++) {
     const c = out[i];
@@ -346,7 +363,8 @@ export async function enrichCandidateImages(
     if (!c.sourceListingUrl) continue; // nothing to fetch
     fetched += 1;
     try {
-      const detail = toCandidate(await fetchListing(c.sourceListingUrl));
+      const raw = await fetchListing(c.sourceListingUrl);
+      const detail = toCandidate(raw);
       out[i] = {
         ...c,
         imageUrls: detail.imageUrls,
@@ -355,13 +373,29 @@ export async function enrichCandidateImages(
         orientation: c.orientation ?? detail.orientation,
         balcony: c.balcony ?? detail.balcony,
       };
+
+      // Broker gallery (analyze-only): the detail entity carries the broker
+      // listing URL; fetch its gallery through the SSRF guard as bytes so
+      // vision sees photos (e.g. bathroom) Booli often omits. Fully best-effort.
+      const brokerUrl = typeof raw.agencyListingUrl === "string" ? raw.agencyListingUrl : null;
+      if (brokerUrl) {
+        try {
+          const broker = await fetchBrokerListingPage(brokerUrl);
+          if (broker && broker.images.length > 0) {
+            const bytes = await fetchBrokerImageBytes(broker.images, BROKER_IMAGES_PER_CANDIDATE);
+            if (bytes.length > 0) brokerImages.set(i, bytes);
+          }
+        } catch {
+          // Broker enrichment is a pure bonus — never let it affect the job.
+        }
+      }
     } catch (error) {
       console.error("[discovery-job] detail enrichment failed (non-fatal)", {
         code: error instanceof Error ? error.name : "UNKNOWN",
       });
     }
   }
-  return out;
+  return { candidates: out, brokerImages };
 }
 
 export async function runVisionForJob(
@@ -376,8 +410,13 @@ export async function runVisionForJob(
     // also backfills floor/constructionYear/orientation/balcony from the detail
     // entity (better ranking data). Bounded to VISION_ENRICH_LIMIT detail
     // fetches per job to cap Apify spend.
-    const enriched = await enrichCandidateImages(results, VISION_ENRICH_LIMIT);
-    const withVision = await runVisionPass(enriched);
+    const { candidates: enriched, brokerImages } = await enrichCandidateImages(
+      results,
+      VISION_ENRICH_LIMIT,
+    );
+    const withVision = await runVisionPass(enriched, {
+      brokerImagesOf: (_candidate, index) => brokerImages.get(index) ?? [],
+    });
     const persisted = await updateJob(supabase, jobId, {
       results: withVision,
       status: "done",
