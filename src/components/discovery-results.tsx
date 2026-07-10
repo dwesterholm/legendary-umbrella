@@ -5,6 +5,7 @@ import { DiscoveryNicheSelector } from "@/components/discovery-niche-selector";
 import { DiscoveryCandidateCard } from "@/components/discovery-candidate-card";
 import { GalleryConditionVision } from "@/components/gallery-condition-vision";
 import { pricePerSqm, type DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { conditionScore } from "@/lib/discovery/condition-score";
 import {
   computeNicheScore,
   type NicheScoreResult,
@@ -103,7 +104,16 @@ export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
         candidate,
         result: computeNicheScore(candidate, niche, areaBaseline),
       }));
-      scored.sort((a, b) => (b.result?.score ?? 0) - (a.result?.score ?? 0));
+      // Primary: the deterministic niche score. Secondary (TIEBREAKER ONLY):
+      // the vision-derived conditionScore, so genuine renovation objects rise
+      // above turnkey flats with the same niche score. Kept OFF the
+      // computeNicheScore path (locked structural-separation constraint) —
+      // vision only breaks ties for display ordering here.
+      scored.sort((a, b) => {
+        const nicheDiff = (b.result?.score ?? 0) - (a.result?.score ?? 0);
+        if (nicheDiff !== 0) return nicheDiff;
+        return conditionScore(b.candidate) - conditionScore(a.candidate);
+      });
       return { ranked: scored, hasError: false };
     } catch {
       return {
