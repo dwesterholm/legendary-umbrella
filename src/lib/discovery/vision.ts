@@ -10,6 +10,7 @@ import {
 } from "@/lib/discovery/vision-schema";
 import { CAP_VISION_SEK_MAX, visionCostSek, estimateVisionCallSek } from "@/lib/discovery/cost";
 import { CAP_IMAGES_PER_LISTING } from "@/lib/discovery/filter-schema";
+import type { BrokerImageBytes } from "@/lib/broker/broker-images";
 import {
   VISION_PREFILTER_SYSTEM_PROMPT,
   VISION_DEEPPASS_SYSTEM_PROMPT,
@@ -157,14 +158,41 @@ function toClaudeUsage(usage: {
  */
 function imageBlocks(
   urls: string[],
+  brokerImages: BrokerImageBytes[] = [],
 ): Array<
   | { type: "text"; text: string }
-  | { type: "image"; source: { type: "url"; url: string } }
+  | {
+      type: "image";
+      source:
+        | { type: "url"; url: string }
+        | { type: "base64"; media_type: BrokerImageBytes["mediaType"]; data: string };
+    }
 > {
-  return urls.flatMap((url, i) => [
-    { type: "text" as const, text: `Bild ${i + 1}:` },
-    { type: "image" as const, source: { type: "url" as const, url } },
-  ]);
+  const blocks: Array<
+    | { type: "text"; text: string }
+    | {
+        type: "image";
+        source:
+          | { type: "url"; url: string }
+          | { type: "base64"; media_type: BrokerImageBytes["mediaType"]; data: string };
+      }
+  > = [];
+  let n = 0;
+  // Booli/bcdn.se images first (renderable URLs), then broker images as inline
+  // base64 bytes (analyze-only — no renderable URL). The 1-based `Bild N`
+  // numbering is CONTINUOUS across both so `imageIndex` on the result resolves
+  // against the same sequence the model was shown.
+  for (const url of urls) {
+    n += 1;
+    blocks.push({ type: "text", text: `Bild ${n}:` });
+    blocks.push({ type: "image", source: { type: "url", url } });
+  }
+  for (const img of brokerImages) {
+    n += 1;
+    blocks.push({ type: "text", text: `Bild ${n}:` });
+    blocks.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } });
+  }
+  return blocks;
 }
 
 /** The result of `runVisionForCandidate` — a `VisionResult` or a skip reason. */
@@ -193,21 +221,33 @@ export interface RunVisionResult {
  *   text, or model output (T-11-09, mirrors extract.ts:326-338).
  *
  * @param booliId - the candidate's listing id, used ONLY for safe logging
- * @param imageUrls - the candidate's already-capped image URL set
+ * @param imageUrls - the candidate's already-capped Booli/bcdn.se image URL set
+ * @param brokerImages - OPTIONAL broker-gallery images as inline base64 bytes
+ *   (analyze-only; fetched through the SSRF guard by the caller). They extend
+ *   the image set the model sees (e.g. bathroom photos Booli lacks) but are
+ *   NEVER added to `imageUrlsUsed` — they have no renderable URL, so a claim
+ *   citing one renders as a text-only citation (gallery WR-04), and the user
+ *   clicks through to the broker to view it.
  */
 export async function runVisionForCandidate(
   booliId: string,
   imageUrls: string[],
+  brokerImages: BrokerImageBytes[] = [],
 ): Promise<RunVisionResult> {
-  if (imageUrls.length === 0) {
-    return { result: null, skippedReason: "no_images" };
-  }
-
   // Precondition: `imageUrls` is already host-allowlisted by the caller
   // (claimVisionSlice re-applies isAllowedImageHost on the raw persisted read
   // — WR-03, shard-1 review) before any URL reaches Anthropic's server-side
   // image fetch.
   const capped = imageUrls.slice(0, CAP_IMAGES_PER_LISTING);
+  const cappedBroker = brokerImages.slice(0, CAP_IMAGES_PER_LISTING);
+  // Total images actually SENT to the model (Booli URLs + broker bytes) — the
+  // imageIndex bounds check below validates against this, NOT capped.length,
+  // so a claim citing a broker image survives; imageUrlsUsed stays Booli-only.
+  const sentCount = capped.length + cappedBroker.length;
+
+  if (sentCount === 0) {
+    return { result: null, skippedReason: "no_images" };
+  }
 
   try {
     const runPreFilterOnce = () =>
@@ -219,7 +259,7 @@ export async function runVisionForCandidate(
         messages: [
           {
             role: "user",
-            content: [...imageBlocks(capped), { type: "text", text: PREFILTER_USER_INSTRUCTION }],
+            content: [...imageBlocks(capped, cappedBroker), { type: "text", text: PREFILTER_USER_INSTRUCTION }],
           },
         ],
         output_config: { format: zodOutputFormat(preFilterSchema) },
@@ -265,7 +305,7 @@ export async function runVisionForCandidate(
         messages: [
           {
             role: "user",
-            content: [...imageBlocks(capped), { type: "text", text: DEEPPASS_USER_INSTRUCTION }],
+            content: [...imageBlocks(capped, cappedBroker), { type: "text", text: DEEPPASS_USER_INSTRUCTION }],
           },
         ],
         output_config: { format: zodOutputFormat(visionDeepPassSchema) },
@@ -322,7 +362,7 @@ export async function runVisionForCandidate(
           // consistently with the rest of this filter's discipline.
           Number.isInteger(attr.imageIndex) &&
           attr.imageIndex >= 1 &&
-          attr.imageIndex <= capped.length,
+          attr.imageIndex <= sentCount,
       )
       .map(([attribute, attr]) => ({
         attribute,
@@ -416,7 +456,11 @@ export async function runVisionForCandidate(
  */
 export async function runVisionPass(
   candidates: DiscoveryCandidate[],
-  opts: { booliIdOf?: (candidate: DiscoveryCandidate, index: number) => string } = {},
+  opts: {
+    booliIdOf?: (candidate: DiscoveryCandidate, index: number) => string;
+    /** Optional per-candidate broker-gallery bytes (analyze-only, transient). */
+    brokerImagesOf?: (candidate: DiscoveryCandidate, index: number) => BrokerImageBytes[];
+  } = {},
 ): Promise<DiscoveryCandidate[]> {
   const booliIdOf =
     opts.booliIdOf ??
@@ -437,7 +481,9 @@ export async function runVisionPass(
       continue;
     }
 
-    if (!candidate.imageUrls || candidate.imageUrls.length === 0) {
+    const broker = opts.brokerImagesOf?.(candidate, index) ?? [];
+    const hasBooli = !!candidate.imageUrls && candidate.imageUrls.length > 0;
+    if (!hasBooli && broker.length === 0) {
       out.push({ ...candidate, vision: null, visionSkippedReason: "no_images" });
       continue;
     }
@@ -474,7 +520,8 @@ export async function runVisionPass(
     try {
       const { result, skippedReason } = await runVisionForCandidate(
         booliId,
-        candidate.imageUrls,
+        candidate.imageUrls ?? [],
+        broker,
       );
 
       if (result) {

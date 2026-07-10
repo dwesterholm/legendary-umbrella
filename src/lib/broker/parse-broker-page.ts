@@ -28,7 +28,17 @@ import * as cheerio from "cheerio";
 export interface BrokerFields {
   renovationStatus: string | null;
   description: string | null;
+  /**
+   * Broker-page gallery image URLs (arbitrary broker CDN hosts). These are
+   * NOT host-allowlisted here — they are fetched later THROUGH the SSRF guard
+   * as bytes (broker-images.ts) for vision analysis only, never rendered as an
+   * `<img src>` and never persisted. Empty when none are discoverable.
+   */
+  images: string[];
 }
+
+/** Hard cap on broker gallery URLs returned — bounds downstream byte-fetches. */
+const MAX_BROKER_IMAGES = 12;
 
 const RENOVATION_HEADING_RE = /renover|skick/i;
 
@@ -60,6 +70,64 @@ function isRelevantJsonLdType(type: unknown): boolean {
   if (typeof type === "string") return RELEVANT_JSONLD_TYPES.has(type);
   if (Array.isArray(type)) return type.some((t) => typeof t === "string" && RELEVANT_JSONLD_TYPES.has(t));
   return false;
+}
+
+/** True only for an absolute https URL (the byte-fetcher refuses anything else). */
+function isHttpsUrl(value: unknown): value is string {
+  return typeof value === "string" && /^https:\/\//i.test(value);
+}
+
+/**
+ * Allow-list read of the gallery `image` array out of relevant JSON-LD blocks.
+ * schema.org `image` may be a string, a string[], or an ImageObject[] with
+ * `url`/`contentUrl`. Explicit named access only (never `{...block}`) — and
+ * only the image URL string is ever read, never any sibling agent/PII field.
+ */
+function imagesFromJsonLd(blocks: Record<string, unknown>[]): string[] {
+  const out: string[] = [];
+  for (const block of blocks) {
+    if (!isRelevantJsonLdType(block["@type"])) continue;
+    const image = block.image;
+    const items = Array.isArray(image) ? image : image != null ? [image] : [];
+    for (const it of items) {
+      if (isHttpsUrl(it)) {
+        out.push(it);
+      } else if (it && typeof it === "object") {
+        const obj = it as { url?: unknown; contentUrl?: unknown };
+        const url = isHttpsUrl(obj.url) ? obj.url : isHttpsUrl(obj.contentUrl) ? obj.contentUrl : null;
+        if (url) out.push(url);
+      }
+    }
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * DOM fallback for the gallery: `<img>` in the main/article content, skipping
+ * logos/icons/avatars/placeholders and non-https srcs. Conservative — JSON-LD
+ * is the primary source; this only fires when a broker CMS exposes no
+ * `image` array.
+ */
+function imagesFromDom($: cheerio.CheerioAPI): string[] {
+  const scope = $("main, article").first();
+  const root = scope.length > 0 ? scope : $("body");
+  const out: string[] = [];
+  root.find("img").each((_, el) => {
+    const src = $(el).attr("src") || $(el).attr("data-src") || "";
+    if (!isHttpsUrl(src)) return;
+    // Match the FILENAME/path only — NOT the whole URL: broker CDN hosts often
+    // literally contain "maklare"/"agent" (e.g. cdn.maklare.example), so
+    // filtering the full URL would drop legitimate gallery photos. Chrome/UX
+    // chrome (logos, icons, avatars, headshots) is caught by the filename.
+    let path = src;
+    try {
+      path = new URL(src).pathname;
+    } catch {
+      // keep raw src if it won't parse
+    }
+    if (!/logo|icon|sprite|placeholder|avatar|headshot/i.test(path)) out.push(src);
+  });
+  return [...new Set(out)];
 }
 
 /**
@@ -180,8 +248,14 @@ export function parseBrokerPage(html: string): BrokerFields {
     // per Pitfall 5's no-fabrication discipline.
     const renovationStatus = renovationStatusFromDom($);
 
-    return { renovationStatus, description };
+    const jsonLdImages = imagesFromJsonLd(jsonLdBlocks);
+    const images = (jsonLdImages.length > 0 ? jsonLdImages : imagesFromDom($)).slice(
+      0,
+      MAX_BROKER_IMAGES,
+    );
+
+    return { renovationStatus, description, images };
   } catch {
-    return { renovationStatus: null, description: null };
+    return { renovationStatus: null, description: null, images: [] };
   }
 }

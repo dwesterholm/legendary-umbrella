@@ -41,6 +41,7 @@ describe("mergeListingFields", () => {
     const brokerFields: BrokerFields = {
       renovationStatus: "Stambyte 2018, nytt kök 2021",
       description: "En rymlig tvåa med öppen planlösning.",
+      images: [],
     };
 
     const merged = mergeListingFields(booliFields, brokerFields);
@@ -87,6 +88,7 @@ describe("mergeListingFields", () => {
     const brokerFields: BrokerFields = {
       renovationStatus: "Broker-sourced renovation info",
       description: "Broker-sourced description",
+      images: [],
     };
 
     const merged = mergeListingFields(booliFields, brokerFields);

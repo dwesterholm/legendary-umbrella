@@ -43,7 +43,7 @@ describe("parseBrokerPage", () => {
 
   it("never throws on empty HTML, malformed JSON-LD, or HTML with no recognizable content", () => {
     expect(() => parseBrokerPage("")).not.toThrow();
-    expect(parseBrokerPage("")).toEqual({ renovationStatus: null, description: null });
+    expect(parseBrokerPage("")).toEqual({ renovationStatus: null, description: null, images: [] });
 
     const malformed = `<html><head><script type="application/ld+json">{"@type":"RealEstateListing","description":"x",}</script></head><body></body></html>`;
     expect(() => parseBrokerPage(malformed)).not.toThrow();
@@ -91,6 +91,39 @@ describe("parseBrokerPage", () => {
     expect(result.description).toContain("nyrenoverat kök från 2020");
     expect(result.description).not.toContain("cookies");
     expect(result.description).not.toContain("Anna");
+  });
+
+  it("extracts the gallery image URLs from a JSON-LD image[] (string[] and ImageObject[])", () => {
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify({
+      "@type": "RealEstateListing",
+      image: [
+        "https://cdn.maklare.example/kok.jpg",
+        { "@type": "ImageObject", url: "https://cdn.maklare.example/badrum.jpg" },
+        "http://cdn.maklare.example/insecure.jpg", // dropped — not https
+      ],
+    })}</script></head><body></body></html>`;
+    const result = parseBrokerPage(html);
+    expect(result.images).toEqual([
+      "https://cdn.maklare.example/kok.jpg",
+      "https://cdn.maklare.example/badrum.jpg",
+    ]);
+  });
+
+  it("falls back to main/article <img> when no JSON-LD image[] exists, skipping logos/avatars", () => {
+    const html = `<html><body><main>
+      <img src="https://cdn.maklare.example/logo.svg" />
+      <img src="https://cdn.maklare.example/gallery-1.jpg" />
+      <img src="https://cdn.maklare.example/maklare-avatar.jpg" />
+      <img src="http://cdn.maklare.example/insecure.jpg" />
+    </main></body></html>`;
+    const result = parseBrokerPage(html);
+    expect(result.images).toEqual(["https://cdn.maklare.example/gallery-1.jpg"]);
+  });
+
+  it("returns images:[] when the page has no gallery", () => {
+    expect(parseBrokerPage("<html><body><p>Ingen bildgalleri här.</p></body></html>").images).toEqual(
+      [],
+    );
   });
 });
 
@@ -171,11 +204,67 @@ describe("fetchBrokerListingPage", () => {
     await expect(fetchBrokerListingPage("https://broker.example/gone")).resolves.toBeNull();
   });
 
-  it("returns null (never throws) on a redirect response", async () => {
+  it("follows ONE redirect hop, re-validating the target through the guard, then parses", async () => {
     resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
-    globalFetch.mockResolvedValue({ ok: false, status: 302, type: "basic" });
+    globalFetch
+      .mockResolvedValueOnce({
+        status: 301,
+        type: "basic",
+        headers: { get: (k: string) => (k === "location" ? "https://broker.example/listing/1/" : null) },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        type: "basic",
+        text: () => Promise.resolve(domHtml),
+      });
+
+    const result = await fetchBrokerListingPage("https://broker.example/listing/1");
+
+    expect(result?.description).toContain("rymlig tvåa");
+    expect(globalFetch).toHaveBeenCalledTimes(2);
+    expect(globalFetch.mock.calls[1][0]).toBe("https://broker.example/listing/1/");
+    // The redirect target is re-run through the SSRF guard (resolve-then-pin).
+    expect(resolveSafeExternalUrl).toHaveBeenCalledTimes(2);
+    expect(resolveSafeExternalUrl).toHaveBeenLastCalledWith("https://broker.example/listing/1/");
+  });
+
+  it("refuses a SECOND redirect (one hop only) → null", async () => {
+    resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
+    globalFetch.mockResolvedValue({
+      status: 302,
+      type: "basic",
+      headers: { get: (k: string) => (k === "location" ? "https://broker.example/again" : null) },
+    });
 
     await expect(fetchBrokerListingPage("https://broker.example/redirect")).resolves.toBeNull();
+    expect(globalFetch).toHaveBeenCalledTimes(2); // original + one hop, then stop
+  });
+
+  it("refuses a redirect to a non-https target → null, without a second fetch", async () => {
+    resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
+    globalFetch.mockResolvedValueOnce({
+      status: 302,
+      type: "basic",
+      headers: { get: (k: string) => (k === "location" ? "http://broker.example/insecure" : null) },
+    });
+
+    await expect(fetchBrokerListingPage("https://broker.example/x")).resolves.toBeNull();
+    expect(globalFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a redirect whose TARGET the guard refuses (SSRF re-validation on the hop) → null", async () => {
+    resolveSafeExternalUrl
+      .mockResolvedValueOnce(PUBLIC_ADDRESS) // original ok
+      .mockResolvedValueOnce(null); // redirect target refused (e.g. resolves internal)
+    globalFetch.mockResolvedValueOnce({
+      status: 301,
+      type: "basic",
+      headers: { get: (k: string) => (k === "location" ? "https://broker.example/internal" : null) },
+    });
+
+    await expect(fetchBrokerListingPage("https://broker.example/x")).resolves.toBeNull();
+    expect(globalFetch).toHaveBeenCalledTimes(1); // guard rejected the target before the 2nd fetch
   });
 
   it("returns null (never throws) when fetch itself rejects", async () => {

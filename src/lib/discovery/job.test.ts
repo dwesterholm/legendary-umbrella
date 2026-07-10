@@ -35,6 +35,16 @@ vi.mock("@/lib/discovery/resolve-area", () => ({
   resolveArea: (...args: unknown[]) => resolveArea(...args),
 }));
 
+const fetchBrokerListingPage = vi.fn();
+vi.mock("@/lib/broker/fetch-broker-page", () => ({
+  fetchBrokerListingPage: (...args: unknown[]) => fetchBrokerListingPage(...args),
+}));
+
+const fetchBrokerImageBytes = vi.fn();
+vi.mock("@/lib/broker/broker-images", () => ({
+  fetchBrokerImageBytes: (...args: unknown[]) => fetchBrokerImageBytes(...args),
+}));
+
 import {
   runSlice,
   runVisionForJob,
@@ -576,7 +586,7 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
       makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null, floor: null }),
     ];
 
-    const out = await enrichCandidateImages(input, 8);
+    const { candidates: out } = await enrichCandidateImages(input, 8);
 
     expect(fetchListing).toHaveBeenCalledTimes(1);
     expect(out[0].imageUrls).toEqual(["https://bcdn.se/images/cache/1_1440x0.webp"]);
@@ -592,7 +602,7 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
       }),
     ];
 
-    const out = await enrichCandidateImages(input, 8);
+    const { candidates: out } = await enrichCandidateImages(input, 8);
 
     expect(fetchListing).not.toHaveBeenCalled();
     expect(out[0].imageUrls).toEqual(["https://bcdn.se/images/cache/9_1440x0.webp"]);
@@ -615,7 +625,7 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
       makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
     ];
 
-    const out = await enrichCandidateImages(input, 8);
+    const { candidates: out } = await enrichCandidateImages(input, 8);
 
     expect(out[0].imageUrls).toBeNull();
   });
@@ -626,5 +636,40 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     await enrichCandidateImages(input, 8);
 
     expect(fetchListing).not.toHaveBeenCalled();
+  });
+
+  it("also fetches broker-gallery bytes (analyze-only) via the detail entity's agencyListingUrl, keyed by index", async () => {
+    fetchListing.mockResolvedValue({
+      imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      agencyListingUrl: "https://maklare.example/objekt/1",
+    });
+    fetchBrokerListingPage.mockResolvedValue({
+      renovationStatus: null,
+      description: null,
+      images: ["https://cdn.maklare.example/bath.jpg"],
+    });
+    fetchBrokerImageBytes.mockResolvedValue([{ mediaType: "image/jpeg", data: "QkFTRTY0" }]);
+    const input = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+    ];
+
+    const { candidates, brokerImages } = await enrichCandidateImages(input, 8);
+
+    expect(candidates[0].imageUrls).toEqual(["https://bcdn.se/images/cache/1_1440x0.webp"]);
+    expect(fetchBrokerListingPage).toHaveBeenCalledWith("https://maklare.example/objekt/1");
+    // Broker bytes are returned in the per-index map (transient, never persisted).
+    expect(brokerImages.get(0)).toEqual([{ mediaType: "image/jpeg", data: "QkFTRTY0" }]);
+  });
+
+  it("does NOT fetch a broker gallery when the detail entity has no agencyListingUrl", async () => {
+    fetchListing.mockResolvedValue({ imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"] });
+    const input = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+    ];
+
+    const { brokerImages } = await enrichCandidateImages(input, 8);
+
+    expect(fetchBrokerListingPage).not.toHaveBeenCalled();
+    expect(brokerImages.size).toBe(0);
   });
 });
