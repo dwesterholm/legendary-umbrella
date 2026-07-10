@@ -1,4 +1,4 @@
-import { fetchAreaListings, isAllowedImageHost } from "@/lib/booli/client";
+import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli/client";
 import { resolveArea } from "@/lib/discovery/resolve-area";
 import { toCandidate, filterCandidates, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
@@ -315,13 +315,69 @@ export async function claimVisionSlice(
  *   the caller passes `claimedRow.results`/the just-persisted results, never
  *   a fresh re-SELECT, mirroring `runSlice`'s Pitfall 4 discipline)
  */
+/**
+ * Max DETAIL-page fetches per vision pass. Area-search entities carry no
+ * images, so the shortlist must be detail-fetched to feed vision — but each
+ * fetch is a paid Apify render, so this is a hard bound on that spend (the top
+ * `VISION_ENRICH_LIMIT` candidates, in Booli's relevance order). NOTE: these
+ * enrichment renders are not yet folded into the persisted cost ledger — that
+ * joins the existing deferred cost-fidelity follow-up; the count bound keeps
+ * worst-case spend small and fixed regardless.
+ */
+const VISION_ENRICH_LIMIT = 8;
+
+/**
+ * Detail-fetches up to `limit` candidates that lack images, populating
+ * `imageUrls` (from the bcdn.se detail gallery) and backfilling
+ * floor/constructionYear/orientation/balcony from the richer detail entity.
+ * Returns a NEW array; the input is never mutated. Never throws — a failed or
+ * image-less detail fetch leaves that candidate unchanged (vision then skips it
+ * as "no_images"), so enrichment can only ever ADD coverage, never break a job.
+ */
+export async function enrichCandidateImages(
+  candidates: DiscoveryCandidate[],
+  limit: number,
+): Promise<DiscoveryCandidate[]> {
+  const out = [...candidates];
+  let fetched = 0;
+  for (let i = 0; i < out.length && fetched < limit; i++) {
+    const c = out[i];
+    if (c.imageUrls && c.imageUrls.length > 0) continue; // already has images
+    if (!c.sourceListingUrl) continue; // nothing to fetch
+    fetched += 1;
+    try {
+      const detail = toCandidate(await fetchListing(c.sourceListingUrl));
+      out[i] = {
+        ...c,
+        imageUrls: detail.imageUrls,
+        floor: c.floor ?? detail.floor,
+        constructionYear: c.constructionYear ?? detail.constructionYear,
+        orientation: c.orientation ?? detail.orientation,
+        balcony: c.balcony ?? detail.balcony,
+      };
+    } catch (error) {
+      console.error("[discovery-job] detail enrichment failed (non-fatal)", {
+        code: error instanceof Error ? error.name : "UNKNOWN",
+      });
+    }
+  }
+  return out;
+}
+
 export async function runVisionForJob(
   supabase: DiscoveryJobsWriter,
   jobId: string,
   results: DiscoveryCandidate[],
 ): Promise<void> {
   try {
-    const withVision = await runVisionPass(results);
+    // Enrich the top-N candidates with their DETAIL-page images before vision.
+    // Area-search entities carry no images (bcdn.se gallery lives on the detail
+    // page), so without this every candidate skips vision as "no_images". This
+    // also backfills floor/constructionYear/orientation/balcony from the detail
+    // entity (better ranking data). Bounded to VISION_ENRICH_LIMIT detail
+    // fetches per job to cap Apify spend.
+    const enriched = await enrichCandidateImages(results, VISION_ENRICH_LIMIT);
+    const withVision = await runVisionPass(enriched);
     const persisted = await updateJob(supabase, jobId, {
       results: withVision,
       status: "done",
