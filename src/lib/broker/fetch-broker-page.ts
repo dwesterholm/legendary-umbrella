@@ -1,6 +1,7 @@
 import { Agent } from "undici";
 import { resolveSafeExternalUrl } from "./url-guard";
 import { parseBrokerPage, type BrokerFields } from "./parse-broker-page";
+import { runPlaywrightRender } from "@/lib/booli/transport";
 
 /**
  * fetch-broker-page.ts — SSRF-guarded, best-effort fetch + parse of a broker's
@@ -95,7 +96,13 @@ async function guardedGet(url: string): Promise<GetOutcome> {
   }
 }
 
-export async function fetchBrokerListingPage(url: string): Promise<BrokerFields | null> {
+/**
+ * Direct (cheap) fetch path: our own SSRF-guarded GET + one safe redirect hop,
+ * then a static parse. Works for server-rendered broker pages; returns an
+ * empty-ish `BrokerFields` (or null) for client-rendered SPAs whose static HTML
+ * is just an app shell.
+ */
+async function fetchViaDirect(url: string): Promise<BrokerFields | null> {
   let outcome = await guardedGet(url);
 
   // One safe redirect hop — the target is re-validated by guardedGet's own
@@ -116,6 +123,76 @@ export async function fetchBrokerListingPage(url: string): Promise<BrokerFields 
 
   if (outcome.kind !== "html") return null;
   return parseBrokerPage(outcome.html);
+}
+
+/**
+ * Page function for the headless render fallback: waits for the SPA to hydrate
+ * (gallery images load client-side), then returns the fully-rendered HTML for
+ * the SAME static extractor to parse. `hasApollo: true` is a marker so the
+ * transport's "usable item" filter keeps it (it isn't Booli Apollo data).
+ */
+const BROKER_RENDER_PAGE_FUNCTION = `async function pageFunction(context){
+  const { page } = context;
+  await page.waitForTimeout(3500);
+  const html = await page.evaluate(() => document.documentElement.outerHTML);
+  return { hasApollo: true, html };
+}`;
+
+/**
+ * Headless render fallback: big broker sites (erikolsson.se, …) are
+ * client-rendered SPAs whose static HTML is an empty shell, so the cheap direct
+ * fetch parses to nothing. Render the page through the owned Apify transport
+ * (Apify's cloud does the fetch — our resolve-then-pin guard does not apply, so
+ * we gate on `resolveSafeExternalUrl` returning a valid PUBLIC address first to
+ * refuse internal/bogus hosts before spending a render) and parse the rendered
+ * HTML with the SAME extractor. Never throws.
+ */
+async function fetchViaHeadless(url: string): Promise<BrokerFields | null> {
+  try {
+    // Gate: only spend a render on an https URL that resolves to a safe public
+    // address (rejects internal/unresolvable hosts even though Apify, not us,
+    // performs the actual fetch).
+    if (!/^https:\/\//i.test(url)) return null;
+    const resolved = await resolveSafeExternalUrl(url);
+    if (!resolved) {
+      console.error("[broker]", `headless render refused unsafe URL: ${safeUrlForLog(url)}`);
+      return null;
+    }
+    const items = await runPlaywrightRender(url, BROKER_RENDER_PAGE_FUNCTION);
+    const html = (items[0] as { html?: unknown } | undefined)?.html;
+    if (typeof html !== "string" || html.length === 0) return null;
+    return parseBrokerPage(html);
+  } catch (error) {
+    console.error("[broker]", `headless render failed for ${safeUrlForLog(url)}`, {
+      code: error instanceof Error ? error.name : "UNKNOWN",
+    });
+    return null;
+  }
+}
+
+/** True when a parse yielded nothing usable — the signal to try the headless render. */
+function isEmptyShell(fields: BrokerFields | null): boolean {
+  return (
+    !fields || (fields.images.length === 0 && !fields.description && !fields.renovationStatus)
+  );
+}
+
+/**
+ * Best-effort broker-page fetch + parse. Tries the cheap direct fetch first;
+ * if that yields an empty shell (client-rendered SPA), falls back to a headless
+ * render. Returns whichever produced usable data, or the direct result (may be
+ * null) if the headless render also came back empty. Never throws.
+ */
+export async function fetchBrokerListingPage(url: string): Promise<BrokerFields | null> {
+  const direct = await fetchViaDirect(url);
+  if (!isEmptyShell(direct)) return direct;
+
+  const rendered = await fetchViaHeadless(url);
+  if (!isEmptyShell(rendered)) return rendered;
+
+  // Both empty — prefer a non-null (even if empty) fields object over null so
+  // the caller can still read the empty arrays without a null check.
+  return direct ?? rendered;
 }
 
 /**

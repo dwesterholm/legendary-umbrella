@@ -142,6 +142,14 @@ vi.mock("@/lib/broker/url-guard", () => ({
 const globalFetch = vi.fn();
 vi.stubGlobal("fetch", globalFetch);
 
+// The headless-render fallback (SPA brokers) goes through the Apify transport —
+// mock it so the empty-shell scenarios never hit real Apify. Default: no items
+// (render yielded nothing → fallback returns null).
+const runPlaywrightRender = vi.fn();
+vi.mock("@/lib/booli/transport", () => ({
+  runPlaywrightRender: (...args: unknown[]) => runPlaywrightRender(...args),
+}));
+
 // Imported AFTER mocks are registered.
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 
@@ -150,6 +158,8 @@ const PUBLIC_ADDRESS = { address: "93.184.216.34", family: 4 as const };
 beforeEach(() => {
   resolveSafeExternalUrl.mockReset();
   globalFetch.mockReset();
+  runPlaywrightRender.mockReset();
+  runPlaywrightRender.mockResolvedValue([]); // default: render yields nothing
 });
 
 describe("fetchBrokerListingPage", () => {
@@ -279,5 +289,42 @@ describe("fetchBrokerListingPage", () => {
 
     await expect(fetchBrokerListingPage("https://broker.example/boom")).resolves.toBeNull();
     expect(globalFetch).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a headless render when the direct fetch is an empty SPA shell, then parses the rendered HTML", async () => {
+    resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
+    // Direct fetch succeeds but returns an empty app shell (no gallery/desc/JSON-LD).
+    globalFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      type: "basic",
+      text: () => Promise.resolve("<html><body><div id='root'></div></body></html>"),
+    });
+    const renderedHtml = `<html><head><script type="application/ld+json">${JSON.stringify({
+      "@type": "RealEstateListing",
+      image: ["https://cdn.maklare.example/badrum.jpg"],
+      description: "Ljus tvåa med balkong.",
+    })}</script></head><body></body></html>`;
+    runPlaywrightRender.mockResolvedValue([{ hasApollo: true, html: renderedHtml }]);
+
+    const result = await fetchBrokerListingPage("https://spa-broker.example/objekt/1");
+
+    expect(result?.images).toEqual(["https://cdn.maklare.example/badrum.jpg"]);
+    expect(result?.description).toContain("Ljus tvåa");
+    expect(runPlaywrightRender).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT spend a headless render when the direct fetch already yielded usable data (cost guard)", async () => {
+    resolveSafeExternalUrl.mockResolvedValue(PUBLIC_ADDRESS);
+    globalFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      type: "basic",
+      text: () => Promise.resolve(domHtml), // has a description
+    });
+
+    await fetchBrokerListingPage("https://broker.example/listing/1");
+
+    expect(runPlaywrightRender).not.toHaveBeenCalled();
   });
 });
