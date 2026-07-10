@@ -661,6 +661,29 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     expect(brokerImages.get(0)).toEqual([{ mediaType: "image/jpeg", data: "QkFTRTY0" }]);
   });
 
+  it("derives orientation from the broker description when Booli's yields none (orientation v2)", async () => {
+    fetchListing.mockResolvedValue({
+      imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      agencyListingUrl: "https://maklare.example/objekt/1",
+    });
+    fetchBrokerListingPage.mockResolvedValue({
+      renovationStatus: null,
+      description: "Ljust vardagsrum i söderläge med härlig kvällssol.",
+      images: [],
+    });
+    const input = [
+      makeCandidate({
+        sourceListingUrl: "https://www.booli.se/bostad/1",
+        imageUrls: null,
+        orientation: null,
+      }),
+    ];
+
+    const { candidates } = await enrichCandidateImages(input, 8);
+
+    expect(candidates[0].orientation?.facades).toContain("south");
+  });
+
   it("does NOT fetch a broker gallery when the detail entity has no agencyListingUrl", async () => {
     fetchListing.mockResolvedValue({ imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"] });
     const input = [

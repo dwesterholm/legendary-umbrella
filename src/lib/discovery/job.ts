@@ -5,6 +5,7 @@ import { resolveArea } from "@/lib/discovery/resolve-area";
 import { toCandidate, filterCandidates, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
+import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -381,9 +382,20 @@ export async function enrichCandidateImages(
       if (brokerUrl) {
         try {
           const broker = await fetchBrokerListingPage(brokerUrl);
-          if (broker && broker.images.length > 0) {
-            const bytes = await fetchBrokerImageBytes(broker.images, BROKER_IMAGES_PER_CANDIDATE);
-            if (bytes.length > 0) brokerImages.set(i, bytes);
+          if (broker) {
+            // Orientation v2: the broker description is often richer than
+            // Booli's ("vardagsrum i söderläge med kvällssol"). If we still
+            // have no orientation (Booli's description/detail yielded no
+            // väderstreck), derive it from the broker description — same
+            // deterministic extractor, better source.
+            if (!out[i].orientation && broker.description) {
+              const derived = extractOrientationFromDescription(broker.description);
+              if (derived) out[i] = { ...out[i], orientation: derived };
+            }
+            if (broker.images.length > 0) {
+              const bytes = await fetchBrokerImageBytes(broker.images, BROKER_IMAGES_PER_CANDIDATE);
+              if (bytes.length > 0) brokerImages.set(i, bytes);
+            }
           }
         } catch {
           // Broker enrichment is a pure bonus — never let it affect the job.
