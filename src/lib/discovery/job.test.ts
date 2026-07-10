@@ -8,14 +8,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 const fetchAreaListings = vi.fn();
+const fetchListing = vi.fn();
 vi.mock("@/lib/booli/client", () => ({
   fetchAreaListings: (...args: unknown[]) => fetchAreaListings(...args),
+  fetchListing: (...args: unknown[]) => fetchListing(...args),
   // Real allowlist semantics (https + booli.se host) so the WR-03 read-path
   // filter in claimVisionSlice is exercised faithfully, not stubbed away.
   isAllowedImageHost: (url: string) => {
     try {
       const { hostname, protocol } = new URL(url);
-      return protocol === "https:" && (hostname === "booli.se" || hostname.endsWith(".booli.se"));
+      if (protocol !== "https:") return false;
+      return (
+        hostname === "booli.se" ||
+        hostname.endsWith(".booli.se") ||
+        hostname === "bcdn.se" ||
+        hostname.endsWith(".bcdn.se")
+      );
     } catch {
       return false;
     }
@@ -32,6 +40,7 @@ import {
   runVisionForJob,
   claimVisionSlice,
   claimAndRunVisionForJob,
+  enrichCandidateImages,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
@@ -550,5 +559,72 @@ describe("claimAndRunVisionForJob — CR-04 (11-REVIEW.md) composes the CAS with
     // The job settles back to "done" — never double-processed, never
     // wedged at "vision_processing".
     expect(row.status).toBe("done");
+  });
+});
+
+describe("enrichCandidateImages — detail-fetch the shortlist for images before vision", () => {
+  const rawDetail = (imageUrls: string[], extra: Record<string, unknown> = {}) => ({
+    imageUrls,
+    ...extra,
+  });
+
+  it("detail-fetches candidates lacking images, populating imageUrls + backfilling floor/year/orientation", async () => {
+    fetchListing.mockResolvedValue(
+      rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"], { floor: 3, constructionYear: 1930 }),
+    );
+    const input = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null, floor: null }),
+    ];
+
+    const out = await enrichCandidateImages(input, 8);
+
+    expect(fetchListing).toHaveBeenCalledTimes(1);
+    expect(out[0].imageUrls).toEqual(["https://bcdn.se/images/cache/1_1440x0.webp"]);
+    expect(out[0].floor).toBe(3); // backfilled from the detail entity
+    expect(out[0].constructionYear).toBe(1930);
+  });
+
+  it("skips candidates that already have images (no wasted detail fetch)", async () => {
+    const input = [
+      makeCandidate({
+        sourceListingUrl: "https://www.booli.se/bostad/1",
+        imageUrls: ["https://bcdn.se/images/cache/9_1440x0.webp"],
+      }),
+    ];
+
+    const out = await enrichCandidateImages(input, 8);
+
+    expect(fetchListing).not.toHaveBeenCalled();
+    expect(out[0].imageUrls).toEqual(["https://bcdn.se/images/cache/9_1440x0.webp"]);
+  });
+
+  it("is bounded to `limit` detail fetches regardless of how many candidates lack images", async () => {
+    fetchListing.mockResolvedValue(rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"]));
+    const input = Array.from({ length: 20 }, (_, i) =>
+      makeCandidate({ sourceListingUrl: `https://www.booli.se/bostad/${i}`, imageUrls: null }),
+    );
+
+    await enrichCandidateImages(input, 8);
+
+    expect(fetchListing).toHaveBeenCalledTimes(8);
+  });
+
+  it("is non-fatal: a failed detail fetch leaves that candidate unchanged (vision later skips it)", async () => {
+    fetchListing.mockRejectedValue(new Error("render blocked"));
+    const input = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+    ];
+
+    const out = await enrichCandidateImages(input, 8);
+
+    expect(out[0].imageUrls).toBeNull();
+  });
+
+  it("skips candidates with no sourceListingUrl (nothing to fetch)", async () => {
+    const input = [makeCandidate({ sourceListingUrl: null, imageUrls: null })];
+
+    await enrichCandidateImages(input, 8);
+
+    expect(fetchListing).not.toHaveBeenCalled();
   });
 });
