@@ -143,6 +143,7 @@ All of this is **analysis/vision-side** — read only via the `condition-score.t
 5. **ROI-aware + buyer-segment + tiered cost/profit ±tax** encoded into the prompt + schema (`vision-schema.ts`).
 
 ### Phase B — Value-gap scoring
+- ✅ **CORE DONE 2026-07-10** (as `flip-economics.ts`): `valueGap()` §2.6 metric + `buyerSegment()` + `RENO_COST_MATRIX`/`applyRot()` + `taxLines()`/`TAX_NOTES`. Pure, 16 tests, separation-grep extended to forbid it in niche-score/flags. **REMAINING B:** wire `valueGap` into the ranking tiebreaker (`discovery-results.tsx:112-115`) as a ranking input (decision #1) once comps (R_med/U_med) are available from Phase A.4, + the "från bildtolkning" marker in the UI.
 - §2.6 formula as the headline opportunity metric + a **ranking input** — but computed on the **separate vision/analysis read path** (extend `condition-score.ts` or a sibling), NOT `computeNicheScore`. Keep the "från bildtolkning" marker.
 - **Extend the static-grep separation test** (`niche-score.test.ts:281-322`) to cover any new value-gap module: assert `niche-score.ts`/`flags.ts` still don't import it.
 - Wire into ranking tiebreaker in `discovery-results.tsx:112-115` alongside `conditionScore`.
