@@ -2,7 +2,12 @@ import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { resolveArea } from "@/lib/discovery/resolve-area";
-import { toCandidate, filterCandidates, type DiscoveryCandidate } from "@/lib/discovery/candidate";
+import {
+  toCandidate,
+  filterCandidates,
+  pricePerSqm,
+  type DiscoveryCandidate,
+} from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
 import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
@@ -322,12 +327,85 @@ export async function claimVisionSlice(
  * Max DETAIL-page fetches per vision pass. Area-search entities carry no
  * images, so the shortlist must be detail-fetched to feed vision — but each
  * fetch is a paid Apify render, so this is a hard bound on that spend (the top
- * `VISION_ENRICH_LIMIT` candidates, in Booli's relevance order). NOTE: these
- * enrichment renders are not yet folded into the persisted cost ledger — that
- * joins the existing deferred cost-fidelity follow-up; the count bound keeps
- * worst-case spend small and fixed regardless.
+ * `VISION_ENRICH_LIMIT` candidates, in RENO-POTENTIAL order — see
+ * `enrichmentVisitOrder`). NOTE: these enrichment renders are not yet folded
+ * into the persisted cost ledger — that joins the existing deferred
+ * cost-fidelity follow-up; the count bound keeps worst-case spend small and
+ * fixed regardless.
  */
 const VISION_ENRICH_LIMIT = 8;
+
+/**
+ * Reno-potential enrichment pre-rank (SPEC §2.1, fixes defect D1).
+ *
+ * The enrichment budget (`VISION_ENRICH_LIMIT`) is smaller than the candidate
+ * set, so the ORDER in which we spend detail-fetches decides which candidates
+ * ever reach vision. Booli's own relevance order buried dated/below-market
+ * flats (the Ringvägen 122 miss) below the cut. For a renovation search the
+ * priority is inverted: a flat that is CHEAP per m² for its area and sits in
+ * OLDER stock is exactly the renovation target we must analyze — so it should
+ * win the fetch, not get truncated away.
+ *
+ * Signal (both available pre-vision, no extra network cost):
+ *  - below-market: kr/m² below the candidate-set median → primary weight.
+ *  - aged stock:   older `constructionYear` → secondary tiebreaker.
+ * Missing data contributes 0 (never negative-by-omission), so a candidate is
+ * never penalised for a null we simply don't have.
+ */
+const RENO_AGE_PIVOT = 1975; // at/newer than this → no age bonus (modern stock)
+const RENO_AGE_FLOOR = 1900; // at/older than this → full age bonus
+const RENO_AGE_WEIGHT = 0.25; // age is a tiebreaker, not a co-equal of below-market
+
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/**
+ * The candidate-set median kr/m² over every candidate with a computable
+ * `pricePerSqm` (the market reference for "below-market"). Returns null when no
+ * candidate has one, in which case the below-market signal is simply absent.
+ */
+export function candidateMedianPricePerSqm(candidates: DiscoveryCandidate[]): number | null {
+  const ppsqm = candidates
+    .map((c) => pricePerSqm(c))
+    .filter((v): v is number => v !== null)
+    .sort((a, b) => a - b);
+  if (ppsqm.length === 0) return null;
+  const mid = Math.floor(ppsqm.length / 2);
+  return ppsqm.length % 2 === 0 ? (ppsqm[mid - 1] + ppsqm[mid]) / 2 : ppsqm[mid];
+}
+
+/** Pure reno-potential priority for one candidate (higher = enrich sooner). */
+export function enrichmentPriority(
+  candidate: DiscoveryCandidate,
+  medianPricePerSqm: number | null,
+): number {
+  const ppsqm = pricePerSqm(candidate);
+  const belowMarket =
+    medianPricePerSqm && medianPricePerSqm > 0 && ppsqm !== null
+      ? clamp((medianPricePerSqm - ppsqm) / medianPricePerSqm, -1, 1)
+      : 0;
+  const year = candidate.constructionYear;
+  const agedBonus =
+    year !== null ? clamp((RENO_AGE_PIVOT - year) / (RENO_AGE_PIVOT - RENO_AGE_FLOOR), 0, 1) : 0;
+  return belowMarket + RENO_AGE_WEIGHT * agedBonus;
+}
+
+/**
+ * The order in which `enrichCandidateImages` should VISIT candidate indices —
+ * highest reno-potential first. Returns ALL indices (the enrich loop still
+ * filters to image-less ones and stops at `limit`); we only change the visit
+ * order, never the array itself, so `out[i]`/broker-map indices stay aligned
+ * with the input. Stable: equal-priority candidates keep Booli's original
+ * order as the tiebreak.
+ */
+export function enrichmentVisitOrder(candidates: DiscoveryCandidate[]): number[] {
+  const median = candidateMedianPricePerSqm(candidates);
+  const priorities = candidates.map((c) => enrichmentPriority(c, median));
+  return candidates
+    .map((_, i) => i)
+    .sort((a, b) => priorities[b] - priorities[a] || a - b);
+}
 
 /** Max broker-gallery images fetched (as bytes) per candidate — bounds bandwidth. */
 const BROKER_IMAGES_PER_CANDIDATE = 4;
@@ -358,7 +436,13 @@ export async function enrichCandidateImages(
   const out = [...candidates];
   const brokerImages = new Map<number, BrokerImageBytes[]>();
   let fetched = 0;
-  for (let i = 0; i < out.length && fetched < limit; i++) {
+  // Visit in reno-potential order (below-market + aged first), NOT Booli's
+  // relevance order, so the limited enrichment budget lands on the actual
+  // renovation targets rather than getting truncated away (SPEC §2.1, D1).
+  // `out` stays in input order — only the visit sequence changes — so `out[i]`
+  // and the broker-image map indices remain aligned with the caller's array.
+  for (const i of enrichmentVisitOrder(out)) {
+    if (fetched >= limit) break;
     const c = out[i];
     if (c.imageUrls && c.imageUrls.length > 0) continue; // already has images
     if (!c.sourceListingUrl) continue; // nothing to fetch

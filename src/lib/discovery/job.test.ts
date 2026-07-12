@@ -51,6 +51,9 @@ import {
   claimVisionSlice,
   claimAndRunVisionForJob,
   enrichCandidateImages,
+  enrichmentVisitOrder,
+  enrichmentPriority,
+  candidateMedianPricePerSqm,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
@@ -694,5 +697,80 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
 
     expect(fetchBrokerListingPage).not.toHaveBeenCalled();
     expect(brokerImages.size).toBe(0);
+  });
+
+  // SPEC §2.1 / defect D1: when the enrichment budget is smaller than the pool
+  // of image-less candidates, it must land on the RENO TARGETS (below-market +
+  // aged), not on whoever Booli ranked first. This is the Ringvägen 122 fix.
+  it("spends a scarce enrichment budget on the below-market/aged flat, not Booli's first (D1)", async () => {
+    fetchListing.mockResolvedValue(rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"]));
+    const input = [
+      // Booli-order #1: priced AT market, modern stock → low reno potential.
+      makeCandidate({
+        sourceListingUrl: "https://www.booli.se/bostad/atmarket",
+        imageUrls: null,
+        price: 4_000_000,
+        livingArea: 40, // 100k/m²
+        constructionYear: 2015,
+      }),
+      // Booli-order #2: markedly below market + old stock → the real target.
+      makeCandidate({
+        sourceListingUrl: "https://www.booli.se/bostad/ringvagen",
+        imageUrls: null,
+        price: 3_000_000,
+        livingArea: 40, // 75k/m² — well below the set
+        constructionYear: 1962,
+      }),
+    ];
+
+    await enrichCandidateImages(input, 1); // budget of one
+
+    expect(fetchListing).toHaveBeenCalledTimes(1);
+    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/ringvagen");
+  });
+});
+
+describe("enrichment pre-rank (SPEC §2.1, D1)", () => {
+  it("candidateMedianPricePerSqm: median over computable kr/m², null when none", () => {
+    const set = [
+      makeCandidate({ price: 3_000_000, livingArea: 30 }), // 100k
+      makeCandidate({ price: 4_000_000, livingArea: 40 }), // 100k
+      makeCandidate({ price: 1_200_000, livingArea: 10 }), // 120k
+    ];
+    expect(candidateMedianPricePerSqm(set)).toBe(100_000);
+    expect(
+      candidateMedianPricePerSqm([makeCandidate({ price: null, livingArea: null })]),
+    ).toBeNull();
+  });
+
+  it("enrichmentPriority: below-market ranks above at-market; aged breaks ties", () => {
+    const median = 100_000;
+    const belowMarket = makeCandidate({ price: 3_000_000, livingArea: 40 }); // 75k
+    const atMarket = makeCandidate({ price: 4_000_000, livingArea: 40 }); // 100k
+    expect(enrichmentPriority(belowMarket, median)).toBeGreaterThan(
+      enrichmentPriority(atMarket, median),
+    );
+
+    const old = makeCandidate({ price: 4_000_000, livingArea: 40, constructionYear: 1910 });
+    const modern = makeCandidate({ price: 4_000_000, livingArea: 40, constructionYear: 2010 });
+    expect(enrichmentPriority(old, median)).toBeGreaterThan(enrichmentPriority(modern, median));
+  });
+
+  it("enrichmentPriority: missing price/year contributes 0, never a negative penalty", () => {
+    const median = 100_000;
+    const noData = makeCandidate({ price: null, livingArea: null, constructionYear: null });
+    expect(enrichmentPriority(noData, median)).toBe(0);
+    // A null median (no market reference) yields 0 below-market for everyone.
+    expect(enrichmentPriority(makeCandidate({ price: 3_000_000, livingArea: 40 }), null)).toBe(0);
+  });
+
+  it("enrichmentVisitOrder: sorts reno targets first, stable on ties (keeps Booli order)", () => {
+    const order = enrichmentVisitOrder([
+      makeCandidate({ price: 4_000_000, livingArea: 40 }), // 100k, at market
+      makeCandidate({ price: 3_000_000, livingArea: 40, constructionYear: 1962 }), // 75k + old
+      makeCandidate({ price: 4_000_000, livingArea: 40 }), // 100k, at market (tie w/ idx 0)
+    ]);
+    expect(order[0]).toBe(1); // the below-market/aged flat wins
+    expect(order.slice(1)).toEqual([0, 2]); // ties keep original order
   });
 });
