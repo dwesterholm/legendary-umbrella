@@ -119,3 +119,79 @@ Ranked by price impact, with direction + magnitude + encodable weight. **Several
 - **Data we need / open:** renovated-vs-unrenovated comp classification (Booli doesn't tag condition → infer via kr/m² tercile + our vision); per-stadsdel overbid factor (compute from our own Booli pulls); stambyte funding state (needs BRF årsredovisning extraction); verify post-2025 BBR daylight aggregate; download the Mäklarsamfundet PDF for a per-kommun room-premium lookup.
 
 *Sources: Booli condition/balcony/floor analyses, Mäklarsamfundet "Ett rum till!", Hemnet photo & bidder studies, Bjurfors/Sifo WTP surveys, Boverket/BBR & GVK/BBV rules, Byggstart/Golonka/IKEA cost data, Zillow 2025 color study (US, directional), DiVA/HHS hedonic theses, Svensk Mäklarstatistik/Valueguard, ekonomifokus flip guides. Full URLs in the agent transcripts.*
+
+---
+
+# 8. Follow-up research — batch 2 (2026-07-10)
+
+Four targeted deep-dives commissioned after the first sweep, each returned with SEK figures + Swedish sources. Consolidated here as the encodable ruleset feeding the SPEC. (Full source URLs in the four agent transcripts.)
+
+## 8.1 Bathroom surfaces — real materials vs våtmatta + microcement risk
+
+**Freshness beats material tier.** Tile *reads* more exclusive than plastmatta/våtmatta and lasts longer (30–40 yr vs 10–15 yr), but the value data caps the payoff: bathroom condition 1→5 ≈ **+108k** (Stockholm), and a full reno returns only **~50–70% of cost** → confirms "make it not-ugly, don't over-renovate." A *fresh plastmatta* bath scores well; a *dated/ugly tiled* bath scores poorly. Reward freshness, not material.
+
+**Dated tile (blue/brown 70s–80s, odd colors) = a real buyer turnoff even when functional** → distinct cheap cosmetic-refresh tier that avoids demolition + new tätskikt:
+- Paint tile (kakelfärg): DIY **500–2,000 kr**; pro **~3,000–8,000 kr** (400–800 kr/m²). Lifespan ~5–8 yr.
+- Microcement over *firmly-fixed tile*: **1,200–2,500 kr/m²**, small bath **from ~35k** — safe variant.
+- Retile only: 15k–50k (shades into partial reno).
+- Full våtrum reno (new tätskikt, small ~4 m²): **~80k–120k** (15k–35k kr/m²); Stockholm avg ~200k.
+
+**Microcement over VÅTMATTA = HIGH-RISK flag.** Microcement is a *ytskikt, never a tätskikt* — it does NOT reset the våtrumsintyg (waterproofing age = original mat's age). Rigid coating over a flexible vinyl mat → cracking/delamination; most plastmatta makers have no documented approved buildup. Only defensible if mat is intact + young + manufacturer-approved system + certified firm + documentation; otherwise it hides an aging tätskikt under expensive finish. Insurance can deny on DIY/off-spec work. Short-form framing the AI must state: *"cosmetic finish only, does not renew waterproofing or the intyg; do NOT apply over old/unknown-age våtmatta."*
+
+**Encodable:** (1) reward fresh/not-ugly, penalize dated tile as turnoff; (2) full våtrum reno = cost/margin RISK not value-add; (3) bathroom uplift ceiling +108k; (4) microcement-over-våtmatta → HIGH-RISK caveat, never a substitute for a failing tätskikt.
+
+## 8.2 Buyer segmentation by apartment size
+
+| | **1-rok (etta, ~20–40 m²)** | **2-rok / 3-rok (~45–80 m²)** |
+|---|---|---|
+| Buyer | Single, 25–29, **first-time**, financing-capped, **turnkey-seeker** (not project-hunter) | Dual-income couple, early–mid 30s, equity-carrying, **premium-tolerant** |
+| Premium tolerance | LOW — maxed on lånelöfte; SBAB Jun-2025: small flats are weakest/most price-sensitive segment | HIGH — "brutal" competition, **5–15 bidders** on desirable treor |
+| Values most | Turnkey + **light** + low avgift + perceived space | **Layout / real extra room** + **open kök-vardagsrum** + modern kitchen |
+| Flipper priority | Cosmetic fix-och-färg + **mid-range** kitchen/bath (scale 2→4, **never lux**); keep spend tight | **Add/define a room + open the social plan + kitchen toward scale 4** |
+| Biggest turn-off | High avgift, dark, unfinished/project feel, over-priced lux | Bad/impractical plan, no real bedroom, dated kitchen, "another project" |
+
+**Scaling insight:** renovation premium is ~fixed SEK, so a larger **%** on a cheap etta — BUT the etta buyer's financing cap limits realizability; margin capture is more reliable on 2–3-rok (competition + buying power). Cosmetic refresh (fix-och-färg ≈ **+15%**, ±5%) is the highest-ROI move universally. Bathroom edges kitchen on willingness-to-pay (49% vs 42%); kitchen edges bathroom on triggering a bidding war.
+
+**Encodable:** tailor recommendations + value-gap to the target buyer of THAT size. 1-rok → weight turnkey/light/low-avgift, **cap ambition at MID, penalize lux-kitchen recs**. 2–3-rok → weight extra-room/open-plan/kitchen-to-4, reward renovation more.
+
+## 8.3 Tiered reno cost-vs-profit (Stockholm 2025–2026, pre-ROT)
+
+Ref: ~70 m² apt, kitchen ~10 m², bath ~5 m². **CHEAP** = DIY + budget (no ROT); **MID** = mixed + builder for advanced; **HIGH** = builder throughout + premium.
+
+| Opportunity | CHEAP | MID | HIGH | Uplift anchor |
+|---|---|---|---|---|
+| Full kitchen | 50k–100k | 150k–250k | 350k–800k | **+200k–267k** (1→5, big city) |
+| **Kitchen cosmetic** (luckor/skiva/blandare) | 20k–40k | 30k–60k | 50k–90k | **~+80k–150k** — best ROI/krona |
+| Full bathroom/våtrum | 60k–110k* | 130k–190k | 200k–320k+ | **+108k** |
+| Bathroom cosmetic | 5k–20k | 15k–40k | 30k–60k | ~+20k–50k |
+| Paint whole apt (~70 m²) | 5k–15k | 25k–40k (post-ROT) | 45k–85k | indirect (condition score) |
+| New floors | slipa 10k–20k / DIY laminat 15k–30k | 25k–45k fitted | 70k–130k+ (fiskben) | condition score |
+| Open non-bearing wall | 3k–8k | 3.5k–14k (post-ROT) | 15k–25k | indirect (openness) |
+| Open **bearing** wall (avväxling) | ~20k–30k floor** | 30k–45k | 50k–80k+ | indirect; no clean hedonic figure |
+
+\* pure-DIY wet room is **invalid** — tätskikt needs GVK-cert labor or the flat loses insurability. \*\* bearing wall is anmälningspliktigt → konstruktör + kontrollplan, no legit DIY tier.
+
+**Tier multipliers:** MID ≈ 2.5–3× CHEAP; HIGH ≈ 2–2.5× MID (≈5–7× CHEAP). Cosmetics/wet-rooms/structural compress this (fixed costs dominate). **ROT 2026 = 30% of labor only**, cap 50k/person/yr (100k for two owners), combined ROT+RUT 75k — DIY gets none. Aim for the **2→4 mid path**, not luxury (5 costs disproportionately more than it returns). Use ~40–70% of the full-reno uplift anchor for a 1–2-step refresh. Bjurfors/Sifo: WTP has *softened* since 2022 → treat uplift figures as **ceilings**.
+
+## 8.4 Capital-gains tax (privatbostad, 2026) — with/without tax lines
+
+**Baseline:** `vinst = salePrice − sellingCosts − purchasePrice − purchaseCosts − improvementCosts`; `skatt = max(vinst,0) × 0.22` (= kvoterad 22/30 taxed 30%).
+
+**Deductible improvements:** grundförbättring (ny/till/ombyggnad, first-time install) always; reparation/underhåll only if within sale year + 5 preceding AND left home in better condition than at purchase; each gated by ≥5,000 kr/yr. Reno costs reduce the taxable gain.
+
+**Uppskov (deferral):** roll gain into an ersättningsbostad (EES); min 50k, **takbelopp 3,000,000 kr** per home (pro-rated by ownership share), reduced if replacement cheaper. **Schablonintäkt (uppskovsränta) abolished 2021 → deferral is now interest-free & indefinite, rollable to each new home.** Crystallizes at 22% only on a final non-replaced sale (or voluntary revocation, min 20k — useful to time against a loss year). Model as an interest-free liability of `deferrable × 0.22`, NOT a profit reduction.
+
+**Prior-loss offset — key constraint:** loss on privatbostad is kvoterad to **50%** (0.70 oäkta brf); quoted amount deducts 100% against any capital income **but ONLY in the year realized — losses CANNOT be carried forward.** So a loss cancels a flip's gain only if the profitable flip lands in the **same calendar year**; otherwise a lone loss yields only a skattereduktion (30% of deficit ≤100k, 21% above). Operator's "selling one flat at a loss soon" only shelters same-year flips — timing matters.
+
+**Näringsverksamhet risk:** no numeric limit; repeated buy-reno-sell with short holds + profit motive + businesslike pattern risks reclassification → taxed at marginal income rates + egenavgifter (not 22%), losing the quota + uppskov + private förbättrings rules. Surface as a **non-blocking warning** on repeat-flip patterns.
+
+**Encodable — two profit lines the analysis must always show:**
+```
+profit_without_tax = vinst
+profit_with_tax    = vinst − max(vinst,0) × 0.22
+```
+plus an optional uppskov scenario ("tax deferred interest-free, 22% due later") and a same-year prior-loss offset that reduces the taxed line. Never assume a flat 22% without surfacing uppskov + loss-offset + the näringsverksamhet caveat.
+
+---
+
+*Batch-2 sources (Skatteverket, GVK, Booli, SBAB, Byggstart/Totalbyggarna/Offerta, Hemnet, Bjurfors/Sifo, SCB) — full URLs in the four agent transcripts under this session's tasks dir.*

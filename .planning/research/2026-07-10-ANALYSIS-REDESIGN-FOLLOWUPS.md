@@ -34,8 +34,8 @@
    - The cost-vs-profit breakdown must show **both WITH and WITHOUT tax** (and note uppskov/loss-offset), not assume a flat 22%.
 
 ## Roadmap (agreed)
-1. **Do the 4 follow-up research items above** (parallel deep-research agents, same pattern as the first sweep) → append findings to the research synthesis.
-2. **Encode the research into a SPEC doc** (the encodable ruleset: pre-filter flip, holistic inputs, ROI-aware granular prompt, buyer-segment tailoring, cost/profit tiers ± tax, value-gap formula, architect R1–R7, interior-designer per-room rules, proposed-drawing).
+1. ~~**Do the 4 follow-up research items above**~~ ✅ DONE 2026-07-10 — all 4 completed, consolidated into synthesis **§8** (8.1 bathroom/microcement, 8.2 buyer-segmentation, 8.3 tiered cost/profit, 8.4 CGT). Resume from step 2.
+2. ~~**Encode the research into a SPEC doc**~~ ✅ DONE 2026-07-10 → `2026-07-10-ANALYSIS-REDESIGN-SPEC.md` (same dir). Grounded in code map: pre-filter is `enrichCandidateImages` (`job.ts:354`, Booli-order bug = D1); `claims:[]` from `vision.ts:285/332` (D2); BRF/comps not wired + lat/lng blocker (D3); generic prompt (D4). Has full ruleset + Phase A/B/C task breakdown + **4 open questions for operator** (§6) that gate the build.
 3. **Implement in 3 phases:**
    - **A. Analysis brain** — flip the pre-filter; make the vision/opportunity prompt holistic (BRF + comps) + ROI-aware + granular + buyer-segment-aware + tiered cost/profit (±tax); every candidate gets analysis.
    - **B. Value-gap scoring** — §5 formula as the headline opportunity metric + ranking input (kept off computeNicheScore per the locked structural-separation constraint — use a separate vision/analysis read path + "från bildtolkning" marker).
