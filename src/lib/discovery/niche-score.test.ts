@@ -306,6 +306,7 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/sun-path\"",
     "discovery/sun-path'",
     "discovery/flip-economics",
+    "discovery/area-comps",
   ];
 
   function importsVisionModule(sourcePath: string): boolean {
