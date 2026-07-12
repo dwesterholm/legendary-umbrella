@@ -293,6 +293,11 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
   // sun-path is deterministic-but-advisory math; NEITHER may ever feed the
   // deterministic scorer/flags, reciprocal to sun-path.ts's own file-level
   // doc comment ("NEVER imported by niche-score.ts or flags.ts").
+  // Analysis-redesign (2026-07-10): `flip-economics.ts` (value-gap / tiered
+  // cost / tax) is ALSO on the vision/analysis read path — value-gap must
+  // never silently become a deterministic scored signal without the visible
+  // "från bildtolkning" marker (SPEC Phase B). Reciprocal to that module's own
+  // file-level doc comment; added to this same invariant, not a new test file.
   const VISION_MODULE_SPECIFIERS = [
     "discovery/vision-schema",
     "discovery/vision\"",
@@ -300,6 +305,7 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/sun-path",
     "discovery/sun-path\"",
     "discovery/sun-path'",
+    "discovery/flip-economics",
   ];
 
   function importsVisionModule(sourcePath: string): boolean {
