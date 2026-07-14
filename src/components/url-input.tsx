@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { analyzeUrl, type AnalyzeResult } from "@/actions/analyze";
@@ -21,7 +20,6 @@ export function UrlInput({ onResult, onLoadingChange }: UrlInputProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

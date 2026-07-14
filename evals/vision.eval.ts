@@ -144,7 +144,7 @@ function claimMentionsHallucinationMarker(claim: VisionConditionClaim): boolean 
 
 // Resolved at beforeAll so the no-fixtures / no-labels case reports cleanly
 // instead of throwing at import time (mirrors extractor.eval.ts:81-118).
-let cases: Case[] = [];
+const cases: Case[] = [];
 let setupNote = "";
 
 describe("Vision condition eval (DISC-04 validation gate)", () => {

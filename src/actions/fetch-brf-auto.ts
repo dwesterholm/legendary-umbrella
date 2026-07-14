@@ -176,6 +176,7 @@ export async function confirmAndAnalyze(
   // returns at confirm-time (the source of truth, threaded to
   // `runBrfExtraction` below via `fetchMeta`), never this client-supplied
   // preview value.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _fiscalYear: number | null,
 ): Promise<ConfirmAndAnalyzeResult> {
   if (typeof analysisId !== "string" || !analysisId) {

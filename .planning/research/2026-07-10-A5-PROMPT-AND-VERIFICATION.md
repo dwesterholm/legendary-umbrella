@@ -120,7 +120,7 @@ Model this on the existing cost-gated eval (`evals/extractor.eval.ts`, run via `
 - `opportunities` parse, `room` is a valid enum, hedged language present, no banned verdict words;
 - a dated-bathroom fixture yields a cosmetic-refresh opportunity, and any microcement-over-våtmatta rationale includes the tätskikt/intyg caveat.
 
-Run: `RUN_LLM_EVALS=1 vitest run evals/opportunity-brief.eval.ts`
+Run: `RUN_LLM_EVALS=1 npx vitest run evals/opportunity-brief.eval.ts` (bare `vitest` isn't on PATH — it's a local dev dep, so use `npx vitest` or add an npm script like the existing `npm run eval`).
 **If this 400s: slim the schema further** (drop a nullable union, remove any numeric constraint, flatten a nested object) and re-run before touching the UI.
 
 ### 5.3 End-to-end in the browser (real job, real spend)

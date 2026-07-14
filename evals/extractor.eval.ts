@@ -80,7 +80,7 @@ function numberMatches(expected: number | null, actual: number | null): boolean 
 
 // Resolved at beforeAll so the no-fixtures / no-labels case reports cleanly
 // instead of throwing at import time.
-let cases: Case[] = [];
+const cases: Case[] = [];
 let setupNote = "";
 
 describe("BRF extraction eval (brf-extract/v2 regression gate, D-02)", () => {
