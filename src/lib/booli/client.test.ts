@@ -127,33 +127,37 @@ describe("fetchListing", () => {
     expect(points.map((p) => p.key)).toEqual(["livingArea", "rooms"]);
   });
 
-  it("falls to rung 2 then rung 3 (scrapeBooli) only after BOTH own-render rungs throw", async () => {
+  // Rung 3 (the paid Lexis actor) is DISABLED for cost (2026-07-14). While it
+  // is disabled, fetchListing degrades to the two own-render rungs and throws
+  // when both fail (no paid fallback):
+  it("throws when both own-render rungs fail — rung 3 (paid Lexis actor) is disabled", async () => {
     actorCall.mockRejectedValue(new Error("own-playwright render failed"));
-    scrapeBooli.mockResolvedValue({ streetAddress: "Fallback 1", price: 100 });
 
-    const result = await fetchListing(DETAIL_URL);
-
-    expect(actorCall).toHaveBeenCalledTimes(2); // rung 1 + rung 2, both own renders
-    expect(scrapeBooli).toHaveBeenCalledTimes(1); // rung 3, only after both threw
-    expect(scrapeBooli).toHaveBeenCalledWith(DETAIL_URL);
-    expect(result).toEqual({ streetAddress: "Fallback 1", price: 100 });
+    await expect(fetchListing(DETAIL_URL)).rejects.toThrow();
+    expect(scrapeBooli).not.toHaveBeenCalled();
   });
 
-  it("returns scrapeBooli's output UNCHANGED when rung 3 serves the request", async () => {
-    actorCall.mockRejectedValue(new Error("own-playwright render failed"));
-    const rawActorShape = {
-      streetAddress: "Actor St 5",
-      price: 3_000_000,
-      livingArea: { raw: 50 },
-      rooms: 2,
-      booliId: "999",
-    };
-    scrapeBooli.mockResolvedValue(rawActorShape);
-
-    const result = await fetchListing(DETAIL_URL);
-
-    expect(result).toBe(rawActorShape); // identity — no reshape applied to rung 3's output
-  });
+  // ── RESTORE the paid-actor rung 3 by re-enabling these two tests (and the
+  //    rung + import in client.ts, and re-renting the actor), then delete the
+  //    disabled-state test above. ──────────────────────────────────────────
+  // it("falls to rung 2 then rung 3 (scrapeBooli) only after BOTH own-render rungs throw", async () => {
+  //   actorCall.mockRejectedValue(new Error("own-playwright render failed"));
+  //   scrapeBooli.mockResolvedValue({ streetAddress: "Fallback 1", price: 100 });
+  //   const result = await fetchListing(DETAIL_URL);
+  //   expect(actorCall).toHaveBeenCalledTimes(2); // rung 1 + rung 2, both own renders
+  //   expect(scrapeBooli).toHaveBeenCalledTimes(1); // rung 3, only after both threw
+  //   expect(scrapeBooli).toHaveBeenCalledWith(DETAIL_URL);
+  //   expect(result).toEqual({ streetAddress: "Fallback 1", price: 100 });
+  // });
+  // it("returns scrapeBooli's output UNCHANGED when rung 3 serves the request", async () => {
+  //   actorCall.mockRejectedValue(new Error("own-playwright render failed"));
+  //   const rawActorShape = {
+  //     streetAddress: "Actor St 5", price: 3_000_000, livingArea: { raw: 50 }, rooms: 2, booliId: "999",
+  //   };
+  //   scrapeBooli.mockResolvedValue(rawActorShape);
+  //   const result = await fetchListing(DETAIL_URL);
+  //   expect(result).toBe(rawActorShape); // identity — no reshape applied to rung 3's output
+  // });
 });
 
 describe("fetchAreaListings", () => {

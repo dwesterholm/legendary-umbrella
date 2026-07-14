@@ -1,7 +1,13 @@
 import { runPlaywrightRender } from "./transport";
 import { APOLLO_PAGE_FUNCTION } from "./page-functions";
 import { walkFallbackTree } from "./fallback-tree";
-import { scrapeBooli } from "@/lib/apify/booli-scraper";
+// DISABLED 2026-07-14 (cost): the paid Lexis actor (lexis-solutions/booli-se-scraper)
+// was only fetchListing's last-resort rung 3 and hadn't fired since 2026-07-02.
+// Its ~$30/mo Apify rental ate most of the monthly credits, so the rung is
+// commented out below and this import with it. The module
+// (src/lib/apify/booli-scraper.ts) is intentionally KEPT so this is a clean
+// uncomment-to-restore. See .planning/research/2026-07-14-DISABLED-lexis-paid-actor.md
+// import { scrapeBooli } from "@/lib/apify/booli-scraper";
 import { CAP_IMAGES_PER_LISTING } from "@/lib/discovery/filter-schema";
 
 /**
@@ -524,10 +530,20 @@ export async function fetchListing(url: string): Promise<Record<string, unknown>
       attempt: () =>
         runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntity),
     },
-    {
-      source: "paid-actor" as const,
-      attempt: () => scrapeBooli(url),
-    },
+    // DISABLED 2026-07-14 (cost): rung 3 = the paid Lexis actor
+    // (lexis-solutions/booli-se-scraper), a last-resort fallback that hadn't
+    // run since 2026-07-02 (Apify shows 21 runs ever, none in the 12 days
+    // before disabling). own-playwright is the proven primary transport
+    // (clears Cloudflare on retry), so with rung 3 gone fetchListing now
+    // degrades to the two own-render rungs and throws (HIGH-1) if BOTH fail —
+    // non-fatal in discovery enrichment, a hard fail on the /analyze single
+    // listing path. To RESTORE: uncomment this block + the scrapeBooli import
+    // above + the two client.test.ts rung-3 tests, and re-rent the actor on
+    // Apify. See the DISABLED-lexis-paid-actor planning note.
+    // {
+    //   source: "paid-actor" as const,
+    //   attempt: () => scrapeBooli(url),
+    // },
   ];
 
   const result = await walkFallbackTree(rungs);
