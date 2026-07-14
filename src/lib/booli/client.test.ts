@@ -251,6 +251,75 @@ describe("fetchAreaListings", () => {
     await expect(fetchAreaListings("115341")).rejects.toThrow();
     expect(scrapeBooli).not.toHaveBeenCalled();
   });
+
+  // Pagination (&page=N walk) — Booli truncates at ~36/page (live-probed
+  // 2026-07-14: page 2 had 35 listings absent from page 1). A page of >=
+  // FULL_PAGE_THRESHOLD (20) listings triggers the next page; a short page stops.
+  const fullPage = (startId: number, count: number) => {
+    const entities: Record<string, Record<string, unknown>> = {};
+    for (let i = 0; i < count; i++) {
+      const id = String(startId + i);
+      entities[`Listing:${id}`] = { ...listingDetailFixture, id, booliId: id };
+    }
+    return apolloItem(entities);
+  };
+
+  it("walks to the next page when a page is full, merging both pages; stops on the short last page", async () => {
+    succeedRun();
+    listItems
+      .mockResolvedValueOnce({ items: [fullPage(1, 20)] }) // full page 1 → fetch page 2
+      .mockResolvedValueOnce({ items: [fullPage(21, 5)] }); // short page 2 → stop
+
+    const result = await fetchAreaListings("115341");
+
+    expect(actorCall).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(25);
+    // Page 2's URL carried &page=2.
+    expect(actorCall).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        startUrls: [{ url: "https://www.booli.se/sok/till-salu?areaIds=115341&page=2" }],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("de-dupes listings that repeat across pages (stops when a page adds nothing new)", async () => {
+    succeedRun();
+    listItems
+      .mockResolvedValueOnce({ items: [fullPage(1, 20)] }) // full page 1
+      .mockResolvedValueOnce({ items: [fullPage(1, 20)] }); // page 2 = same ids → 0 new → stop
+
+    const result = await fetchAreaListings("115341");
+
+    expect(actorCall).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(20); // deduped, not 40
+  });
+
+  it("stops at MAX_AREA_PAGES (3) even when every page stays full", async () => {
+    succeedRun();
+    listItems
+      .mockResolvedValueOnce({ items: [fullPage(1, 20)] })
+      .mockResolvedValueOnce({ items: [fullPage(21, 20)] })
+      .mockResolvedValueOnce({ items: [fullPage(41, 20)] });
+
+    const result = await fetchAreaListings("115341");
+
+    expect(actorCall).toHaveBeenCalledTimes(3); // never fetches a 4th page
+    expect(result).toHaveLength(60);
+  });
+
+  it("keeps earlier pages when a LATER page fails (later-page failure is non-fatal)", async () => {
+    // Page 1 succeeds (full); page 2 fails BOTH rungs → keep page 1, don't throw.
+    actorCall
+      .mockResolvedValueOnce({ status: "SUCCEEDED", defaultDatasetId: "ds-1" })
+      .mockRejectedValue(new Error("page 2 blocked"));
+    listItems.mockResolvedValueOnce({ items: [fullPage(1, 20)] });
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(20); // page 1 preserved
+  });
 });
 
 describe("fetchSoldComps", () => {

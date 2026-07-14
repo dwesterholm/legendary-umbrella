@@ -547,10 +547,45 @@ export async function fetchListing(url: string): Promise<Record<string, unknown>
  * `sold-source.ts`'s `buildSlutpriserUrl` — `URLSearchParams` only, never
  * manual string concatenation (T-05-11).
  */
-function buildTillSaluUrl(areaId: string, objectType?: string | null): string {
+function buildTillSaluUrl(areaId: string, objectType?: string | null, page: number = 1): string {
   const params = new URLSearchParams({ areaIds: areaId });
   if (objectType) params.set("objectType", objectType);
+  // Page 1 omits the param so the URL is byte-identical to the pre-pagination
+  // form (and to what Booli serves at the bare area URL).
+  if (page > 1) params.set("page", String(page));
   return `https://www.booli.se/sok/till-salu?${params.toString()}`;
+}
+
+/**
+ * Booli's `/sok/till-salu` paginates at ~36 results/page (live-probed
+ * 2026-07-14: page 2 carried 35 listings absent from page 1, 0 overlap). A
+ * single render therefore captured only the first page and SILENTLY dropped the
+ * rest — so `fetchAreaListings` walks `&page=N`. A page returning fewer than
+ * this threshold is treated as the last (partial) page; only a full page of new
+ * listings justifies paying for the next render. Well below the ~36 page size
+ * so it never mistakes a full page for the last one, well above 0 so a small
+ * area's single partial page stops immediately.
+ */
+const FULL_PAGE_THRESHOLD = 20;
+
+/**
+ * Hard cap on till-salu pages walked per area. Bounds BOTH Apify spend and —
+ * the binding constraint — wall-clock: each page is a sequential ~15-45s render
+ * and the driving tick (`tickDiscovery`) has a ~300s ceiling. 3 pages ≈ 108
+ * listings/area, enough to fill the 25-candidate cap after filtering for most
+ * area+filter combinations; a genuinely huge area is bounded here rather than
+ * risking a function timeout. (Deeper completeness for large areas would want
+ * parallel page renders or a price-sorted query — a future refinement.)
+ */
+const MAX_AREA_PAGES = 3;
+
+/** Stable per-listing dedupe key across pages (booliId, else url). */
+function listingKey(listing: Record<string, unknown>): string | null {
+  const booliId = listing.booliId;
+  if (typeof booliId === "string" && booliId) return `id:${booliId}`;
+  const url = listing.url;
+  if (typeof url === "string" && url) return `url:${url}`;
+  return null;
 }
 
 /**
@@ -586,26 +621,65 @@ export async function fetchAreaListings(
   areaId: string,
   objectType?: string | null,
 ): Promise<Record<string, unknown>[]> {
-  const url = buildTillSaluUrl(areaId, objectType);
+  const seen = new Set<string>();
+  const collected: Record<string, unknown>[] = [];
 
-  const rungs = [
-    {
-      source: "own-playwright" as const,
-      attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
-    },
-    {
-      source: "own-playwright-retry" as const,
-      attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
-    },
-  ];
+  for (let page = 1; page <= MAX_AREA_PAGES; page++) {
+    const url = buildTillSaluUrl(areaId, objectType, page);
+    const rungs = [
+      {
+        source: "own-playwright" as const,
+        attempt: () =>
+          runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
+      },
+      {
+        source: "own-playwright-retry" as const,
+        attempt: () =>
+          runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
+      },
+    ];
 
-  const result = await walkFallbackTree(rungs);
+    let pageListings: Record<string, unknown>[];
+    try {
+      const result = await walkFallbackTree(rungs);
+      console.error(
+        `[booli-client] fetchAreaListings page ${page} served by rung ${result.rung} (${result.source}, health=${result.health})`,
+      );
+      pageListings = result.data;
+    } catch (error) {
+      // Page 1 failing IS the kill-switch / dead-source signal (HIGH-1) — both
+      // own-render rungs failed → propagate so the caller degrades, exactly as
+      // the pre-pagination single-render path did. A LATER page failing is
+      // non-fatal: keep the pages already collected rather than discarding a
+      // partial-but-useful result over one bad render.
+      if (page === 1) throw error;
+      console.error(
+        `[booli-client] fetchAreaListings page ${page} failed (non-fatal; keeping ${collected.length} listings)`,
+        { code: error instanceof Error ? error.name : "UNKNOWN" },
+      );
+      break;
+    }
+
+    let newThisPage = 0;
+    for (const listing of pageListings) {
+      const key = listingKey(listing);
+      if (key !== null && seen.has(key)) continue; // dedupe across pages
+      if (key !== null) seen.add(key);
+      collected.push(listing);
+      newThisPage += 1;
+    }
+
+    // Stop paginating when this page added nothing new (Booli exhausted the
+    // area, repeated page 1, or ignored the &page param) or when it was a short
+    // (partial) page — the last page. Only a FULL page of new listings warrants
+    // paying for the next render.
+    if (newThisPage === 0 || pageListings.length < FULL_PAGE_THRESHOLD) break;
+  }
+
   console.error(
-    `[booli-client] fetchAreaListings served by rung ${result.rung} (${result.source}, health=${result.health})`,
+    `[booli-client] fetchAreaListings collected ${collected.length} listings for area ${areaId}`,
   );
-  return result.data;
+  return collected;
 }
 
 // ---------------------------------------------------------------------------
