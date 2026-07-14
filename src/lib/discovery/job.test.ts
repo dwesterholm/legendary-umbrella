@@ -241,14 +241,18 @@ describe("runSlice — happy path scrape + persist", () => {
     expect(payload.cost_sek_total as number).toBeGreaterThan(0);
   });
 
-  it("leaves status as processing (not done) when candidate_count has not yet hit cap after this slice", async () => {
+  it("marks status done (a one-shot sweep is terminal) even when candidate_count is under cap; cap_reached stays false", async () => {
+    // fetchAreaListings has no pagination — one slice fetches everything the
+    // area can give, so an under-cap result is COMPLETE, not "more to come".
+    // (Regression guard: gating done on capReached previously stranded such
+    // searches in "processing" forever, so vision never ran — see job.ts §6.)
     const supabase = makeSupabase();
     const row = claimedRow({ cap_candidates: 25 });
 
     await runSlice(supabase, row);
 
     const payload = updateCalls[0];
-    expect(payload.status).toBe("processing");
+    expect(payload.status).toBe("done");
     expect(payload.cap_reached).toBeFalsy();
   });
 

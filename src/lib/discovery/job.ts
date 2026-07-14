@@ -218,12 +218,21 @@ export async function runSlice(
   const newCostSekTotal = cost_sek_total + sliceCostSek;
   const capReached = newCandidateCount >= cap_candidates;
 
+  // A successful sweep is TERMINAL. `fetchAreaListings` is one-shot (no
+  // pagination — it renders a single till-salu page), so once a slice returns
+  // there is no further page to fetch: the job is done whether or not it hit
+  // `cap_candidates`. Gating `done` on `capReached` left any UNDER-cap search
+  // (e.g. few 1-rok under 4M) stuck in "processing" forever — no second page
+  // existed to reach the cap, the 5-min stale-reclaim window matched the
+  // client's 5-min poll timeout so no further slice ran in time, and the vision
+  // pass (gated on status "done") therefore never started → no results, "Det
+  // tar längre tid än väntat". `cap_reached` still records whether we truncated.
   await updateJob(supabase, jobId, {
     results: [...claimedRow.results, ...shown],
     candidate_count: newCandidateCount,
     processed_count: newProcessedCount,
     cost_sek_total: newCostSekTotal,
-    status: capReached ? "done" : "processing",
+    status: "done",
     cap_reached: capReached,
   });
 }
