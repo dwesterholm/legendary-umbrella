@@ -16,7 +16,12 @@ vi.mock("@/lib/booli/transport", () => ({
 }));
 
 // Imported AFTER the mock is registered.
-import { resolveArea, pickBestSuggestion } from "@/lib/discovery/resolve-area";
+import {
+  resolveArea,
+  pickBestSuggestion,
+  splitAreaQuery,
+  MAX_AREAS_PER_SEARCH,
+} from "@/lib/discovery/resolve-area";
 import { AREA_SEED, seedResolve } from "@/lib/discovery/area-seed";
 import type { AreaSuggestion } from "@/lib/booli/area-suggestion-page-function";
 
@@ -209,5 +214,39 @@ describe("seedResolve", () => {
   it("returns null for empty/non-string input without throwing", () => {
     expect(seedResolve("")).toBeNull();
     expect(seedResolve("   ")).toBeNull();
+  });
+});
+
+describe("splitAreaQuery — multi-area query splitting", () => {
+  it("returns a single-element list for a plain one-area query", () => {
+    expect(splitAreaQuery("Södermalm")).toEqual(["Södermalm"]);
+  });
+
+  it("splits on the Swedish 'och' conjunction", () => {
+    expect(splitAreaQuery("Södermalm och Vasastan")).toEqual(["Södermalm", "Vasastan"]);
+  });
+
+  it("splits on comma, &, / and + separators (and combinations with 'och')", () => {
+    expect(splitAreaQuery("Södermalm, Vasastan och Kungsholmen")).toEqual([
+      "Södermalm",
+      "Vasastan",
+      "Kungsholmen",
+    ]);
+    expect(splitAreaQuery("Södermalm & Vasastan")).toEqual(["Södermalm", "Vasastan"]);
+    expect(splitAreaQuery("Södermalm/Vasastan")).toEqual(["Södermalm", "Vasastan"]);
+  });
+
+  it("trims whitespace, drops empties, and de-dupes case-insensitively (first wins)", () => {
+    expect(splitAreaQuery("Södermalm och  södermalm ,")).toEqual(["Södermalm"]);
+  });
+
+  it("caps at MAX_AREAS_PER_SEARCH", () => {
+    const many = ["A", "B", "C", "D", "E", "F"].join(" och ");
+    expect(splitAreaQuery(many)).toHaveLength(MAX_AREAS_PER_SEARCH);
+  });
+
+  it("returns an empty list for empty input", () => {
+    expect(splitAreaQuery("")).toEqual([]);
+    expect(splitAreaQuery("   ")).toEqual([]);
   });
 });

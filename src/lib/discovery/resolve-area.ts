@@ -44,6 +44,37 @@ export interface AreaResolution {
   label?: string;
 }
 
+/** Upper bound on areas resolved+scraped for one search (bounds Apify spend). */
+export const MAX_AREAS_PER_SEARCH = 4;
+
+/**
+ * Splits a free-text area query into individual area names so a multi-area
+ * search ("Södermalm och Vasastan", "Södermalm, Vasastan") resolves + scrapes
+ * each area rather than failing to resolve one impossible combined name.
+ *
+ * Splits on the Swedish conjunction " och " and on `, & / +` separators;
+ * trims, drops empties, de-dupes case-insensitively (preserving first-seen
+ * order), and caps to `MAX_AREAS_PER_SEARCH`. A plain single-area query
+ * ("Södermalm") returns a one-element list unchanged.
+ */
+export function splitAreaQuery(areaQuery: string): string[] {
+  if (!areaQuery) return [];
+  const parts = areaQuery
+    .split(/\s+och\s+|\s*[,&/+]\s*/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of parts) {
+    const k = p.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(p);
+    }
+  }
+  return out.slice(0, MAX_AREAS_PER_SEARCH);
+}
+
 /** Rank a suggestion by area type — a district/area is a better area match than a street. */
 function typeRank(s: AreaSuggestion): number {
   switch (s.typeDisplayName) {

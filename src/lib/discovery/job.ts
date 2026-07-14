@@ -1,7 +1,7 @@
 import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli/client";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
-import { resolveArea } from "@/lib/discovery/resolve-area";
+import { resolveArea, splitAreaQuery, type AreaResolution } from "@/lib/discovery/resolve-area";
 import {
   toCandidate,
   filterCandidates,
@@ -63,7 +63,7 @@ export interface ClaimedDiscoveryJob {
  * Haiku parse cost already spent in `startDiscovery`, so it is a conservative
  * (never-under-count) pre-check.
  */
-function estimatedSliceCostSek(): number {
+function estimatedSliceCostSek(renders: number = 1): number {
   return discoveryCostSek({
     haikuUsage: {
       input_tokens: 0,
@@ -71,7 +71,7 @@ function estimatedSliceCostSek(): number {
       cache_creation_input_tokens: 0,
       cache_read_input_tokens: 0,
     },
-    renders: 1,
+    renders,
   });
 }
 
@@ -134,16 +134,33 @@ export async function runSlice(
     return;
   }
 
-  // (2) Resolve the area. A miss is an honest "we don't cover that area yet"
-  // failure, never a fabricated areaId (resolveArea's own contract).
-  const resolution = await resolveArea(filters.areaQuery, supabase);
-  if (!resolution) {
+  // (2) Resolve the area(s). A multi-area query ("Södermalm och Vasastan") is
+  // split into individual names and each is resolved independently — Booli has
+  // no single "Södermalm och Vasastan" area, so resolving the combined string
+  // always missed and silently failed the job. A miss on ALL names is an honest
+  // "we don't cover that area yet" failure, never a fabricated areaId.
+  const areaNames = splitAreaQuery(filters.areaQuery);
+  const resolutions: AreaResolution[] = [];
+  for (const name of areaNames) {
+    const r = await resolveArea(name, supabase);
+    if (r) resolutions.push(r);
+  }
+  // De-dupe by areaId (two names could resolve to the same area).
+  const areaIds = [...new Set(resolutions.map((r) => r.areaId))];
+  if (areaIds.length === 0) {
+    // Diagnostic (previously silent): surface WHICH query couldn't resolve so a
+    // failed job is debuggable from the server logs.
+    console.error("[discovery-job] area resolution failed", {
+      jobId,
+      areaQuery: filters.areaQuery,
+    });
     await updateJob(supabase, jobId, { status: "failed" });
     return;
   }
 
-  // (3) COST PRE-CHECK — gates the SPEND, not just the already-recorded total.
-  const projectedCost = cost_sek_total + estimatedSliceCostSek();
+  // (3) COST PRE-CHECK — gates the SPEND for ALL area renders this slice, not
+  // just the already-recorded total (one render per resolved area).
+  const projectedCost = cost_sek_total + estimatedSliceCostSek(areaIds.length);
   if (projectedCost > cap_sek) {
     await updateJob(supabase, jobId, { status: "done", cap_reached: true });
     return;
@@ -151,23 +168,37 @@ export async function runSlice(
 
   // (4) KILL SWITCH — a thrown error from the owned Booli client IS the
   // CAPTCHA/blocking signal (transport.ts's HIGH-1 discipline: it never
-  // returns [] to mean "dead", it throws). Degrade and halt; no retry.
-  let raw: Record<string, unknown>[];
-  try {
-    raw = await fetchAreaListings(resolution.areaId, filters.objectType);
-  } catch (error) {
-    console.error("[discovery-job] kill-switch degraded", {
-      jobId,
-      code: error instanceof Error ? error.message : "UNKNOWN",
-    });
-    await updateJob(supabase, jobId, { status: "degraded" });
+  // returns [] to mean "dead", it throws). Scrape each area best-effort:
+  // collect every success, and remember if any area threw. Only when NOTHING
+  // came back do we decide — a throw with zero results is the block signal
+  // (degrade), zero results with no throw is a genuinely empty area (done).
+  const raw: Record<string, unknown>[] = [];
+  let anyThrew = false;
+  let rendersUsed = 0;
+  for (const areaId of areaIds) {
+    try {
+      const part = await fetchAreaListings(areaId, filters.objectType);
+      rendersUsed += 1;
+      raw.push(...part);
+    } catch (error) {
+      anyThrew = true;
+      console.error("[discovery-job] kill-switch degraded", {
+        jobId,
+        areaId,
+        code: error instanceof Error ? error.message : "UNKNOWN",
+      });
+    }
+  }
+  if (raw.length === 0) {
+    await updateJob(supabase, jobId, { status: anyThrew ? "degraded" : "done" });
     return;
   }
 
-  // (5) Map to the PII-safe allowlist shape, then deterministically filter —
-  // NEVER Claude-driven, and capped to the remaining candidate budget so a
-  // single slice cannot blow past cap_candidates.
-  const candidates = raw.map(toCandidate);
+  // (5) Map to the PII-safe allowlist shape, de-dupe across areas (a listing on
+  // an area border can surface in two area searches), then deterministically
+  // filter — NEVER Claude-driven, and capped to the remaining candidate budget
+  // so a single slice cannot blow past cap_candidates.
+  const candidates = dedupeCandidates(raw.map(toCandidate));
   const remaining = Math.max(0, cap_candidates - candidate_count);
   const { shown, scanned } = filterCandidates(candidates, filters, remaining);
 
@@ -182,7 +213,7 @@ export async function runSlice(
       cache_creation_input_tokens: 0,
       cache_read_input_tokens: 0,
     },
-    renders: 1,
+    renders: rendersUsed,
   });
   const newCostSekTotal = cost_sek_total + sliceCostSek;
   const capReached = newCandidateCount >= cap_candidates;
@@ -492,6 +523,29 @@ export async function enrichCandidateImages(
     }
   }
   return { candidates: out, brokerImages };
+}
+
+/**
+ * De-dupes candidates merged from multiple area searches. Keyed by
+ * `sourceListingUrl` (the stable per-listing id); a candidate lacking one
+ * falls back to address+price and, failing that, is always kept (never dropped
+ * on absent data). First occurrence wins, preserving order.
+ */
+export function dedupeCandidates(candidates: DiscoveryCandidate[]): DiscoveryCandidate[] {
+  const seen = new Set<string>();
+  const out: DiscoveryCandidate[] = [];
+  for (const c of candidates) {
+    const key = c.sourceListingUrl ?? (c.address !== null ? `${c.address}|${c.price}` : null);
+    if (key === null) {
+      out.push(c);
+      continue;
+    }
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(c);
+    }
+  }
+  return out;
 }
 
 export async function runVisionForJob(
