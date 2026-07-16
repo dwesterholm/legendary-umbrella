@@ -257,8 +257,11 @@ describe("fetchAreaListings", () => {
   });
 
   // Pagination (&page=N walk) — Booli truncates at ~36/page (live-probed
-  // 2026-07-14: page 2 had 35 listings absent from page 1). A page of >=
-  // FULL_PAGE_THRESHOLD (20) listings triggers the next page; a short page stops.
+  // 2026-07-14: page 2 had 35 listings absent from page 1). A FULL page 1 (>=
+  // FULL_PAGE_THRESHOLD 20) triggers a PARALLEL fetch of pages 2..MAX_AREA_PAGES.
+  // Because those renders are parallel, their await order is non-deterministic —
+  // so these tests key each page's data off the &page=N in the request URL
+  // (via the dataset-id the mock threads to listItems), NOT call order.
   const fullPage = (startId: number, count: number) => {
     const entities: Record<string, Record<string, unknown>> = {};
     for (let i = 0; i < count; i++) {
@@ -267,62 +270,85 @@ describe("fetchAreaListings", () => {
     }
     return apolloItem(entities);
   };
+  const pageOfUrl = (url: string) => {
+    const m = url.match(/[?&]page=(\d+)/);
+    return m ? Number(m[1]) : 1;
+  };
+  /**
+   * Wires actorCall+listItems so page N's Apollo blob is `pages[N]` regardless
+   * of concurrency order. `failPages` throw on BOTH rungs (a dead page).
+   */
+  const wirePages = (
+    pages: Record<number, ReturnType<typeof fullPage>>,
+    failPages: number[] = [],
+  ) => {
+    actorCall.mockImplementation(async (input: { startUrls: { url: string }[] }) => {
+      const page = pageOfUrl(input.startUrls[0].url);
+      if (failPages.includes(page)) throw new Error(`page ${page} blocked`);
+      return { status: "SUCCEEDED", defaultDatasetId: `ds-${page}` };
+    });
+    listItems.mockImplementation(async (datasetId: string) => {
+      const page = Number(String(datasetId).replace("ds-", ""));
+      return { items: [pages[page] ?? apolloItem({})] }; // absent page → empty blob
+    });
+  };
 
-  it("walks to the next page when a page is full, merging both pages; stops on the short last page", async () => {
-    succeedRun();
-    listItems
-      .mockResolvedValueOnce({ items: [fullPage(1, 20)] }) // full page 1 → fetch page 2
-      .mockResolvedValueOnce({ items: [fullPage(21, 5)] }); // short page 2 → stop
+  it("fetches pages 2..MAX in PARALLEL when page 1 is full, merging all distinct listings", async () => {
+    wirePages({
+      1: fullPage(1, 20),
+      2: fullPage(21, 20),
+      3: fullPage(41, 20),
+      4: fullPage(61, 20),
+      5: fullPage(81, 20),
+    });
 
     const result = await fetchAreaListings("115341");
 
-    expect(actorCall).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(25);
-    // Page 2's URL carried &page=2.
-    expect(actorCall).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        startUrls: [{ url: "https://www.booli.se/sok/till-salu?areaIds=115341&page=2" }],
-      }),
-      expect.anything(),
+    expect(result).toHaveLength(100); // page 1 + the 4 parallel pages, all distinct
+    expect(actorCall).toHaveBeenCalledTimes(5); // 1 sequential + 4 parallel
+    // Every later page's &page=N URL was requested.
+    const requestedPages = actorCall.mock.calls.map((c) => pageOfUrl(c[0].startUrls[0].url)).sort();
+    expect(requestedPages).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("does NOT paginate when page 1 is short (small area returned in full)", async () => {
+    wirePages({ 1: fullPage(1, 5) }); // 5 < FULL_PAGE_THRESHOLD
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(5);
+    expect(actorCall).toHaveBeenCalledTimes(1); // page 1 only — no parallel batch
+  });
+
+  it("de-dupes listings that repeat across pages (by booliId)", async () => {
+    wirePages({
+      1: fullPage(1, 20),
+      2: fullPage(1, 20), // same ids as page 1
+      3: fullPage(1, 20), // same again
+      4: apolloItem({}),
+      5: apolloItem({}),
+    });
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(20); // deduped, not 60
+  });
+
+  it("keeps every page that succeeds when a LATER parallel page fails (non-fatal)", async () => {
+    wirePages(
+      {
+        1: fullPage(1, 20),
+        2: fullPage(21, 20),
+        4: fullPage(61, 20),
+        5: fullPage(81, 20),
+        // page 3 has no data — it's in failPages
+      },
+      [3], // page 3 fails both rungs
     );
-  });
-
-  it("de-dupes listings that repeat across pages (stops when a page adds nothing new)", async () => {
-    succeedRun();
-    listItems
-      .mockResolvedValueOnce({ items: [fullPage(1, 20)] }) // full page 1
-      .mockResolvedValueOnce({ items: [fullPage(1, 20)] }); // page 2 = same ids → 0 new → stop
 
     const result = await fetchAreaListings("115341");
 
-    expect(actorCall).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(20); // deduped, not 40
-  });
-
-  it("stops at MAX_AREA_PAGES (3) even when every page stays full", async () => {
-    succeedRun();
-    listItems
-      .mockResolvedValueOnce({ items: [fullPage(1, 20)] })
-      .mockResolvedValueOnce({ items: [fullPage(21, 20)] })
-      .mockResolvedValueOnce({ items: [fullPage(41, 20)] });
-
-    const result = await fetchAreaListings("115341");
-
-    expect(actorCall).toHaveBeenCalledTimes(3); // never fetches a 4th page
-    expect(result).toHaveLength(60);
-  });
-
-  it("keeps earlier pages when a LATER page fails (later-page failure is non-fatal)", async () => {
-    // Page 1 succeeds (full); page 2 fails BOTH rungs → keep page 1, don't throw.
-    actorCall
-      .mockResolvedValueOnce({ status: "SUCCEEDED", defaultDatasetId: "ds-1" })
-      .mockRejectedValue(new Error("page 2 blocked"));
-    listItems.mockResolvedValueOnce({ items: [fullPage(1, 20)] });
-
-    const result = await fetchAreaListings("115341");
-
-    expect(result).toHaveLength(20); // page 1 preserved
+    expect(result).toHaveLength(80); // pages 1,2,4,5 — page 3's failure dropped, not fatal
   });
 });
 
