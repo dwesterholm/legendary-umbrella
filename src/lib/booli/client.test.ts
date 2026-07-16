@@ -161,7 +161,7 @@ describe("fetchListing", () => {
 });
 
 describe("fetchAreaListings", () => {
-  it("builds the till-salu URL via URLSearchParams (areaId only)", async () => {
+  it("builds the till-salu URL via URLSearchParams (areaId + cheapest-first sort)", async () => {
     succeedRun();
     listItems.mockResolvedValue({
       items: [apolloItem({ "Listing:1": { ...listingDetailFixture, id: "1" } })],
@@ -169,9 +169,13 @@ describe("fetchAreaListings", () => {
 
     await fetchAreaListings("115341");
 
+    // sort=listPrice&ascending=true → lowest-price listings first (below-market
+    // candidates land on page 1). Live-probed to propagate into searchForSale.
     expect(actorCall).toHaveBeenCalledWith(
       expect.objectContaining({
-        startUrls: [{ url: "https://www.booli.se/sok/till-salu?areaIds=115341" }],
+        startUrls: [
+          { url: "https://www.booli.se/sok/till-salu?areaIds=115341&sort=listPrice&ascending=true" },
+        ],
       }),
       expect.anything(),
     );
@@ -189,7 +193,7 @@ describe("fetchAreaListings", () => {
       expect.objectContaining({
         startUrls: [
           {
-            url: "https://www.booli.se/sok/till-salu?areaIds=115341&objectType=L%C3%A4genhet",
+            url: "https://www.booli.se/sok/till-salu?areaIds=115341&objectType=L%C3%A4genhet&sort=listPrice&ascending=true",
           },
         ],
       }),
