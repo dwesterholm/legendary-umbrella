@@ -566,14 +566,16 @@ export async function fetchListing(url: string): Promise<Record<string, unknown>
 function buildTillSaluUrl(areaId: string, objectType?: string | null, page: number = 1): string {
   const params = new URLSearchParams({ areaIds: areaId });
   if (objectType) params.set("objectType", objectType);
-  // Cheapest-first. Live-probed 2026-07-14: `?sort=listPrice&ascending=true`
-  // propagates into Booli's `searchForSale` input (`{"sort":"listPrice",
-  // "ascending":true}`) and returns lowest-price listings first (default sort
-  // led with newest / coming-soon). For a below-market flip finder this lands
-  // the most relevant candidates on PAGE 1, so the parallel page-walk becomes a
-  // completeness backstop rather than the primary way to reach cheap objects.
-  // Applied to EVERY page so the pagination slices a single coherent ordering.
-  params.set("sort", "listPrice");
+  // Lowest kr/m² first — the below-market signal a flip finder actually wants
+  // (cheap PER m², not just cheap absolute). Live-probed 2026-07-14:
+  // `?sort=listSqmPrice&ascending=true` propagates into Booli's `searchForSale`
+  // input (`{"sort":"listSqmPrice","ascending":true}`) and returns a distinct,
+  // non-price-monotonic ordering (Booli honours it; the default led with newest
+  // /coming-soon, and listPrice-asc led strictly by absolute price). This lands
+  // the most below-market candidates on PAGE 1, so the parallel page-walk is a
+  // completeness backstop rather than the primary way to reach them. Applied to
+  // EVERY page so the pagination slices one coherent ordering.
+  params.set("sort", "listSqmPrice");
   params.set("ascending", "true");
   if (page > 1) params.set("page", String(page));
   return `https://www.booli.se/sok/till-salu?${params.toString()}`;

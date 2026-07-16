@@ -38,13 +38,29 @@ const PAGE_FUNCTION = `async function pageFunction(context) {
       .map((a) => ({ text: (a.textContent || "").trim().slice(0, 40), href: a.getAttribute("href") }));
 
     // First listing prices, in DOM order, to eyeball the current ordering.
+    const rawOf = (x) => (x && typeof x === "object" ? x.raw : (x ?? null)) ?? null;
+    // Authoritative ordering: pull the ORDERED Listing refs out of the
+    // searchForSale query result (not the mixed Apollo key order), then map each
+    // to price + area + computed kr/m² so we can see the true sort.
     const prices = [];
-    if (apollo) {
-      for (const [k, v] of Object.entries(apollo)) {
-        if (!k.startsWith("Listing:")) continue;
-        const lp = v && v.listPrice && typeof v.listPrice === "object" ? v.listPrice.raw : (v ? v.listPrice : null);
-        prices.push({ id: k.replace("Listing:", ""), listPrice: lp ?? null });
-        if (prices.length >= 12) break;
+    if (apollo && apollo.ROOT_QUERY) {
+      const sfsKey = Object.keys(apollo.ROOT_QUERY).find(
+        (k) => k.startsWith("searchForSale({") && k.indexOf("forceOnlyNewConstruction") === -1,
+      );
+      const refs = [];
+      const walk = (x) => {
+        if (!x || typeof x !== "object") return;
+        if (Array.isArray(x)) { x.forEach(walk); return; }
+        if (typeof x.__ref === "string" && x.__ref.startsWith("Listing:")) refs.push(x.__ref.slice(8));
+        for (const k in x) walk(x[k]);
+      };
+      if (sfsKey) walk(apollo.ROOT_QUERY[sfsKey]);
+      for (const id of refs.slice(0, 15)) {
+        const e = apollo["Listing:" + id];
+        const listPrice = e ? rawOf(e.listPrice) : null;
+        const livingArea = e ? rawOf(e.livingArea) : null;
+        const krPerSqm = listPrice && livingArea ? Math.round(listPrice / livingArea) : null;
+        prices.push({ id, listPrice, livingArea, krPerSqm });
       }
     }
     // Apollo ROOT_QUERY field keys encode the search query's serialized args
