@@ -566,15 +566,19 @@ export async function fetchListing(url: string): Promise<Record<string, unknown>
 function buildTillSaluUrl(areaId: string, objectType?: string | null, page: number = 1): string {
   const params = new URLSearchParams({ areaIds: areaId });
   if (objectType) params.set("objectType", objectType);
-  // Lowest kr/m² first — the below-market signal a flip finder actually wants
-  // (cheap PER m², not just cheap absolute). Live-probed 2026-07-14:
+  // Lowest kr/m² first — a useful FIRST-PASS surfacing order (cheap per m²,
+  // not just cheap absolute), NOT a conclusion. A low kr/m² can mean a renovation
+  // opportunity, but it can equally reflect confounders the sort cannot see:
+  // ground/bottom floor, no elevator, no balcony, a traffic-/noise-exposed
+  // micro-location, or simply a cheaper sub-area. Attributing low kr/m² to
+  // "below-market / reno object" is the ANALYSIS layer's job (future iteration —
+  // it must normalise kr/m² against those factors before concluding). Here we
+  // only order the candidates so the cheapest-per-m² surface on page 1; the
+  // parallel page-walk is a completeness backstop. Live-probed 2026-07-14:
   // `?sort=listSqmPrice&ascending=true` propagates into Booli's `searchForSale`
   // input (`{"sort":"listSqmPrice","ascending":true}`) and returns a distinct,
-  // non-price-monotonic ordering (Booli honours it; the default led with newest
-  // /coming-soon, and listPrice-asc led strictly by absolute price). This lands
-  // the most below-market candidates on PAGE 1, so the parallel page-walk is a
-  // completeness backstop rather than the primary way to reach them. Applied to
-  // EVERY page so the pagination slices one coherent ordering.
+  // non-price-monotonic ordering. Applied to EVERY page so pagination slices one
+  // coherent ordering.
   params.set("sort", "listSqmPrice");
   params.set("ascending", "true");
   if (page > 1) params.set("page", String(page));

@@ -96,6 +96,15 @@ ROI floor  : reno "pays" only if (Resale_W − U_med×m²) ≥ 0.65 × reno_cost
 - **Discount-attribution guard:** >25% below R_med → do NOT assume condition; cap condition-explained at 20%, route residual to hidden-defect penalty (BRF debt, bottenvåning, odd BOA, tomträtt).
 - Require ≥5 comps in 12mo or widen band + downgrade confidence. Normalize kr/m² **inclusive of förening debt/m²**.
 
+- **⚠️ LOW kr/m² ≠ RENO OBJECT (operator, 2026-07-17).** A low kr/m² is a *surfacing signal only*, never a conclusion. It can be a renovation opportunity OR a legitimate discount for confounders the price alone can't distinguish. Before the analysis attributes a low kr/m² to condition/reno-upside, it MUST normalise against — and, where the data shows one of these, DISCOUNT the reno conclusion accordingly:
+  - **floor** — ground/bottom floor (bottenvåning ≈ −10%);
+  - **elevator** — no hiss, esp. floor ≥4 (accessibility penalty);
+  - **balcony** — no balcony (söder-balcony is a notable premium);
+  - **micro-location** — traffic-/noise-exposed street, poor light/orientation, courtyard vs street;
+  - **sub-area** — a genuinely cheaper pocket within the search area (kr/m² is low because the *location* is, not the flat's condition);
+  - already-covered: tomträtt, high BRF debt/m², odd BOA.
+  The current pipeline **sorts** by kr/m² (surfacing) but makes **no** reno/below-market claim — correct. The reno/below-market *conclusion* is deferred to the analysis iteration (Phase A.4/A.5 value-gap), which must fold these confounders in (several are already fetched: floor, balcony, orientation, tenureForm; elevator + micro-location noise are the gaps). Never render UI text implying "low kr/m² ⇒ renovation object."
+
 ### 2.7 Tax lines (§8.4)
 
 ```
