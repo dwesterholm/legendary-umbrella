@@ -23,17 +23,10 @@ import { z } from "zod/v4";
 // Raw payload schema (permissive — never break on extra/partial fields)
 // ---------------------------------------------------------------------------
 
-// Booli formatted-value objects, e.g. { formatted: "5 280 000 kr", raw: 5280000 }.
-const formattedValueSchema = z
-  .object({
-    raw: z.number().optional(),
-    value: z.string().optional(),
-    formatted: z.string().optional(),
-    unit: z.string().optional(),
-  })
-  .passthrough();
-
 // A single rendered data point, e.g. plainText "53 300 kr/m²" / "99 m²" / "4 rum".
+// Kept as a zod schema so the `DataPoint` type below derives from one source of
+// truth; the runtime value itself is intentionally only referenced via `z.infer`.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const dataPointSchema = z
   .object({
     value: z
@@ -41,24 +34,6 @@ const dataPointSchema = z
       .passthrough()
       .optional(),
     screenReaderLabel: z.string().optional(),
-  })
-  .passthrough();
-
-// A single raw `SoldProperty:<id>` Apollo entry. `.passthrough()` so the many
-// fields we ignore (images, location, primaryImage, …) never break parsing.
-const soldPropertyRawSchema = z
-  .object({
-    __typename: z.literal("SoldProperty").optional(),
-    id: z.string().optional(),
-    booliId: z.string().optional(),
-    soldPrice: formattedValueSchema.nullable().optional(),
-    listPrice: formattedValueSchema.nullable().optional(),
-    soldPricePercentageDiff: formattedValueSchema.nullable().optional(),
-    soldPriceAbsoluteDiff: formattedValueSchema.nullable().optional(),
-    soldDate: z.string().nullable().optional(),
-    objectType: z.string().nullable().optional(),
-    daysActive: z.number().nullable().optional(),
-    soldPriceType: z.string().nullable().optional(),
   })
   .passthrough();
 

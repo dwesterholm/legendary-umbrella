@@ -63,7 +63,12 @@ export function apifyClientMockFactory() {
     ApifyClient: vi.fn().mockImplementation(function () {
       return {
         actor: () => ({ call: actorCall }),
-        dataset: () => ({ listItems }),
+        // The dataset id is threaded to `listItems` as its first arg so a test
+        // can key returned data by dataset id — necessary for PARALLEL renders,
+        // where await order is non-deterministic and call-order mocks
+        // (mockResolvedValueOnce) race. Back-compat: `.listItems()` in prod
+        // takes no args, and `listItems.mockResolvedValue(...)` ignores args.
+        dataset: (id: string) => ({ listItems: (...args: unknown[]) => listItems(id, ...args) }),
       };
     }),
   };

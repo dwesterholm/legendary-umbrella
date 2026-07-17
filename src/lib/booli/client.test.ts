@@ -127,37 +127,41 @@ describe("fetchListing", () => {
     expect(points.map((p) => p.key)).toEqual(["livingArea", "rooms"]);
   });
 
-  it("falls to rung 2 then rung 3 (scrapeBooli) only after BOTH own-render rungs throw", async () => {
+  // Rung 3 (the paid Lexis actor) is DISABLED for cost (2026-07-14). While it
+  // is disabled, fetchListing degrades to the two own-render rungs and throws
+  // when both fail (no paid fallback):
+  it("throws when both own-render rungs fail — rung 3 (paid Lexis actor) is disabled", async () => {
     actorCall.mockRejectedValue(new Error("own-playwright render failed"));
-    scrapeBooli.mockResolvedValue({ streetAddress: "Fallback 1", price: 100 });
 
-    const result = await fetchListing(DETAIL_URL);
-
-    expect(actorCall).toHaveBeenCalledTimes(2); // rung 1 + rung 2, both own renders
-    expect(scrapeBooli).toHaveBeenCalledTimes(1); // rung 3, only after both threw
-    expect(scrapeBooli).toHaveBeenCalledWith(DETAIL_URL);
-    expect(result).toEqual({ streetAddress: "Fallback 1", price: 100 });
+    await expect(fetchListing(DETAIL_URL)).rejects.toThrow();
+    expect(scrapeBooli).not.toHaveBeenCalled();
   });
 
-  it("returns scrapeBooli's output UNCHANGED when rung 3 serves the request", async () => {
-    actorCall.mockRejectedValue(new Error("own-playwright render failed"));
-    const rawActorShape = {
-      streetAddress: "Actor St 5",
-      price: 3_000_000,
-      livingArea: { raw: 50 },
-      rooms: 2,
-      booliId: "999",
-    };
-    scrapeBooli.mockResolvedValue(rawActorShape);
-
-    const result = await fetchListing(DETAIL_URL);
-
-    expect(result).toBe(rawActorShape); // identity — no reshape applied to rung 3's output
-  });
+  // ── RESTORE the paid-actor rung 3 by re-enabling these two tests (and the
+  //    rung + import in client.ts, and re-renting the actor), then delete the
+  //    disabled-state test above. ──────────────────────────────────────────
+  // it("falls to rung 2 then rung 3 (scrapeBooli) only after BOTH own-render rungs throw", async () => {
+  //   actorCall.mockRejectedValue(new Error("own-playwright render failed"));
+  //   scrapeBooli.mockResolvedValue({ streetAddress: "Fallback 1", price: 100 });
+  //   const result = await fetchListing(DETAIL_URL);
+  //   expect(actorCall).toHaveBeenCalledTimes(2); // rung 1 + rung 2, both own renders
+  //   expect(scrapeBooli).toHaveBeenCalledTimes(1); // rung 3, only after both threw
+  //   expect(scrapeBooli).toHaveBeenCalledWith(DETAIL_URL);
+  //   expect(result).toEqual({ streetAddress: "Fallback 1", price: 100 });
+  // });
+  // it("returns scrapeBooli's output UNCHANGED when rung 3 serves the request", async () => {
+  //   actorCall.mockRejectedValue(new Error("own-playwright render failed"));
+  //   const rawActorShape = {
+  //     streetAddress: "Actor St 5", price: 3_000_000, livingArea: { raw: 50 }, rooms: 2, booliId: "999",
+  //   };
+  //   scrapeBooli.mockResolvedValue(rawActorShape);
+  //   const result = await fetchListing(DETAIL_URL);
+  //   expect(result).toBe(rawActorShape); // identity — no reshape applied to rung 3's output
+  // });
 });
 
 describe("fetchAreaListings", () => {
-  it("builds the till-salu URL via URLSearchParams (areaId only)", async () => {
+  it("builds the till-salu URL via URLSearchParams (areaId + lowest-kr/m² sort)", async () => {
     succeedRun();
     listItems.mockResolvedValue({
       items: [apolloItem({ "Listing:1": { ...listingDetailFixture, id: "1" } })],
@@ -165,9 +169,13 @@ describe("fetchAreaListings", () => {
 
     await fetchAreaListings("115341");
 
+    // sort=listSqmPrice&ascending=true → lowest kr/m² first (below-market
+    // candidates land on page 1). Live-probed to propagate into searchForSale.
     expect(actorCall).toHaveBeenCalledWith(
       expect.objectContaining({
-        startUrls: [{ url: "https://www.booli.se/sok/till-salu?areaIds=115341" }],
+        startUrls: [
+          { url: "https://www.booli.se/sok/till-salu?areaIds=115341&sort=listSqmPrice&ascending=true" },
+        ],
       }),
       expect.anything(),
     );
@@ -185,7 +193,7 @@ describe("fetchAreaListings", () => {
       expect.objectContaining({
         startUrls: [
           {
-            url: "https://www.booli.se/sok/till-salu?areaIds=115341&objectType=L%C3%A4genhet",
+            url: "https://www.booli.se/sok/till-salu?areaIds=115341&objectType=L%C3%A4genhet&sort=listSqmPrice&ascending=true",
           },
         ],
       }),
@@ -250,6 +258,101 @@ describe("fetchAreaListings", () => {
 
     await expect(fetchAreaListings("115341")).rejects.toThrow();
     expect(scrapeBooli).not.toHaveBeenCalled();
+  });
+
+  // Pagination (&page=N walk) — Booli truncates at ~36/page (live-probed
+  // 2026-07-14: page 2 had 35 listings absent from page 1). A FULL page 1 (>=
+  // FULL_PAGE_THRESHOLD 20) triggers a PARALLEL fetch of pages 2..MAX_AREA_PAGES.
+  // Because those renders are parallel, their await order is non-deterministic —
+  // so these tests key each page's data off the &page=N in the request URL
+  // (via the dataset-id the mock threads to listItems), NOT call order.
+  const fullPage = (startId: number, count: number) => {
+    const entities: Record<string, Record<string, unknown>> = {};
+    for (let i = 0; i < count; i++) {
+      const id = String(startId + i);
+      entities[`Listing:${id}`] = { ...listingDetailFixture, id, booliId: id };
+    }
+    return apolloItem(entities);
+  };
+  const pageOfUrl = (url: string) => {
+    const m = url.match(/[?&]page=(\d+)/);
+    return m ? Number(m[1]) : 1;
+  };
+  /**
+   * Wires actorCall+listItems so page N's Apollo blob is `pages[N]` regardless
+   * of concurrency order. `failPages` throw on BOTH rungs (a dead page).
+   */
+  const wirePages = (
+    pages: Record<number, ReturnType<typeof fullPage>>,
+    failPages: number[] = [],
+  ) => {
+    actorCall.mockImplementation(async (input: { startUrls: { url: string }[] }) => {
+      const page = pageOfUrl(input.startUrls[0].url);
+      if (failPages.includes(page)) throw new Error(`page ${page} blocked`);
+      return { status: "SUCCEEDED", defaultDatasetId: `ds-${page}` };
+    });
+    listItems.mockImplementation(async (datasetId: string) => {
+      const page = Number(String(datasetId).replace("ds-", ""));
+      return { items: [pages[page] ?? apolloItem({})] }; // absent page → empty blob
+    });
+  };
+
+  it("fetches pages 2..MAX in PARALLEL when page 1 is full, merging all distinct listings", async () => {
+    wirePages({
+      1: fullPage(1, 20),
+      2: fullPage(21, 20),
+      3: fullPage(41, 20),
+      4: fullPage(61, 20),
+      5: fullPage(81, 20),
+    });
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(100); // page 1 + the 4 parallel pages, all distinct
+    expect(actorCall).toHaveBeenCalledTimes(5); // 1 sequential + 4 parallel
+    // Every later page's &page=N URL was requested.
+    const requestedPages = actorCall.mock.calls.map((c) => pageOfUrl(c[0].startUrls[0].url)).sort();
+    expect(requestedPages).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("does NOT paginate when page 1 is short (small area returned in full)", async () => {
+    wirePages({ 1: fullPage(1, 5) }); // 5 < FULL_PAGE_THRESHOLD
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(5);
+    expect(actorCall).toHaveBeenCalledTimes(1); // page 1 only — no parallel batch
+  });
+
+  it("de-dupes listings that repeat across pages (by booliId)", async () => {
+    wirePages({
+      1: fullPage(1, 20),
+      2: fullPage(1, 20), // same ids as page 1
+      3: fullPage(1, 20), // same again
+      4: apolloItem({}),
+      5: apolloItem({}),
+    });
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(20); // deduped, not 60
+  });
+
+  it("keeps every page that succeeds when a LATER parallel page fails (non-fatal)", async () => {
+    wirePages(
+      {
+        1: fullPage(1, 20),
+        2: fullPage(21, 20),
+        4: fullPage(61, 20),
+        5: fullPage(81, 20),
+        // page 3 has no data — it's in failPages
+      },
+      [3], // page 3 fails both rungs
+    );
+
+    const result = await fetchAreaListings("115341");
+
+    expect(result).toHaveLength(80); // pages 1,2,4,5 — page 3's failure dropped, not fatal
   });
 });
 

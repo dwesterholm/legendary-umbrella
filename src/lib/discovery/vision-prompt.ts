@@ -32,15 +32,24 @@ const PII_IGNORE_INSTRUCTION =
   "Ignorera helt eventuella människor eller personliga dokument (post, fakturor, ID-handlingar, foton av personer) som syns i bilderna. Kommentera ALDRIG på personer eller identifierbar information i bilderna — fokusera uteslutande på rummets skick (kök, badrum, allmänt skick).";
 
 /**
- * Haiku pre-filter (triage) — a cheap, high-recall gate deciding whether a
- * candidate's image set is worth the more expensive Sonnet deep pass
- * (RESEARCH.md Pattern 1). Slim boolean output only — no citation work here.
+ * Haiku pre-filter (triage) — a cheap, HIGH-RECALL gate whose ONLY job is to
+ * discard image sets with nothing analyzable at all (RESEARCH.md Pattern 1).
+ *
+ * SPEC §2.1 / defect D2a: this is a RENOVATION-OPPORTUNITY search, so the
+ * triage default is INVERTED — a dated, original, sparse or "unremarkable"
+ * interior is precisely the target and MUST pass to the deep pass. The gate
+ * skips a candidate (worthDeepPass=false) ONLY when there is genuinely nothing
+ * to assess (e.g. no interior photos at all — only exterior/map/facade — or
+ * images too dark/blurry to read). Never skip because a home "looks fine",
+ * "looks dated", "looks ordinary" or "already renovated" — all of those are
+ * exactly what the deep pass exists to judge. When in doubt, pass it through.
+ * Slim boolean output only — no citation work here.
  */
-export const VISION_PREFILTER_SYSTEM_PROMPT = `Du är en snabb förgranskare av bostadsbilder inför en djupare skickbedömning.
+export const VISION_PREFILTER_SYSTEM_PROMPT = `Du är en snabb förgranskare av bostadsbilder inför en djupare värde- och skickbedömning för en renoverings-/värdehöjningssökning.
 
 ${PII_IGNORE_INSTRUCTION}
 
-Titta på de bifogade bilderna (kök, badrum, planlösning, allmänna vyer) och avgör om NÅGON av bilderna visar tillräckligt av kökets, badrummets eller det allmänna skicket för att motivera en djupare granskning. Svara ENDAST enligt schemat.`;
+Titta på de bifogade bilderna (kök, badrum, planlösning, allmänna vyer). Din ENDA uppgift är att sålla bort bildset som inte går att bedöma alls. Sätt worthDeepPass=true om det finns MINST en användbar interiörbild att bedöma — även om bostaden ser daterad, ursprunglig, alldaglig eller redan renoverad ut (just daterade/ursprungliga bostäder är de mest intressanta för en renovering och ska ALLTID gå vidare). Sätt worthDeepPass=false ENDAST när det saknas något att bedöma över huvud taget — t.ex. inga interiörbilder alls (bara exteriör/karta/fasad) eller bilder som är för mörka/suddiga för att läsa. Är du osäker: släpp igenom (true). Svara ENDAST enligt schemat.`;
 
 /**
  * Sonnet deep pass — produces the three hedged, image-cited condition claims

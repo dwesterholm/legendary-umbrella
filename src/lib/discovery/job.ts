@@ -1,8 +1,13 @@
 import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli/client";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
-import { resolveArea } from "@/lib/discovery/resolve-area";
-import { toCandidate, filterCandidates, type DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { resolveArea, splitAreaQuery, type AreaResolution } from "@/lib/discovery/resolve-area";
+import {
+  toCandidate,
+  filterCandidates,
+  pricePerSqm,
+  type DiscoveryCandidate,
+} from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
 import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
@@ -58,7 +63,7 @@ export interface ClaimedDiscoveryJob {
  * Haiku parse cost already spent in `startDiscovery`, so it is a conservative
  * (never-under-count) pre-check.
  */
-function estimatedSliceCostSek(): number {
+function estimatedSliceCostSek(renders: number = 1): number {
   return discoveryCostSek({
     haikuUsage: {
       input_tokens: 0,
@@ -66,7 +71,7 @@ function estimatedSliceCostSek(): number {
       cache_creation_input_tokens: 0,
       cache_read_input_tokens: 0,
     },
-    renders: 1,
+    renders,
   });
 }
 
@@ -129,16 +134,33 @@ export async function runSlice(
     return;
   }
 
-  // (2) Resolve the area. A miss is an honest "we don't cover that area yet"
-  // failure, never a fabricated areaId (resolveArea's own contract).
-  const resolution = await resolveArea(filters.areaQuery, supabase);
-  if (!resolution) {
+  // (2) Resolve the area(s). A multi-area query ("Södermalm och Vasastan") is
+  // split into individual names and each is resolved independently — Booli has
+  // no single "Södermalm och Vasastan" area, so resolving the combined string
+  // always missed and silently failed the job. A miss on ALL names is an honest
+  // "we don't cover that area yet" failure, never a fabricated areaId.
+  const areaNames = splitAreaQuery(filters.areaQuery);
+  const resolutions: AreaResolution[] = [];
+  for (const name of areaNames) {
+    const r = await resolveArea(name, supabase);
+    if (r) resolutions.push(r);
+  }
+  // De-dupe by areaId (two names could resolve to the same area).
+  const areaIds = [...new Set(resolutions.map((r) => r.areaId))];
+  if (areaIds.length === 0) {
+    // Diagnostic (previously silent): surface WHICH query couldn't resolve so a
+    // failed job is debuggable from the server logs.
+    console.error("[discovery-job] area resolution failed", {
+      jobId,
+      areaQuery: filters.areaQuery,
+    });
     await updateJob(supabase, jobId, { status: "failed" });
     return;
   }
 
-  // (3) COST PRE-CHECK — gates the SPEND, not just the already-recorded total.
-  const projectedCost = cost_sek_total + estimatedSliceCostSek();
+  // (3) COST PRE-CHECK — gates the SPEND for ALL area renders this slice, not
+  // just the already-recorded total (one render per resolved area).
+  const projectedCost = cost_sek_total + estimatedSliceCostSek(areaIds.length);
   if (projectedCost > cap_sek) {
     await updateJob(supabase, jobId, { status: "done", cap_reached: true });
     return;
@@ -146,23 +168,37 @@ export async function runSlice(
 
   // (4) KILL SWITCH — a thrown error from the owned Booli client IS the
   // CAPTCHA/blocking signal (transport.ts's HIGH-1 discipline: it never
-  // returns [] to mean "dead", it throws). Degrade and halt; no retry.
-  let raw: Record<string, unknown>[];
-  try {
-    raw = await fetchAreaListings(resolution.areaId, filters.objectType);
-  } catch (error) {
-    console.error("[discovery-job] kill-switch degraded", {
-      jobId,
-      code: error instanceof Error ? error.message : "UNKNOWN",
-    });
-    await updateJob(supabase, jobId, { status: "degraded" });
+  // returns [] to mean "dead", it throws). Scrape each area best-effort:
+  // collect every success, and remember if any area threw. Only when NOTHING
+  // came back do we decide — a throw with zero results is the block signal
+  // (degrade), zero results with no throw is a genuinely empty area (done).
+  const raw: Record<string, unknown>[] = [];
+  let anyThrew = false;
+  let rendersUsed = 0;
+  for (const areaId of areaIds) {
+    try {
+      const part = await fetchAreaListings(areaId, filters.objectType);
+      rendersUsed += 1;
+      raw.push(...part);
+    } catch (error) {
+      anyThrew = true;
+      console.error("[discovery-job] kill-switch degraded", {
+        jobId,
+        areaId,
+        code: error instanceof Error ? error.message : "UNKNOWN",
+      });
+    }
+  }
+  if (raw.length === 0) {
+    await updateJob(supabase, jobId, { status: anyThrew ? "degraded" : "done" });
     return;
   }
 
-  // (5) Map to the PII-safe allowlist shape, then deterministically filter —
-  // NEVER Claude-driven, and capped to the remaining candidate budget so a
-  // single slice cannot blow past cap_candidates.
-  const candidates = raw.map(toCandidate);
+  // (5) Map to the PII-safe allowlist shape, de-dupe across areas (a listing on
+  // an area border can surface in two area searches), then deterministically
+  // filter — NEVER Claude-driven, and capped to the remaining candidate budget
+  // so a single slice cannot blow past cap_candidates.
+  const candidates = dedupeCandidates(raw.map(toCandidate));
   const remaining = Math.max(0, cap_candidates - candidate_count);
   const { shown, scanned } = filterCandidates(candidates, filters, remaining);
 
@@ -177,17 +213,26 @@ export async function runSlice(
       cache_creation_input_tokens: 0,
       cache_read_input_tokens: 0,
     },
-    renders: 1,
+    renders: rendersUsed,
   });
   const newCostSekTotal = cost_sek_total + sliceCostSek;
   const capReached = newCandidateCount >= cap_candidates;
 
+  // A successful sweep is TERMINAL. `fetchAreaListings` is one-shot (no
+  // pagination — it renders a single till-salu page), so once a slice returns
+  // there is no further page to fetch: the job is done whether or not it hit
+  // `cap_candidates`. Gating `done` on `capReached` left any UNDER-cap search
+  // (e.g. few 1-rok under 4M) stuck in "processing" forever — no second page
+  // existed to reach the cap, the 5-min stale-reclaim window matched the
+  // client's 5-min poll timeout so no further slice ran in time, and the vision
+  // pass (gated on status "done") therefore never started → no results, "Det
+  // tar längre tid än väntat". `cap_reached` still records whether we truncated.
   await updateJob(supabase, jobId, {
     results: [...claimedRow.results, ...shown],
     candidate_count: newCandidateCount,
     processed_count: newProcessedCount,
     cost_sek_total: newCostSekTotal,
-    status: capReached ? "done" : "processing",
+    status: "done",
     cap_reached: capReached,
   });
 }
@@ -322,12 +367,85 @@ export async function claimVisionSlice(
  * Max DETAIL-page fetches per vision pass. Area-search entities carry no
  * images, so the shortlist must be detail-fetched to feed vision — but each
  * fetch is a paid Apify render, so this is a hard bound on that spend (the top
- * `VISION_ENRICH_LIMIT` candidates, in Booli's relevance order). NOTE: these
- * enrichment renders are not yet folded into the persisted cost ledger — that
- * joins the existing deferred cost-fidelity follow-up; the count bound keeps
- * worst-case spend small and fixed regardless.
+ * `VISION_ENRICH_LIMIT` candidates, in RENO-POTENTIAL order — see
+ * `enrichmentVisitOrder`). NOTE: these enrichment renders are not yet folded
+ * into the persisted cost ledger — that joins the existing deferred
+ * cost-fidelity follow-up; the count bound keeps worst-case spend small and
+ * fixed regardless.
  */
 const VISION_ENRICH_LIMIT = 8;
+
+/**
+ * Reno-potential enrichment pre-rank (SPEC §2.1, fixes defect D1).
+ *
+ * The enrichment budget (`VISION_ENRICH_LIMIT`) is smaller than the candidate
+ * set, so the ORDER in which we spend detail-fetches decides which candidates
+ * ever reach vision. Booli's own relevance order buried dated/below-market
+ * flats (the Ringvägen 122 miss) below the cut. For a renovation search the
+ * priority is inverted: a flat that is CHEAP per m² for its area and sits in
+ * OLDER stock is exactly the renovation target we must analyze — so it should
+ * win the fetch, not get truncated away.
+ *
+ * Signal (both available pre-vision, no extra network cost):
+ *  - below-market: kr/m² below the candidate-set median → primary weight.
+ *  - aged stock:   older `constructionYear` → secondary tiebreaker.
+ * Missing data contributes 0 (never negative-by-omission), so a candidate is
+ * never penalised for a null we simply don't have.
+ */
+const RENO_AGE_PIVOT = 1975; // at/newer than this → no age bonus (modern stock)
+const RENO_AGE_FLOOR = 1900; // at/older than this → full age bonus
+const RENO_AGE_WEIGHT = 0.25; // age is a tiebreaker, not a co-equal of below-market
+
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/**
+ * The candidate-set median kr/m² over every candidate with a computable
+ * `pricePerSqm` (the market reference for "below-market"). Returns null when no
+ * candidate has one, in which case the below-market signal is simply absent.
+ */
+export function candidateMedianPricePerSqm(candidates: DiscoveryCandidate[]): number | null {
+  const ppsqm = candidates
+    .map((c) => pricePerSqm(c))
+    .filter((v): v is number => v !== null)
+    .sort((a, b) => a - b);
+  if (ppsqm.length === 0) return null;
+  const mid = Math.floor(ppsqm.length / 2);
+  return ppsqm.length % 2 === 0 ? (ppsqm[mid - 1] + ppsqm[mid]) / 2 : ppsqm[mid];
+}
+
+/** Pure reno-potential priority for one candidate (higher = enrich sooner). */
+export function enrichmentPriority(
+  candidate: DiscoveryCandidate,
+  medianPricePerSqm: number | null,
+): number {
+  const ppsqm = pricePerSqm(candidate);
+  const belowMarket =
+    medianPricePerSqm && medianPricePerSqm > 0 && ppsqm !== null
+      ? clamp((medianPricePerSqm - ppsqm) / medianPricePerSqm, -1, 1)
+      : 0;
+  const year = candidate.constructionYear;
+  const agedBonus =
+    year !== null ? clamp((RENO_AGE_PIVOT - year) / (RENO_AGE_PIVOT - RENO_AGE_FLOOR), 0, 1) : 0;
+  return belowMarket + RENO_AGE_WEIGHT * agedBonus;
+}
+
+/**
+ * The order in which `enrichCandidateImages` should VISIT candidate indices —
+ * highest reno-potential first. Returns ALL indices (the enrich loop still
+ * filters to image-less ones and stops at `limit`); we only change the visit
+ * order, never the array itself, so `out[i]`/broker-map indices stay aligned
+ * with the input. Stable: equal-priority candidates keep Booli's original
+ * order as the tiebreak.
+ */
+export function enrichmentVisitOrder(candidates: DiscoveryCandidate[]): number[] {
+  const median = candidateMedianPricePerSqm(candidates);
+  const priorities = candidates.map((c) => enrichmentPriority(c, median));
+  return candidates
+    .map((_, i) => i)
+    .sort((a, b) => priorities[b] - priorities[a] || a - b);
+}
 
 /** Max broker-gallery images fetched (as bytes) per candidate — bounds bandwidth. */
 const BROKER_IMAGES_PER_CANDIDATE = 4;
@@ -358,7 +476,13 @@ export async function enrichCandidateImages(
   const out = [...candidates];
   const brokerImages = new Map<number, BrokerImageBytes[]>();
   let fetched = 0;
-  for (let i = 0; i < out.length && fetched < limit; i++) {
+  // Visit in reno-potential order (below-market + aged first), NOT Booli's
+  // relevance order, so the limited enrichment budget lands on the actual
+  // renovation targets rather than getting truncated away (SPEC §2.1, D1).
+  // `out` stays in input order — only the visit sequence changes — so `out[i]`
+  // and the broker-image map indices remain aligned with the caller's array.
+  for (const i of enrichmentVisitOrder(out)) {
+    if (fetched >= limit) break;
     const c = out[i];
     if (c.imageUrls && c.imageUrls.length > 0) continue; // already has images
     if (!c.sourceListingUrl) continue; // nothing to fetch
@@ -408,6 +532,29 @@ export async function enrichCandidateImages(
     }
   }
   return { candidates: out, brokerImages };
+}
+
+/**
+ * De-dupes candidates merged from multiple area searches. Keyed by
+ * `sourceListingUrl` (the stable per-listing id); a candidate lacking one
+ * falls back to address+price and, failing that, is always kept (never dropped
+ * on absent data). First occurrence wins, preserving order.
+ */
+export function dedupeCandidates(candidates: DiscoveryCandidate[]): DiscoveryCandidate[] {
+  const seen = new Set<string>();
+  const out: DiscoveryCandidate[] = [];
+  for (const c of candidates) {
+    const key = c.sourceListingUrl ?? (c.address !== null ? `${c.address}|${c.price}` : null);
+    if (key === null) {
+      out.push(c);
+      continue;
+    }
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(c);
+    }
+  }
+  return out;
 }
 
 export async function runVisionForJob(

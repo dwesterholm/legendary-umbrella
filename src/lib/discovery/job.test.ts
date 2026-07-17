@@ -31,7 +31,10 @@ vi.mock("@/lib/booli/client", () => ({
 }));
 
 const resolveArea = vi.fn();
-vi.mock("@/lib/discovery/resolve-area", () => ({
+vi.mock("@/lib/discovery/resolve-area", async (importActual) => ({
+  // Keep the real, pure splitAreaQuery (multi-area splitter); only resolveArea
+  // is mocked since it does network I/O.
+  ...(await importActual<typeof import("@/lib/discovery/resolve-area")>()),
   resolveArea: (...args: unknown[]) => resolveArea(...args),
 }));
 
@@ -51,9 +54,14 @@ import {
   claimVisionSlice,
   claimAndRunVisionForJob,
   enrichCandidateImages,
+  enrichmentVisitOrder,
+  enrichmentPriority,
+  candidateMedianPricePerSqm,
+  dedupeCandidates,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { discoveryCostSek } from "@/lib/discovery/cost";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
 let updateCalls: Array<Record<string, unknown>>;
@@ -233,14 +241,18 @@ describe("runSlice — happy path scrape + persist", () => {
     expect(payload.cost_sek_total as number).toBeGreaterThan(0);
   });
 
-  it("leaves status as processing (not done) when candidate_count has not yet hit cap after this slice", async () => {
+  it("marks status done (a one-shot sweep is terminal) even when candidate_count is under cap; cap_reached stays false", async () => {
+    // fetchAreaListings has no pagination — one slice fetches everything the
+    // area can give, so an under-cap result is COMPLETE, not "more to come".
+    // (Regression guard: gating done on capReached previously stranded such
+    // searches in "processing" forever, so vision never ran — see job.ts §6.)
     const supabase = makeSupabase();
     const row = claimedRow({ cap_candidates: 25 });
 
     await runSlice(supabase, row);
 
     const payload = updateCalls[0];
-    expect(payload.status).toBe("processing");
+    expect(payload.status).toBe("done");
     expect(payload.cap_reached).toBeFalsy();
   });
 
@@ -332,6 +344,116 @@ function makeCandidate(overrides: Partial<DiscoveryCandidate> = {}): DiscoveryCa
     ...overrides,
   };
 }
+
+describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
+  const RENDER_SEK = discoveryCostSek({
+    haikuUsage: { input_tokens: 0, output_tokens: 0 },
+    renders: 1,
+  });
+  const listing = (areaId: string, url: string) => ({
+    streetAddress: `Gatan ${areaId}`,
+    price: 3_500_000,
+    rooms: 3,
+    livingArea: 65,
+    descriptiveAreaName: areaId,
+    thumbnailUrl: null,
+    url,
+  });
+  const multiRow = () => claimedRow({ filters: { ...claimedRow().filters, areaQuery: "Södermalm och Vasastan" } });
+
+  beforeEach(() => {
+    resolveArea.mockImplementation(async (name: string) =>
+      name.toLowerCase() === "vasastan"
+        ? { areaId: "115349", source: "seed" }
+        : { areaId: "115341", source: "seed" },
+    );
+  });
+
+  it("resolves + scrapes BOTH areas, merges results, and bills one render per area", async () => {
+    fetchAreaListings.mockImplementation(async (areaId: string) => [
+      listing(areaId, `https://www.booli.se/annons/${areaId}`),
+    ]);
+    const supabase = makeSupabase();
+
+    await runSlice(supabase, multiRow());
+
+    expect(fetchAreaListings).toHaveBeenCalledTimes(2);
+    expect(fetchAreaListings).toHaveBeenCalledWith("115341", "Lägenhet");
+    expect(fetchAreaListings).toHaveBeenCalledWith("115349", "Lägenhet");
+    const payload = updateCalls[0];
+    expect((payload.results as unknown[]).length).toBe(2);
+    // Billed for TWO renders, not one.
+    expect(payload.cost_sek_total).toBeCloseTo(RENDER_SEK * 2, 10);
+  });
+
+  it("de-dupes a listing that surfaces in both area searches", async () => {
+    // Same listing URL returned for both areas → one merged candidate.
+    fetchAreaListings.mockResolvedValue([listing("x", "https://www.booli.se/annons/dup")]);
+    const supabase = makeSupabase();
+
+    await runSlice(supabase, multiRow());
+
+    expect((updateCalls[0].results as unknown[]).length).toBe(1);
+  });
+
+  it("proceeds with the surviving area when one area's scrape throws (partial failure)", async () => {
+    fetchAreaListings.mockImplementation(async (areaId: string) => {
+      if (areaId === "115349") throw new Error("blocked");
+      return [listing(areaId, `https://www.booli.se/annons/${areaId}`)];
+    });
+    const supabase = makeSupabase();
+
+    await runSlice(supabase, multiRow());
+
+    expect(fetchAreaListings).toHaveBeenCalledTimes(2);
+    const payload = updateCalls[0];
+    expect(payload.status).not.toBe("degraded");
+    expect((payload.results as unknown[]).length).toBe(1);
+    // Only one render actually succeeded → billed for one.
+    expect(payload.cost_sek_total).toBeCloseTo(RENDER_SEK, 10);
+  });
+
+  it("degrades only when EVERY area's scrape throws (the block signal)", async () => {
+    fetchAreaListings.mockRejectedValue(new Error("captcha"));
+    const supabase = makeSupabase();
+
+    await runSlice(supabase, multiRow());
+
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0]).toMatchObject({ status: "degraded" });
+  });
+
+  it("fails (with a diagnostic log) when NO area name resolves", async () => {
+    resolveArea.mockResolvedValue(null);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const supabase = makeSupabase();
+
+    await runSlice(supabase, multiRow());
+
+    expect(fetchAreaListings).not.toHaveBeenCalled();
+    expect(updateCalls[0]).toMatchObject({ status: "failed" });
+    expect(errSpy).toHaveBeenCalledWith(
+      "[discovery-job] area resolution failed",
+      expect.objectContaining({ areaQuery: "Södermalm och Vasastan" }),
+    );
+    errSpy.mockRestore();
+  });
+});
+
+describe("dedupeCandidates", () => {
+  it("drops duplicate sourceListingUrl (first wins), keeps url-less candidates", () => {
+    const c = (over: Partial<DiscoveryCandidate>) => makeCandidate(over);
+    const out = dedupeCandidates([
+      c({ sourceListingUrl: "u1", address: "A" }),
+      c({ sourceListingUrl: "u1", address: "A-dup" }),
+      c({ sourceListingUrl: "u2" }),
+      c({ sourceListingUrl: null, address: "No URL", price: 1 }),
+      c({ sourceListingUrl: null, address: "No URL", price: 1 }), // same fallback key → deduped
+    ]);
+    expect(out.map((x) => x.sourceListingUrl)).toEqual(["u1", "u2", null]);
+    expect(out[0].address).toBe("A"); // first occurrence wins
+  });
+});
 
 describe("runVisionForJob — Phase 11 (DISC-04) separate post-scrape pass", () => {
   it("writes vision-annotated results back in ONE update, distinct from runSlice's own update", async () => {
@@ -694,5 +816,80 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
 
     expect(fetchBrokerListingPage).not.toHaveBeenCalled();
     expect(brokerImages.size).toBe(0);
+  });
+
+  // SPEC §2.1 / defect D1: when the enrichment budget is smaller than the pool
+  // of image-less candidates, it must land on the RENO TARGETS (below-market +
+  // aged), not on whoever Booli ranked first. This is the Ringvägen 122 fix.
+  it("spends a scarce enrichment budget on the below-market/aged flat, not Booli's first (D1)", async () => {
+    fetchListing.mockResolvedValue(rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"]));
+    const input = [
+      // Booli-order #1: priced AT market, modern stock → low reno potential.
+      makeCandidate({
+        sourceListingUrl: "https://www.booli.se/bostad/atmarket",
+        imageUrls: null,
+        price: 4_000_000,
+        livingArea: 40, // 100k/m²
+        constructionYear: 2015,
+      }),
+      // Booli-order #2: markedly below market + old stock → the real target.
+      makeCandidate({
+        sourceListingUrl: "https://www.booli.se/bostad/ringvagen",
+        imageUrls: null,
+        price: 3_000_000,
+        livingArea: 40, // 75k/m² — well below the set
+        constructionYear: 1962,
+      }),
+    ];
+
+    await enrichCandidateImages(input, 1); // budget of one
+
+    expect(fetchListing).toHaveBeenCalledTimes(1);
+    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/ringvagen");
+  });
+});
+
+describe("enrichment pre-rank (SPEC §2.1, D1)", () => {
+  it("candidateMedianPricePerSqm: median over computable kr/m², null when none", () => {
+    const set = [
+      makeCandidate({ price: 3_000_000, livingArea: 30 }), // 100k
+      makeCandidate({ price: 4_000_000, livingArea: 40 }), // 100k
+      makeCandidate({ price: 1_200_000, livingArea: 10 }), // 120k
+    ];
+    expect(candidateMedianPricePerSqm(set)).toBe(100_000);
+    expect(
+      candidateMedianPricePerSqm([makeCandidate({ price: null, livingArea: null })]),
+    ).toBeNull();
+  });
+
+  it("enrichmentPriority: below-market ranks above at-market; aged breaks ties", () => {
+    const median = 100_000;
+    const belowMarket = makeCandidate({ price: 3_000_000, livingArea: 40 }); // 75k
+    const atMarket = makeCandidate({ price: 4_000_000, livingArea: 40 }); // 100k
+    expect(enrichmentPriority(belowMarket, median)).toBeGreaterThan(
+      enrichmentPriority(atMarket, median),
+    );
+
+    const old = makeCandidate({ price: 4_000_000, livingArea: 40, constructionYear: 1910 });
+    const modern = makeCandidate({ price: 4_000_000, livingArea: 40, constructionYear: 2010 });
+    expect(enrichmentPriority(old, median)).toBeGreaterThan(enrichmentPriority(modern, median));
+  });
+
+  it("enrichmentPriority: missing price/year contributes 0, never a negative penalty", () => {
+    const median = 100_000;
+    const noData = makeCandidate({ price: null, livingArea: null, constructionYear: null });
+    expect(enrichmentPriority(noData, median)).toBe(0);
+    // A null median (no market reference) yields 0 below-market for everyone.
+    expect(enrichmentPriority(makeCandidate({ price: 3_000_000, livingArea: 40 }), null)).toBe(0);
+  });
+
+  it("enrichmentVisitOrder: sorts reno targets first, stable on ties (keeps Booli order)", () => {
+    const order = enrichmentVisitOrder([
+      makeCandidate({ price: 4_000_000, livingArea: 40 }), // 100k, at market
+      makeCandidate({ price: 3_000_000, livingArea: 40, constructionYear: 1962 }), // 75k + old
+      makeCandidate({ price: 4_000_000, livingArea: 40 }), // 100k, at market (tie w/ idx 0)
+    ]);
+    expect(order[0]).toBe(1); // the below-market/aged flat wins
+    expect(order.slice(1)).toEqual([0, 2]); // ties keep original order
   });
 });

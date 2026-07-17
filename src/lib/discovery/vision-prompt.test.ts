@@ -16,6 +16,16 @@ describe("vision-prompt", () => {
     expect(VISION_PREFILTER_SYSTEM_PROMPT).toContain("människor");
   });
 
+  it("the pre-filter triage is inverted for a reno search: dated/original flats pass, skip only when unanalyzable (D2a)", () => {
+    // Dated/original stock must always go through — it's the target.
+    expect(VISION_PREFILTER_SYSTEM_PROMPT).toContain("daterad");
+    expect(VISION_PREFILTER_SYSTEM_PROMPT).toMatch(/ursprunglig/);
+    // Skip only when there is nothing to assess at all.
+    expect(VISION_PREFILTER_SYSTEM_PROMPT).toMatch(/inga interiörbilder|för mörka\/suddiga/);
+    // When in doubt, pass it through (high recall).
+    expect(VISION_PREFILTER_SYSTEM_PROMPT).toMatch(/osäker.*true|släpp igenom/);
+  });
+
   it("includes the explicit people/personal-document ignore instruction in the deep-pass prompt", () => {
     expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("Ignorera");
     expect(VISION_DEEPPASS_SYSTEM_PROMPT).toContain("människor");
