@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Owned Data Layer & Intelligent Discovery
-status: milestone-complete
-stopped_at: "v1.1 milestone COMPLETE + archived (all 8 phases 5–12 code-complete, verified, reviewed+fixed). Legal go/no-go = GO (operator 2026-07-08); DISCOVERY_ENABLED now ON, feature flag retained as runtime kill switch. Live validation gates (Phase 11/12 kill-criteria) still outstanding."
-last_updated: "2026-07-08T00:00:00.000Z"
-last_activity: 2026-07-08 -- operator legal go/no-go = GO; DISCOVERY_ENABLED set ON (flag retained); live validation gates still outstanding
+milestone: v1.2
+milestone_name: Renovator-Grade Discovery Analysis
+status: planning
+last_updated: "2026-07-17T13:30:15.674Z"
+last_activity: 2026-07-17
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 28
-  completed_plans: 28
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,11 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-06)
 
 ## Current Position
 
-Milestone: v1.1 — COMPLETE & ARCHIVED (Phases 5–12)
-Status: Milestone code-complete, audited (tech_debt accepted), archived. Legal go/no-go = GO (operator 2026-07-08); `DISCOVERY_ENABLED` ON, feature flag retained as runtime kill switch. Live validation gates (Phase 11/12 kill-criteria) still outstanding (see milestones/v1.1-MILESTONE-AUDIT.md + phase *-UAT.md).
-Last activity: 2026-07-08 -- v1.1 audit → complete → (cleanup next)
-
-Progress: [████████] 8/8 v1.1 phases (5–12) complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-17 — Milestone v1.2 started
 
 ## Roadmap Summary (v1.1)
 

@@ -13,7 +13,19 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 - ✅ **v1.0 MVP** shipped 2026-07-06 (Phases 1–4).
 - ✅ **v1.1 Owned Data Layer & Intelligent Discovery** shipped code-complete 2026-07-07 (Phases 5–12; 27 plans; 629 tests; migrations 006–011 live). Archive: `milestones/v1.1-ROADMAP.md` · audit: `milestones/v1.1-MILESTONE-AUDIT.md`.
   - **Discovery surface (Phases 9–12): legal go/no-go = GO (operator, 2026-07-08); `DISCOVERY_ENABLED` now ON** in the operator env. The flag is retained as the runtime kill switch (not removed). Live validation gates (Phase 11 20–30-listing accuracy gate + Phase 12 floor-plan hedging kill-criterion, see phase `*-UAT.md`) still stand as separate operator checks. Phases 5–8 (owned acquisition, broker extraction, macro context, BRF auto-fetch) are independently shippable after lighter live smoke checks.
-- **Next:** run `/gsd-new-milestone` (fresh requirements) once the v1.1 operator gates are worked, or promote a backlog item (999.1/999.4/999.5/999.8).
+- 🔨 **v1.2 Renovator-Grade Discovery Analysis** started 2026-07-17. The discovery data layer is solid; **analysis quality is the gap** — turn the image-only condition read into a holistic, ROI-aware, buyer-tailored opportunity brief per candidate, and fix the poll-timeout UX that the richer scrape surfaced. Cores already built + tested on `main` (`flip-economics.ts`, `area-comps.ts`, pre-filter/triage flips); this milestone wires them into the live analysis. See `.planning/research/2026-07-10-ANALYSIS-REDESIGN-SPEC.md`.
+
+## Current Milestone: v1.2 Renovator-Grade Discovery Analysis
+
+**Goal:** Turn the discovery surface's AI from image-only condition notes into a holistic, ROI-aware, buyer-tailored opportunity brief per candidate — acting like a renovator / interior-designer / architect — and make the now-live discovery flow finish within the client's patience window.
+
+**Target features:**
+- **Poll-timeout UX fix** — the richer scrape (315 listings + vision) must complete without the user having to reload (parallelize across areas / stream partial / cap per-page retries); add the missing `vision_processing` Swedish status label.
+- **Analysis brain (Phase A)** — no-empty-analysis fallback; wire holistic inputs (re-resolved area comps R_med/U_med + per-candidate BRF summary) into the deep-pass payload; ROI-aware, buyer-segment, tiered cost/profit ±tax prompt + `OpportunityBrief` schema (with a live Anthropic strict-output smoke).
+- **Value-gap scoring (Phase B)** — wire `valueGap()` into the ranking tiebreaker + "från bildtolkning" UI marker; extend the separation static-grep test.
+- **Proposed planritning (Phase C)** — image-gen redraw for HIGH value-gap candidates only, daylight/bearing caveats stamped; provider TBD; bounded by cost caps.
+
+**Locked constraints:** `niche-score.ts` / `flags.ts` must never import vision/value-gap/area-comps types (static-grep enforced); all analysis reads go through the `condition-score.ts`-style path + "från bildtolkning" marker. **Low kr/m² ≠ reno object** — surfacing signal only; analysis normalizes against confounders (floor, elevator, balcony, micro-location, sub-area, tomträtt, BRF debt) before attributing to condition. No DB migration (rides in JSONB `results`). `DISCOVERY_ENABLED` fail-closed + cost caps respected; GDPR — broker/gallery images analyze-only, never persisted.
 
 ## Shipped Milestone: v1.1 Owned Data Layer & Intelligent Discovery
 
@@ -43,14 +55,23 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 - ✓ AI summary "vad du bör tänka på" — synthesized, cited, no buy/sell verdict — v1.0 (RPRT-01)
 - ✓ Partial reports when a source fails — honest "Ej tillgänglig", no fabrication — v1.0 (D-07)
 - ✓ Download analysis as PDF report (å/ä/ö correct, login-gated) — v1.0 (RPRT-03)
+- ✓ Own the Booli acquisition layer — owned client + observable fallback tree — v1.1 (ACQ-01/02/03)
+- ✓ Deeper listing extraction via broker sites — floor, balcony, BRF name, renovation, description — v1.1 (LSTG-03/04)
+- ✓ Macro-driven price context — Riksbank/SCB indicators into market-context layer — v1.1 (MACRO-01/02)
+- ✓ Auto-fetch BRF årsredovisning from Allabrf, manual upload as fallback — v1.1 (ENRICH-01/02)
+- ✓ AI free-text listing discovery — cost-capped background area search — v1.1 (DISC-01/02/07)
+- ✓ Configurable niche ranking of discovery candidates — v1.1 (DISC-03)
+- ✓ Hedged, image-cited gallery condition vision — v1.1 (DISC-04)
+- ✓ Floor-plan investigation-prompts + theoretical sun-path — v1.1 (DISC-05/06)
 
-### Active (v1.1 — scoped in REQUIREMENTS.md)
+### Active (v1.2 — scoped in REQUIREMENTS.md)
 
-- [ ] Own the Booli acquisition layer — owned `booli-graphql` client, replaces paid Apify actor (999.6)
-- [ ] Deeper listing extraction via broker sites — floor, balcony, BRF name, renovation, description (999.2)
-- [ ] Macro-driven price context — SCB/Riksbank indicators into market-context layer (999.3)
-- [ ] AI free-text listing discovery + vision-analyzing scraper, incl. sun-path exposure (999.7)
-- [ ] Auto-fetch BRF årsredovisning from Allabrf/Bolagsverket, manual upload as fallback
+- [ ] Discovery flow completes within the client poll window (no forced reload)
+- [ ] Holistic per-candidate analysis — fold BRF (avgift/debt/stambyte) + renovated-vs-unrenovated comps into the value case
+- [ ] Every surfaced candidate gets ≥1 actionable opportunity (no empty `claims: []`)
+- [ ] ROI-aware, buyer-segment-tailored opportunity brief — tiered cost/profit bands, profit shown with & without tax
+- [ ] Value-gap headline metric that also re-orders discovery results (separate read path)
+- [ ] Proposed planritning (image-gen) for HIGH value-gap candidates, with daylight/bearing caveats
 
 ### Deferred (future milestone candidates)
 
@@ -131,4 +152,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 — milestone v1.1 (Owned Data Layer & Intelligent Discovery) started*
+*Last updated: 2026-07-17 — milestone v1.2 (Renovator-Grade Discovery Analysis) started*
