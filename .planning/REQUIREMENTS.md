@@ -58,31 +58,31 @@
 
 ## Traceability
 
-Which phases cover which requirements. Populated during roadmap creation.
+Which phases cover which requirements. Populated during roadmap creation (2026-07-17). Phase numbering **continues** from v1.1 (which ended at Phase 12) — v1.2 spans Phases 13–17.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DXUX-01 | TBD | Pending |
-| DXUX-02 | TBD | Pending |
-| ANL-01 | TBD | Pending |
-| ANL-02 | TBD | Pending |
-| ANL-03 | TBD | Pending |
-| ANL-04 | TBD | Pending |
-| ROI-01 | TBD | Pending |
-| ROI-02 | TBD | Pending |
-| ROI-03 | TBD | Pending |
-| ROI-04 | TBD | Pending |
-| ROI-05 | TBD | Pending |
-| VGAP-01 | TBD | Pending |
-| VGAP-02 | TBD | Pending |
-| VGAP-03 | TBD | Pending |
-| DRAW-01 | TBD | Pending |
+| DXUX-01 | Phase 13 — Discovery UX / Poll-Timeout Fix | Pending |
+| DXUX-02 | Phase 13 — Discovery UX / Poll-Timeout Fix | Pending |
+| ANL-01 | Phase 14 — Holistic Analysis Brain | Pending |
+| ANL-02 | Phase 14 — Holistic Analysis Brain | Pending |
+| ANL-03 | Phase 14 — Holistic Analysis Brain | Pending |
+| ANL-04 | Phase 14 — Holistic Analysis Brain | Pending |
+| ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
+| ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
+| ROI-03 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
+| ROI-04 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
+| ROI-05 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
+| VGAP-01 | Phase 16 — Value-Gap Scoring & Ranking | Pending |
+| VGAP-02 | Phase 16 — Value-Gap Scoring & Ranking | Pending |
+| VGAP-03 | Phase 16 — Value-Gap Scoring & Ranking | Pending |
+| DRAW-01 | Phase 17 — Proposed Planritning Generation | Pending |
 
 **Coverage:**
 - v1.2 requirements: 15 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 15 ⚠️ (resolved by roadmapper)
+- Mapped to phases: 15 ✓ (every requirement maps to exactly one phase; no orphans, no duplicates)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-17*
-*Last updated: 2026-07-17 after milestone v1.2 initiation*
+*Last updated: 2026-07-17 — traceability populated by roadmapper (Phases 13–17)*
