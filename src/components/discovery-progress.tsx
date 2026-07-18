@@ -25,15 +25,25 @@ interface DiscoveryJobRow {
 }
 
 /** Poll cadence — mirrors BrfProgress's light-but-responsive rhythm. */
-const POLL_MS = 1500;
+export const POLL_MS = 1500;
 
 /**
- * Hard safety ceiling on polling. An area scrape of 20-30 listings runs
- * longer than a single Haiku BRF extraction (BrfProgress's 90s ceiling) — 5
- * minutes gives the scrape room to complete a full slice without the client
- * giving up prematurely.
+ * Soft, non-failing threshold (D-04). Once elapsed with the job still
+ * running, the UI shows a calm "tar längre tid" notice — but polling AND
+ * ticking continue uninterrupted; this is deliberately NOT a failure path.
+ * Tunable; pending calibration by the 13-03 live smoke (RESEARCH Open
+ * Question #2).
  */
-const MAX_POLL_MS = 5 * 60_000;
+export const SOFT_THRESHOLD_MS = 90_000;
+
+/**
+ * Generous absolute safety ceiling (D-05), well above the old single
+ * 5-minute hard-fail. Only fires a real `onComplete("failed")` for a
+ * genuinely stuck job — an area scrape + vision pass that's still running
+ * at the soft threshold is expected, not an error. Tunable; pending
+ * calibration by the 13-03 live smoke (RESEARCH Open Question #2).
+ */
+export const ABSOLUTE_CEILING_MS = 15 * 60_000;
 
 const TERMINAL_STATUSES = new Set(["done", "failed", "degraded"]);
 
@@ -92,6 +102,7 @@ export function DiscoveryProgress({
   const [capCandidates, setCapCandidates] = useState(0);
   const [capReached, setCapReached] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -133,10 +144,15 @@ export function DiscoveryProgress({
         }
 
         const next = row?.status ?? null;
+        // Terminal-status branch is the SINGLE source of truth (RESEARCH.md
+        // Pitfall 5): it clears BOTH the soft and hard timers so neither can
+        // fire after a terminal status is observed, regardless of race.
         if (next && TERMINAL_STATUSES.has(next)) {
           active = false;
           clearInterval(interval);
-          clearTimeout(timeout);
+          clearTimeout(softTimeout);
+          clearTimeout(hardTimeout);
+          setSlow(false);
           onComplete?.(next);
         }
       } finally {
@@ -147,18 +163,29 @@ export function DiscoveryProgress({
     void poll();
     const interval = setInterval(poll, POLL_MS);
 
-    const timeout = setTimeout(() => {
+    // Soft, non-failing notice (D-04): the job is still running, just taking
+    // longer than expected. Deliberately does NOT clearInterval and does NOT
+    // call onComplete — polling and ticking continue uninterrupted.
+    const softTimeout = setTimeout(() => {
+      if (!active) return;
+      setSlow(true);
+    }, SOFT_THRESHOLD_MS);
+
+    // Absolute safety ceiling (D-05): the ONLY client-side path that
+    // surfaces a real failure. Only fires for a genuinely stuck job.
+    const hardTimeout = setTimeout(() => {
       if (!active) return;
       active = false;
       clearInterval(interval);
       setTimedOut(true);
       onComplete?.("failed");
-    }, MAX_POLL_MS);
+    }, ABSOLUTE_CEILING_MS);
 
     return () => {
       active = false;
       clearInterval(interval);
-      clearTimeout(timeout);
+      clearTimeout(softTimeout);
+      clearTimeout(hardTimeout);
     };
   }, [jobId, onComplete]);
 
@@ -185,6 +212,14 @@ export function DiscoveryProgress({
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {slow && !isFailed && !isDegraded && status !== "done" && (
+          <div className="rounded-lg bg-warm-gray-50 px-4 py-3">
+            <p className="text-sm text-warm-gray-600">
+              Det tar längre tid än väntat, fortsätter…
+            </p>
+          </div>
+        )}
+
         {capReached && (
           <div className="rounded-lg bg-terracotta-50 px-4 py-3">
             <p className="text-sm text-terracotta-600">
