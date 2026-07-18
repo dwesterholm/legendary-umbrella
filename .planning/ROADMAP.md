@@ -61,7 +61,10 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
   2. While a job runs, every state (including vision processing) shows a Swedish status label in the progress UI — no raw enum string (e.g. `vision_processing`) ever appears on screen.
   3. A long run visibly progresses within the window (area work parallelized / partial results surfaced / per-page render retries capped) rather than appearing to hang until a manual refresh.
 **Notes**: Respect `DISCOVERY_ENABLED` fail-closed + cost caps (`CAP_VISION_SEK_MAX=10`, `VISION_ENRICH_LIMIT=8`, `CAP_CANDIDATES_MAX=25`) — every run is real Apify + Anthropic spend. Client tick is the primary job driver; the sweep cron is only an orphan-resume net.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 13-01-PLAN.md — Parallelize area scrapes in runSlice + scoped area-page waitSecs override (DXUX-01 backend throughput; D-01/D-02/D-03)
+- [ ] 13-02-PLAN.md — Two-tier poll timeout (calm soft-notice, keep polling) + complete Swedish STATUS_LABELS (DXUX-01 client UX + DXUX-02; D-04/D-05/D-06/D-07)
+- [ ] 13-03-PLAN.md — Live-smoke checkpoint: large multi-area run completes in-window; calibrate timing constants (DXUX-01 phase gate)
 **UI hint**: yes
 
 ### Phase 14: Holistic Analysis Brain
@@ -129,7 +132,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 | 10. Niche Ranking | v1.1 | 2/2 | Complete | 2026-07-07 |
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
-| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 0/TBD | Not started | - |
+| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 0/3 | Not started | - |
 | 14. Holistic Analysis Brain | v1.2 | 0/TBD | Not started | - |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |
