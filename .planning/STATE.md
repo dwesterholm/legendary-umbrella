@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-07-18T14:41:44.356Z"
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-07-18T14:50:05.908Z"
 last_activity: 2026-07-18 -- Phase 13 execution started
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 13 (Discovery UX / Poll-Timeout Fix) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-18 -- Phase 13 execution started
 Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix — independent, can go first).
@@ -166,6 +166,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 12-04]: Sun-path grid renders only KNOWN facades (season columns, one row per known facade) -- never fabricates missing facades as ej-tillganglig rows, per UI-SPEC binding constraint
 - [Phase 13]: AREA_PAGE_WAIT_SECS=120 chosen as a conservative first D-02 value, exported from client.ts for test assertions — pending calibration by the 13-03 live smoke against real Apify per-page render timing
 - [Phase 13]: runSlice's area loop iterated by index (settled[i]/areaIds[i]) mirroring client.ts's page-level Promise.allSettled pattern exactly, preserving D-03's cost-cap invariant by construction
+- [Phase ?]: [Phase 13-02]: SOFT_THRESHOLD_MS=90_000 / ABSOLUTE_CEILING_MS=15*60_000 chosen as tunable constants pending calibration by the 13-03 live smoke
+- [Phase ?]: [Phase 13-02]: STATUS_LABELS/KNOWN_STATUSES exported directly from discovery-progress.tsx so the exhaustiveness test enumerates the single canonical source of truth
 
 ### Pending Todos
 
@@ -189,8 +191,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-18T14:40:46.118Z
-Stopped at: Phase 13 context gathered
+Last session: 2026-07-18T14:50:05.904Z
+Stopped at: Completed 13-02-PLAN.md
 Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix). The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
@@ -287,3 +289,4 @@ Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix). The v1.1 oper
 | Phase 12 P03 | 55min | 2 tasks | 9 files |
 | Phase 12 P04 | 6min | 3 tasks | 6 files |
 | Phase 13 P01 | 25min | 2 tasks | 5 files |
+| Phase 13 P02 | 20min | 2 tasks | 2 files |

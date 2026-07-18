@@ -11,7 +11,7 @@
 ### Discovery UX
 
 - [ ] **DXUX-01**: A discovery job for a realistic multi-area query (e.g. 300+ listings + vision) completes and shows results without the user having to reload — the server-side run finishes within the client poll window (parallelize across areas / stream partial results / cap per-page render retries).
-- [ ] **DXUX-02**: Every discovery job state renders a Swedish status label in the progress UI — no raw enum string leaks (fixes missing `vision_processing` label in `STATUS_LABELS`).
+- [x] **DXUX-02**: Every discovery job state renders a Swedish status label in the progress UI — no raw enum string leaks (fixes missing `vision_processing` label in `STATUS_LABELS`).
 
 ### Holistic Analysis (Phase A)
 
@@ -63,7 +63,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DXUX-01 | Phase 13 — Discovery UX / Poll-Timeout Fix | Pending |
-| DXUX-02 | Phase 13 — Discovery UX / Poll-Timeout Fix | Pending |
+| DXUX-02 | Phase 13 — Discovery UX / Poll-Timeout Fix | Complete |
 | ANL-01 | Phase 14 — Holistic Analysis Brain | Pending |
 | ANL-02 | Phase 14 — Holistic Analysis Brain | Pending |
 | ANL-03 | Phase 14 — Holistic Analysis Brain | Pending |
@@ -79,6 +79,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | DRAW-01 | Phase 17 — Proposed Planritning Generation | Pending |
 
 **Coverage:**
+
 - v1.2 requirements: 15 total
 - Mapped to phases: 15 ✓ (every requirement maps to exactly one phase; no orphans, no duplicates)
 - Unmapped: 0 ✓
