@@ -21,7 +21,58 @@ vi.mock("@/actions/tick-discovery", () => ({
   tickDiscovery: (...args: unknown[]) => tickDiscoveryMock(...args),
 }));
 
-import { DiscoveryProgress } from "@/components/discovery-progress";
+import {
+  DiscoveryProgress,
+  STATUS_LABELS,
+  KNOWN_STATUSES,
+} from "@/components/discovery-progress";
+
+describe("DiscoveryProgress — STATUS_LABELS exhaustiveness (D-06, D-07)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+  });
+
+  it("has a non-empty Swedish label for every known job status", () => {
+    for (const knownStatus of KNOWN_STATUSES) {
+      expect(typeof STATUS_LABELS[knownStatus]).toBe("string");
+      expect(STATUS_LABELS[knownStatus].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("covers exactly the 6 known statuses", () => {
+    expect(KNOWN_STATUSES).toEqual([
+      "pending",
+      "processing",
+      "vision_processing",
+      "done",
+      "failed",
+      "degraded",
+    ]);
+  });
+
+  it("renders 'Analyserar bilder' for a vision_processing row (D-06)", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 20,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.5,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress jobId="job-1" initialStatus="vision_processing" />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+    });
+  });
+});
 
 describe("DiscoveryProgress", () => {
   beforeEach(() => {
