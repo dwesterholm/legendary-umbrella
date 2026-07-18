@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, act } from "@testing-library/react";
 
 const singleMock = vi.fn();
 const tickDiscoveryMock = vi.fn();
@@ -25,6 +25,9 @@ import {
   DiscoveryProgress,
   STATUS_LABELS,
   KNOWN_STATUSES,
+  POLL_MS,
+  SOFT_THRESHOLD_MS,
+  ABSOLUTE_CEILING_MS,
 } from "@/components/discovery-progress";
 
 describe("DiscoveryProgress — STATUS_LABELS exhaustiveness (D-06, D-07)", () => {
@@ -251,5 +254,132 @@ describe("DiscoveryProgress", () => {
 
     const link = screen.getByRole("link", { name: /dashboard|enskild/i });
     expect(link).toHaveAttribute("href", "/dashboard");
+  });
+});
+
+describe("DiscoveryProgress — two-tier poll timeout (D-04, D-05)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows the calm soft-notice at SOFT_THRESHOLD_MS, does NOT call onComplete, and keeps polling (D-04)", async () => {
+    const onComplete = vi.fn();
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 3,
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onComplete}
+      />,
+    );
+
+    // Flush the initial poll() microtasks.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SOFT_THRESHOLD_MS);
+    });
+
+    expect(
+      screen.getByText("Det tar längre tid än väntat, fortsätter…"),
+    ).toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const callsAtSoft = tickDiscoveryMock.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(tickDiscoveryMock.mock.calls.length).toBeGreaterThan(callsAtSoft);
+  });
+
+  it("calls onComplete('failed') exactly once at ABSOLUTE_CEILING_MS for a genuinely stuck job (D-05)", async () => {
+    const onComplete = vi.fn();
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 3,
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onComplete}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS);
+    });
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith("failed");
+  });
+
+  it("clears BOTH timers when a terminal status arrives before the soft threshold — no false failure (Pitfall 5)", async () => {
+    const onComplete = vi.fn();
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 20,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="processing"
+        onComplete={onComplete}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onComplete).toHaveBeenCalledWith("done");
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // Advance well past both the soft threshold and the absolute ceiling —
+    // neither timer may fire now that the terminal branch has cleared them.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS + POLL_MS);
+    });
+
+    expect(
+      screen.queryByText("Det tar längre tid än väntat, fortsätter…"),
+    ).not.toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalledWith("failed");
   });
 });
