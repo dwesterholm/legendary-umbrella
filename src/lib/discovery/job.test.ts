@@ -438,6 +438,30 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
     );
     errSpy.mockRestore();
   });
+
+  it("scrapes both areas CONCURRENTLY — elapsed is close to the slower area's delay, not the sum (Wave-0 concurrency proof, D-01)", async () => {
+    // Real, staggered setTimeout-based delays (not instantly-resolving mocks —
+    // Pitfall 4): area 115341 resolves after ~100ms, area 115349 after ~20ms.
+    // A sequential for-await loop takes ≈ 100 + 20 = 120ms; Promise.allSettled
+    // takes ≈ max(100, 20) = 100ms. Asserting comfortably below the sequential
+    // sum (but above the concurrent max) distinguishes the two shapes without
+    // relying on exact timing.
+    const DELAYS: Record<string, number> = { "115341": 100, "115349": 20 };
+    fetchAreaListings.mockImplementation(async (areaId: string) => {
+      await new Promise((resolve) => setTimeout(resolve, DELAYS[areaId] ?? 0));
+      return [listing(areaId, `https://www.booli.se/annons/${areaId}`)];
+    });
+    const supabase = makeSupabase();
+
+    const start = Date.now();
+    await runSlice(supabase, multiRow());
+    const elapsed = Date.now() - start;
+
+    expect(fetchAreaListings).toHaveBeenCalledTimes(2);
+    // Sequential sum would be ≈120ms; concurrent max is ≈100ms. 110ms sits
+    // between the two, well below the sum, proving concurrent execution.
+    expect(elapsed).toBeLessThan(110);
+  });
 });
 
 describe("dedupeCandidates", () => {
