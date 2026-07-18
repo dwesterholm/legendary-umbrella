@@ -53,11 +53,20 @@ const PLAYWRIGHT_SCRAPER_ACTOR = "apify/playwright-scraper";
  *   threat model; this transport treats `url` as already validated).
  * @param pageFunction - the serialized browser-side extraction function sent
  *   to the actor (see `page-functions.ts` for the shared Apollo extractor).
+ * @param opts - OPTIONAL, additive-only override (D-02, 13-RESEARCH.md
+ *   Pitfall 3): defaults to the proven 240s/3-retry values above so every
+ *   EXISTING call site (`fetchListing`, sold-comps, broker enrichment) stays
+ *   byte-for-byte unchanged. Only `fetchAreaPage`'s area-page rungs pass a
+ *   lower `waitSecs` to bound worst-case per-tick duration (RESEARCH Pitfall
+ *   1/2) — never lower these two literal defaults in place.
  */
 export async function runPlaywrightRender(
   url: string,
   pageFunction: string,
+  opts?: { waitSecs?: number; maxRequestRetries?: number },
 ): Promise<unknown[]> {
+  const waitSecs = opts?.waitSecs ?? 240;
+  const maxRequestRetries = opts?.maxRequestRetries ?? 3;
   try {
     const run = await client.actor(PLAYWRIGHT_SCRAPER_ACTOR).call(
       {
@@ -69,14 +78,15 @@ export async function runPlaywrightRender(
           apifyProxyCountry: "SE",
         },
         // proven necessary — a single 403 streak returned 0 items on retry
-        // budget 1; sold-source.ts absorbed it with 3. Do not reduce.
-        maxRequestRetries: 3,
+        // budget 1; sold-source.ts absorbed it with 3. Do not reduce (the
+        // default). A caller may still opt in to a lower scoped value.
+        maxRequestRetries,
         maxPagesPerCrawl: 1,
         pageFunction,
       },
       // cold-start headroom, proven necessary in booli-scraper.ts and
       // sold-source.ts — a warm run returns as soon as it finishes.
-      { waitSecs: 240 },
+      { waitSecs },
     );
 
     // A non-SUCCEEDED run (still RUNNING at the wait ceiling, TIMED-OUT,

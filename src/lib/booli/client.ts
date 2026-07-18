@@ -615,6 +615,20 @@ const FULL_PAGE_THRESHOLD = 20;
  */
 const MAX_AREA_PAGES = 5;
 
+/**
+ * D-02 (13-CONTEXT.md, RESEARCH Open Question #1) — a scoped, materially
+ * lower `waitSecs` ceiling for AREA-PAGE renders only. `runPlaywrightRender`'s
+ * global default (240s) accounts for genuine detail-page Apify cold-start
+ * latency; area pages attempt up to 2 rungs each, so an unbounded worst case
+ * (~480s across up to 4 concurrent areas post-D-01) risks exceeding the
+ * ~300s Vercel Server Action ceiling (`TICK_DISCOVERY_MAX_DURATION_SEC`).
+ * 120s is a conservative first value, NOT re-proven against production
+ * latency yet — instrument the existing `[booli-client] fetchAreaListings
+ * page N served by rung...` log line (below) to observe real timing and
+ * tighten later (13-03 live smoke). Exported for test assertions only.
+ */
+export const AREA_PAGE_WAIT_SECS = 120;
+
 /** Stable per-listing dedupe key across pages (booliId, else url). */
 function listingKey(listing: Record<string, unknown>): string | null {
   const booliId = listing.booliId;
@@ -670,12 +684,16 @@ async function fetchAreaPage(
     {
       source: "own-playwright" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(
+          extractListingEntities,
+        ),
     },
     {
       source: "own-playwright-retry" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(
+          extractListingEntities,
+        ),
     },
   ];
   const result = await walkFallbackTree(rungs);
