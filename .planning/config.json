@@ -19,7 +19,7 @@
     "ui_safety_gate": false,
     "auto_advance": true,
     "use_worktrees": true,
-    "skip_discuss": true,
+    "skip_discuss": false,
     "research_before_questions": true
   },
   "granularity": "standard",
