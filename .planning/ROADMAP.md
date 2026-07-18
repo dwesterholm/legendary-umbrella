@@ -53,66 +53,83 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 > v1.2 phases only. v1.0/v1.1 phase details live in their milestone archives (linked above). Numbering **continues** from v1.1's Phase 12 — no reset. Phases 1–12 are untouched.
 
 ### Phase 13: Discovery UX / Poll-Timeout Fix
+
 **Goal**: The now-live discovery flow finishes within the user's patience window and every job state shows a human-readable Swedish label — no forced reload, no raw enum leak. (Independent, unblocks confidence in the live discovery surface; can go first.)
 **Depends on**: Nothing new (the discovery surface is already live on `main`); independent of the analysis phases.
 **Requirements**: DXUX-01, DXUX-02
 **Success Criteria** (what must be TRUE):
+
   1. A realistic multi-area query (e.g. "1:a i Södermalm och Vasastan under 4 miljoner", 300+ listings + vision) reaches and displays results without the user reloading the page — the server-side run finishes inside the client poll window.
   2. While a job runs, every state (including vision processing) shows a Swedish status label in the progress UI — no raw enum string (e.g. `vision_processing`) ever appears on screen.
   3. A long run visibly progresses within the window (area work parallelized / partial results surfaced / per-page render retries capped) rather than appearing to hang until a manual refresh.
+
 **Notes**: Respect `DISCOVERY_ENABLED` fail-closed + cost caps (`CAP_VISION_SEK_MAX=10`, `VISION_ENRICH_LIMIT=8`, `CAP_CANDIDATES_MAX=25`) — every run is real Apify + Anthropic spend. Client tick is the primary job driver; the sweep cron is only an orphan-resume net.
 **Plans**: 3 plans
-- [ ] 13-01-PLAN.md — Parallelize area scrapes in runSlice + scoped area-page waitSecs override (DXUX-01 backend throughput; D-01/D-02/D-03)
+
+- [x] 13-01-PLAN.md — Parallelize area scrapes in runSlice + scoped area-page waitSecs override (DXUX-01 backend throughput; D-01/D-02/D-03)
 - [ ] 13-02-PLAN.md — Two-tier poll timeout (calm soft-notice, keep polling) + complete Swedish STATUS_LABELS (DXUX-01 client UX + DXUX-02; D-04/D-05/D-06/D-07)
 - [ ] 13-03-PLAN.md — Live-smoke checkpoint: large multi-area run completes in-window; calibrate timing constants (DXUX-01 phase gate)
+
 **UI hint**: yes
 
 ### Phase 14: Holistic Analysis Brain
+
 **Goal**: Every surfaced candidate is analyzed against holistic context — renovated-vs-unrenovated area comps and its BRF's finances — always leaves analysis with ≥1 actionable opportunity, and never mistakes a low kr/m² for a renovation signal. (SPEC Phase A: A.3 no-empty fallback + A.4 comps/BRF wiring; A.1/A.2 flips already merged.)
 **Depends on**: Analysis cores already merged on `main` (`area-comps.ts` `computeAreaComps`, `flip-economics.ts`, pre-filter flip A.1, Haiku triage flip A.2). Independent of Phase 13.
 **Requirements**: ANL-01, ANL-02, ANL-03, ANL-04
 **Success Criteria** (what must be TRUE):
+
   1. A dated/original flat that previously produced `claims: []` (the Ringvägen 122 scenario) now surfaces with ≥1 actionable opportunity — when no image attributes survive the confidence/imageIndex gates, a holistic-data-only brief is produced instead of an empty one.
   2. A candidate's value case folds in renovated-vs-unrenovated area comps (R_med / U_med from `computeAreaComps`), resolved via the re-resolved areaId — the analysis references how its kr/m² sits against renovated vs unrenovated sales nearby.
   3. For top candidates (within cost caps), the value case folds in the BRF summary — avgift, debt/m², stambyte funding state, tomträtt, soliditet.
   4. Where a listing's kr/m² is low, the analysis normalizes against confounders (floor, elevator, balcony, micro-location, sub-area, tomträtt, BRF debt) before any condition/reno attribution, and the UI never renders text implying "low kr/m² ⇒ renovation object".
+
 **Notes**: No DB migration — `OpportunityBrief` + BRF summary ride in the existing JSONB `results` column; comps use the re-resolved `areaId` (cached `resolveArea`), not lat/lng. Broker/gallery/BRF source data is analyze-only, never persisted. Real Apify/Anthropic spend — fold comps + BRF fetches into the vision cost gate. **A.4 must land before Phase 16** (VGAP needs R_med/U_med from here).
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 15: ROI-Aware Opportunity Brief
+
 **Goal**: Each analyzed candidate produces a prioritized, buyer-tailored opportunity brief — tiered cost/uplift, profit with and without tax, freshness-based bathroom scoring, and concrete interior-designer specifics — delivered through a slim schema that survives Anthropic strict-output. (SPEC Phase A.5.)
 **Depends on**: Phase 14 (needs comps/BRF folded into the deep-pass payload so `valueGap` / `taxLines` / `buyerSegment` / `RENO_COST_MATRIX` can be code-attached to the brief).
 **Requirements**: ROI-01, ROI-02, ROI-03, ROI-04, ROI-05
 **Success Criteria** (what must be TRUE):
+
   1. A candidate shows a prioritized opportunity list — each item has a cheap/mid/high cost band, an expected uplift, a confidence, and a hedged plain-Swedish rationale; structural items keep the "kräver konstruktör / väggutredning" caveat.
   2. Recommendations are visibly tailored to the derived buyer segment — an etta never gets luxury-kitchen recs (capped at MID), while a 2–3:a is weighted toward an extra room / open plan / a scale-4 kitchen.
   3. Every opportunity shows profit both with and without tax (flat 22% on vinst) plus the static uppskov (interest-free) and same-year loss-offset notes — no per-session tax input required.
   4. A dated bathroom yields a cosmetic-refresh opportunity scored on freshness (not material tier), and any microcement-over-våtmatta suggestion carries the HIGH-RISK caveat that it is cosmetic ytskikt only and does not renew the tätskikt / våtrumsintyg.
   5. The brief includes concrete per-room interior-designer specifics (named colors, named furniture moves) — never generic "inrett i nordisk stil" — and the `OpportunityBrief` schema passes a **live** Anthropic strict-output smoke (no 400).
+
 **Notes**: The model does the QUALITATIVE read only (opportunities, rationale, designer tips, architect note); `flip-economics.ts` + `area-comps.ts` compute all money deterministically in code and attach it — no hallucinated numbers. Keep the schema SLIM (single-nullable-leaf, numbers unconstrained) — mocked tests hide 400s, so the live smoke (`RUN_LLM_EVALS=1`, ~2 frozen fixtures) is mandatory; if it 400s, slim further before touching UI. No verdict, every claim cited/hedged.
 **Plans**: TBD
 
 ### Phase 16: Value-Gap Scoring & Ranking
+
 **Goal**: Each candidate carries a value-gap headline metric that re-orders discovery results — computed on the separate analysis read path and clearly marked "från bildtolkning" so buyers can tell interpreted signals from verified deterministic flags. (SPEC Phase B.)
 **Depends on**: Phase 14 (R_med/U_med comps) and Phase 15 (the brief that carries the value-gap object). Primary blocker is Phase 14's A.4 comps.
 **Requirements**: VGAP-01, VGAP-02, VGAP-03
 **Success Criteria** (what must be TRUE):
+
   1. Each candidate shows a value-gap headline (net uplift + HIGH/MED/LOW flag + confidence) per the §2.6 formula — Resale_W capped at the area renovated 75th percentile, Purchase_P with overbid bias — including the >25%-below discount-attribution guard (condition-explained gap capped at 20%, residual routed to hidden-defect penalty).
   2. Discovery results are re-ordered by value-gap as a ranking input, and the static-grep separation test — **extended to cover the value-gap module** — stays green, proving `niche-score.ts` / `flags.ts` never import it.
   3. Analysis-derived signals (condition and value-gap) render with a "från bildtolkning" marker in the discovery results UI, visually distinct from the deterministic verified flags.
+
 **Notes**: Value-gap is a ranking input **and** display (operator decision #1), computed on the separate vision/analysis read path (extend `condition-score.ts` or a sibling), NOT `computeNicheScore`. Structural separation is LOCKED + tested — extend `niche-score.test.ts` grep list. "Low kr/m² ≠ reno object" invariant from Phase 14 carries through the ranking.
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 17: Proposed Planritning Generation
+
 **Goal**: HIGH value-gap candidates get a generated proposed floor plan illustrating the suggested conversion, with daylight/bearing caveats stamped on it, bounded by cost caps — while source images stay analyze-only and are never persisted. (SPEC Phase C.)
 **Depends on**: Phase 16 (the HIGH value-gap flag gates which candidates get a drawing).
 **Requirements**: DRAW-01
 **Success Criteria** (what must be TRUE):
+
   1. A candidate flagged HIGH value-gap shows a generated proposed planritning illustrating the suggested conversion; candidates without a HIGH flag show none (bounding image-gen spend).
   2. The generated drawing has daylight and bearing-wall caveats stamped on it — never asserting a wall's bärande status as fact.
   3. Drawing generation stays within the per-search cost caps, and broker/gallery source images used for analysis are never rendered or persisted — only generated drawings persist (GDPR).
+
 **Notes**: Image-gen provider TBD at phase start (`nano-banana` skill / `higgsfield` / other). HIGH-only gate bounds spend. This is the one place persistence is allowed — generated drawings only, never source images.
 **Plans**: TBD
 
@@ -132,7 +149,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 | 10. Niche Ranking | v1.1 | 2/2 | Complete | 2026-07-07 |
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
-| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 0/3 | Not started | - |
+| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 1/3 | In Progress|  |
 | 14. Holistic Analysis Brain | v1.2 | 0/TBD | Not started | - |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |

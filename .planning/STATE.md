@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
-status: planning
+status: executing
 stopped_at: Phase 13 context gathered
-last_updated: "2026-07-18T14:07:19.543Z"
-last_activity: 2026-07-17 — v1.2 roadmap created (Phases 13–17)
+last_updated: "2026-07-18T14:41:44.356Z"
+last_activity: 2026-07-18 -- Phase 13 execution started
 progress:
   total_phases: 9
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-17)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** v1.2 roadmap created (Phases 13–17, standard granularity, 15/15 requirements mapped). Analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter/triage flips A.1/A.2) already merged on `main`; this milestone is WIRING/INTEGRATION/UX. Next: `/gsd-plan-phase 13`.
+**Current focus:** Phase 13 — Discovery UX / Poll-Timeout Fix
 
 ## Current Position
 
-Phase: Not started (roadmap complete, awaiting phase planning)
-Plan: —
-Status: Roadmapped — ready to plan Phase 13
-Last activity: 2026-07-17 — v1.2 roadmap created (Phases 13–17)
+Phase: 13 (Discovery UX / Poll-Timeout Fix) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-07-18 -- Phase 13 execution started
 Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix — independent, can go first).
 
 ## Roadmap Summary (v1.2 — CURRENT)
@@ -164,6 +164,8 @@ Recent decisions affecting current work:
 - [Phase ?]: raw description is read as a direct expression argument to extractOrientationFromDescription inside toCandidate's returned object literal (never a local variable), keeping the PII-safe derived-only contract structurally enforced
 - [Phase ?]: [Phase 12-04]: SunPathExposure computes computeSunExposure in-component (not upstream) since the 4 raw inputs are already threaded through discovery-results.tsx
 - [Phase ?]: [Phase 12-04]: Sun-path grid renders only KNOWN facades (season columns, one row per known facade) -- never fabricates missing facades as ej-tillganglig rows, per UI-SPEC binding constraint
+- [Phase 13]: AREA_PAGE_WAIT_SECS=120 chosen as a conservative first D-02 value, exported from client.ts for test assertions — pending calibration by the 13-03 live smoke against real Apify per-page render timing
+- [Phase 13]: runSlice's area loop iterated by index (settled[i]/areaIds[i]) mirroring client.ts's page-level Promise.allSettled pattern exactly, preserving D-03's cost-cap invariant by construction
 
 ### Pending Todos
 
@@ -187,7 +189,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-18T14:07:19.537Z
+Last session: 2026-07-18T14:40:46.118Z
 Stopped at: Phase 13 context gathered
 Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix). The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
@@ -284,3 +286,4 @@ Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix). The v1.1 oper
 | Phase 12 P02 | 25min | 3 tasks | 8 files |
 | Phase 12 P03 | 55min | 2 tasks | 9 files |
 | Phase 12 P04 | 6min | 3 tasks | 6 files |
+| Phase 13 P01 | 25min | 2 tasks | 5 files |
