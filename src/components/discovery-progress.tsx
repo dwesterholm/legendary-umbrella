@@ -37,9 +37,26 @@ const MAX_POLL_MS = 5 * 60_000;
 
 const TERMINAL_STATUSES = new Set(["done", "failed", "degraded"]);
 
-const STATUS_LABELS: Record<string, string> = {
+/**
+ * The complete, closed set of statuses `discovery_jobs.status` can hold
+ * (RESEARCH.md "Complete status vocabulary", D-07) — the column has no DB
+ * check constraint, so this array is the canonical client-side vocabulary
+ * a new status word must be added to. Exported so the exhaustiveness test
+ * can enumerate it without duplicating the list.
+ */
+export const KNOWN_STATUSES = [
+  "pending",
+  "processing",
+  "vision_processing",
+  "done",
+  "failed",
+  "degraded",
+] as const;
+
+export const STATUS_LABELS: Record<string, string> = {
   pending: "I kö",
   processing: "Analyserar",
+  vision_processing: "Analyserar bilder",
   done: "Klar",
   failed: "Misslyckades",
   degraded: "Avbruten",
