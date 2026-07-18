@@ -24,6 +24,7 @@ import {
   amenityKeys,
   brfNameFromBreadcrumbs,
   isAllowedImageHost,
+  AREA_PAGE_WAIT_SECS,
   type SoldSourceQuery,
 } from "@/lib/booli/client";
 
@@ -137,6 +138,17 @@ describe("fetchListing", () => {
     expect(scrapeBooli).not.toHaveBeenCalled();
   });
 
+  it("detail-page renders keep the proven waitSecs: 240 default (D-02 additive-only — the area-page override must not regress this path)", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({
+      items: [apolloItem({ "Listing:4463691": listingDetailFixture })],
+    });
+
+    await fetchListing(DETAIL_URL);
+
+    expect(actorCall).toHaveBeenCalledWith(expect.anything(), { waitSecs: 240 });
+  });
+
   // ── RESTORE the paid-actor rung 3 by re-enabling these two tests (and the
   //    rung + import in client.ts, and re-renting the actor), then delete the
   //    disabled-state test above. ──────────────────────────────────────────
@@ -179,6 +191,23 @@ describe("fetchAreaListings", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("area-page renders pass a scoped waitSecs override materially below the 240s detail-page default (D-02, Wave-0 gap)", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({
+      items: [apolloItem({ "Listing:1": { ...listingDetailFixture, id: "1" } })],
+    });
+
+    await fetchAreaListings("115341");
+
+    expect(AREA_PAGE_WAIT_SECS).toBeLessThan(240);
+    expect(actorCall).toHaveBeenCalledWith(
+      expect.anything(),
+      { waitSecs: AREA_PAGE_WAIT_SECS },
+    );
+    // Never regresses to the detail-page default on this path.
+    expect(actorCall).not.toHaveBeenCalledWith(expect.anything(), { waitSecs: 240 });
   });
 
   it("appends &objectType=Lägenhet, URL-encoded via URLSearchParams", async () => {
