@@ -28,6 +28,12 @@ vi.mock("@/lib/booli/client", () => ({
       return false;
     }
   },
+  // 13-04 Task 3 (GAP-2) — the bounded detail-enrichment render envelope.
+  // This whole module is wholesale-mocked here (unlike client.test.ts, which
+  // imports the real constant directly) — kept numerically in sync with
+  // client.ts's real exported values.
+  DETAIL_ENRICH_WAIT_SECS: 90,
+  DETAIL_ENRICH_MAX_RETRIES: 2,
 }));
 
 const resolveArea = vi.fn();
@@ -62,6 +68,7 @@ import {
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
+import { DETAIL_ENRICH_WAIT_SECS, DETAIL_ENRICH_MAX_RETRIES } from "@/lib/booli/client";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
 let updateCalls: Array<Record<string, unknown>>;
@@ -924,7 +931,27 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     await enrichCandidateImages(input, 1); // budget of one
 
     expect(fetchListing).toHaveBeenCalledTimes(1);
-    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/ringvagen");
+    // 13-04 Task 3 (GAP-2): every enrichCandidateImages fetchListing call now
+    // also carries the bounded opts — updated alongside the new opts-forwarding
+    // behavior below, not a pre-existing assertion this task regresses.
+    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/ringvagen", {
+      waitSecs: DETAIL_ENRICH_WAIT_SECS,
+      maxRequestRetries: DETAIL_ENRICH_MAX_RETRIES,
+    });
+  });
+
+  it("13-04 Task 3 (GAP-2): passes the bounded DETAIL_ENRICH opts to fetchListing so one blocked detail page cannot burn the 240s/3-retry default", async () => {
+    fetchListing.mockResolvedValue({});
+    const input = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+    ];
+
+    await enrichCandidateImages(input, 8);
+
+    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/1", {
+      waitSecs: DETAIL_ENRICH_WAIT_SECS,
+      maxRequestRetries: DETAIL_ENRICH_MAX_RETRIES,
+    });
   });
 });
 
