@@ -64,11 +64,12 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
   3. A long run visibly progresses within the window (area work parallelized / partial results surfaced / per-page render retries capped) rather than appearing to hang until a manual refresh.
 
 **Notes**: Respect `DISCOVERY_ENABLED` fail-closed + cost caps (`CAP_VISION_SEK_MAX=10`, `VISION_ENRICH_LIMIT=8`, `CAP_CANDIDATES_MAX=25`) — every run is real Apify + Anthropic spend. Client tick is the primary job driver; the sweep cron is only an orphan-resume net.
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 - [x] 13-01-PLAN.md — Parallelize area scrapes in runSlice + scoped area-page waitSecs override (DXUX-01 backend throughput; D-01/D-02/D-03)
 - [x] 13-02-PLAN.md — Two-tier poll timeout (calm soft-notice, keep polling) + complete Swedish STATUS_LABELS (DXUX-01 client UX + DXUX-02; D-04/D-05/D-06/D-07)
 - [ ] 13-03-PLAN.md — Live-smoke checkpoint: large multi-area run completes in-window; calibrate timing constants (DXUX-01 phase gate)
+- [ ] 13-04-PLAN.md — Close live-smoke gaps: decouple status read from tick, incremental processed_count writes, bound vision detail-fetch render (DXUX-01 visible in-window progress)
 
 **UI hint**: yes
 
