@@ -539,6 +539,61 @@ describe("runVisionForJob — Phase 11 (DISC-04) separate post-scrape pass", () 
   });
 });
 
+describe("runVisionForJob — incremental processed_count writes (13-04 Task 2, GAP-1 counter movement)", () => {
+  it("issues >=2 strictly-increasing processed_count-only writes during enrichment, BEFORE the terminal done write", async () => {
+    const supabase = makeSupabase();
+    // A plain successful detail entity (no imageUrls) so enrichment succeeds
+    // (advancing progress) without runVisionPass attempting any real
+    // Anthropic call (imageUrls stays null -> vision skip "no_images", no
+    // network/spend in this unit test).
+    fetchListing.mockResolvedValue({});
+    const results = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/2", imageUrls: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    // At least 2 incremental progress writes, followed by exactly one
+    // terminal write.
+    expect(updateCalls.length).toBeGreaterThanOrEqual(3);
+    const terminal = updateCalls[updateCalls.length - 1];
+    expect(terminal).toMatchObject({ status: "done" });
+    expect(Array.isArray(terminal.results)).toBe(true);
+
+    const progressCalls = updateCalls.slice(0, -1);
+    expect(progressCalls.length).toBeGreaterThanOrEqual(2);
+    const values = progressCalls.map((c) => c.processed_count as number);
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
+  });
+
+  it("D-03 (LOCKED): every incremental payload is processed_count-ONLY — never cost/candidate/cap/results/status", async () => {
+    const supabase = makeSupabase();
+    fetchListing.mockResolvedValue({});
+    const results = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/2", imageUrls: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const progressCalls = updateCalls.slice(0, -1);
+    expect(progressCalls.length).toBeGreaterThan(0);
+    for (const payload of progressCalls) {
+      expect(Object.keys(payload)).toEqual(["processed_count"]);
+      expect(payload).not.toHaveProperty("cost_sek_total");
+      expect(payload).not.toHaveProperty("candidate_count");
+      expect(payload).not.toHaveProperty("cap_candidates");
+      expect(payload).not.toHaveProperty("cap_sek");
+      expect(payload).not.toHaveProperty("cap_reached");
+      expect(payload).not.toHaveProperty("results");
+      expect(payload).not.toHaveProperty("status");
+    }
+  });
+});
+
 /**
  * A fake `discovery_jobs` single-row store backing `claimVisionSlice`'s
  * `.update({...}).eq("id", id).eq("status", "done").select("results")
