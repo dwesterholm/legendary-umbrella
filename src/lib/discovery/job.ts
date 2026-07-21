@@ -1,4 +1,10 @@
-import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli/client";
+import {
+  fetchAreaListings,
+  fetchListing,
+  isAllowedImageHost,
+  DETAIL_ENRICH_WAIT_SECS,
+  DETAIL_ENRICH_MAX_RETRIES,
+} from "@/lib/booli/client";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { resolveArea, splitAreaQuery, type AreaResolution } from "@/lib/discovery/resolve-area";
@@ -504,7 +510,13 @@ export async function enrichCandidateImages(
     if (!c.sourceListingUrl) continue; // nothing to fetch
     fetched += 1;
     try {
-      const raw = await fetchListing(c.sourceListingUrl);
+      // 13-04 Task 3 (GAP-2): bounded opts — a blocked/slow detail page
+      // cannot burn the unbounded 240s/3-retry x 2-rung default here. Never
+      // affects fetchListing's other call site (analyze.ts:70, no opts).
+      const raw = await fetchListing(c.sourceListingUrl, {
+        waitSecs: DETAIL_ENRICH_WAIT_SECS,
+        maxRequestRetries: DETAIL_ENRICH_MAX_RETRIES,
+      });
       const detail = toCandidate(raw);
       out[i] = {
         ...c,
