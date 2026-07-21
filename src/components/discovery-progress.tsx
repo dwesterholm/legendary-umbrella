@@ -111,57 +111,79 @@ export function DiscoveryProgress({
     // atomic claim already makes a redundant concurrent `tickDiscovery` call
     // a benign no-op (the second claim just returns zero rows), but without
     // this guard a slice that takes longer than POLL_MS lets `setInterval`
-    // fire a SECOND overlapping `poll()` while the first's
+    // fire a SECOND overlapping tick DISPATCH while the first's
     // `await tickDiscovery(...)` is still in flight — needlessly doubling
     // Server Action invocations and claim RPC calls for zero benefit. This
-    // flag makes an overlapping tick SKIP rather than queue.
+    // flag makes an overlapping dispatch SKIP rather than queue.
+    //
+    // 13-04 Task 1 (GAP-1): the status READ below is deliberately NOT
+    // gated by this flag. Before this fix, a single `poll()` awaited
+    // `tickDiscovery(jobId)` BEFORE reading status, under this ONE guard —
+    // so while a multi-minute tick (full area scrape + vision pass) was in
+    // flight, the read never ran and the badge froze on its last-seen value
+    // for the tick's entire duration (13-SMOKE-FINDINGS.md GAP-1). The read
+    // must run on every interval tick regardless of a pending dispatch; only
+    // the DISPATCH itself stays guarded.
     let inFlight = false;
 
-    async function poll() {
+    async function readStatus() {
+      if (!active) return;
+
+      const { data } = await supabase
+        .from("discovery_jobs")
+        .select(
+          "status, processed_count, candidate_count, cap_candidates, cost_sek_total, cap_reached",
+        )
+        .eq("id", jobId)
+        .single();
+
+      if (!active) return;
+
+      const row = data as DiscoveryJobRow | null;
+      if (row) {
+        setStatus(row.status);
+        setProcessedCount(row.processed_count);
+        setCapCandidates(row.cap_candidates);
+        setCapReached(row.cap_reached);
+      }
+
+      const next = row?.status ?? null;
+      // Terminal-status branch is the SINGLE source of truth (RESEARCH.md
+      // Pitfall 5): it clears BOTH the soft and hard timers so neither can
+      // fire after a terminal status is observed, regardless of race. This
+      // stays true even with the read decoupled from the dispatch — once a
+      // terminal status is observed here, no further read OR dispatch can
+      // fire again (the interval itself is cleared).
+      if (next && TERMINAL_STATUSES.has(next)) {
+        active = false;
+        clearInterval(interval);
+        clearTimeout(softTimeout);
+        clearTimeout(hardTimeout);
+        setSlow(false);
+        onComplete?.(next);
+      }
+    }
+
+    async function dispatchTick() {
       if (inFlight) return;
       inFlight = true;
       try {
         // Poll-AND-tick: each round-trip claims+advances one bounded slice
-        // BEFORE reading the row (09-PATTERNS.md the client-tick divergence).
+        // (09-PATTERNS.md the client-tick divergence) — but no longer blocks
+        // the status read above.
         await tickDiscovery(jobId);
-
-        const { data } = await supabase
-          .from("discovery_jobs")
-          .select(
-            "status, processed_count, candidate_count, cap_candidates, cost_sek_total, cap_reached",
-          )
-          .eq("id", jobId)
-          .single();
-
-        if (!active) return;
-
-        const row = data as DiscoveryJobRow | null;
-        if (row) {
-          setStatus(row.status);
-          setProcessedCount(row.processed_count);
-          setCapCandidates(row.cap_candidates);
-          setCapReached(row.cap_reached);
-        }
-
-        const next = row?.status ?? null;
-        // Terminal-status branch is the SINGLE source of truth (RESEARCH.md
-        // Pitfall 5): it clears BOTH the soft and hard timers so neither can
-        // fire after a terminal status is observed, regardless of race.
-        if (next && TERMINAL_STATUSES.has(next)) {
-          active = false;
-          clearInterval(interval);
-          clearTimeout(softTimeout);
-          clearTimeout(hardTimeout);
-          setSlow(false);
-          onComplete?.(next);
-        }
       } finally {
         inFlight = false;
       }
     }
 
-    void poll();
-    const interval = setInterval(poll, POLL_MS);
+    function tick() {
+      void readStatus();
+      void dispatchTick();
+    }
+
+    void tick();
+    const interval = setInterval(tick, POLL_MS);
 
     // Soft, non-failing notice (D-04): the job is still running, just taking
     // longer than expected. Deliberately does NOT clearInterval and does NOT
