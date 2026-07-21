@@ -383,3 +383,116 @@ describe("DiscoveryProgress — two-tier poll timeout (D-04, D-05)", () => {
     expect(onComplete).not.toHaveBeenCalledWith("failed");
   });
 });
+
+describe("DiscoveryProgress — decoupled status read (13-04 Task 1, GAP-1)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("advances the badge Analyserar -> Analyserar bilder from the DB read while tickDiscovery is STILL pending (never resolves in-test) — proves the read is not gated by inFlight", async () => {
+    // The tick dispatch never resolves for the lifetime of this test — under
+    // the OLD (gated) implementation, a status read behind `await
+    // tickDiscovery(jobId)` would never run again after the first poll, so
+    // the badge would freeze. The read must run on every interval tick
+    // regardless of this pending dispatch.
+    tickDiscoveryMock.mockImplementation(() => new Promise(() => {}));
+
+    let call = 0;
+    singleMock.mockImplementation(() => {
+      call += 1;
+      return Promise.resolve({
+        data: {
+          status: call === 1 ? "processing" : "vision_processing",
+          processed_count: 3,
+          candidate_count: 3,
+          cap_candidates: 25,
+          cost_sek_total: 0.5,
+          cap_reached: false,
+        },
+      });
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("Analyserar")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+  });
+
+  it("keeps the tick dispatch in-flight-guarded (no overlapping dispatch) even though the read runs every tick", async () => {
+    tickDiscoveryMock.mockImplementation(() => new Promise(() => {})); // never resolves
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 3,
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS * 5);
+    });
+    // The in-flight guard still protects the DISPATCH — a single still-pending
+    // tick is never overlapped by a second dispatch.
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(1);
+    // But the READ ran on every one of those ticks — proof it is NOT gated
+    // behind the in-flight dispatch guard.
+    expect(singleMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("terminal branch still clears both timers and fires onComplete exactly once, even with a tick still pending (Pitfall 5 survives the split)", async () => {
+    const onComplete = vi.fn();
+    tickDiscoveryMock.mockImplementation(() => new Promise(() => {}));
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 20,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="processing"
+        onComplete={onComplete}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onComplete).toHaveBeenCalledWith("done");
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS + POLL_MS);
+    });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
