@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
-status: executing
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-07-18T14:50:05.908Z"
+status: verifying
+stopped_at: Completed 13-04-PLAN.md
+last_updated: "2026-07-21T10:54:00.409Z"
 last_activity: 2026-07-18 -- Phase 13 execution started
 progress:
   total_phases: 9
   completed_phases: 0
-  total_plans: 4
-  completed_plans: 2
+  total_plans: 5
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 Phase: 13 (Discovery UX / Poll-Timeout Fix) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-18 -- Phase 13 execution started
 Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix — independent, can go first).
 
@@ -168,6 +168,9 @@ Recent decisions affecting current work:
 - [Phase 13]: runSlice's area loop iterated by index (settled[i]/areaIds[i]) mirroring client.ts's page-level Promise.allSettled pattern exactly, preserving D-03's cost-cap invariant by construction
 - [Phase ?]: [Phase 13-02]: SOFT_THRESHOLD_MS=90_000 / ABSOLUTE_CEILING_MS=15*60_000 chosen as tunable constants pending calibration by the 13-03 live smoke
 - [Phase ?]: [Phase 13-02]: STATUS_LABELS/KNOWN_STATUSES exported directly from discovery-progress.tsx so the exhaustiveness test enumerates the single canonical source of truth
+- [Phase ?]: 13-04: processed_count during vision enrichment counts enriched-so-far (1..N), not a continuation of the scrape-phase processed_count -- runVisionForJob only receives the candidate array, threading the true base value was out of scope; strict monotonic increase holds by construction (plan-sanctioned choice).
+- [Phase ?]: 13-04: onProgress fires only on a SUCCESSFUL per-candidate detail-enrichment attempt (never from the catch branch) -- keeps the pre-existing single-update runVisionForJob test passing unmodified.
+- [Phase ?]: 13-04: DETAIL_ENRICH_WAIT_SECS=90 / DETAIL_ENRICH_MAX_RETRIES=2 bound the vision-enrichment detail-page render (midpoint of the 13-SMOKE-FINDINGS.md 60-90s/1-2-retry envelope), tunable pending live-smoke calibration; /analyze's fetchListing(url) call site stays byte-for-byte at the 240s/3-retry default.
 
 ### Pending Todos
 
@@ -191,8 +194,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-18T14:50:05.904Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-07-21T10:54:00.404Z
+Stopped at: Completed 13-04-PLAN.md
 Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix). The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
@@ -290,3 +293,4 @@ Next step: `/gsd-plan-phase 13` (Discovery UX / Poll-Timeout Fix). The v1.1 oper
 | Phase 12 P04 | 6min | 3 tasks | 6 files |
 | Phase 13 P01 | 25min | 2 tasks | 5 files |
 | Phase 13 P02 | 20min | 2 tasks | 2 files |
+| Phase 13 P04 | 26min | 3 tasks | 6 files |

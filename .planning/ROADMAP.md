@@ -69,7 +69,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 - [x] 13-01-PLAN.md — Parallelize area scrapes in runSlice + scoped area-page waitSecs override (DXUX-01 backend throughput; D-01/D-02/D-03)
 - [x] 13-02-PLAN.md — Two-tier poll timeout (calm soft-notice, keep polling) + complete Swedish STATUS_LABELS (DXUX-01 client UX + DXUX-02; D-04/D-05/D-06/D-07)
 - [ ] 13-03-PLAN.md — Live-smoke checkpoint: large multi-area run completes in-window; calibrate timing constants (DXUX-01 phase gate)
-- [ ] 13-04-PLAN.md — Close live-smoke gaps: decouple status read from tick, incremental processed_count writes, bound vision detail-fetch render (DXUX-01 visible in-window progress)
+- [x] 13-04-PLAN.md — Close live-smoke gaps: decouple status read from tick, incremental processed_count writes, bound vision detail-fetch render (DXUX-01 visible in-window progress)
 
 **UI hint**: yes
 
@@ -150,7 +150,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 | 10. Niche Ranking | v1.1 | 2/2 | Complete | 2026-07-07 |
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
-| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 2/3 | In Progress|  |
+| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 3/4 | In Progress|  |
 | 14. Holistic Analysis Brain | v1.2 | 0/TBD | Not started | - |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |
