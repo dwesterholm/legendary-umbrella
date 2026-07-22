@@ -756,3 +756,61 @@ describe("DiscoveryProgress — WR-01 (13-REVIEW.md): readStatus() staleness gua
     expect(screen.queryByText("Analyserar")).not.toBeInTheDocument();
   });
 });
+
+describe("DiscoveryProgress — WR-04 (13-REVIEW.md): dispatchTick() catches a rejected tickDiscovery call", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("catches the rejection (no unhandled rejection) and still releases the in-flight guard via finally", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    let tickCall = 0;
+    tickDiscoveryMock.mockImplementation(() => {
+      tickCall += 1;
+      return tickCall === 1
+        ? Promise.reject(new Error("server action network failure"))
+        : Promise.resolve();
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[DiscoveryProgress] tickDiscovery failed",
+      expect.any(Error),
+    );
+
+    // The `finally` block must have reset `inFlight` despite the rejection —
+    // the next interval tick is free to dispatch again rather than being
+    // stuck skipped forever.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(2);
+
+    consoleErrorSpy.mockRestore();
+  });
+});

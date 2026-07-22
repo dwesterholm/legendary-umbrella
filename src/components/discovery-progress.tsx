@@ -199,6 +199,17 @@ export function DiscoveryProgress({
         // (09-PATTERNS.md the client-tick divergence) — but no longer blocks
         // the status read above.
         await tickDiscovery(jobId);
+      } catch (error) {
+        // WR-04: `tickDiscovery` swallows its own Supabase-level errors
+        // internally, but it's a Server Action invoked over the network —
+        // a dropped connection / framework-level failure rejects here. This
+        // call is fired via `void dispatchTick()` with no caller awaiting
+        // it, so an uncaught rejection would surface as an unhandled
+        // promise rejection with zero user-visible signal while the badge
+        // and read keep looking fine. Logging at minimum makes a silently
+        // failing tick loop discoverable; `finally` below still resets
+        // `inFlight` either way so the guard never gets stuck.
+        console.error("[DiscoveryProgress] tickDiscovery failed", error);
       } finally {
         inFlight = false;
       }
