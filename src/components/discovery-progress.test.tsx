@@ -103,12 +103,37 @@ describe("DiscoveryProgress", () => {
     });
   });
 
-  it("renders the LOCKED '{n} av {total} annonser analyserade' counter while running", async () => {
+  it("renders the LOCKED '{n} av {total} annonser analyserade' counter — N av N at done, 0 av N while running", async () => {
+    // LOCKED 2026-07-22 semantics (13-05): denominator = candidate_count
+    // (never cap_candidates); numerator = analyzed, which is candidate_count
+    // at done and 0 while still running.
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 12,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    const { unmount } = render(
+      <DiscoveryProgress jobId="job-1" initialStatus="pending" />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("18 av 18 annonser analyserade"),
+      ).toBeInTheDocument();
+    });
+    unmount();
+
     singleMock.mockResolvedValue({
       data: {
         status: "processing",
         processed_count: 12,
-        candidate_count: 12,
+        candidate_count: 18,
         cap_candidates: 25,
         cost_sek_total: 0.5,
         cap_reached: false,
@@ -119,7 +144,7 @@ describe("DiscoveryProgress", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("12 av 25 annonser analyserade"),
+        screen.getByText("0 av 18 annonser analyserade"),
       ).toBeInTheDocument();
     });
   });
@@ -172,9 +197,11 @@ describe("DiscoveryProgress", () => {
       expect(
         screen.getByText("Vi stannade vid 25 annonser (sökgräns)."),
       ).toBeInTheDocument();
-      // Still shows the running counter alongside the cap banner.
+      // Cap banner is driven by cap_candidates (unchanged); the counter
+      // itself is still 0 av N while status is "processing" (LOCKED
+      // 2026-07-22 semantics — nothing counts as analyzed until done).
       expect(
-        screen.getByText("25 av 25 annonser analyserade"),
+        screen.getByText("0 av 25 annonser analyserade"),
       ).toBeInTheDocument();
     });
   });
@@ -494,5 +521,167 @@ describe("DiscoveryProgress — decoupled status read (13-04 Task 1, GAP-1)", ()
       await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS + POLL_MS);
     });
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DiscoveryProgress — analyzed/found counter (LOCKED 2026-07-22)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders 'N av N' at done — denominator is candidate_count, never cap_candidates", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 3,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="processing" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByText("18 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders '0 av N' while running (processing/vision_processing) — nothing counts as analyzed until the terminal write", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 5,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+
+  it("the '350 av 25' render is structurally impossible — processed_count=350/cap_candidates=25/candidate_count=18 renders '0 av 18', never '350…' and never '… av 25'", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 350,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/350/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/av 25/)).not.toBeInTheDocument();
+  });
+
+  it("monotonic: vision_processing(candidate_count 18) -> done(candidate_count 18) renders '0 av 18' then '18 av 18' — numerator never decreases", async () => {
+    let call = 0;
+    singleMock.mockImplementation(() => {
+      call += 1;
+      return Promise.resolve({
+        data: {
+          status: call === 1 ? "vision_processing" : "done",
+          processed_count: 3,
+          candidate_count: 18,
+          cap_candidates: 25,
+          cost_sek_total: 1.2,
+          cap_reached: false,
+        },
+      });
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(
+      screen.getByText("18 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+
+  it("backward-jump is impossible: processed_count 350 then 3 across vision_processing polls (candidate_count 18 throughout) never renders '350…' or a decreasing numerator; still reaches '18 av 18' at done", async () => {
+    let call = 0;
+    const statusByCall = ["vision_processing", "vision_processing", "done"];
+    const processedByCall = [350, 3, 3];
+    singleMock.mockImplementation(() => {
+      const idx = Math.min(call, statusByCall.length - 1);
+      call += 1;
+      return Promise.resolve({
+        data: {
+          status: statusByCall[idx],
+          processed_count: processedByCall[idx],
+          candidate_count: 18,
+          cap_candidates: 25,
+          cost_sek_total: 1.2,
+          cap_reached: false,
+        },
+      });
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/350/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/350/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(
+      screen.getByText("18 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
   });
 });
