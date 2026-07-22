@@ -814,3 +814,89 @@ describe("DiscoveryProgress — WR-04 (13-REVIEW.md): dispatchTick() catches a r
     consoleErrorSpy.mockRestore();
   });
 });
+
+describe("DiscoveryProgress — WR-05 (13-REVIEW.md): timers survive an onComplete identity change across re-render", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not reset the soft/hard timers when onComplete identity changes, and the latest callback still fires on completion", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    const onCompleteA = vi.fn();
+    const { rerender } = render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onCompleteA}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // Advance close to, but not past, the soft threshold.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SOFT_THRESHOLD_MS - 100);
+    });
+    expect(
+      screen.queryByText("Det tar längre tid än väntat, fortsätter…"),
+    ).not.toBeInTheDocument();
+
+    // Simulate a parent re-render passing a BRAND NEW inline arrow identity,
+    // mirroring DiscoveryProgressLive's `onComplete={() => router.refresh()}`.
+    const onCompleteB = vi.fn();
+    rerender(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onCompleteB}
+      />,
+    );
+
+    // If the re-render had torn down and re-armed the timers, the soft
+    // notice would now be ~SOFT_THRESHOLD_MS - 100ms away again. Advancing
+    // only 100ms more must be enough to cross the ORIGINAL threshold if the
+    // timers were NOT reset.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(
+      screen.getByText("Det tar längre tid än väntat, fortsätter…"),
+    ).toBeInTheDocument();
+
+    // The latest onComplete identity (read via the ref) must be the one
+    // invoked when a terminal status arrives — not the stale onCompleteA
+    // captured at mount time.
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(onCompleteB).toHaveBeenCalledWith("done");
+    expect(onCompleteA).not.toHaveBeenCalled();
+  });
+});

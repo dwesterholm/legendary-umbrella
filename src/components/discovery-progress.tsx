@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -112,6 +112,21 @@ export function DiscoveryProgress({
   const [timedOut, setTimedOut] = useState(false);
   const [slow, setSlow] = useState(false);
 
+  // WR-05: `onComplete` is held in a ref rather than the effect's dep array
+  // below. `DiscoveryProgressLive` (and any future caller) may pass a fresh
+  // inline arrow on every render; if the main effect depended on `onComplete`
+  // directly, a re-render of the parent while a job is still in progress
+  // would tear down and re-establish `interval`/`softTimeout`/`hardTimeout`,
+  // silently resetting both two-tier timers back to zero. Keeping the latest
+  // callback in a ref (updated here, read via `onCompleteRef.current` inside
+  // the main effect) means the effect's identity is driven only by `jobId`,
+  // so the timers persist across parent re-renders regardless of callback
+  // identity, without requiring callers to memoize `onComplete`.
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
   useEffect(() => {
     const supabase = createClient();
     let active = true;
@@ -187,7 +202,7 @@ export function DiscoveryProgress({
         clearTimeout(softTimeout);
         clearTimeout(hardTimeout);
         setSlow(false);
-        onComplete?.(next);
+        onCompleteRef.current?.(next);
       }
     }
 
@@ -238,7 +253,7 @@ export function DiscoveryProgress({
       active = false;
       clearInterval(interval);
       setTimedOut(true);
-      onComplete?.("failed");
+      onCompleteRef.current?.("failed");
     }, ABSOLUTE_CEILING_MS);
 
     return () => {
@@ -247,7 +262,14 @@ export function DiscoveryProgress({
       clearTimeout(softTimeout);
       clearTimeout(hardTimeout);
     };
-  }, [jobId, onComplete]);
+    // WR-05: intentionally NOT depending on `onComplete` — see the
+    // `onCompleteRef` comment above. The effect body only ever reads
+    // `onCompleteRef.current` (never `onComplete` directly), so
+    // exhaustive-deps has nothing to flag here; depending on `jobId` alone
+    // means a parent re-render that hands in a new `onComplete` identity
+    // (e.g. `DiscoveryProgressLive`'s inline arrow) can never tear down and
+    // re-arm `interval`/`softTimeout`/`hardTimeout`.
+  }, [jobId]);
 
   const isFailed = status === "failed" || timedOut;
   const isDegraded = status === "degraded";
