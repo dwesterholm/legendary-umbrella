@@ -17,7 +17,6 @@ interface DiscoveryProgressProps {
 
 interface DiscoveryJobRow {
   status: string;
-  processed_count: number;
   candidate_count: number;
   cap_candidates: number;
   cost_sek_total: number;
@@ -87,6 +86,14 @@ function statusLabel(status: string | null): string {
  * Renders a single live counter line ("{n} av {total} annonser
  * analyserade") + a status Badge, rather than BrfProgress's step-dot list
  * (UI-SPEC line 132 — one meaningful progress axis, not discrete phases).
+ * LOCKED operator decision (2026-07-22, 13-05): the counter means
+ * "candidates analyzed / candidates found" — denominator = candidate_count
+ * (candidates actually found/deduped, NEVER cap_candidates), numerator =
+ * a monotonic non-decreasing "analyzed" count clamped to candidate_count,
+ * reaching candidate_count (all found candidates scored) at status "done".
+ * The server-side scanned-listings scrape/cost counter (written only by
+ * runSlice) is NEVER read or displayed here — mixing that counter into
+ * this one is exactly the "350 av 25" defect this plan fixes.
  *
  * `cap_reached` is an orthogonal boolean on the job row (not a status
  * value) — it can compose with a still-running OR done status, so the
@@ -98,7 +105,8 @@ export function DiscoveryProgress({
   initialStatus,
 }: DiscoveryProgressProps) {
   const [status, setStatus] = useState<string | null>(initialStatus ?? "pending");
-  const [processedCount, setProcessedCount] = useState(0);
+  const [analyzed, setAnalyzed] = useState(0);
+  const [candidateCount, setCandidateCount] = useState(0);
   const [capCandidates, setCapCandidates] = useState(0);
   const [capReached, setCapReached] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
@@ -131,9 +139,7 @@ export function DiscoveryProgress({
 
       const { data } = await supabase
         .from("discovery_jobs")
-        .select(
-          "status, processed_count, candidate_count, cap_candidates, cost_sek_total, cap_reached",
-        )
+        .select("status, candidate_count, cap_candidates, cost_sek_total, cap_reached")
         .eq("id", jobId)
         .single();
 
@@ -142,7 +148,16 @@ export function DiscoveryProgress({
       const row = data as DiscoveryJobRow | null;
       if (row) {
         setStatus(row.status);
-        setProcessedCount(row.processed_count);
+        setCandidateCount(row.candidate_count);
+        // LOCKED 2026-07-22 (13-05): analyzed = analyzed / found. Nothing is
+        // committed as "analyzed" until the terminal write (status "done"),
+        // at which point ALL found candidates have been scored — target is
+        // candidate_count. Held monotonic (Math.max(prev, …)) AND clamped to
+        // the denominator (Math.min(…, row.candidate_count)) so a stale or
+        // tampered read can never render a backward jump or a numerator
+        // exceeding the denominator.
+        const nextAnalyzed = row.status === "done" ? row.candidate_count : 0;
+        setAnalyzed((prev) => Math.max(prev, Math.min(nextAnalyzed, row.candidate_count)));
         setCapCandidates(row.cap_candidates);
         setCapReached(row.cap_reached);
       }
@@ -229,7 +244,9 @@ export function DiscoveryProgress({
           <p className="mt-1 text-sm text-warm-gray-600">
             {status === "pending"
               ? "I kö — startar snart…"
-              : `${processedCount} av ${capCandidates} annonser analyserade`}
+              : // Math.min is defense-in-depth so a stale read can never
+                // render numerator > denominator (LOCKED 2026-07-22).
+                `${Math.min(analyzed, candidateCount)} av ${candidateCount} annonser analyserade`}
           </p>
         )}
       </CardHeader>
