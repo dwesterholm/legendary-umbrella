@@ -482,18 +482,10 @@ export interface EnrichmentResult {
  * failed/image-less detail or broker fetch just leaves that candidate as-is
  * (vision then skips or analyzes whatever it has), so enrichment can only ADD
  * coverage, never break a job.
- *
- * @param onProgress - OPTIONAL, additive-only (13-04 Task 2, GAP-1 counter
- *   movement). Called with the running enriched-count after each candidate's
- *   SUCCESSFUL detail-enrichment attempt (a failed/skipped attempt does not
- *   advance it, but `fetched` — and therefore any later successful call's
- *   value — is still strictly increasing). Defaults to `undefined` so every
- *   existing call site/test is unaffected.
  */
 export async function enrichCandidateImages(
   candidates: DiscoveryCandidate[],
   limit: number,
-  onProgress?: (enrichedCount: number) => void | Promise<void>,
 ): Promise<EnrichmentResult> {
   const out = [...candidates];
   const brokerImages = new Map<number, BrokerImageBytes[]>();
@@ -553,14 +545,6 @@ export async function enrichCandidateImages(
           // Broker enrichment is a pure bonus — never let it affect the job.
         }
       }
-
-      // 13-04 Task 2 (GAP-1): advance progress only on a SUCCESSFUL detail
-      // enrichment — a failed fetchListing/toCandidate attempt (caught
-      // below) does not call this. `fetched` is still strictly increasing
-      // across calls that DO fire, satisfying the D-03-safe monotonic
-      // requirement without needing this function to know the job's true
-      // scrape-phase processed_count.
-      await onProgress?.(fetched);
     } catch (error) {
       console.error("[discovery-job] detail enrichment failed (non-fatal)", {
         code: error instanceof Error ? error.name : "UNKNOWN",
@@ -608,22 +592,6 @@ export async function runVisionForJob(
     const { candidates: enriched, brokerImages } = await enrichCandidateImages(
       results,
       VISION_ENRICH_LIMIT,
-      async (enrichedCount) => {
-        // Incremental progress write (13-04 Task 2, GAP-1 counter movement):
-        // advances the "n av N annonser analyserade" counter during the long
-        // vision tick instead of it staying frozen until the single terminal
-        // write below. D-03 LOCKED (13-CONTEXT.md): this payload is
-        // processed_count-ONLY — never cost_sek_total/candidate_count/
-        // cap_*/results — so the shared cost/candidate caps are never
-        // read-then-written here, and no check-then-act window on them is
-        // reopened. `status` is also never set here — the row stays
-        // "vision_processing" until the terminal write flips it back to
-        // "done" (flipping status is claimVisionSlice's / the terminal
-        // write's job only). Fire-and-forget errors are already handled
-        // inside `updateJob` (logs + returns false); a lost incremental
-        // progress write is non-fatal — the counter simply skips a step.
-        await updateJob(supabase, jobId, { processed_count: enrichedCount });
-      },
     );
     const withVision = await runVisionPass(enriched, {
       brokerImagesOf: (_candidate, index) => brokerImages.get(index) ?? [],
