@@ -685,3 +685,74 @@ describe("DiscoveryProgress — analyzed/found counter (LOCKED 2026-07-22)", () 
     ).toBeInTheDocument();
   });
 });
+
+describe("DiscoveryProgress — WR-01 (13-REVIEW.md): readStatus() staleness guard", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("drops a stale readStatus response that resolves after a newer one, instead of overwriting fresher state", async () => {
+    const resolvers: Array<(value: unknown) => void> = [];
+    singleMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    // First tick's readStatus() fires immediately (call #1, request id 1).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // Second interval tick fires a second readStatus() (call #2, request id
+    // 2) while the first is still pending — the read has no in-flight guard
+    // by design (GAP-1), so both are genuinely in flight simultaneously.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(resolvers).toHaveLength(2);
+
+    // Resolve the NEWER request (#2) first with "vision_processing" —
+    // this becomes the latest applied state.
+    await act(async () => {
+      resolvers[1]({
+        data: {
+          status: "vision_processing",
+          candidate_count: 5,
+          cap_candidates: 25,
+          cost_sek_total: 1,
+          cap_reached: false,
+        },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+
+    // Now resolve the OLDER request (#1) out of order with "processing".
+    // Without the WR-01 guard this would stomp the fresher
+    // "vision_processing" state back to "processing".
+    await act(async () => {
+      resolvers[0]({
+        data: {
+          status: "processing",
+          candidate_count: 3,
+          cap_candidates: 25,
+          cost_sek_total: 0.5,
+          cap_reached: false,
+        },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+    expect(screen.queryByText("Analyserar")).not.toBeInTheDocument();
+  });
+});

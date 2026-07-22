@@ -133,9 +133,21 @@ export function DiscoveryProgress({
     // must run on every interval tick regardless of a pending dispatch; only
     // the DISPATCH itself stays guarded.
     let inFlight = false;
+    // WR-01: `readStatus()` was deliberately decoupled from the `inFlight`
+    // guard above (GAP-1, 13-04) so a long-running tick doesn't freeze the
+    // badge — but that decoupling left the read itself with NO ordering
+    // protection. If a Supabase round-trip is ever slower than POLL_MS
+    // (network latency spike, a backgrounded tab firing a burst of interval
+    // ticks on resume, etc.), two reads can be in flight at once; if the
+    // OLDER one resolves after the newer one, it would overwrite the fresher
+    // state that was just committed. `latestRequestId` is bumped on every
+    // call and a response is only applied if it's still the latest —
+    // mirroring the discipline `inFlight` already applies to the dispatch.
+    let latestRequestId = 0;
 
     async function readStatus() {
       if (!active) return;
+      const requestId = ++latestRequestId;
 
       const { data } = await supabase
         .from("discovery_jobs")
@@ -143,7 +155,7 @@ export function DiscoveryProgress({
         .eq("id", jobId)
         .single();
 
-      if (!active) return;
+      if (!active || requestId !== latestRequestId) return;
 
       const row = data as DiscoveryJobRow | null;
       if (row) {
