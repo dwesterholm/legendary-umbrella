@@ -6,23 +6,27 @@
 
 ---
 
-## ⏸️ PICK UP HERE (paused 2026-07-22 for a Mac restart)
+## ⏸️ PICK UP HERE (updated 2026-07-23 — Phase 13 SHIPPED as PR #9)
 
-### The one open question I was about to ask you (UNANSWERED — answer this first)
-We just finished Phase 13 and I asked how to **pace the rest of the v1.2 run**. The tool call
-errored out (permission stream closed) before you could answer. The three options were:
+### Pacing decision: RESOLVED → "Ship Phase 13 first"
+You chose option 3 (ship Phase 13 independently). Done:
+- **PR #9 open:** https://github.com/dwesterholm/legendary-umbrella/pull/9 (base `main`, MERGEABLE, not yet merged).
+- Rich PR body generated from planning artifacts; verification status surfaced honestly as `human_needed`
+  (DXUX-01 live gate deferred + WR-02/WR-03 follow-ups noted).
+- Repo has **no CI checks**, so nothing gates the merge mechanically — merging is your call.
 
-1. **Continue to Phase 14 now** — proceed into Phase 14 (Holistic Analysis Brain) with the same
-   discuss-gated flow (pause at 14's discuss for your input, then plan + execute).
-2. **Pause the autonomous run here** *(my recommendation)* — stop after Phase 13; you review the
-   branch / run the operator live-smoke; resume later with `/gsd-autonomous --from 14`.
-3. **Merge/ship Phase 13 first** — get Phase 13 onto `main` (PR/merge) so the UX fix ships
-   independently, then decide on 14.
-
-**→ When we're back: tell me 1, 2, or 3.** Everything else below is context for that decision.
+### The two open decisions now (answer when back)
+1. **Merge PR #9?** — code review is already done in-branch (13-REVIEW.md + WR-01/04/05 fixes applied).
+   The only thing NOT proven is DXUX-01 end-to-end in-window completion, which can only be confirmed from a
+   **non-Booli-blocked IP** (deploy/staging) — see "To close DXUX-01" below. Merge now (verify live post-deploy)
+   or run the operator live-smoke first, your call.
+2. **Then Phase 14** — proceed into Phase 14 (Holistic Analysis Brain). ⚠️ config still has `skip_discuss: true`
+   + `mode: yolo`; you wanted discuss-first, so flip `workflow.skip_discuss` via `/gsd-settings` OR run
+   `/gsd-discuss-phase 14` explicitly. (Note: `66c126b` set skip_discuss=false on this branch — verify which value
+   is live after any merge.)
 
 ### Where we are
-- **Branch:** `gsd/phase-13-discovery-ux-poll-timeout-fix` — **38 commits ahead of `main`, clean tree, NOT merged.**
+- **Branch:** `gsd/phase-13-discovery-ux-poll-timeout-fix` — **~40 commits ahead of `main`, clean tree, pushed as PR #9, NOT merged.**
 - **Milestone:** v1.2 — Phase 13 of 5 done (code-complete + verified); Phases 14–17 not started.
 - **Discuss:** config has `skip_discuss: true` + `mode: yolo`. In the *first* `/gsd-autonomous` attempt
   you chose **"Enable discuss first"** — i.e. you want each phase to gather context interactively
