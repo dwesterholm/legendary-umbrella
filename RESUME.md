@@ -1,10 +1,69 @@
 # RESUME — Bostad AI / Discovery analysis redesign
 
-> Working handoff. Reconstructed 2026-07-17 from memory (`discovery-analysis-redesign.md`)
-> + `.planning/research/` docs. Milestone v1.1 is **complete & archived** — the work
-> below is the *next* body of work, not yet promoted into an active milestone/phase.
+> Working handoff. Milestone v1.2 (Renovator-Grade Discovery Analysis, Phases 13–17)
+> is now roadmapped and **Phase 13 is code-complete**. The section directly below is
+> the live pick-up point (updated 2026-07-22). Older context follows further down.
 
-## Where things stand
+---
+
+## ⏸️ PICK UP HERE (paused 2026-07-22 for a Mac restart)
+
+### The one open question I was about to ask you (UNANSWERED — answer this first)
+We just finished Phase 13 and I asked how to **pace the rest of the v1.2 run**. The tool call
+errored out (permission stream closed) before you could answer. The three options were:
+
+1. **Continue to Phase 14 now** — proceed into Phase 14 (Holistic Analysis Brain) with the same
+   discuss-gated flow (pause at 14's discuss for your input, then plan + execute).
+2. **Pause the autonomous run here** *(my recommendation)* — stop after Phase 13; you review the
+   branch / run the operator live-smoke; resume later with `/gsd-autonomous --from 14`.
+3. **Merge/ship Phase 13 first** — get Phase 13 onto `main` (PR/merge) so the UX fix ships
+   independently, then decide on 14.
+
+**→ When we're back: tell me 1, 2, or 3.** Everything else below is context for that decision.
+
+### Where we are
+- **Branch:** `gsd/phase-13-discovery-ux-poll-timeout-fix` — **38 commits ahead of `main`, clean tree, NOT merged.**
+- **Milestone:** v1.2 — Phase 13 of 5 done (code-complete + verified); Phases 14–17 not started.
+- **Discuss:** config has `skip_discuss: true` + `mode: yolo`. In the *first* `/gsd-autonomous` attempt
+  you chose **"Enable discuss first"** — i.e. you want each phase to gather context interactively
+  before planning. That preference has NOT yet been applied to config (skip_discuss is still `true`).
+  **Before Phase 14, either flip `workflow.skip_discuss` to false (via `/gsd-settings`) or I run
+  `/gsd-discuss-phase 14` explicitly.** Don't let 14 auto-skip discuss.
+
+### Phase 13 — exact disposition (code-complete, one live gate deferred)
+Shipped, all committed, 748 tests + tsc + lint green, code-reviewed + fixed:
+- **13-01** area-parallel scrape (`Promise.allSettled` in `runSlice`) + bounded area-page renders; D-03 cost-cap invariant preserved.
+- **13-02** two-tier timeout (soft-notice "Det tar längre tid än väntat, fortsätter…", no false-fail) + complete Swedish `STATUS_LABELS` + `KNOWN_STATUSES` exhaustiveness.
+- **13-04** decoupled status read (badge advances during long ticks) + bounded detail-page render (`DETAIL_ENRICH_WAIT_SECS=90` / `MAX_RETRIES=2`).
+- **13-05** coherent counter = `candidates analyzed / candidate_count` (clamped, monotonic, "N av N" at done; killed the "350 av 25" + backward-jump bug the live smoke caught).
+- **Code-review fixes:** WR-01 (readStatus out-of-order guard), WR-04 (dispatchTick `.catch`), WR-05 (onComplete held in a ref).
+
+**DXUX-02 = DONE.** **DXUX-01 = still `Pending`** — `human_needed`. Reason: my local IP is Booli/Cloudflare-blocked
+(403 on detail pages), so end-to-end *in-window completion* can only be proven by an **operator live-smoke from a
+non-blocked IP**. Same shape as v1.1's deferred live gates. See `.planning/phases/13-discovery-ux-poll-timeout-fix/13-VERIFICATION.md` (status: human_needed).
+
+### To close DXUX-01 (operator action, needs a non-Booli-blocked IP)
+Run the discovery flow with the query **"Renoveringsobjekt i Södermalm och Vasastan under 4 miljoner"**
+(`DISCOVERY_ENABLED=true`, real Apify + Anthropic spend) and confirm it reaches results **without a forced reload**,
+badge advances `Analyserar → Analyserar bilder`, and the counter reads coherently ("N av N" at done).
+
+### Two deferred follow-ups (captured as background-task chips + in 13-REVIEW.md)
+- **WR-02** — `enrichCandidateImages` still loops the ≤8 detail fetches **sequentially**; pathological all-fail worst
+  case (~24 min) can still blow the ~300s serverless ceiling. Parallelize it (same `Promise.allSettled` pattern as
+  the area scrape), preserving the D-03 cost pre-check. This is the *last* piece of robust in-window completion (DXUX-01).
+- **WR-03** — failed fallback-tree rungs (403/timeout retries) incur real Apify spend that is **never added to
+  `cost_sek_total`**, so the cost cap can be silently overshot (worse now that area scraping runs in parallel). Add
+  failed-render cost accounting; keep the D-03 field-scoped-write invariant.
+
+### Then: Phases 14 → 15 → 16 → 17 (strict dependency spine)
+See "Next work" and the roadmap section below. Key spend/decision flags to remember:
+- **Phase 15** includes a **live Anthropic strict-output smoke** (`RUN_LLM_EVALS=1`) — real API spend, and the
+  `OpportunityBrief` schema must stay slim (single-nullable-leaf) or it 400s (memory `anthropic-structured-output-limits`).
+- **Phase 17** needs an **image-gen provider decision** (nano-banana skill / higgsfield / other) before planning.
+
+---
+
+## Where things stand (original context, pre-Phase-13)
 
 - **Area-search data overhaul — DONE + merged to `main`** (merge `11a3c7a`, PR #8, E2E-verified 2026-07-17).
   - Multi-area split (`splitAreaQuery` in `resolve-area.ts`, cap 4), `runSlice` resolve+scrape+`dedupeCandidates`.
