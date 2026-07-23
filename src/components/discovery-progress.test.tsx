@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, act } from "@testing-library/react";
 
 const singleMock = vi.fn();
 const tickDiscoveryMock = vi.fn();
@@ -21,7 +21,61 @@ vi.mock("@/actions/tick-discovery", () => ({
   tickDiscovery: (...args: unknown[]) => tickDiscoveryMock(...args),
 }));
 
-import { DiscoveryProgress } from "@/components/discovery-progress";
+import {
+  DiscoveryProgress,
+  STATUS_LABELS,
+  KNOWN_STATUSES,
+  POLL_MS,
+  SOFT_THRESHOLD_MS,
+  ABSOLUTE_CEILING_MS,
+} from "@/components/discovery-progress";
+
+describe("DiscoveryProgress — STATUS_LABELS exhaustiveness (D-06, D-07)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+  });
+
+  it("has a non-empty Swedish label for every known job status", () => {
+    for (const knownStatus of KNOWN_STATUSES) {
+      expect(typeof STATUS_LABELS[knownStatus]).toBe("string");
+      expect(STATUS_LABELS[knownStatus].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("covers exactly the 6 known statuses", () => {
+    expect(KNOWN_STATUSES).toEqual([
+      "pending",
+      "processing",
+      "vision_processing",
+      "done",
+      "failed",
+      "degraded",
+    ]);
+  });
+
+  it("renders 'Analyserar bilder' for a vision_processing row (D-06)", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 20,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.5,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress jobId="job-1" initialStatus="vision_processing" />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+    });
+  });
+});
 
 describe("DiscoveryProgress", () => {
   beforeEach(() => {
@@ -49,12 +103,37 @@ describe("DiscoveryProgress", () => {
     });
   });
 
-  it("renders the LOCKED '{n} av {total} annonser analyserade' counter while running", async () => {
+  it("renders the LOCKED '{n} av {total} annonser analyserade' counter — N av N at done, 0 av N while running", async () => {
+    // LOCKED 2026-07-22 semantics (13-05): denominator = candidate_count
+    // (never cap_candidates); numerator = analyzed, which is candidate_count
+    // at done and 0 while still running.
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 12,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    const { unmount } = render(
+      <DiscoveryProgress jobId="job-1" initialStatus="pending" />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("18 av 18 annonser analyserade"),
+      ).toBeInTheDocument();
+    });
+    unmount();
+
     singleMock.mockResolvedValue({
       data: {
         status: "processing",
         processed_count: 12,
-        candidate_count: 12,
+        candidate_count: 18,
         cap_candidates: 25,
         cost_sek_total: 0.5,
         cap_reached: false,
@@ -65,7 +144,7 @@ describe("DiscoveryProgress", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("12 av 25 annonser analyserade"),
+        screen.getByText("0 av 18 annonser analyserade"),
       ).toBeInTheDocument();
     });
   });
@@ -118,9 +197,11 @@ describe("DiscoveryProgress", () => {
       expect(
         screen.getByText("Vi stannade vid 25 annonser (sökgräns)."),
       ).toBeInTheDocument();
-      // Still shows the running counter alongside the cap banner.
+      // Cap banner is driven by cap_candidates (unchanged); the counter
+      // itself is still 0 av N while status is "processing" (LOCKED
+      // 2026-07-22 semantics — nothing counts as analyzed until done).
       expect(
-        screen.getByText("25 av 25 annonser analyserade"),
+        screen.getByText("0 av 25 annonser analyserade"),
       ).toBeInTheDocument();
     });
   });
@@ -200,5 +281,622 @@ describe("DiscoveryProgress", () => {
 
     const link = screen.getByRole("link", { name: /dashboard|enskild/i });
     expect(link).toHaveAttribute("href", "/dashboard");
+  });
+});
+
+describe("DiscoveryProgress — two-tier poll timeout (D-04, D-05)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows the calm soft-notice at SOFT_THRESHOLD_MS, does NOT call onComplete, and keeps polling (D-04)", async () => {
+    const onComplete = vi.fn();
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 3,
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onComplete}
+      />,
+    );
+
+    // Flush the initial poll() microtasks.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SOFT_THRESHOLD_MS);
+    });
+
+    expect(
+      screen.getByText("Det tar längre tid än väntat, fortsätter…"),
+    ).toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const callsAtSoft = tickDiscoveryMock.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(tickDiscoveryMock.mock.calls.length).toBeGreaterThan(callsAtSoft);
+  });
+
+  it("calls onComplete('failed') exactly once at ABSOLUTE_CEILING_MS for a genuinely stuck job (D-05)", async () => {
+    const onComplete = vi.fn();
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 3,
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onComplete}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS);
+    });
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith("failed");
+  });
+
+  it("clears BOTH timers when a terminal status arrives before the soft threshold — no false failure (Pitfall 5)", async () => {
+    const onComplete = vi.fn();
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 20,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="processing"
+        onComplete={onComplete}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onComplete).toHaveBeenCalledWith("done");
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // Advance well past both the soft threshold and the absolute ceiling —
+    // neither timer may fire now that the terminal branch has cleared them.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS + POLL_MS);
+    });
+
+    expect(
+      screen.queryByText("Det tar längre tid än väntat, fortsätter…"),
+    ).not.toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalledWith("failed");
+  });
+});
+
+describe("DiscoveryProgress — decoupled status read (13-04 Task 1, GAP-1)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("advances the badge Analyserar -> Analyserar bilder from the DB read while tickDiscovery is STILL pending (never resolves in-test) — proves the read is not gated by inFlight", async () => {
+    // The tick dispatch never resolves for the lifetime of this test — under
+    // the OLD (gated) implementation, a status read behind `await
+    // tickDiscovery(jobId)` would never run again after the first poll, so
+    // the badge would freeze. The read must run on every interval tick
+    // regardless of this pending dispatch.
+    tickDiscoveryMock.mockImplementation(() => new Promise(() => {}));
+
+    let call = 0;
+    singleMock.mockImplementation(() => {
+      call += 1;
+      return Promise.resolve({
+        data: {
+          status: call === 1 ? "processing" : "vision_processing",
+          processed_count: 3,
+          candidate_count: 3,
+          cap_candidates: 25,
+          cost_sek_total: 0.5,
+          cap_reached: false,
+        },
+      });
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("Analyserar")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+  });
+
+  it("keeps the tick dispatch in-flight-guarded (no overlapping dispatch) even though the read runs every tick", async () => {
+    tickDiscoveryMock.mockImplementation(() => new Promise(() => {})); // never resolves
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 3,
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS * 5);
+    });
+    // The in-flight guard still protects the DISPATCH — a single still-pending
+    // tick is never overlapped by a second dispatch.
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(1);
+    // But the READ ran on every one of those ticks — proof it is NOT gated
+    // behind the in-flight dispatch guard.
+    expect(singleMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("terminal branch still clears both timers and fires onComplete exactly once, even with a tick still pending (Pitfall 5 survives the split)", async () => {
+    const onComplete = vi.fn();
+    tickDiscoveryMock.mockImplementation(() => new Promise(() => {}));
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 20,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="processing"
+        onComplete={onComplete}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onComplete).toHaveBeenCalledWith("done");
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ABSOLUTE_CEILING_MS + POLL_MS);
+    });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DiscoveryProgress — analyzed/found counter (LOCKED 2026-07-22)", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders 'N av N' at done — denominator is candidate_count, never cap_candidates", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        processed_count: 3,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="processing" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByText("18 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders '0 av N' while running (processing/vision_processing) — nothing counts as analyzed until the terminal write", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 5,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+
+  it("the '350 av 25' render is structurally impossible — processed_count=350/cap_candidates=25/candidate_count=18 renders '0 av 18', never '350…' and never '… av 25'", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 350,
+        candidate_count: 18,
+        cap_candidates: 25,
+        cost_sek_total: 1.2,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/350/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/av 25/)).not.toBeInTheDocument();
+  });
+
+  it("monotonic: vision_processing(candidate_count 18) -> done(candidate_count 18) renders '0 av 18' then '18 av 18' — numerator never decreases", async () => {
+    let call = 0;
+    singleMock.mockImplementation(() => {
+      call += 1;
+      return Promise.resolve({
+        data: {
+          status: call === 1 ? "vision_processing" : "done",
+          processed_count: 3,
+          candidate_count: 18,
+          cap_candidates: 25,
+          cost_sek_total: 1.2,
+          cap_reached: false,
+        },
+      });
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(
+      screen.getByText("18 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+
+  it("backward-jump is impossible: processed_count 350 then 3 across vision_processing polls (candidate_count 18 throughout) never renders '350…' or a decreasing numerator; still reaches '18 av 18' at done", async () => {
+    let call = 0;
+    const statusByCall = ["vision_processing", "vision_processing", "done"];
+    const processedByCall = [350, 3, 3];
+    singleMock.mockImplementation(() => {
+      const idx = Math.min(call, statusByCall.length - 1);
+      call += 1;
+      return Promise.resolve({
+        data: {
+          status: statusByCall[idx],
+          processed_count: processedByCall[idx],
+          candidate_count: 18,
+          cap_candidates: 25,
+          cost_sek_total: 1.2,
+          cap_reached: false,
+        },
+      });
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/350/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(
+      screen.getByText("0 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/350/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(
+      screen.getByText("18 av 18 annonser analyserade"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("DiscoveryProgress — WR-01 (13-REVIEW.md): readStatus() staleness guard", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("drops a stale readStatus response that resolves after a newer one, instead of overwriting fresher state", async () => {
+    const resolvers: Array<(value: unknown) => void> = [];
+    singleMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    // First tick's readStatus() fires immediately (call #1, request id 1).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // Second interval tick fires a second readStatus() (call #2, request id
+    // 2) while the first is still pending — the read has no in-flight guard
+    // by design (GAP-1), so both are genuinely in flight simultaneously.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(resolvers).toHaveLength(2);
+
+    // Resolve the NEWER request (#2) first with "vision_processing" —
+    // this becomes the latest applied state.
+    await act(async () => {
+      resolvers[1]({
+        data: {
+          status: "vision_processing",
+          candidate_count: 5,
+          cap_candidates: 25,
+          cost_sek_total: 1,
+          cap_reached: false,
+        },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+
+    // Now resolve the OLDER request (#1) out of order with "processing".
+    // Without the WR-01 guard this would stomp the fresher
+    // "vision_processing" state back to "processing".
+    await act(async () => {
+      resolvers[0]({
+        data: {
+          status: "processing",
+          candidate_count: 3,
+          cap_candidates: 25,
+          cost_sek_total: 0.5,
+          cap_reached: false,
+        },
+      });
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Analyserar bilder")).toBeInTheDocument();
+    expect(screen.queryByText("Analyserar")).not.toBeInTheDocument();
+  });
+});
+
+describe("DiscoveryProgress — WR-04 (13-REVIEW.md): dispatchTick() catches a rejected tickDiscovery call", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("catches the rejection (no unhandled rejection) and still releases the in-flight guard via finally", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    let tickCall = 0;
+    tickDiscoveryMock.mockImplementation(() => {
+      tickCall += 1;
+      return tickCall === 1
+        ? Promise.reject(new Error("server action network failure"))
+        : Promise.resolve();
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="pending" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[DiscoveryProgress] tickDiscovery failed",
+      expect.any(Error),
+    );
+
+    // The `finally` block must have reset `inFlight` despite the rejection —
+    // the next interval tick is free to dispatch again rather than being
+    // stuck skipped forever.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(tickDiscoveryMock).toHaveBeenCalledTimes(2);
+
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("DiscoveryProgress — WR-05 (13-REVIEW.md): timers survive an onComplete identity change across re-render", () => {
+  beforeEach(() => {
+    singleMock.mockReset();
+    tickDiscoveryMock.mockReset();
+    tickDiscoveryMock.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not reset the soft/hard timers when onComplete identity changes, and the latest callback still fires on completion", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+
+    const onCompleteA = vi.fn();
+    const { rerender } = render(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onCompleteA}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // Advance close to, but not past, the soft threshold.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SOFT_THRESHOLD_MS - 100);
+    });
+    expect(
+      screen.queryByText("Det tar längre tid än väntat, fortsätter…"),
+    ).not.toBeInTheDocument();
+
+    // Simulate a parent re-render passing a BRAND NEW inline arrow identity,
+    // mirroring DiscoveryProgressLive's `onComplete={() => router.refresh()}`.
+    const onCompleteB = vi.fn();
+    rerender(
+      <DiscoveryProgress
+        jobId="job-1"
+        initialStatus="pending"
+        onComplete={onCompleteB}
+      />,
+    );
+
+    // If the re-render had torn down and re-armed the timers, the soft
+    // notice would now be ~SOFT_THRESHOLD_MS - 100ms away again. Advancing
+    // only 100ms more must be enough to cross the ORIGINAL threshold if the
+    // timers were NOT reset.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(
+      screen.getByText("Det tar längre tid än väntat, fortsätter…"),
+    ).toBeInTheDocument();
+
+    // The latest onComplete identity (read via the ref) must be the one
+    // invoked when a terminal status arrives — not the stale onCompleteA
+    // captured at mount time.
+    singleMock.mockResolvedValue({
+      data: {
+        status: "done",
+        candidate_count: 3,
+        cap_candidates: 25,
+        cost_sek_total: 0.5,
+        cap_reached: false,
+      },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+    expect(onCompleteB).toHaveBeenCalledWith("done");
+    expect(onCompleteA).not.toHaveBeenCalled();
   });
 });

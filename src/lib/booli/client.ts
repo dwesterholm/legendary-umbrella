@@ -513,8 +513,19 @@ export function isBooliUrl(url: string): boolean {
  *
  * Return-shape contract: identical to `scrapeBooli()`'s `Record<string,
  * unknown>` — this is what keeps `normalizeScraperOutput` a no-op migration.
+ *
+ * @param opts - OPTIONAL, additive-only (13-04 Task 3, GAP-2): threaded
+ *   verbatim into BOTH own-render rungs' `runPlaywrightRender` calls. No
+ *   opts (the /analyze single-listing call site, `analyze.ts:70`) keeps the
+ *   proven 240s/3-retry defaults byte-for-byte. `enrichCandidateImages`
+ *   (job.ts) passes the bounded `DETAIL_ENRICH_WAIT_SECS`/
+ *   `DETAIL_ENRICH_MAX_RETRIES` below so one blocked/slow detail page during
+ *   vision enrichment cannot burn ~480s across both rungs.
  */
-export async function fetchListing(url: string): Promise<Record<string, unknown>> {
+export async function fetchListing(
+  url: string,
+  opts?: { waitSecs?: number; maxRequestRetries?: number },
+): Promise<Record<string, unknown>> {
   if (!url || !isBooliUrl(url)) {
     throw new Error("Ange en giltig Booli-lank");
   }
@@ -523,12 +534,12 @@ export async function fetchListing(url: string): Promise<Record<string, unknown>
     {
       source: "own-playwright" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntity),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, opts).then(extractListingEntity),
     },
     {
       source: "own-playwright-retry" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntity),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, opts).then(extractListingEntity),
     },
     // DISABLED 2026-07-14 (cost): rung 3 = the paid Lexis actor
     // (lexis-solutions/booli-se-scraper), a last-resort fallback that hadn't
@@ -615,6 +626,40 @@ const FULL_PAGE_THRESHOLD = 20;
  */
 const MAX_AREA_PAGES = 5;
 
+/**
+ * D-02 (13-CONTEXT.md, RESEARCH Open Question #1) — a scoped, materially
+ * lower `waitSecs` ceiling for AREA-PAGE renders only. `runPlaywrightRender`'s
+ * global default (240s) accounts for genuine detail-page Apify cold-start
+ * latency; area pages attempt up to 2 rungs each, so an unbounded worst case
+ * (~480s across up to 4 concurrent areas post-D-01) risks exceeding the
+ * ~300s Vercel Server Action ceiling (`TICK_DISCOVERY_MAX_DURATION_SEC`).
+ * 120s is a conservative first value, NOT re-proven against production
+ * latency yet — instrument the existing `[booli-client] fetchAreaListings
+ * page N served by rung...` log line (below) to observe real timing and
+ * tighten later (13-03 live smoke). Exported for test assertions only.
+ */
+export const AREA_PAGE_WAIT_SECS = 120;
+
+/**
+ * 13-04 Task 3 (GAP-2, 13-SMOKE-FINDINGS.md fix item 3) — a scoped, materially
+ * lower render envelope for VISION-ENRICHMENT detail-page fetches ONLY.
+ * `fetchListing`'s own defaults (240s/3-retry) are the proven /analyze
+ * single-listing budget and stay byte-for-byte unchanged for that call site.
+ * But `enrichCandidateImages` (job.ts) calls `fetchListing` for up to
+ * `VISION_ENRICH_LIMIT` candidates per job during a SINGLE client tick; the
+ * unbounded 240s x up-to-3-retries x 2-rung worst case per candidate
+ * (live-observed 13-03 smoke: a Booli 403 + 60s Cloudflare timeout looping
+ * through the retry budget across both rungs) can burn the whole tick on one
+ * blocked candidate. These two constants scope that one call site to the
+ * 60-90s / 1-2-retry envelope 13-SMOKE-FINDINGS.md's fix item 3 recommends —
+ * exported for test assertions only, mirroring `AREA_PAGE_WAIT_SECS`'s
+ * precedent. Tunable; the 403 itself is environmental (local IP blocking),
+ * NOT something these constants attempt to fix — `enrichCandidateImages`
+ * already degrades gracefully on a failed/slow detail fetch.
+ */
+export const DETAIL_ENRICH_WAIT_SECS = 90;
+export const DETAIL_ENRICH_MAX_RETRIES = 2;
+
 /** Stable per-listing dedupe key across pages (booliId, else url). */
 function listingKey(listing: Record<string, unknown>): string | null {
   const booliId = listing.booliId;
@@ -670,12 +715,16 @@ async function fetchAreaPage(
     {
       source: "own-playwright" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(
+          extractListingEntities,
+        ),
     },
     {
       source: "own-playwright-retry" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION).then(extractListingEntities),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(
+          extractListingEntities,
+        ),
     },
   ];
   const result = await walkFallbackTree(rungs);

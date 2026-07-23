@@ -1,37 +1,51 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Owned Data Layer & Intelligent Discovery
-status: milestone-complete
-stopped_at: "v1.1 milestone COMPLETE + archived (all 8 phases 5–12 code-complete, verified, reviewed+fixed). Legal go/no-go = GO (operator 2026-07-08); DISCOVERY_ENABLED now ON, feature flag retained as runtime kill switch. Live validation gates (Phase 11/12 kill-criteria) still outstanding."
-last_updated: "2026-07-08T00:00:00.000Z"
-last_activity: 2026-07-08 -- operator legal go/no-go = GO; DISCOVERY_ENABLED set ON (flag retained); live validation gates still outstanding
+milestone: v1.2
+milestone_name: Renovator-Grade Discovery Analysis
+status: verifying
+stopped_at: Completed 13-05-PLAN.md
+last_updated: "2026-07-23T09:08:02.760Z"
+last_activity: 2026-07-23
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 28
-  completed_plans: 28
-  percent: 100
+  total_phases: 9
+  completed_phases: 0
+  total_plans: 6
+  completed_plans: 4
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-06)
+See: .planning/PROJECT.md (updated 2026-07-17)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** v1.1 shipped (code-complete) & archived. Legal go/no-go = GO (operator 2026-07-08); `DISCOVERY_ENABLED` now ON (feature flag retained). Remaining: the live validation gates (Phase 11 accuracy gate + Phase 12 floor-plan kill-criterion); then `/gsd-new-milestone`.
+**Current focus:** Phase 13 — Discovery UX / Poll-Timeout Fix
 
 ## Current Position
 
-Milestone: v1.1 — COMPLETE & ARCHIVED (Phases 5–12)
-Status: Milestone code-complete, audited (tech_debt accepted), archived. Legal go/no-go = GO (operator 2026-07-08); `DISCOVERY_ENABLED` ON, feature flag retained as runtime kill switch. Live validation gates (Phase 11/12 kill-criteria) still outstanding (see milestones/v1.1-MILESTONE-AUDIT.md + phase *-UAT.md).
-Last activity: 2026-07-08 -- v1.1 audit → complete → (cleanup next)
+Phase: 13 (Discovery UX / Poll-Timeout Fix) — EXECUTING
+Plan: 5 of 5 (13-01, 13-02, 13-04, 13-05 code-complete; 13-03 is a live-smoke checkpoint, findings recorded in 13-SMOKE-FINDINGS.md)
+Status: Phase 13 shipped — PR #9 (verification human_needed: DXUX-01 live gate deferred)
+Last activity: 2026-07-23
+Next step: Operator live-smoke re-run of Phase 13, then `/gsd-verify-phase 13`.
 
-Progress: [████████] 8/8 v1.1 phases (5–12) complete
+## Roadmap Summary (v1.2 — CURRENT)
 
-## Roadmap Summary (v1.1)
+5 phases (13–17), standard granularity, 15/15 requirements mapped. Numbering **continues** from v1.1's Phase 12 — no reset; Phases 1–12 untouched. Cores already built + merged on `main`; this milestone wires them live.
+
+| Phase | Goal | Requirements | Depends on | UI |
+|-------|------|--------------|------------|----|
+| 13. Discovery UX / Poll-Timeout Fix | Live discovery finishes inside the client poll window (no forced reload) + Swedish label for every job state | DXUX-01/02 | Nothing new (independent) | yes |
+| 14. Holistic Analysis Brain | Fold re-resolved comps (R_med/U_med) + per-candidate BRF into the value case; no empty `claims: []`; low kr/m² normalized vs confounders | ANL-01/02/03/04 | Merged cores on `main` | yes |
+| 15. ROI-Aware Opportunity Brief | Prioritized, buyer-tailored opportunities; tiered cost/uplift; profit ±22% tax; freshness-based bathroom; designer specifics; live strict-output smoke | ROI-01/02/03/04/05 | Phase 14 (comps/BRF payload) | — |
+| 16. Value-Gap Scoring & Ranking | §2.6 value-gap headline re-orders results on the separate read path + "från bildtolkning" marker; separation grep extended | VGAP-01/02/03 | Phase 14 (R_med/U_med), Phase 15 | yes |
+| 17. Proposed Planritning Generation | Image-gen floor plan for HIGH value-gap only, daylight/bearing caveats stamped, cost-capped; source images never persisted (GDPR) | DRAW-01 | Phase 16 (HIGH flag) | — |
+
+**Sequencing:** DXUX (13) is independent and goes first. A.4 comps/BRF wiring (14) must land before value-gap ranking (16). Opportunity brief (15) needs 14's holistic payload. Drawing (17) is gated on 16's HIGH value-gap flag. **Locked guards to carry into every phase:** `niche-score.ts`/`flags.ts` never import vision/value-gap/area-comps (static-grep test — extend for value-gap in Phase 16); "low kr/m² ≠ reno object"; no DB migration (JSONB `results`); slim schema + **live** Anthropic strict-output smoke; `DISCOVERY_ENABLED` fail-closed + cost caps (`CAP_VISION_SEK_MAX=10`, `VISION_ENRICH_LIMIT=8`, `CAP_CANDIDATES_MAX=25`); GDPR — source images analyze-only, only generated drawings persist.
+
+## Roadmap Summary (v1.1 — SHIPPED)
 
 8 phases (5–12), standard granularity, 16/16 requirements mapped.
 
@@ -55,7 +69,7 @@ Progress: [████████] 8/8 v1.1 phases (5–12) complete
 - Total plans completed (v1.0): 21 across 4 phases
 - v1.0 phase durations: P1 ~1wk, P2 ~10d, P3 ~6d, P4 ~15d (5–10h/week cadence)
 
-*Updated after each plan completion during v1.1.*
+*Updated after each plan completion during v1.2.*
 
 ## Accumulated Context
 
@@ -63,6 +77,15 @@ Progress: [████████] 8/8 v1.1 phases (5–12) complete
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+- [Roadmap v1.2]: 5-phase structure (13–17) derived from the 15 v1.2 requirements, sequenced by dependency. Numbering CONTINUES from v1.1's Phase 12 (no reset; Phases 1–12 untouched). Mirrors the SPEC's Phase A/B/C decomposition plus a post-merge-E2E-surfaced Discovery UX fix.
+- [Roadmap v1.2]: SPEC "Phase A" split into TWO roadmap phases — Phase 14 (holistic INPUTS: A.3 no-empty fallback + A.4 comps/BRF wiring, ANL-*) and Phase 15 (holistic OUTPUT: A.5 prompt + `OpportunityBrief` schema + live strict-output smoke, ROI-*). Distinct verification surfaces (data plumbing vs. make-or-break live Anthropic smoke) and balanced phase size (4+5 reqs, not one 9-req phase).
+- [Roadmap v1.2]: Phase 13 (Discovery UX) placed FIRST — independent of the analysis chain, unblocks confidence in the now-live discovery surface, and the poll-timeout was surfaced by the post-merge E2E (the richer scrape is slower).
+- [Roadmap v1.2]: Phase 17 (proposed drawing, single req DRAW-01) kept STANDALONE rather than folded into Phase 16 — it is a distinct user-observable capability (generative image output that PERSISTS) with a separate risk/cost profile (image-gen provider TBD, GDPR persistence boundary, HIGH-only cost gate) and a clean dependency on Phase 16's HIGH flag; a coherent last phase that can be independently deferred/cut if cost demands.
+- [Roadmap v1.2]: This milestone is WIRING, not math — cores (`flip-economics.ts` valueGap/buyerSegment/RENO_COST_MATRIX/applyRot/taxLines, `area-comps.ts` computeAreaComps, A.1 pre-filter flip, A.2 Haiku triage flip) are already built, tested, and merged on `main`. No phase re-builds them.
+- [Roadmap v1.2]: A.4 (comps + BRF wiring, in Phase 14) must precede Phase 16's ranking wiring — VGAP needs R_med/U_med from A.4. The model computes NO money (avoids hallucinated numbers + keeps the strict-output schema slim); code attaches deterministic economics after the qualitative deep pass.
+
+**Carried-forward v1.1 decisions still load-bearing for v1.2:**
 
 - [Roadmap v1.1]: 8-phase structure (5–12) derived from 16 v1.1 requirements, sequenced by dependency + risk. Numbering continues from v1.0's Phase 4 (no reset).
 - [Roadmap v1.1]: 999.7 (AI discovery + vision) split into FOUR independently-shippable/killable sub-phases (9 Foundation, 10 Ranking, 11 Gallery Vision, 12 Floor-Plan/Sun-Path) — mitigates solo-dev scope overrun (Pitfall 8); each has its own kill criterion.
@@ -72,7 +95,7 @@ Recent decisions affecting current work:
 - [Roadmap v1.1]: Phase 9 carries a NAMED legal go/no-go gate BEFORE implementation — area-wide proactive scraping shifts the legal posture v1.0's user-initiated model relied on (Pitfall 1). No-go cancels Phases 10–12.
 - [Roadmap v1.1]: Design constraints baked into criteria — deterministic-in-code / LLM+vision synthesis only; vision output structurally separate from deterministic flags + image-cited + hedged; floor-plan = investigation-prompt (never wall-removal verdict); sun-path = theoretical/unobstructed; macro strictly descriptive; hard per-search cost/candidate/image caps; additive-nullable migrations only; reuse generateReport atomic-lock + BrfProgress polling.
 
-**Carried-forward v1.0 decisions still load-bearing for v1.1:**
+**Carried-forward v1.0 decisions still load-bearing:**
 
 - Sold source = Booli SSR HTML (__NEXT_DATA__ → __APOLLO_STATE__) via apify/playwright-scraper + RESIDENTIAL/SE proxy, NOT the /graphql API (separate stricter CF zone). This is the transport Phase 5 generalizes.
 - Actor does NOT provide brfName or floor — Phase 6 (broker extraction) is the first source expected to populate them; Phase 8 depends on that.
@@ -124,7 +147,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 09-04]: DiscoveryCandidateCard's Se full analys link routes to /dashboard?url=<encoded source URL> rather than a nonexistent /analysis/[id] -- Phase 9 is retrieval-only, no analysis id exists yet for a raw discovery candidate
 - [Phase 10-01]: imminent-stambyte niche v1 ships as a hedged construction-year proxy keyed 'stambyteProxyAge', deliberately distinct from FLAG_IDS.STAMBYTE_PLANERAT; the real per-candidate BRF-backed signal is deferred (would blow CAP_SEK_MAX if run for every discovery candidate)
 - [Phase 10-01]: computeNicheScore's internal [0,1] score is used only for sorting and is never rendered bare -- the UI (Plan 10-02) always renders the breakdown as cited chips
-- [Phase 10-02]: Area baseline computed as a PURE client-side median price/sqm over the candidate set itself, NOT via server-side compare.ts/fetchSoldComps reuse as RESEARCH.md originally planned -- discovery jobs persist no lat/lng or breadcrumbs, only filters + the PII-safe results allowlist, so compare.ts's SoldSourceQuery cannot be constructed from a stored job (RESEARCH Assumption A4 did not hold)
+- [Phase 10-02]: Area baseline computed as a PURE client-side median price/sqm over the candidate set itself, NOT via server-side compare.ts/fetchSoldComps reuse as RESEARCH.md originally planned -- discovery jobs persist no lat/lng or breadcrumbs, only filters + the PII-safe results allowlist, so compare.ts's SoldSourceQuery cannot be constructed from a stored job (RESEARCH Assumption A4 did not hold). [v1.2 UPDATE — SPEC finding 2026-07-10: `fetchSoldComps` resolves area from breadcrumbs/areaId, NOT lat/lng, and the job already resolves an areaId that can be cheaply RE-RESOLVED via cached `resolveArea` at analysis time — so Phase 14 A.4 CAN wire real comps without a migration. A4 holds via re-resolution, not via persisted lat/lng.]
 - [Phase 10-02]: Radix Select's jsdom gaps (scrollIntoView, pointer-capture methods) polyfilled locally inside discovery-results.test.tsx (first Select-driven RTL test in the repo), not added to the shared vitest.setup.ts
 - [Phase ?]: The live Apollo images( ref probe (scripts/probe-booli-images.ts) is written but deliberately not run this plan; extractImageUrls implements RESEARCH's assumed shape with a graceful never-throwing fallback
 - [Phase ?]: CAP_IMAGES_PER_LISTING activated from Phase 9's 0-placeholder to 4 (1 floor plan + up to 3 gallery); CAP_VISION_SEK_MAX=10 kept strictly separate from CAP_SEK_MAX=5
@@ -132,7 +155,7 @@ Recent decisions affecting current work:
 - [Phase 11]: [Phase 11-02]: runVisionForJob added as a separate export in job.ts (not a runSlice modification) -- called from tickDiscovery/sweep route only once a slice leaves the job "done", keeping runSlice's own incremental-cap/kill-switch/persist behavior and tests completely unchanged
 - [Phase 11]: [Phase 11-02]: Vision SEK spend (CAP_VISION_SEK_MAX) is tracked entirely separately from cost_sek_total (the scrape cap) -- a job hitting its scrape cap still gets vision, a job hitting its vision cap only stops vision, never the whole job
 - [Phase 11-03]: GalleryConditionVision uses border-warm-gray-200/bg-warm-white + a terracotta Eye-icon badge (never severityChip/sage/destructive) so a buyer can tell image-interpreted claims from ReportFlags' verified chips at a glance; wired into discovery-results.tsx spatially separate (space-y-6) and AFTER the ranking grid, never feeding computeNicheScore
-- [Phase 11-03]: Structural-separation invariant (niche-score.ts/flags.ts must never import a vision module) implemented as a static source-grep test (mirrors job.integration.test.ts's invariant-as-a-test precedent) rather than a dependency-graph tool -- verified to fail on a manually-injected violation, then reverted
+- [Phase 11-03]: Structural-separation invariant (niche-score.ts/flags.ts must never import a vision module) implemented as a static source-grep test (mirrors job.integration.test.ts's invariant-as-a-test precedent) rather than a dependency-graph tool -- verified to fail on a manually-injected violation, then reverted. [v1.2: Phase 16 EXTENDS this grep to forbid the value-gap module too.]
 - [Phase 12-01]: suncalc v2.0.0's azimuth convention confirmed live (degrees, north-zero, clockwise; solar noon via getTimes().solarNoon -> getPosition ~180 at Stockholm lat/lon) -- matches the v2.0.0 README, not the stale v1.x radians/south-zero convention; confirmed both at install time and by a committed mandatory smoke test that must pass before any facade-bucketing test is trusted
 - [Phase 12-01]: computeSunExposure's grid cells are qualitative Swedish descriptors only (never a numeric hour count) per UI-SPEC's no-false-precision rule; 3 season buckets sampled at winter solstice/an equinox/summer solstice (spring and autumn share one symmetric sun path at a given latitude)
 - [Phase 12-01]: suncalc package-legitimacy checkpoint auto-approved per plan pre-approval (225k weekly downloads, maintainer mourner, zero deps, ships own types, no postinstall, slopcheck OK) -- not stopped on, mirrors the Phase 06 cheerio precedent
@@ -141,6 +164,15 @@ Recent decisions affecting current work:
 - [Phase ?]: raw description is read as a direct expression argument to extractOrientationFromDescription inside toCandidate's returned object literal (never a local variable), keeping the PII-safe derived-only contract structurally enforced
 - [Phase ?]: [Phase 12-04]: SunPathExposure computes computeSunExposure in-component (not upstream) since the 4 raw inputs are already threaded through discovery-results.tsx
 - [Phase ?]: [Phase 12-04]: Sun-path grid renders only KNOWN facades (season columns, one row per known facade) -- never fabricates missing facades as ej-tillganglig rows, per UI-SPEC binding constraint
+- [Phase 13]: AREA_PAGE_WAIT_SECS=120 chosen as a conservative first D-02 value, exported from client.ts for test assertions — pending calibration by the 13-03 live smoke against real Apify per-page render timing
+- [Phase 13]: runSlice's area loop iterated by index (settled[i]/areaIds[i]) mirroring client.ts's page-level Promise.allSettled pattern exactly, preserving D-03's cost-cap invariant by construction
+- [Phase ?]: [Phase 13-02]: SOFT_THRESHOLD_MS=90_000 / ABSOLUTE_CEILING_MS=15*60_000 chosen as tunable constants pending calibration by the 13-03 live smoke
+- [Phase ?]: [Phase 13-02]: STATUS_LABELS/KNOWN_STATUSES exported directly from discovery-progress.tsx so the exhaustiveness test enumerates the single canonical source of truth
+- [Phase ?]: 13-04: processed_count during vision enrichment counts enriched-so-far (1..N), not a continuation of the scrape-phase processed_count -- runVisionForJob only receives the candidate array, threading the true base value was out of scope; strict monotonic increase holds by construction (plan-sanctioned choice).
+- [Phase ?]: 13-04: onProgress fires only on a SUCCESSFUL per-candidate detail-enrichment attempt (never from the catch branch) -- keeps the pre-existing single-update runVisionForJob test passing unmodified.
+- [Phase ?]: 13-04: DETAIL_ENRICH_WAIT_SECS=90 / DETAIL_ENRICH_MAX_RETRIES=2 bound the vision-enrichment detail-page render (midpoint of the 13-SMOKE-FINDINGS.md 60-90s/1-2-retry envelope), tunable pending live-smoke calibration; /analyze's fetchListing(url) call site stays byte-for-byte at the 240s/3-retry default.
+- [Phase 13-05]: Counter is monotonic clamped component state (analyzed = 0 until done, then candidate_count) rather than a persisted mid-run column -- no DB migration; liveness during vision_processing is carried by the 13-04 badge advancement + soft-notice, not this numeric counter.
+- [Phase 13-05]: Reverted only 13-04 Task 2's onProgress/processed_count-during-vision wiring -- 13-04 Task 1 (decoupled read) and Task 3 (bounded fetchListing opts) remain fully intact.
 
 ### Pending Todos
 
@@ -149,28 +181,30 @@ Recent decisions affecting current work:
 - README.md has uncommitted create-next-app boilerplate — decide keep/revert.
 - Design polish pass (overall UX approved, deeper design work wanted).
 - Run `/gsd-secure-phase 4` "Verify all" before production (v1.0 security closed via operator acceptance).
+- [v1.2] Create `evals/opportunity-brief.eval.ts` (gated `RUN_LLM_EVALS=1 && ANTHROPIC_API_KEY`, ~2 frozen fixtures) — the mandatory LIVE strict-output smoke for Phase 15's `OpportunityBrief` schema (mocked tests hide 400s).
 
 ### Blockers/Concerns
 
-- **[Phase 5 spike, BLOCKING]** Single-listing-by-URL retrieval path unresolved — detail GraphQL query vs SSR/Apollo-state HTML scrape vs filtered searchForSale+match. Test SSR-state scrape first (reuses proven infra). Sets cost/latency for the whole milestone.
-- **[Phase 9 spike, BLOCKING]** Vercel Cron limits on current hosting tier + free-text→filter reliability + FOR UPDATE SKIP LOCKED prototype + area-scrape cost smoke test.
-- ~~**[Phase 9 legal gate]** Area-wide proactive scraping = different legal fact-pattern than v1.0.~~ **RESOLVED — GO (operator, 2026-07-08).** PROJECT.md "Legal" line rewritten to FINAL GO; `DISCOVERY_ENABLED` set ON in the operator env; per-query/per-day caps remain enforced in code and the feature flag is retained as the runtime kill switch. (Live validation gates below still stand as separate checks.)
-- **[Phase 8 spike]** Bolagsverket access model + iXBRL format + Allabrf reliability + org-nummer resolution.
-- **[Phase 6 spike]** Broker-CMS coverage — fraction of agencyListingUrl that is Vitec vs custom.
-- **[Cost]** 999.7 vision scales multiplicatively (N listings × k images) — hard per-search caps + Haiku pre-filter + per-listing cache required before the vision loop, else <$100/mo budget breaks.
+- **[Cost]** Every v1.2 discovery/analysis run spends real Apify (area search + up to 8 detail renders + 1–2 comps renders) and Anthropic (Haiku triage + Sonnet deep pass × up to 8). Caps: `VISION_ENRICH_LIMIT=8`, `CAP_VISION_SEK_MAX=10`, `CAP_CANDIDATES_MAX=25`. Phase 14 folds comps + BRF fetches into the vision cost gate; Phase 17 image-gen is HIGH-value-gap-only to bound spend. One verification run is cheap; don't loop it.
+- **[Phase 15 — make-or-break]** Anthropic strict-output 400 risk on the `OpportunityBrief` schema — mocked tests hide it. Keep the model's fields slim (single-nullable-leaf, numbers unconstrained); code attaches all money deterministically. Run the live smoke and slim further if it 400s BEFORE touching UI.
 - Supabase free tier pauses after 7 days inactivity — old project was permanently frozen after 90+ days. Visit dashboard periodically or upgrade.
+
+**Resolved (v1.1):**
+
+- ~~[Phase 5/9 BLOCKING spikes]~~ Resolved during v1.1 build (owned acquisition + discovery foundation shipped code-complete).
+- ~~[Phase 9 legal gate]~~ **RESOLVED — GO (operator, 2026-07-08).** `DISCOVERY_ENABLED` set ON in the operator env; per-query/per-day caps enforced in code; flag retained as the runtime kill switch. (v1.1 live validation gates below still stand as separate operator checks.)
 
 ## Session Continuity
 
-Last session: 2026-07-07T17:07:44.457Z
-Stopped at: Completed 12-04-PLAN.md
-Next step: Phase 12 (Floor-Plan & Sun-Path) is code-complete (all 4 plans shipped, green). Milestone v1.1 is now gated ENTIRELY on the accumulated operator live-validation backlog below (Phases 9-12) — no further code execution is queued until the operator runs these checks. Phase 12's own kill-criterion checkpoint (Task 4, listed first below) is the newest addition.
+Last session: 2026-07-22T07:22:10.399Z
+Stopped at: Completed 13-05-PLAN.md
+Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
-**Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main (https://github.com/dwesterholm/legendary-umbrella/pull/1), from the squashed clean branch `gsd/phase-12-floor-plan-sun-path-pr` (single commit on origin/main; code + structural planning + milestone archive; live transient `.planning` excluded). The uncommitted legal-gate GO edits (`PROJECT.md`/`STATE.md`/`.env.local.example`) and the gitignored `DISCOVERY_ENABLED=true` flip are NOT in PR #1.
-
-**Code review (2026-07-08):** 5 sharded gsd-code-reviewer passes over the diff → 4 blockers, 28 warnings, 20 info (see `milestones/v1.1-PR1-CODE-REVIEW.md`). All 4 blockers FIXED plus 22 of 28 warnings, with regression tests, across 9 atomic `fix(pr1):` commits on the source branch, folded into the PR #1 squash. Full suite green (647 tests), tsc+eslint clean. 6 warnings deferred + documented (cost-ledger fidelity ×3, BRF CAS stale-reclaim migration, + 2 product/accepted-tradeoff items) and 20 info nits untouched — see `milestones/v1.1-PR1-CODE-REVIEW.md`. Legal go/no-go = GO + `DISCOVERY_ENABLED` ON are now committed (were uncommitted). Merge PR #1 when CI passes; then `/gsd-complete-milestone`.
+**Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
 
 ## Operator Next Steps
+
+> The v1.1 operator live-validation backlog is retained below — these are separate operator checks that do not block v1.2 phase planning.
 
 - **[Phase 12 Task 4 — BLOCKING kill-criterion checkpoint, NEW, auto-approved-but-deferred]** Live floor-plan hedging validation + one live 4-leaf-schema API smoke + live sun-path render:
   1. Set env: Supabase + `APIFY_API_TOKEN` + `ANTHROPIC_API_KEY` + `DISCOVERY_ENABLED=true` + the vision flag ON. Start the app (`npm run dev`).
@@ -181,7 +215,7 @@ Next step: Phase 12 (Floor-Plan & Sun-Path) is code-complete (all 4 plans shippe
   6. Confirm sun-path is visually distinct (Compass/warm-gray, never Eye/terracotta) and neither floor-plan nor sun-path appears in any rank badge/niche chip.
   - Report back "approved" or a CUT decision. Full steps: `.planning/phases/12-floor-plan-sun-path/12-04-SUMMARY.md`.
 
-- **[Phase 11 — live-render check + 20-30-listing kill-criterion validation gate, BLOCKING before Phase 12]**
+- **[Phase 11 — live-render check + 20-30-listing kill-criterion validation gate]**
   1. Set env: Supabase + `APIFY_API_TOKEN` + `ANTHROPIC_API_KEY` + `DISCOVERY_ENABLED=true` + the vision flag ON. Start the app (`npm run dev`).
   2. (Recommended first, cheap) run `RUN_LLM_EVALS=1 npx vitest run evals/vision.eval.ts` on ONE fixture to confirm the slim vision schema doesn't 400 before spending on a full run (per project memory `anthropic-structured-output-limits`).
   3. Run one real discovery job (free-text area search) through to completion on `/discover/[jobId]`.
@@ -189,7 +223,7 @@ Next step: Phase 12 (Floor-Plan & Sun-Path) is code-complete (all 4 plans shippe
   5. Confirm the three degraded states are distinguishable where they occur: "Inga bilder tillgängliga…" (no gallery) vs "Bildbedömning kördes inte… (sökgränsen…)" (cost cap) vs "För osäkert för att visa…" (all suppressed).
   6. Confirm NO claim references a person or personal document, and per-search vision cost stayed under `CAP_VISION_SEK_MAX`.
   7. **Kill criterion (hard gate):** run the full 20-30-listing accuracy gate per `.planning/phases/11-gallery-condition-vision/11-RESEARCH.md` — directional accuracy ≥ 70%, citation validity ≥ 90%, zero-hallucination = 100%. Below threshold → CUT gallery vision, ship discovery text-ranking-only (the UI already degrades to `vision: null` gracefully by construction, so a CUT requires no UI rework, only stopping the `runVisionForJob` call sites).
-  8. Also note: the Plan 01-deferred live Apollo `images(` ref probe (`scripts/probe-booli-images.ts`) has not been run — until it is, `imageUrls` is `null` for every real candidate, so step 4 will show the `no_images` degraded state for all real listings regardless of gallery presence.
+  8. Also note: the Plan 01-deferred live Apollo `images(` ref probe (`scripts/probe-booli-images.ts`) has not been run — until it is, `imageUrls` is `null` for every real candidate, so step 4 will show the `no_images` degraded state for all real listings regardless of gallery presence. **(v1.2 Phase 14/15 real E2E runs need this probe run first, else comps/BRF wiring can be verified but the vision deep pass sees no images.)**
   - Report back "approved" once verified, or describe any issue / a CUT decision. Full steps: `.planning/phases/11-gallery-condition-vision/11-03-SUMMARY.md`.
 
 - **[Phase 10 — manual UAT kill-criterion check]** Confirm niche ranking actually distinguishes candidates on real data:
@@ -259,3 +293,7 @@ Next step: Phase 12 (Floor-Plan & Sun-Path) is code-complete (all 4 plans shippe
 | Phase 12 P02 | 25min | 3 tasks | 8 files |
 | Phase 12 P03 | 55min | 2 tasks | 9 files |
 | Phase 12 P04 | 6min | 3 tasks | 6 files |
+| Phase 13 P01 | 25min | 2 tasks | 5 files |
+| Phase 13 P02 | 20min | 2 tasks | 2 files |
+| Phase 13 P04 | 26min | 3 tasks | 6 files |
+| Phase 13 P05 | 8min | 2 tasks | 4 files |

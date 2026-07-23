@@ -28,6 +28,12 @@ vi.mock("@/lib/booli/client", () => ({
       return false;
     }
   },
+  // 13-04 Task 3 (GAP-2) — the bounded detail-enrichment render envelope.
+  // This whole module is wholesale-mocked here (unlike client.test.ts, which
+  // imports the real constant directly) — kept numerically in sync with
+  // client.ts's real exported values.
+  DETAIL_ENRICH_WAIT_SECS: 90,
+  DETAIL_ENRICH_MAX_RETRIES: 2,
 }));
 
 const resolveArea = vi.fn();
@@ -62,6 +68,7 @@ import {
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { discoveryCostSek } from "@/lib/discovery/cost";
+import { DETAIL_ENRICH_WAIT_SECS, DETAIL_ENRICH_MAX_RETRIES } from "@/lib/booli/client";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
 let updateCalls: Array<Record<string, unknown>>;
@@ -438,6 +445,30 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
     );
     errSpy.mockRestore();
   });
+
+  it("scrapes both areas CONCURRENTLY — elapsed is close to the slower area's delay, not the sum (Wave-0 concurrency proof, D-01)", async () => {
+    // Real, staggered setTimeout-based delays (not instantly-resolving mocks —
+    // Pitfall 4): area 115341 resolves after ~100ms, area 115349 after ~20ms.
+    // A sequential for-await loop takes ≈ 100 + 20 = 120ms; Promise.allSettled
+    // takes ≈ max(100, 20) = 100ms. Asserting comfortably below the sequential
+    // sum (but above the concurrent max) distinguishes the two shapes without
+    // relying on exact timing.
+    const DELAYS: Record<string, number> = { "115341": 100, "115349": 20 };
+    fetchAreaListings.mockImplementation(async (areaId: string) => {
+      await new Promise((resolve) => setTimeout(resolve, DELAYS[areaId] ?? 0));
+      return [listing(areaId, `https://www.booli.se/annons/${areaId}`)];
+    });
+    const supabase = makeSupabase();
+
+    const start = Date.now();
+    await runSlice(supabase, multiRow());
+    const elapsed = Date.now() - start;
+
+    expect(fetchAreaListings).toHaveBeenCalledTimes(2);
+    // Sequential sum would be ≈120ms; concurrent max is ≈100ms. 110ms sits
+    // between the two, well below the sum, proving concurrent execution.
+    expect(elapsed).toBeLessThan(110);
+  });
 });
 
 describe("dedupeCandidates", () => {
@@ -512,6 +543,36 @@ describe("runVisionForJob — Phase 11 (DISC-04) separate post-scrape pass", () 
     expect(errorSpy).toHaveBeenCalled();
 
     errorSpy.mockRestore();
+  });
+});
+
+describe("runVisionForJob — no processed_count write during vision (13-05 revert)", () => {
+  it("issues EXACTLY ONE updateJob write (the terminal results+status write) and never writes processed_count, even across multiple successfully-enriched candidates", async () => {
+    const supabase = makeSupabase();
+    // Plain successful detail entities (no imageUrls) so enrichment succeeds
+    // for both candidates without runVisionPass attempting any real
+    // Anthropic call (imageUrls stays null -> vision skip "no_images", no
+    // network/spend in this unit test).
+    fetchListing.mockResolvedValue({});
+    const results = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/2", imageUrls: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    // 13-05 revert: the 13-04 Task 2 onProgress callback (which issued
+    // incremental processed_count-only writes) is removed — this is now the
+    // ONLY updateJob call runVisionForJob ever makes.
+    expect(updateCalls).toHaveLength(1);
+    expect(Object.keys(updateCalls[0]).sort()).toEqual(["results", "status"]);
+
+    // No updateJob payload at any point contains a processed_count key —
+    // processed_count keeps its scanned-listings scrape/cost meaning
+    // (written only by runSlice) and is never overwritten by the vision pass.
+    for (const payload of updateCalls) {
+      expect(payload).not.toHaveProperty("processed_count");
+    }
   });
 });
 
@@ -845,7 +906,27 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     await enrichCandidateImages(input, 1); // budget of one
 
     expect(fetchListing).toHaveBeenCalledTimes(1);
-    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/ringvagen");
+    // 13-04 Task 3 (GAP-2): every enrichCandidateImages fetchListing call now
+    // also carries the bounded opts — updated alongside the new opts-forwarding
+    // behavior below, not a pre-existing assertion this task regresses.
+    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/ringvagen", {
+      waitSecs: DETAIL_ENRICH_WAIT_SECS,
+      maxRequestRetries: DETAIL_ENRICH_MAX_RETRIES,
+    });
+  });
+
+  it("13-04 Task 3 (GAP-2): passes the bounded DETAIL_ENRICH opts to fetchListing so one blocked detail page cannot burn the 240s/3-retry default", async () => {
+    fetchListing.mockResolvedValue({});
+    const input = [
+      makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null }),
+    ];
+
+    await enrichCandidateImages(input, 8);
+
+    expect(fetchListing).toHaveBeenCalledWith("https://www.booli.se/bostad/1", {
+      waitSecs: DETAIL_ENRICH_WAIT_SECS,
+      maxRequestRetries: DETAIL_ENRICH_MAX_RETRIES,
+    });
   });
 });
 

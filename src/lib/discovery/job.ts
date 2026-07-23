@@ -1,4 +1,10 @@
-import { fetchAreaListings, fetchListing, isAllowedImageHost } from "@/lib/booli/client";
+import {
+  fetchAreaListings,
+  fetchListing,
+  isAllowedImageHost,
+  DETAIL_ENRICH_WAIT_SECS,
+  DETAIL_ENRICH_MAX_RETRIES,
+} from "@/lib/booli/client";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { resolveArea, splitAreaQuery, type AreaResolution } from "@/lib/discovery/resolve-area";
@@ -168,24 +174,32 @@ export async function runSlice(
 
   // (4) KILL SWITCH — a thrown error from the owned Booli client IS the
   // CAPTCHA/blocking signal (transport.ts's HIGH-1 discipline: it never
-  // returns [] to mean "dead", it throws). Scrape each area best-effort:
-  // collect every success, and remember if any area threw. Only when NOTHING
-  // came back do we decide — a throw with zero results is the block signal
-  // (degrade), zero results with no throw is a genuinely empty area (done).
+  // returns [] to mean "dead", it throws). Scrape every area CONCURRENTLY
+  // (D-01) via Promise.allSettled — mirroring fetchAreaListings's own
+  // pages-2..N pattern (booli/client.ts:719-736) one level up: collect every
+  // success, and remember if any area threw. Only when NOTHING came back do
+  // we decide — a throw with zero results is the block signal (degrade),
+  // zero results with no throw is a genuinely empty area (done). This
+  // collapses sum(area times) to max(area times) for multi-area queries
+  // (RESEARCH Pitfall 1/2) while staying pure in-memory aggregation — zero DB
+  // writes inside this loop, preserving D-03's race-free cost-cap invariant.
+  const settled = await Promise.allSettled(
+    areaIds.map((areaId) => fetchAreaListings(areaId, filters.objectType)),
+  );
   const raw: Record<string, unknown>[] = [];
   let anyThrew = false;
   let rendersUsed = 0;
-  for (const areaId of areaIds) {
-    try {
-      const part = await fetchAreaListings(areaId, filters.objectType);
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i];
+    if (outcome.status === "fulfilled") {
       rendersUsed += 1;
-      raw.push(...part);
-    } catch (error) {
+      raw.push(...outcome.value);
+    } else {
       anyThrew = true;
       console.error("[discovery-job] kill-switch degraded", {
         jobId,
-        areaId,
-        code: error instanceof Error ? error.message : "UNKNOWN",
+        areaId: areaIds[i],
+        code: outcome.reason instanceof Error ? outcome.reason.message : "UNKNOWN",
       });
     }
   }
@@ -488,7 +502,13 @@ export async function enrichCandidateImages(
     if (!c.sourceListingUrl) continue; // nothing to fetch
     fetched += 1;
     try {
-      const raw = await fetchListing(c.sourceListingUrl);
+      // 13-04 Task 3 (GAP-2): bounded opts — a blocked/slow detail page
+      // cannot burn the unbounded 240s/3-retry x 2-rung default here. Never
+      // affects fetchListing's other call site (analyze.ts:70, no opts).
+      const raw = await fetchListing(c.sourceListingUrl, {
+        waitSecs: DETAIL_ENRICH_WAIT_SECS,
+        maxRequestRetries: DETAIL_ENRICH_MAX_RETRIES,
+      });
       const detail = toCandidate(raw);
       out[i] = {
         ...c,
