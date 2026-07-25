@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
 status: verifying
-stopped_at: Completed 13-05-PLAN.md
-last_updated: "2026-07-23T09:08:02.760Z"
+stopped_at: Phase 14 context gathered
+last_updated: "2026-07-25T09:05:01.461Z"
 last_activity: 2026-07-23
 progress:
   total_phases: 9
@@ -196,8 +196,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-22T07:22:10.399Z
-Stopped at: Completed 13-05-PLAN.md
+Last session: 2026-07-25T09:05:01.455Z
+Stopped at: Phase 14 context gathered
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
