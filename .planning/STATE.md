@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
 status: executing
-stopped_at: Phase 14 context gathered
-last_updated: "2026-08-05T18:24:17.353Z"
-last_activity: 2026-07-27
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-08-05T18:47:32.260Z"
+last_activity: 2026-08-05 -- Phase 14 execution started
 progress:
   total_phases: 9
   completed_phases: 0
-  total_plans: 6
-  completed_plans: 4
+  total_plans: 12
+  completed_plans: 5
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-17)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** Phase 13 — Discovery UX / Poll-Timeout Fix
+**Current focus:** Phase 14 — holistic-analysis-brain
 
 ## Current Position
 
-Phase: 13 (Discovery UX / Poll-Timeout Fix) — EXECUTING
-Plan: 5 of 5 (13-01, 13-02, 13-04, 13-05 code-complete; 13-03 is a live-smoke checkpoint, findings recorded in 13-SMOKE-FINDINGS.md)
-Status: Phase 14 planned — 6 plans / 4 waves, plan-checker PASS; ready to execute
-Last activity: 2026-07-27
+Phase: 14 (holistic-analysis-brain) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-08-05 -- Phase 14 execution started
 Next step: Operator live-smoke re-run of Phase 13, then `/gsd-verify-phase 13`.
 
 ## Roadmap Summary (v1.2 — CURRENT)
@@ -173,6 +173,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 13-04: DETAIL_ENRICH_WAIT_SECS=90 / DETAIL_ENRICH_MAX_RETRIES=2 bound the vision-enrichment detail-page render (midpoint of the 13-SMOKE-FINDINGS.md 60-90s/1-2-retry envelope), tunable pending live-smoke calibration; /analyze's fetchListing(url) call site stays byte-for-byte at the 240s/3-retry default.
 - [Phase 13-05]: Counter is monotonic clamped component state (analyzed = 0 until done, then candidate_count) rather than a persisted mid-run column -- no DB migration; liveness during vision_processing is carried by the 13-04 badge advancement + soft-notice, not this numeric counter.
 - [Phase 13-05]: Reverted only 13-04 Task 2's onProgress/processed_count-during-vision wiring -- 13-04 Task 1 (decoupled read) and Task 3 (bounded fetchListing opts) remain fully intact.
+- [Phase 14-01]: tomtrattFromTenureForm never returns false — tenureForm cannot disprove tomträtt (the BRF, not the unit, holds it); unknown stays null rather than a silently-wrong false
+- [Phase 14-01]: holisticBriefSchema restricts confidence to low|medium at the schema level — a stored 'high' fails safeParse rather than being trusted (D-14-04 mandatory downgrade)
+- [Phase 14-01]: kommunFromBreadcrumbs relocated to client.ts as the SINGLE shared implementation (was a private near-duplicate in fetch-brf-auto.ts) — both the discovery scrape path and single-listing BRF path now call the same function
 
 ### Pending Todos
 
@@ -196,8 +199,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-25T09:05:01.455Z
-Stopped at: Phase 14 context gathered
+Last session: 2026-08-05T18:47:32.255Z
+Stopped at: Completed 14-01-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
@@ -297,3 +300,4 @@ Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads
 | Phase 13 P02 | 20min | 2 tasks | 2 files |
 | Phase 13 P04 | 26min | 3 tasks | 6 files |
 | Phase 13 P05 | 8min | 2 tasks | 4 files |
+| Phase 14 P01 | 45min | 3 tasks | 12 files |

@@ -15,9 +15,9 @@
 
 ### Holistic Analysis (Phase A)
 
-- [ ] **ANL-01**: Every surfaced candidate leaves analysis with ≥1 actionable opportunity — when deep-pass attributes are all filtered out, a holistic-data-only opportunity brief is produced instead of empty `claims: []`.
-- [ ] **ANL-02**: Per-candidate analysis folds renovated-vs-unrenovated area comps (R_med / U_med from `computeAreaComps`) into the value case, using the re-resolved areaId (no DB migration; rides in JSONB `results`).
-- [ ] **ANL-03**: Per-candidate analysis folds a BRF summary (avgift, debt/m², stambyte funding state, tomträtt, soliditet) into the value case for top candidates, respecting cost caps.
+- [x] **ANL-01**: Every surfaced candidate leaves analysis with ≥1 actionable opportunity — when deep-pass attributes are all filtered out, a holistic-data-only opportunity brief is produced instead of empty `claims: []`.
+- [x] **ANL-02**: Per-candidate analysis folds renovated-vs-unrenovated area comps (R_med / U_med from `computeAreaComps`) into the value case, using the re-resolved areaId (no DB migration; rides in JSONB `results`).
+- [x] **ANL-03**: Per-candidate analysis folds a BRF summary (avgift, debt/m², stambyte funding state, tomträtt, soliditet) into the value case for top candidates, respecting cost caps.
 - [ ] **ANL-04**: A low kr/m² is normalized against confounders (floor, elevator, balcony, micro-location, sub-area, tomträtt, BRF debt) before any condition/reno attribution; the UI never renders text implying "low kr/m² ⇒ renovation object".
 
 ### Opportunity Brief (Phase A.5)
@@ -64,9 +64,9 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 |-------------|-------|--------|
 | DXUX-01 | Phase 13 — Discovery UX / Poll-Timeout Fix | Pending |
 | DXUX-02 | Phase 13 — Discovery UX / Poll-Timeout Fix | Complete |
-| ANL-01 | Phase 14 — Holistic Analysis Brain | Pending |
-| ANL-02 | Phase 14 — Holistic Analysis Brain | Pending |
-| ANL-03 | Phase 14 — Holistic Analysis Brain | Pending |
+| ANL-01 | Phase 14 — Holistic Analysis Brain | Complete |
+| ANL-02 | Phase 14 — Holistic Analysis Brain | Complete |
+| ANL-03 | Phase 14 — Holistic Analysis Brain | Complete |
 | ANL-04 | Phase 14 — Holistic Analysis Brain | Pending |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
