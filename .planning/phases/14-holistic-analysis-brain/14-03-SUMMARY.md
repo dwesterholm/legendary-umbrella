@@ -142,7 +142,7 @@ None - no external service configuration required. No DB migration (BRF summarie
 
 ## Self-Check: PASSED
 
-All claimed files exist on disk (`src/lib/brf-source/org-nr-resolver.ts`, `org-nr-resolver.test.ts`, `src/actions/fetch-brf-auto.ts`, `src/lib/discovery/brf-lookup.ts`, `brf-lookup.test.ts`, `.planning/phases/14-holistic-analysis-brain/deferred-items.md`) and all three task commit hashes (`5f2583c`, `ec7ac74`, `fc2a49b`) are present in `git log`.
+All claimed files exist on disk (`src/lib/brf-source/org-nr-resolver.ts`, `org-nr-resolver.test.ts`, `src/actions/fetch-brf-auto.ts`, `src/lib/discovery/brf-lookup.ts`, `brf-lookup.test.ts`, `.planning/phases/14-holistic-analysis-brain/deferred-items.md`, `14-03-SUMMARY.md`) and all four commit hashes (`5f2583c`, `ec7ac74`, `fc2a49b`, `a4463de`) are present in `git log --oneline --all`.
 
 ---
 *Phase: 14-holistic-analysis-brain*
