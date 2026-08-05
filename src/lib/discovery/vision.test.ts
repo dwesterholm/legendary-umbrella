@@ -477,6 +477,10 @@ describe("runVisionPass", () => {
       balcony: null,
       upcomingSale: null,
       isNewConstruction: null,
+      kommun: null,
+      areaComps: null,
+      brfSummary: null,
+      holisticBrief: null,
       ...overrides,
     };
   }

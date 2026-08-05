@@ -27,6 +27,10 @@ function makeCandidate(overrides: Partial<DiscoveryCandidate> = {}): DiscoveryCa
     balcony: null,
     upcomingSale: null,
     isNewConstruction: null,
+    kommun: null,
+    areaComps: null,
+    brfSummary: null,
+    holisticBrief: null,
     ...overrides,
   };
 }

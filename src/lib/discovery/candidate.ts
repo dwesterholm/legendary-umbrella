@@ -3,6 +3,14 @@ import { CAP_CANDIDATES_MAX, type DiscoveryFilter } from "@/lib/discovery/filter
 import { visionResultSchema, type VisionResult } from "@/lib/discovery/vision-schema";
 import { extractOrientationFromDescription, type Facade } from "@/lib/discovery/sun-path";
 import { isAllowedImageHost } from "@/lib/booli/client";
+import {
+  areaCompsSummarySchema,
+  brfSummarySchema,
+  holisticBriefSchema,
+  type AreaCompsSummary,
+  type BrfSummary,
+  type HolisticBrief,
+} from "@/lib/discovery/holistic-schema";
 
 // Null-tolerant coercion helpers (mirror src/lib/booli/client.ts:43-46) — a
 // malformed/partial raw record yields null fields, never a throw.
@@ -81,7 +89,10 @@ function dataPointNum(dp: unknown, re: RegExp): number | null {
  * no raw HTML for audit" convention (STATE.md). The raw `Listing:` Apollo
  * entity or broker description text may carry seller/occupant PII (names,
  * phone numbers, org.nr, board member lists) and must NEVER be persisted;
- * only these SEVENTEEN fields may ever land in `discovery_jobs.results`.
+ * only these TWENTY-FOUR fields may ever land in `discovery_jobs.results`
+ * (this count was already stale at 20 — carrying "SEVENTEEN" in the doc
+ * comment despite Phases 11 and 12 each adding fields — before Phase 14's
+ * four additions brought it back into sync).
  *
  * Phase 10 (DISC-03) adds `constructionYear`, `brfName`, and `tenureForm` —
  * all three are already computed by `reshapeListingEntity`
@@ -146,6 +157,18 @@ export interface DiscoveryCandidate {
   upcomingSale: boolean | null;
   /** New-production unit — no renovation upside; discovery filters these out. */
   isNewConstruction: boolean | null;
+  // Phase 14 (ANL-01/02/03) additions — additive-nullable, no migration
+  // (matches Phase 10/11/12's precedent exactly; all four ride in the
+  // existing JSONB `results` column). `kommun` is derived at SCRAPE time from
+  // the SAME `entry.breadcrumbs` that already yields `brfName` (zero extra
+  // network cost, D-14-09) — it is public-registry geography of the same PII
+  // class as `areaLabel`/`brfName`, never seller/occupant data. The other
+  // three are ALWAYS `null` at `toCandidate` time — they are a LATER pass's
+  // output, exactly like `vision`/`visionSkippedReason`.
+  kommun: string | null;
+  areaComps: AreaCompsSummary | null;
+  brfSummary: BrfSummary | null;
+  holisticBrief: HolisticBrief | null;
 }
 
 /**
@@ -203,9 +226,19 @@ export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
     constructionYear: num(raw.constructionYear),
     brfName: str(raw.brfName),
     tenureForm: str(raw.tenureForm),
+    // Phase 14 (D-14-09): `raw.kommun` is ALREADY computed by
+    // `reshapeListingEntity` (client.ts) via the shared `kommunFromBreadcrumbs`
+    // — this mapper reads it as a plain string field, exactly like `brfName`.
+    kommun: str(raw.kommun),
     imageUrls: arrOfStr(raw.imageUrls),
     vision: null,
     visionSkippedReason: null,
+    // areaComps/brfSummary/holisticBrief are ALWAYS null here for the same
+    // reason `vision` is — they are a later pass's output (Phase 14 wiring),
+    // never computed at scrape/toCandidate time.
+    areaComps: null,
+    brfSummary: null,
+    holisticBrief: null,
     latitude: num(raw.latitude),
     longitude: num(raw.longitude),
     // Mirrors normalizeScraperOutput's own unwrap (RESEARCH.md Open Question
@@ -301,6 +334,15 @@ export const discoveryCandidateSchema = z.object({
   balcony: z.boolean().nullable().default(null),
   upcomingSale: z.boolean().nullable().default(null),
   isNewConstruction: z.boolean().nullable().default(null),
+  // Phase 14 (ANL-01/02/03) additions — SAME `.nullable().default(null)`
+  // discipline (NEVER `.optional()` alone) so a pre-Phase-14 persisted row
+  // missing these 4 keys entirely still safeParses AND normalizes to `null`
+  // (not `undefined`) — this file's own CR-01 fix comment above explains why
+  // an `undefined` would silently break `=== null` guards downstream.
+  kommun: z.string().nullable().default(null),
+  areaComps: areaCompsSummarySchema.nullable().default(null),
+  brfSummary: brfSummarySchema.nullable().default(null),
+  holisticBrief: holisticBriefSchema.nullable().default(null),
 });
 
 /** Result of filtering a candidate array: what's shown vs. how many matched. */

@@ -194,7 +194,9 @@ describe("runSlice — happy path scrape + persist", () => {
     // PII-safe allowlist shape ONLY — exact key set, mirrors candidate.test.ts
     // (Phase 10 extended the allowlist with constructionYear/brfName/tenureForm;
     // Phase 11 (DISC-04) extends it with imageUrls/vision/visionSkippedReason;
-    // Phase 12 (DISC-06) extends it with latitude/longitude/floor/orientation).
+    // Phase 12 (DISC-06) extends it with latitude/longitude/floor/orientation;
+    // Phase 14 (ANL-01/02/03) extends it with kommun/areaComps/brfSummary/
+    // holisticBrief).
     expect(Object.keys(results[0]).sort()).toEqual(
       [
         "address",
@@ -217,6 +219,10 @@ describe("runSlice — happy path scrape + persist", () => {
         "balcony",
         "upcomingSale",
         "isNewConstruction",
+        "kommun",
+        "areaComps",
+        "brfSummary",
+        "holisticBrief",
       ].sort(),
     );
     expect(results[0]).toEqual({
@@ -240,6 +246,10 @@ describe("runSlice — happy path scrape + persist", () => {
       balcony: null,
       upcomingSale: null,
       isNewConstruction: null,
+      kommun: null,
+      areaComps: null,
+      brfSummary: null,
+      holisticBrief: null,
     });
 
     expect(payload.candidate_count).toBe(1);
@@ -348,6 +358,10 @@ function makeCandidate(overrides: Partial<DiscoveryCandidate> = {}): DiscoveryCa
     balcony: null,
     upcomingSale: null,
     isNewConstruction: null,
+    kommun: null,
+    areaComps: null,
+    brfSummary: null,
+    holisticBrief: null,
     ...overrides,
   };
 }

@@ -32,6 +32,13 @@ const ALLOWLIST_KEYS = [
   "balcony",
   "upcomingSale",
   "isNewConstruction",
+  // Phase 14 (ANL-01/02/03) additions — kommun is derived at scrape time
+  // (D-14-09); areaComps/brfSummary/holisticBrief are ALWAYS null here (a
+  // later pass's output, exactly like vision/visionSkippedReason).
+  "kommun",
+  "areaComps",
+  "brfSummary",
+  "holisticBrief",
 ].sort();
 
 describe("toCandidate — PII-safe allowlist mapper", () => {
@@ -104,6 +111,10 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
       balcony: null,
       upcomingSale: null,
       isNewConstruction: null,
+      kommun: null,
+      areaComps: null,
+      brfSummary: null,
+      holisticBrief: null,
     });
   });
 
@@ -144,6 +155,10 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
     expect(result.longitude).toBeNull();
     expect(result.floor).toBeNull();
     expect(result.orientation).toBeNull();
+    expect(result.kommun).toBeNull();
+    expect(result.areaComps).toBeNull();
+    expect(result.brfSummary).toBeNull();
+    expect(result.holisticBrief).toBeNull();
   });
 
   it("recovers rooms/livingArea/floor from displayDataPoints + asking price from listPrice (area-search shape)", () => {
@@ -238,6 +253,27 @@ describe("toCandidate — PII-safe allowlist mapper", () => {
 
     expect(result.vision).toBeNull();
     expect(result.visionSkippedReason).toBeNull();
+  });
+
+  it("maps raw.kommun to kommun and leaves areaComps/brfSummary/holisticBrief ALWAYS null, even when raw carries stray keys with those names", () => {
+    // kommun is derived at scrape time (D-14-09) and read here as a plain
+    // string field, exactly like brfName. areaComps/brfSummary/holisticBrief
+    // are a LATER pass's output — toCandidate must never trust a raw key
+    // with those names even if one were present.
+    const raw = {
+      streetAddress: "Sveavägen 1",
+      kommun: "Stockholms",
+      areaComps: { areaId: "115341" },
+      brfSummary: { skuldPerKvm: 12_000 },
+      holisticBrief: { marker: "fake" },
+    };
+
+    const result = toCandidate(raw);
+
+    expect(result.kommun).toBe("Stockholms");
+    expect(result.areaComps).toBeNull();
+    expect(result.brfSummary).toBeNull();
+    expect(result.holisticBrief).toBeNull();
   });
 });
 
@@ -517,6 +553,113 @@ describe("discoveryCandidateSchema — Phase 12 (DISC-06) additive-nullable exte
   });
 });
 
+describe("discoveryCandidateSchema — Phase 14 (ANL-01/02/03) additive-nullable extension", () => {
+  it("still safeParses a pre-Phase-14 row missing kommun/areaComps/brfSummary/holisticBrief entirely, normalizing all four to null", () => {
+    // A Phase-12-shaped row (latitude/longitude/floor/orientation present)
+    // but with NO kommun/areaComps/brfSummary/holisticBrief keys at all — the
+    // exact legacy scenario this task's must_haves require.
+    const phase12ShapeRow = {
+      address: "Sveavägen 1",
+      price: 3_500_000,
+      rooms: 2,
+      livingArea: 55,
+      areaLabel: "Norrmalm",
+      thumbnailUrl: "https://img.example/thumb.jpg",
+      sourceListingUrl: "https://www.booli.se/annons/123",
+      constructionYear: 1962,
+      brfName: "Brf Björken 3",
+      tenureForm: "Bostadsrätt",
+      imageUrls: null,
+      vision: null,
+      visionSkippedReason: null,
+      latitude: 59.33,
+      longitude: 18.06,
+      floor: 3,
+      orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
+    };
+
+    const result = discoveryCandidateSchema.safeParse(phase12ShapeRow);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kommun).toBeNull();
+      expect(result.data.areaComps).toBeNull();
+      expect(result.data.brfSummary).toBeNull();
+      expect(result.data.holisticBrief).toBeNull();
+      expect(Object.keys(result.data)).toContain("kommun");
+      expect(Object.keys(result.data)).toContain("areaComps");
+      expect(Object.keys(result.data)).toContain("brfSummary");
+      expect(Object.keys(result.data)).toContain("holisticBrief");
+      expect(result.data.kommun).not.toBeUndefined();
+    }
+  });
+
+  it("parses a NEW row carrying a real kommun plus fully-populated areaComps/brfSummary/holisticBrief", () => {
+    const newShapeRow = {
+      address: "Sveavägen 1",
+      price: 3_500_000,
+      rooms: 2,
+      livingArea: 55,
+      areaLabel: "Norrmalm",
+      thumbnailUrl: "https://img.example/thumb.jpg",
+      sourceListingUrl: "https://www.booli.se/annons/123",
+      constructionYear: 1962,
+      brfName: "Brf Björken 3",
+      tenureForm: "Bostadsrätt",
+      imageUrls: null,
+      vision: null,
+      visionSkippedReason: null,
+      latitude: 59.33,
+      longitude: 18.06,
+      floor: 3,
+      orientation: null,
+      balcony: null,
+      upcomingSale: null,
+      isNewConstruction: null,
+      kommun: "Stockholms",
+      areaComps: {
+        areaId: "115341",
+        renovatedMedianPerSqm: 95_000,
+        unrenovatedMedianPerSqm: 75_000,
+        overallMedianPerSqm: 85_000,
+        renovatedCapPerSqm: 100_000,
+        sampleSize: 12,
+        confident: true,
+        asOf: "2026-08-05",
+        widenedBand: false,
+      },
+      brfSummary: {
+        skuldPerKvm: 12_000,
+        avgiftsniva: 550,
+        kassaflode: 150_000,
+        stambytePlanerat: "planerat",
+        tomtratt: null,
+        fiscalYear: 2025,
+        source: "allabrf",
+      },
+      holisticBrief: {
+        marker: "Baserat på områdesdata — ingen bildtolkning",
+        confidence: "low",
+        items: [{ kind: "comps-positioning", text: "Ligger nära områdets median kr/m²." }],
+        dataSources: ["comps"],
+        conditionAttribution: {
+          explainedPct: null,
+          capped: false,
+          residualDrivers: [],
+          canAttributeToCondition: false,
+        },
+      },
+    };
+
+    const result = discoveryCandidateSchema.safeParse(newShapeRow);
+
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("filterCandidates — deterministic in-code AND filter", () => {
   const candidates: DiscoveryCandidate[] = [
     {
@@ -540,6 +683,10 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       balcony: null,
       upcomingSale: null,
       isNewConstruction: null,
+      kommun: null,
+      areaComps: null,
+      brfSummary: null,
+      holisticBrief: null,
     },
     {
       address: "B",
@@ -562,6 +709,10 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       balcony: null,
       upcomingSale: null,
       isNewConstruction: null,
+      kommun: null,
+      areaComps: null,
+      brfSummary: null,
+      holisticBrief: null,
     },
   ];
 
@@ -641,6 +792,10 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
       balcony: null,
       upcomingSale: null,
       isNewConstruction: null,
+      kommun: null,
+      areaComps: null,
+      brfSummary: null,
+      holisticBrief: null,
     }));
 
     const noopFilter: DiscoveryFilter = {
