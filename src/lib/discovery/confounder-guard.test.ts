@@ -1,13 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeForConfounders,
+  buildHolisticBrief,
+  BANNED_RENO_ATTRIBUTION_PATTERNS,
+  RENO_ATTRIBUTION_FALLBACK_TEXT,
   MAX_CONDITION_EXPLAINED_PCT,
   DISCOUNT_ATTRIBUTION_TRIGGER_PCT,
   HIGH_BRF_DEBT_PER_SQM,
   type ConfounderGuardInput,
+  type BuildHolisticBriefInput,
 } from "@/lib/discovery/confounder-guard";
 import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
-import type { AreaCompsSummary, BrfSummary } from "@/lib/discovery/holistic-schema";
+import {
+  HOLISTIC_DATA_ONLY_MARKER,
+  type AreaCompsSummary,
+  type BrfSummary,
+} from "@/lib/discovery/holistic-schema";
 
 /**
  * confounder-guard.test.ts — pure unit tests for SPEC §2.6's discount-
@@ -273,5 +281,108 @@ describe("SPEC-locked constants sanity", () => {
     expect(DISCOUNT_ATTRIBUTION_TRIGGER_PCT).toBe(0.25);
     expect(MAX_CONDITION_EXPLAINED_PCT).toBe(0.2);
     expect(HIGH_BRF_DEBT_PER_SQM).toBe(15_000);
+  });
+});
+
+function briefFrom(overrides: Partial<ConfounderGuardInput> = {}) {
+  const input = makeInput(overrides);
+  const guard = normalizeForConfounders(input);
+  const briefInput: BuildHolisticBriefInput = {
+    guard,
+    comps: input.comps,
+    brf: input.brf,
+    pricePerSqm: input.pricePerSqm,
+  };
+  return buildHolisticBrief(briefInput);
+}
+
+describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠ RENO OBJECT guard", () => {
+  it("returns items.length >= 1 for an all-null input, whose single item is insufficient-data", () => {
+    const brief = briefFrom();
+    expect(brief.items.length).toBeGreaterThanOrEqual(1);
+    expect(brief.items).toHaveLength(1);
+    expect(brief.items[0].kind).toBe("insufficient-data");
+  });
+
+  it("returns items.length >= 1 for at least four further input shapes", () => {
+    const shapes: Partial<ConfounderGuardInput>[] = [
+      { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) },
+      { brf: makeBrf({ avgiftsniva: 3_800 }) },
+      { pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() },
+      { floor: 2, balcony: false },
+    ];
+    for (const overrides of shapes) {
+      expect(briefFrom(overrides).items.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("marker is always HOLISTIC_DATA_ONLY_MARKER and confidence equals the guard's", () => {
+    const overrides = { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) };
+    const guard = normalizeForConfounders(makeInput(overrides));
+    const brief = briefFrom(overrides);
+    expect(brief.marker).toBe(HOLISTIC_DATA_ONLY_MARKER);
+    expect(brief.confidence).toBe(guard.confidence);
+  });
+
+  it("a comps-present input produces a comps-positioning item naming the sample size", () => {
+    const comps = makeComps({ renovatedMedianPerSqm: 100_000, sampleSize: 7 });
+    const brief = briefFrom({ pricePerSqm: 90_000, comps });
+    const item = brief.items.find((i) => i.kind === "comps-positioning");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain(String(comps.sampleSize));
+  });
+
+  it("a brf-present input produces a brf item mentioning the avgift figure and the fiscalYear", () => {
+    const brf = makeBrf({ avgiftsniva: 4_200, fiscalYear: 2024, stambytePlanerat: null });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("4200");
+    expect(item!.text).toContain("2024");
+  });
+
+  it("a deep-discount input's conditionAttribution is capped at exactly 0.2", () => {
+    const brief = briefFrom({ pricePerSqm: 70_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) });
+    expect(brief.conditionAttribution.capped).toBe(true);
+    expect(brief.conditionAttribution.explainedPct).toBe(0.2);
+  });
+
+  it("no item text — across a table of at least eight varied inputs — ever implies low kr/m² means a renovation object", () => {
+    const table: Partial<ConfounderGuardInput>[] = [
+      {},
+      { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) },
+      { pricePerSqm: 40_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }, // deep discount, very low kr/m²
+      { brf: makeBrf({ avgiftsniva: 3_800, skuldPerKvm: 25_000 }) },
+      { pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() },
+      { floor: 2, balcony: false, tenureForm: "Tomträtt" },
+      { pricePerSqm: 60_000, brf: makeBrf({ skuldPerKvm: 8_000 }), comps: makeComps({ sampleSize: 4, confident: false }) },
+      { livingArea: 15, pricePerSqm: 200_000 },
+    ];
+    for (const overrides of table) {
+      const brief = briefFrom(overrides);
+      const concatenated = brief.items.map((i) => i.text).join(" ");
+      for (const pattern of BANNED_RENO_ATTRIBUTION_PATTERNS) {
+        expect(concatenated).not.toMatch(pattern);
+      }
+      expect(concatenated).not.toContain("renoveringsobjekt");
+    }
+  });
+
+  it("RENO_ATTRIBUTION_FALLBACK_TEXT itself is clean against every banned pattern", () => {
+    for (const pattern of BANNED_RENO_ATTRIBUTION_PATTERNS) {
+      expect(RENO_ATTRIBUTION_FALLBACK_TEXT).not.toMatch(pattern);
+    }
+  });
+
+  it("exercises the drop-and-replace enforcement branch: a brf item whose composed text would contain the banned word is replaced entirely", () => {
+    // stambytePlanerat is a free string field the builder concatenates
+    // verbatim into the brf item's text — feeding a banned word through it
+    // proves the enforcement path replaces, not merely permits, bad text.
+    const brf = makeBrf({ stambytePlanerat: "Föreningen klassas som ett renoveringsobjekt enligt senaste protokollet" });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toBe(RENO_ATTRIBUTION_FALLBACK_TEXT);
+    expect(item!.text).not.toContain("renoveringsobjekt");
   });
 });

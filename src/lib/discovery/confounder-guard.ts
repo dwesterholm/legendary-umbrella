@@ -23,8 +23,11 @@
 import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
 import {
   tomtrattFromTenureForm,
+  HOLISTIC_DATA_ONLY_MARKER,
   type AreaCompsSummary,
   type BrfSummary,
+  type HolisticBrief,
+  type HolisticBriefItem,
 } from "@/lib/discovery/holistic-schema";
 
 // ---------------------------------------------------------------------------
@@ -247,5 +250,204 @@ export function normalizeForConfounders(
     canAttributeToCondition,
     compsThin,
     confidence,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// buildHolisticBrief — the holistic-data-only brief builder (ANL-01)
+// ---------------------------------------------------------------------------
+
+/**
+ * Case-insensitive patterns that catch a low-price-implies-renovation-object
+ * claim in Swedish. The bare catch-all (`/renoveringsobjekt/i`) is
+ * deliberately absolute: this phase's briefs must NEVER use the word at all,
+ * because the reno CONCLUSION is deferred to Phase 15/16 (SPEC §2.6's
+ * closing sentence, "Never render UI text implying 'low kr/m² ⇒ renovation
+ * object.'").
+ */
+export const BANNED_RENO_ATTRIBUTION_PATTERNS: readonly RegExp[] = [
+  /l[åa]gt?\s*(kr|pris)[\s/]*kv?m[\s\S]{0,60}renoverings(objekt|behov)/i,
+  /renoverings(objekt|behov)[\s\S]{0,60}l[åa]gt?\s*(kr|pris)[\s/]*kv?m/i,
+  /under\s+snittet[\s\S]{0,60}renoverings(objekt|behov)/i,
+  /renoverings(objekt|behov)[\s\S]{0,60}under\s+snittet/i,
+  /renoveringsobjekt/i,
+];
+
+/**
+ * A hedged Swedish sentence stating that a lower kr/m² is a surfacing signal
+ * only and can equally reflect factors that price alone cannot separate.
+ * Used as the drop-and-replace fallback when composed text matches any
+ * `BANNED_RENO_ATTRIBUTION_PATTERNS` entry.
+ */
+export const RENO_ATTRIBUTION_FALLBACK_TEXT =
+  "Ett lägre pris per kvadratmeter är enbart en signal om att titta närmare — det kan lika gärna bero på våning, hiss, balkong, mikroläge, delområde eller föreningens skuld som på skicket. Ingen slutsats om skick dras här.";
+
+export interface BuildHolisticBriefInput {
+  readonly guard: ConfounderGuardResult;
+  readonly comps: AreaCompsSummary | null;
+  readonly brf: BrfSummary | null;
+  readonly pricePerSqm: number | null;
+}
+
+function confounderLabel(id: ConfounderId): string {
+  switch (id) {
+    case "bottenvaning":
+      return "bottenvåning";
+    case "no_balcony":
+      return "ingen balkong";
+    case "brf_debt_high":
+      return "hög föreningsskuld per kvm";
+    case "tomtratt":
+      return "tomträtt";
+    case "odd_boa":
+      return "ovanlig boarea";
+    case "elevator_unknown":
+      return "hiss (okänt)";
+    case "micro_location_unknown":
+      return "mikroläge (okänt)";
+    case "brf_unknown":
+      return "föreningens ekonomi (okänt)";
+    case "balcony_unknown":
+      return "balkong (okänt)";
+    case "floor_unknown":
+      return "våning (okänt)";
+    case "tomtratt_unknown":
+      return "tomträtt (okänt)";
+    case "sub_area_unknown":
+      return "delområde (okänt)";
+  }
+}
+
+function applyBannedAttributionGuard(text: string): string {
+  const isBanned = BANNED_RENO_ATTRIBUTION_PATTERNS.some((pattern) => pattern.test(text));
+  return isBanned ? RENO_ATTRIBUTION_FALLBACK_TEXT : text;
+}
+
+function buildCompsPositioningItem(input: BuildHolisticBriefInput): HolisticBriefItem | null {
+  const { guard, comps } = input;
+  if (comps === null || guard.discountVsRenovatedPct === null) return null;
+
+  const parts: string[] = [];
+  parts.push(
+    `Priset per kvadratmeter ligger mot ett urval av ${comps.sampleSize} sålda jämförelseobjekt` +
+      (comps.widenedBand ? " (brett urval)" : "") +
+      ".",
+  );
+  if (comps.renovatedMedianPerSqm !== null) {
+    parts.push(
+      `Median för nyare/renoverade objekt verkar ligga kring ${Math.round(comps.renovatedMedianPerSqm)} kr/kvm.`,
+    );
+  }
+  if (comps.unrenovatedMedianPerSqm !== null) {
+    parts.push(
+      `Median för äldre/orenoverade objekt verkar ligga kring ${Math.round(comps.unrenovatedMedianPerSqm)} kr/kvm.`,
+    );
+  }
+
+  if (guard.canAttributeToCondition === false) {
+    const named = [...guard.residualDrivers, ...guard.unknownConfounders].map(confounderLabel).join(", ");
+    parts.push(
+      `Skillnaden kan bero på skick, men kan lika gärna bero på faktorer som priset ensamt inte kan skilja ut: ${named}.`,
+    );
+  }
+
+  if (guard.deepDiscount) {
+    parts.push(
+      `Högst ${Math.round(MAX_CONDITION_EXPLAINED_PCT * 100)}% av skillnaden tillskrivs skick här — resten tillskrivs de nämnda faktorerna.`,
+    );
+  }
+
+  return { kind: "comps-positioning", text: parts.join(" ") };
+}
+
+function buildConfounderItems(guard: ConfounderGuardResult): HolisticBriefItem[] {
+  const items: HolisticBriefItem[] = [];
+  if (guard.residualDrivers.length > 0) {
+    items.push({
+      kind: "confounder",
+      text: `Kända faktorer som kan förklara delar av prisbilden: ${guard.residualDrivers.map(confounderLabel).join(", ")}.`,
+    });
+  }
+  items.push({
+    kind: "confounder",
+    text: `Hiss och mikroläge hämtas inte i den här analysen och kan därför inte uteslutas: ${guard.unknownConfounders.map(confounderLabel).join(", ")}.`,
+  });
+  return items;
+}
+
+function buildBrfItem(brf: BrfSummary | null): HolisticBriefItem | null {
+  if (brf === null) return null;
+  const parts: string[] = [];
+  if (brf.avgiftsniva !== null) parts.push(`Avgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/mån.`);
+  if (brf.skuldPerKvm !== null) {
+    const flag = brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM ? " (högre än vanligt)" : "";
+    parts.push(`Föreningens skuld per kvm verkar ligga kring ${Math.round(brf.skuldPerKvm)} kr/kvm${flag}.`);
+  }
+  if (brf.kassaflode !== null) parts.push(`Kassaflödet verkar ligga kring ${Math.round(brf.kassaflode)} kr.`);
+  if (brf.stambytePlanerat !== null) parts.push(`Stambyte-läge: ${brf.stambytePlanerat}.`);
+  if (brf.tomtratt === true) parts.push("Föreningen har tomträtt.");
+  if (brf.fiscalYear !== null) parts.push(`Siffrorna kommer från räkenskapsåret ${brf.fiscalYear}.`);
+  if (parts.length === 0) return null;
+  return { kind: "brf", text: parts.join(" ") };
+}
+
+/**
+ * Builds the holistic-data-only opportunity brief (D-14-03) that fills in
+ * for an empty `claims: []` vision result. GUARANTEE: `items.length >= 1`
+ * for every possible input (ANL-01) — enforced as an explicit
+ * post-composition check, never an implicit consequence. Mirrors
+ * `vision.ts`'s banned-word ordering discipline: the RAW composed text is
+ * inspected first, then replaced with a safe fallback.
+ */
+export function buildHolisticBrief(input: BuildHolisticBriefInput): HolisticBrief {
+  const { guard, comps, brf } = input;
+
+  const dataSources: Array<"comps" | "brf" | "hedonic"> = [];
+  if (comps !== null) dataSources.push("comps");
+  if (brf !== null) dataSources.push("brf");
+  dataSources.push("hedonic");
+
+  const items: HolisticBriefItem[] = [];
+  const compsItem = buildCompsPositioningItem(input);
+  if (compsItem !== null) items.push(compsItem);
+  // The confounder items only make sense attached to SOME data source —
+  // with neither comps nor a BRF summary there is nothing for the hedonic
+  // reasoning to relate to, so they are skipped here and the
+  // "insufficient-data" fallback below takes over instead of a confounder
+  // item that names unknowns about nothing.
+  if (comps !== null || brf !== null) {
+    items.push(...buildConfounderItems(guard));
+  }
+  const brfItem = buildBrfItem(brf);
+  if (brfItem !== null) items.push(brfItem);
+
+  // GUARANTEE (ANL-01): items.length >= 1 for every possible input.
+  if (items.length === 0) {
+    items.push({
+      kind: "insufficient-data",
+      text:
+        "Det finns inte tillräckligt med områdesdata för den här annonsen just nu. " +
+        "Kontrollera själv avgift, skuld per kvm och senaste slutpriser i området innan du drar slutsatser.",
+    });
+  }
+
+  // BANNED-ATTRIBUTION ENFORCEMENT: check the RAW text of every item —
+  // including "insufficient-data" — and drop-and-replace on any match.
+  const guardedItems = items.map((item) => ({
+    ...item,
+    text: applyBannedAttributionGuard(item.text),
+  }));
+
+  return {
+    marker: HOLISTIC_DATA_ONLY_MARKER,
+    confidence: guard.confidence,
+    items: guardedItems,
+    dataSources,
+    conditionAttribution: {
+      explainedPct: guard.conditionExplainedPct,
+      capped: guard.conditionCapApplied,
+      residualDrivers: guard.residualDrivers,
+      canAttributeToCondition: guard.canAttributeToCondition,
+    },
   };
 }
