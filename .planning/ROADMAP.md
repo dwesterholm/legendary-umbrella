@@ -87,7 +87,16 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
   4. Where a listing's kr/m² is low, the analysis normalizes against confounders (floor, elevator, balcony, micro-location, sub-area, tomträtt, BRF debt) before any condition/reno attribution, and the UI never renders text implying "low kr/m² ⇒ renovation object".
 
 **Notes**: No DB migration — `OpportunityBrief` + BRF summary ride in the existing JSONB `results` column; comps use the re-resolved `areaId` (cached `resolveArea`), not lat/lng. Broker/gallery/BRF source data is analyze-only, never persisted. Real Apify/Anthropic spend — fold comps + BRF fetches into the vision cost gate. **A.4 must land before Phase 16** (VGAP needs R_med/U_med from here).
-**Plans**: TBD
+**Plans**: 6 plans (4 waves)
+
+Plans:
+- [ ] 14-01-PLAN.md — Register the 3 new analysis modules in the LOCKED separation grep + holistic-schema types/read-guards + the 4 additive-nullable candidate fields + `kommun` derivation (wave 1; ANL-01/02/03; D-14-09)
+- [ ] 14-02-PLAN.md — `confounder-guard.ts`: SPEC §2.6 discount-attribution guard (25%/20% cap, ≥5-comp gate, debt-inclusive kr/m², unknown-confounder posture) + `buildHolisticBrief` with the banned-reno-attribution guard (wave 2; ANL-01/ANL-04; D-14-05/06)
+- [ ] 14-03-PLAN.md — Genitive-tolerant `normalizeKommun` (makes `confidence: "high"` reachable) + `brf-lookup.ts` discovery-side orchestrator, `BRF_TOP_N=4`, never touches the `analyses` table (wave 2; ANL-03; D-14-09/12)
+- [ ] 14-04-PLAN.md — UI: data-only marker "Baserat på områdesdata — ingen bildtolkning" replacing the `visionRanButEmpty` dead end + the never-imply-reno render guard (wave 2; ANL-01/ANL-04; D-14-04/07)
+- [ ] 14-05-PLAN.md — `renderSek`/comps+BRF spend estimators, `runVisionPass` `initialSpentSek`, `resolveCompsForCandidates` amortized per-area comps fetch (wave 3; ANL-02; D-14-08/11)
+- [ ] 14-06-PLAN.md — Concurrent BRF top-N (`Promise.allSettled`) + the post-vision holistic-brief attachment across all four no-image-claims states (wave 4; ANL-01/ANL-03; D-14-01/10)
+
 **UI hint**: yes
 
 ### Phase 15: ROI-Aware Opportunity Brief
@@ -152,7 +161,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
 | 13. Discovery UX / Poll-Timeout Fix | v1.2 | 4/5 | In Progress|  |
-| 14. Holistic Analysis Brain | v1.2 | 0/TBD | Not started | - |
+| 14. Holistic Analysis Brain | v1.2 | 0/6 | Planned | - |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |
 | 17. Proposed Planritning Generation | v1.2 | 0/TBD | Not started | - |
