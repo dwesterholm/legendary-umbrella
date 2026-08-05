@@ -1,11 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { listingDataSchema, type Breadcrumb } from "@/lib/schemas/listing";
+import { listingDataSchema } from "@/lib/schemas/listing";
 import { searchAllabrfByName, fetchAllabrfDocument } from "@/lib/brf-source/allabrf";
 import { resolveOrgNr, isValidOrgNr } from "@/lib/brf-source/org-nr-resolver";
 import { fetchArsredovisning } from "@/lib/brf-source/fetch-document";
 import { runBrfExtraction, type AnalyzeBrfResult } from "@/lib/brf/run-extraction";
+import { kommunFromBreadcrumbs } from "@/lib/booli/client";
 
 /**
  * fetch-brf-auto.ts — the orchestration seam that makes ENRICH-01 (auto-fetch
@@ -44,33 +45,6 @@ export type ResolveResult =
 export type ConfirmAndAnalyzeResult =
   | AnalyzeBrfResult
   | { ok: false; fallThrough: true; error: string };
-
-/**
- * Derives the listing's kommun for geographic corroboration (Pitfall 4) from
- * the breadcrumb wide->narrow area ladder (e.g. ["Stockholms län",
- * "Stockholms kommun", "Södermalm", ...]) — the entry whose label ends with
- * " kommun" (case-insensitive), stripped of that suffix. Returns null when no
- * such entry exists (honest degrade — resolveOrgNr's geo-corroboration check
- * then fails closed to "low"/"none", never a guess).
- *
- * NOTE: Booli breadcrumb labels are in the Swedish genitive form ("Stockholms
- * kommun" -> "Stockholms"), which may not exactly match a registry's
- * nominative kommun name ("Stockholm") — `resolveOrgNr`'s `normalizeKommun`
- * does an exact case-insensitive comparison with no genitive normalization
- * (Plan 02, out of scope for this plan to change). A format mismatch fails
- * CLOSED to "low" confidence (never wrongly promotes to "high"), which is the
- * safe direction per Pitfall 4 — this is an accepted v1 limitation, not a bug.
- */
-function kommunFromBreadcrumbs(breadcrumbs: Breadcrumb[] | null): string | null {
-  if (!Array.isArray(breadcrumbs)) return null;
-  for (const crumb of breadcrumbs) {
-    const label = crumb.label?.trim();
-    if (label && /\skommun$/i.test(label)) {
-      return label.replace(/\skommun$/i, "").trim();
-    }
-  }
-  return null;
-}
 
 /**
  * `resolveOrgNrAction` — auth+ownership-gated org.nr resolution + fiscal-year
@@ -113,6 +87,12 @@ export async function resolveOrgNrAction(analysisId: string): Promise<ResolveRes
     return { ok: true, confidence: "none", fallThrough: true };
   }
 
+  // Phase 14 (D-14-09): kommunFromBreadcrumbs now lives in
+  // `@/lib/booli/client` as the SINGLE shared implementation (also feeds
+  // `DiscoveryCandidate.kommun` via `reshapeListingEntity`) — see its doc
+  // comment there for the Swedish-genitive caveat ("Stockholms kommun" vs a
+  // registry's nominative "Stockholm"), fixed by plan 14-03's
+  // `normalizeKommun` improvement, not this call site.
   const kommun = kommunFromBreadcrumbs(listingData.breadcrumbs);
 
   const candidates = await searchAllabrfByName(brfName);

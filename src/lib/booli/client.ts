@@ -169,6 +169,45 @@ export function brfNameFromBreadcrumbs(breadcrumbs: unknown): string | null {
   return null;
 }
 
+/**
+ * Derives the listing's kommun for geographic corroboration (Pitfall 4) from
+ * the breadcrumb wide->narrow area ladder (e.g. ["Stockholms län",
+ * "Stockholms kommun", "Södermalm", ...]) — the entry whose label ends with
+ * " kommun" (case-insensitive), stripped of that suffix. Returns null when no
+ * such entry exists (honest degrade — resolveOrgNr's geo-corroboration check
+ * then fails closed to "low"/"none", never a guess).
+ *
+ * Phase 14 (D-14-09): this is the SINGLE shared implementation for BOTH the
+ * discovery scrape path (`reshapeListingEntity`, below — feeds
+ * `DiscoveryCandidate.kommun`) and the single-listing BRF auto-fetch path
+ * (`fetch-brf-auto.ts`'s `resolveOrgNrAction`) — previously a private
+ * near-duplicate lived only in `fetch-brf-auto.ts`. Takes `unknown` (not
+ * `Breadcrumb[] | null`), mirroring `brfNameFromBreadcrumbs`'s own signature,
+ * so it accepts both the raw Apollo `entry.breadcrumbs` value AND
+ * `fetch-brf-auto.ts`'s typed `Breadcrumb[] | null`.
+ *
+ * NOTE: Booli breadcrumb labels are in the Swedish genitive form ("Stockholms
+ * kommun" -> "Stockholms"), which may not exactly match a registry's
+ * nominative kommun name ("Stockholm") — `resolveOrgNr`'s `normalizeKommun`
+ * does an exact case-insensitive comparison with no genitive normalization
+ * yet (plan 14-03's fix, not this plan's). A format mismatch fails CLOSED to
+ * "low" confidence (never wrongly promotes to "high"), which is the safe
+ * direction per Pitfall 4 — accepted limitation pending 14-03.
+ */
+export function kommunFromBreadcrumbs(breadcrumbs: unknown): string | null {
+  if (!Array.isArray(breadcrumbs)) return null;
+  for (const crumb of breadcrumbs) {
+    const label =
+      crumb && typeof crumb === "object" && typeof (crumb as { label?: unknown }).label === "string"
+        ? (crumb as { label: string }).label.trim()
+        : null;
+    if (label && /\skommun$/i.test(label)) {
+      return label.replace(/\skommun$/i, "").trim();
+    }
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Phase 11 (DISC-04, 11-01-PLAN.md Task 2) — imageUrls extractor.
 //
@@ -400,13 +439,16 @@ function reshapeListingEntity(entry: Record<string, unknown>): Record<string, un
     // (06-01-PLAN.md Task 1) already unwraps it via `num(raw.floor) ??
     // rawOf(raw.floor)` — adding a second `floor:` key in this same object
     // literal would silently shadow the passthrough (duplicate keys, last
-    // wins) that other call sites depend on. balcony/brfName have no existing
-    // passthrough key to collide with, so they're added directly.
+    // wins) that other call sites depend on. balcony/brfName/kommun have no
+    // existing passthrough key to collide with, so they're added directly.
     // normalizeScraperOutput reads these via `raw.floor`/`raw.balcony`. Do
-    // NOT re-derive any of these three from a broker page — Apollo is the
+    // NOT re-derive any of these from a broker page — Apollo is the
     // more reliable first-party source (RESEARCH Anti-Pattern).
     balcony: amenityKeys(entry.amenities).includes("balcony") || entry.balcony === true,
     brfName: brfNameFromBreadcrumbs(entry.breadcrumbs) ?? undefined,
+    // Phase 14 (D-14-09): reads the SAME entry.breadcrumbs value already
+    // passed to brfNameFromBreadcrumbs above — zero extra network cost.
+    kommun: kommunFromBreadcrumbs(entry.breadcrumbs) ?? undefined,
   };
 }
 

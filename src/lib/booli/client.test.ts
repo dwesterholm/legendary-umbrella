@@ -23,6 +23,7 @@ import {
   fetchSoldComps,
   amenityKeys,
   brfNameFromBreadcrumbs,
+  kommunFromBreadcrumbs,
   isAllowedImageHost,
   AREA_PAGE_WAIT_SECS,
   type SoldSourceQuery,
@@ -580,6 +581,40 @@ describe("brfNameFromBreadcrumbs — final /bostadsrattsforening/ crumb label", 
   });
 });
 
+describe("kommunFromBreadcrumbs — genitive-stripped 'X kommun' crumb label (Phase 14, D-14-09)", () => {
+  it("strips the genitive ' kommun' suffix from a full breadcrumb ladder", () => {
+    const breadcrumbs = [
+      { label: "Stockholms län" },
+      { label: "Stockholms kommun" },
+      { label: "Södermalm" },
+    ];
+    expect(kommunFromBreadcrumbs(breadcrumbs)).toBe("Stockholms");
+  });
+
+  it("is case-insensitive on the ' kommun' suffix", () => {
+    const breadcrumbs = [{ label: "Stockholms Kommun" }];
+    expect(kommunFromBreadcrumbs(breadcrumbs)).toBe("Stockholms");
+  });
+
+  it("returns null when no crumb ends in ' kommun'", () => {
+    const breadcrumbs = [{ label: "Stockholms län" }, { label: "Södermalm" }];
+    expect(kommunFromBreadcrumbs(breadcrumbs)).toBeNull();
+  });
+
+  it("returns null for a non-array / empty / undefined / null input, never throwing", () => {
+    expect(kommunFromBreadcrumbs(undefined)).toBeNull();
+    expect(kommunFromBreadcrumbs(null)).toBeNull();
+    expect(kommunFromBreadcrumbs([])).toBeNull();
+    expect(kommunFromBreadcrumbs("not an array")).toBeNull();
+  });
+
+  it("skips a crumb whose label is not a string, without throwing", () => {
+    const breadcrumbs = [{ label: 7 }, { label: "Stockholms kommun" }];
+    expect(() => kommunFromBreadcrumbs(breadcrumbs)).not.toThrow();
+    expect(kommunFromBreadcrumbs(breadcrumbs)).toBe("Stockholms");
+  });
+});
+
 describe("reshapeListingEntity (via fetchListing) — floor/balcony/brfName surfaced from Apollo", () => {
   it("surfaces floor as a number (3), balcony as true, brfName as HSB BRF Metern on the real fixture", async () => {
     succeedRun();
@@ -609,6 +644,19 @@ describe("reshapeListingEntity (via fetchListing) — floor/balcony/brfName surf
 
     expect(result.balcony).toBe(false);
     expect(result.brfName).toBeUndefined();
+    expect(result.kommun).toBeUndefined();
+  });
+
+  it("surfaces kommun as 'Stockholms' from the real fixture's breadcrumbs (Phase 14, D-14-09), and toCandidate maps it through", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({
+      items: [apolloItem({ "Listing:4463691": listingDetailFixture })],
+    });
+
+    const result = await fetchListing(DETAIL_URL);
+
+    expect(result.kommun).toBe("Stockholms");
+    expect(toCandidate(result).kommun).toBe("Stockholms");
   });
 
   it("yields floor:undefined without throwing when the entity has no floor field", async () => {
