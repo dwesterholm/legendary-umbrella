@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isValidOrgNr, resolveOrgNr, type OrgNrCandidate } from "@/lib/brf-source/org-nr-resolver";
+import {
+  isValidOrgNr,
+  resolveOrgNr,
+  normalizeKommun,
+  type OrgNrCandidate,
+} from "@/lib/brf-source/org-nr-resolver";
 
 describe("isValidOrgNr", () => {
   it("accepts a valid Luhn 10-digit org.nr", () => {
@@ -121,6 +126,87 @@ describe("resolveOrgNr", () => {
       { orgNr: "5560360794", name: "Brf Björken", kommun: "Stockholm" },
     ];
     const result = resolveOrgNr({ brfName: "Brf Björken", kommun: "Stockholm", candidates });
+    expect(result.confidence).toBe("low");
+  });
+});
+
+describe("normalizeKommun — Swedish genitive tolerance (D-14-09)", () => {
+  it("strips the genitive 's' plus a ' kommun' suffix to match the nominative", () => {
+    expect(normalizeKommun("Stockholms kommun")).toBe(normalizeKommun("Stockholm"));
+  });
+
+  it("strips a bare genitive 's' with no suffix", () => {
+    expect(normalizeKommun("Stockholms")).toBe(normalizeKommun("Stockholm"));
+  });
+
+  it("strips the genitive 's' on another kommun name", () => {
+    expect(normalizeKommun("Göteborgs")).toBe(normalizeKommun("Göteborg"));
+  });
+
+  it("strips a trailing ' stad' suffix", () => {
+    expect(normalizeKommun("Malmö")).toBe(normalizeKommun("Malmö stad"));
+  });
+
+  it("is idempotent on a kommun name that already ends in 's'", () => {
+    expect(normalizeKommun("Bengtsfors")).toBe(normalizeKommun("Bengtsfors"));
+  });
+
+  it("does not collapse two genuinely different kommuns", () => {
+    expect(normalizeKommun("Solna")).not.toBe(normalizeKommun("Sollentuna"));
+    expect(normalizeKommun("Vara")).not.toBe(normalizeKommun("Varberg"));
+  });
+});
+
+describe("resolveOrgNr — genitive kommun now corroborates (D-14-09)", () => {
+  const validOrgNr = "5560360793";
+
+  it("reaches high confidence when the listing kommun is genitive and the registry kommun is nominative", () => {
+    const result = resolveOrgNr({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholms",
+      candidates: [
+        {
+          orgNr: validOrgNr,
+          name: "Bostadsrättsföreningen Björken 3",
+          kommun: "Stockholm",
+        },
+      ],
+    });
+    expect(result.confidence).toBe("high");
+  });
+
+  it("still fails closed to low confidence when the kommuns are genuinely different", () => {
+    const result = resolveOrgNr({
+      brfName: "Brf Björken 3",
+      kommun: "Göteborgs",
+      candidates: [
+        {
+          orgNr: validOrgNr,
+          name: "Bostadsrättsföreningen Björken 3",
+          kommun: "Stockholm",
+        },
+      ],
+    });
+    expect(result.confidence).toBe("low");
+  });
+
+  it("still fails closed to low confidence on a two-name-match input regardless of kommun corroboration", () => {
+    const result = resolveOrgNr({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholms",
+      candidates: [
+        {
+          orgNr: validOrgNr,
+          name: "Bostadsrättsföreningen Björken 3",
+          kommun: "Stockholm",
+        },
+        {
+          orgNr: "2120000142",
+          name: "Bostadsrättsföreningen Björken 3",
+          kommun: "Stockholm",
+        },
+      ],
+    });
     expect(result.confidence).toBe("low");
   });
 });

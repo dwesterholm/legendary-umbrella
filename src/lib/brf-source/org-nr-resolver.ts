@@ -99,26 +99,82 @@ export type OrgNrResolution =
 const BRF_PREFIX_RE = /^(bostadsrattsforeningen|bostadsrattsforening|brf)\s+/;
 
 /**
- * Normalizes a BRF name for comparison: lowercases, trims, collapses
- * internal whitespace, transliterates the three Swedish accented letters to
- * their ASCII base (so "Bostadsrättsföreningen" and "Bostadsrattsforeningen"
- * compare equal regardless of source encoding quirks), and strips a leading
- * "bostadsrättsföreningen"/"brf"/"bostadsrattsforening" prefix token so
- * "Bostadsrättsföreningen Björken" and "Brf Björken" normalize identically.
+ * Shared normalization chain used by BOTH `normalizeName` and
+ * `normalizeKommun`: lowercases, trims, collapses internal whitespace, and
+ * transliterates the three Swedish accented letters to their ASCII base (so
+ * "Björken"/"Bjorken" or "Göteborg"/"Goteborg" compare equal regardless of
+ * source encoding quirks). Extracted so the two comparisons can never drift
+ * apart from each other.
  */
-function normalizeName(name: string): string {
-  const lowered = name
+function normalizeSwedishText(value: string): string {
+  return value
     .toLowerCase()
     .replace(/å/g, "a")
     .replace(/ä/g, "a")
     .replace(/ö/g, "o")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+/**
+ * Normalizes a BRF name for comparison: applies `normalizeSwedishText`, then
+ * strips a leading "bostadsrättsföreningen"/"brf"/"bostadsrattsforening"
+ * prefix token so "Bostadsrättsföreningen Björken" and "Brf Björken"
+ * normalize identically.
+ */
+function normalizeName(name: string): string {
+  const lowered = normalizeSwedishText(name);
   return lowered.replace(BRF_PREFIX_RE, "").trim();
 }
 
-function normalizeKommun(kommun: string): string {
-  return kommun.trim().toLowerCase();
+const KOMMUN_SUFFIX_RE = /\s+(kommun|stad)$/;
+
+/**
+ * Normalizes a kommun name for `resolveOrgNr`'s geographic-corroboration
+ * comparison (D-14-09).
+ *
+ * WHY: Booli's breadcrumb yields the Swedish GENITIVE kommun label
+ * ("Stockholms kommun" / "Stockholms"), while a registry candidate carries
+ * the NOMINATIVE ("Stockholm"). With only lowercase+trim these never
+ * matched, so `geoCorroborated` in `resolveOrgNr` never held for a discovery
+ * candidate and `resolveOrgNr` could never reach `"high"` — making ANL-03 a
+ * no-op behind an unreachable gate. This function closes that gap.
+ *
+ * Chain, in order: (1) the shared `normalizeSwedishText` lowercase/trim/
+ * whitespace-collapse/transliterate chain (mirroring `normalizeName`, never
+ * duplicating it); (2) strip a trailing " kommun" / " stad" suffix if
+ * present (defence in depth — the caller already strips " kommun" from the
+ * breadcrumb, but a registry value may carry it); (3) strip a SINGLE
+ * trailing possessive "s" when the remaining stem is longer than 3
+ * characters, so "Stockholms kommun" -> "stockholm", "Stockholm" ->
+ * "stockholm", "Göteborgs" -> "goteborg", "Malmö" -> "malmo".
+ *
+ * WHY IT IS SAFE despite being lossy: `resolveOrgNr` applies this SAME
+ * normalization to BOTH sides of the comparison (the listing's kommun AND
+ * the candidate's registered kommun) — a symmetric transform applied to
+ * both operands cannot create a one-sided false match. A Swedish kommun
+ * name that already ends in "-s" (e.g. "Bengtsfors") has an identical
+ * genitive form, so both sides still normalize to the same stem and the
+ * comparison remains correct even though the intermediate stem is not the
+ * "true" nominative.
+ *
+ * THE BOUNDED RESIDUAL RISK: two DISTINCT kommuns differing only by a
+ * trailing "s" would collapse to the same stem. No such pair exists among
+ * Sweden's 290 kommuns; the >3-character stem guard additionally prevents
+ * short-name collapse. This can only fail in the SAFE direction for that
+ * hypothetical pair, and the fail-closed Pitfall-4 posture (multiple name
+ * matches still -> `"low"`) is untouched — see `resolveOrgNr` below.
+ */
+export function normalizeKommun(kommun: string): string {
+  let normalized = normalizeSwedishText(kommun);
+  normalized = normalized.replace(KOMMUN_SUFFIX_RE, "");
+  if (normalized.endsWith("s")) {
+    const stem = normalized.slice(0, -1);
+    if (stem.length > 3) {
+      normalized = stem;
+    }
+  }
+  return normalized;
 }
 
 /**

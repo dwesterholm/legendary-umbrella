@@ -89,10 +89,12 @@ export async function resolveOrgNrAction(analysisId: string): Promise<ResolveRes
 
   // Phase 14 (D-14-09): kommunFromBreadcrumbs now lives in
   // `@/lib/booli/client` as the SINGLE shared implementation (also feeds
-  // `DiscoveryCandidate.kommun` via `reshapeListingEntity`) — see its doc
-  // comment there for the Swedish-genitive caveat ("Stockholms kommun" vs a
-  // registry's nominative "Stockholm"), fixed by plan 14-03's
-  // `normalizeKommun` improvement, not this call site.
+  // `DiscoveryCandidate.kommun` via `reshapeListingEntity`). The Swedish
+  // genitive-vs-nominative mismatch ("Stockholms kommun" vs a registry's
+  // "Stockholm") is now HANDLED by `org-nr-resolver.ts`'s `normalizeKommun`
+  // (plan 14-03, D-14-09) — both sides of `resolveOrgNr`'s comparison are
+  // normalized through the same genitive-tolerant chain, so this call site
+  // needs no change.
   const kommun = kommunFromBreadcrumbs(listingData.breadcrumbs);
 
   const candidates = await searchAllabrfByName(brfName);
