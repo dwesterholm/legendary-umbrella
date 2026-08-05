@@ -298,6 +298,10 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
   // never silently become a deterministic scored signal without the visible
   // "från bildtolkning" marker (SPEC Phase B). Reciprocal to that module's own
   // file-level doc comment; added to this same invariant, not a new test file.
+  // Phase 14 (holistic-analysis modules: holistic schema, confounder guard,
+  // BRF lookup) extends this SAME invariant with the three new Phase-14
+  // analysis-path modules — registered here BEFORE any of them exist, since
+  // the guard is silently inert for an unlisted module specifier.
   const VISION_MODULE_SPECIFIERS = [
     "discovery/vision-schema",
     "discovery/vision\"",
@@ -307,6 +311,9 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/sun-path'",
     "discovery/flip-economics",
     "discovery/area-comps",
+    "discovery/holistic-schema",
+    "discovery/confounder-guard",
+    "discovery/brf-lookup",
   ];
 
   function importsVisionModule(sourcePath: string): boolean {
