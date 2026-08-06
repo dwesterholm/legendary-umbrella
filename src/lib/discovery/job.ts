@@ -21,13 +21,20 @@ import {
   pricePerSqm,
   type DiscoveryCandidate,
 } from "@/lib/discovery/candidate";
-import { discoveryCostSek, renderSek, estimateCompsFetchSek, CAP_VISION_SEK_MAX } from "@/lib/discovery/cost";
+import {
+  discoveryCostSek,
+  renderSek,
+  estimateCompsFetchSek,
+  estimateBrfLookupSek,
+  CAP_VISION_SEK_MAX,
+} from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
 import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
 import { normalizeSoldOutput, type SoldComp } from "@/lib/market/sold-schema";
 import { computeAreaComps, MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
 import { WIDENED_SIZE_BAND_PCT, WIDENED_MAX_AGE_MONTHS } from "@/lib/discovery/confounder-guard";
-import type { AreaCompsSummary } from "@/lib/discovery/holistic-schema";
+import { lookupBrfSummary, BRF_TOP_N } from "@/lib/discovery/brf-lookup";
+import type { AreaCompsSummary, BrfSummary } from "@/lib/discovery/holistic-schema";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -807,6 +814,130 @@ export async function resolveCompsForCandidates(
       code: error instanceof Error ? error.message : "UNKNOWN",
     });
     return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+  }
+}
+
+/** The result of `lookupBrfForTopCandidates` — one `BrfSummary` per candidate
+ * index that reached `"ok"`, plus the spend/attempt/skip bookkeeping
+ * `runVisionForJob` folds into its shared budget pool. */
+export interface BrfResolution {
+  byIndex: Map<number, BrfSummary>;
+  spentSek: number;
+  attemptedIndices: number[];
+  skippedForBudget: number;
+}
+
+/**
+ * `lookupBrfForTopCandidates` — ANL-03: fetches a BRF summary for the top
+ * `BRF_TOP_N` prelim-ranked candidates CONCURRENTLY, mirroring `runSlice`'s
+ * own `Promise.allSettled` aggregation shape one level up.
+ *
+ * Selection — REUSE the already-merged prelim rank, never a new one. D-14-01:
+ * the BRF chain is network+LLM expensive and per-candidate, so it runs ONLY
+ * for the top-N by `enrichmentPriority` (below-market + aged-stock), which is
+ * available before comps so there is no circular dependency; a candidate with
+ * `brfName === null` has nothing to search and is skipped honestly.
+ *
+ * Budget is a pre-gate (check-before-spend, mirroring `runVisionPass`'s own
+ * discipline and `resolveCompsForCandidates`'s comps gate): the allowed
+ * lookup count is computed from `opts.budgetSek` BEFORE any network call. An
+ * exhausted budget returns immediately with an empty map and `spentSek: 0` —
+ * never calls out, never fails (D-14-08 "degrade gracefully").
+ *
+ * Concurrency: a sequential `for...await` here is FORBIDDEN — it is the
+ * Phase 13 WR-02 trap (sum of times, not max) stacked on an already-loaded
+ * tick (2 Allabrf fetches + 1 Haiku call per candidate). Every failure mode —
+ * a rejected promise or a non-`"ok"` `BrfLookupOutcome` — degrades that
+ * candidate to comps + hedonic only (D-14-10) and never fails the tick; this
+ * function itself never throws.
+ *
+ * Does NOT take a `supabase` parameter and reads/writes no table — the
+ * D-14-12 boundary is that the discovery BRF path is pure network + LLM
+ * composition.
+ *
+ * @param candidates - the job's candidate set (read-only input)
+ * @param opts.jobId - for GDPR-safe, coded non-fatal logging only
+ * @param opts.budgetSek - the SEK budget available for BRF lookups THIS call
+ */
+export async function lookupBrfForTopCandidates(
+  candidates: DiscoveryCandidate[],
+  opts: { jobId: string; budgetSek: number },
+): Promise<BrfResolution> {
+  const { jobId } = opts;
+  // Mutable accumulators declared OUTSIDE the try block so the catch below
+  // can return whatever partial progress was made before an unexpected
+  // error, rather than discarding it (mirrors resolveCompsForCandidates's
+  // own never-throw discipline).
+  const byIndex = new Map<number, BrfSummary>();
+  let spentSek = 0;
+  let attemptedIndices: number[] = [];
+  let skippedForBudget = 0;
+
+  try {
+    // Selection: the top BRF_TOP_N by the existing enrichmentPriority rank,
+    // restricted to candidates with a brfName. Never a new priority function.
+    const eligible = enrichmentVisitOrder(candidates)
+      .filter((i) => candidates[i].brfName !== null)
+      .slice(0, BRF_TOP_N);
+
+    // Budget pre-gate BEFORE any network work.
+    const allowed = Math.max(0, Math.floor(opts.budgetSek / estimateBrfLookupSek()));
+    const attempted = eligible.slice(0, allowed);
+    skippedForBudget = eligible.length - attempted.length;
+    attemptedIndices = attempted;
+
+    if (attempted.length === 0) {
+      return { byIndex, spentSek, attemptedIndices, skippedForBudget };
+    }
+
+    // Bounded concurrent batch — copies runSlice's Promise.allSettled block
+    // shape verbatim (by-index fulfilled/rejected split, error-context log).
+    const settled = await Promise.allSettled(
+      attempted.map(async (index) => ({
+        index,
+        result: await lookupBrfSummary({
+          brfName: candidates[index].brfName,
+          kommun: candidates[index].kommun,
+          tenureForm: candidates[index].tenureForm,
+        }),
+      })),
+    );
+
+    for (let i = 0; i < settled.length; i++) {
+      const outcome = settled[i];
+      if (outcome.status === "rejected") {
+        console.error("[discovery-job] brf lookup degraded (non-fatal)", {
+          jobId,
+          candidateIndex: attempted[i],
+          code: outcome.reason instanceof Error ? outcome.reason.message : "UNKNOWN",
+        });
+        continue;
+      }
+      const { index, result } = outcome.value;
+      // A failed extraction returns costSek: 0, so always adding is safe.
+      spentSek += result.costSek;
+      if (result.summary !== null) {
+        byIndex.set(index, result.summary);
+      }
+      if (result.outcome !== "ok") {
+        // Diagnostic: a run that never reaches "high" confidence must be
+        // visibly diagnosable rather than silently empty (14-RESEARCH.md
+        // Pitfall 2's warning sign).
+        console.error("[discovery-job] brf lookup outcome", {
+          jobId,
+          candidateIndex: index,
+          outcome: result.outcome,
+        });
+      }
+    }
+
+    return { byIndex, spentSek, attemptedIndices, skippedForBudget };
+  } catch (error) {
+    console.error("[discovery-job] lookupBrfForTopCandidates failed (non-fatal)", {
+      jobId,
+      code: error instanceof Error ? error.message : "UNKNOWN",
+    });
+    return { byIndex, spentSek, attemptedIndices, skippedForBudget };
   }
 }
 
