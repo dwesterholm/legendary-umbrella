@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
 status: executing
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-08-05T19:10:28.787Z"
+stopped_at: Completed 14-04-PLAN.md
+last_updated: "2026-08-06T15:22:04.590Z"
 last_activity: 2026-08-05 -- Phase 14 execution started
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 12
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14 (holistic-analysis-brain) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-08-05 -- Phase 14 execution started
 Next step: Operator live-smoke re-run of Phase 13, then `/gsd-verify-phase 13`.
@@ -180,6 +180,8 @@ Recent decisions affecting current work:
 - [Phase 14-02]: buildHolisticBrief gates its confounder items on comps!==null||brf!==null (not unconditional per the plan's literal wording) so an all-null input correctly falls through to the single insufficient-data item, satisfying the ANL-01 non-empty guarantee.
 - [Phase 14-03]: normalizeKommun's genitive-stripping chain is applied symmetrically to both sides of resolveOrgNr's comparison — lossy but safe by construction; no real Swedish kommun pair collapses
 - [Phase 14-03]: brf-lookup.ts's D-14-12 reuse-boundary doc comments/tests paraphrase the forbidden identifiers (never literally spell out analyses/runBrfExtraction/resolveOrgNrAction/confirmAndAnalyze) to avoid tripping the plan's own zero-occurrence grep acceptance criteria
+- [Phase 14-04]: The visionSkippedReason !== null && hasHolisticBrief branch is one combined condition (not three near-duplicates) since only one visionSkippedReason value can be true at a time, satisfying the truth table without triplicating JSX
+- [Phase 14-04]: The pre-vision not-yet-run state (vision===null && visionSkippedReason===null) is outside the six enumerated content states and correctly renders nothing new regardless of holisticBrief
 
 ### Pending Todos
 
@@ -203,8 +205,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-05T19:10:28.781Z
-Stopped at: Completed 14-03-PLAN.md
+Last session: 2026-08-06T15:22:04.586Z
+Stopped at: Completed 14-04-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
@@ -307,3 +309,4 @@ Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads
 | Phase 14 P01 | 45min | 3 tasks | 12 files |
 | Phase 14 P02 | 40min | 3 tasks | 2 files |
 | Phase Phase 14 P03 P03 | 20min | 3 tasks | 5 files |
+| Phase 14 P04 | 20min | 3 tasks | 4 files |
