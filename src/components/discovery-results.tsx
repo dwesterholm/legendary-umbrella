@@ -206,6 +206,13 @@ export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
         are likewise NEVER fed into `computeNicheScore`/`rankPosition`/
         `nicheSignals` above (T-12-09, the structural-separation invariant
         extended in niche-score.test.ts to also forbid a `sun-path` import).
+
+        Phase 14 (ANL-01/ANL-04, T-14-17) additionally threads
+        `holisticBrief` from each candidate into `GalleryConditionVision` for
+        display ONLY, subject to the SAME structural-separation rule: it is
+        read directly off the candidate and is NEVER fed into
+        `computeNicheScore`/`rankPosition`/`nicheSignals` above — the numeric
+        `valueGap()` ranking wiring is Phase 16.
       */}
       <div className="mt-6 space-y-6">
         {ranked.map(({ candidate }, i) => (
@@ -217,6 +224,7 @@ export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
             longitude={candidate.longitude}
             floor={candidate.floor}
             orientation={candidate.orientation}
+            holisticBrief={candidate.holisticBrief}
           />
         ))}
       </div>

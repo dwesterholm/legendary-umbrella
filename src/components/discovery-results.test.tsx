@@ -3,6 +3,37 @@ import { describe, expect, it, vi, beforeAll } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { DiscoveryResults } from "@/components/discovery-results";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
+import {
+  HOLISTIC_DATA_ONLY_MARKER,
+  type HolisticBrief,
+} from "@/lib/discovery/holistic-schema";
+
+/**
+ * Phase 14 (ANL-01/ANL-04) fixture factory for a `HolisticBrief`, used only
+ * to prove `holisticBrief` reaches `GalleryConditionVision` for display and
+ * does NOT become a ranking input — mirrors `gallery-condition-vision.test.
+ * tsx`'s own `makeHolisticBrief`.
+ */
+function makeHolisticBrief(overrides: Partial<HolisticBrief> = {}): HolisticBrief {
+  return {
+    marker: HOLISTIC_DATA_ONLY_MARKER,
+    confidence: "low",
+    items: [
+      {
+        kind: "comps-positioning",
+        text: "Distinctive holistic brief item text for threading test",
+      },
+    ],
+    dataSources: ["comps"],
+    conditionAttribution: {
+      explainedPct: 0.2,
+      capped: true,
+      residualDrivers: ["läge"],
+      canAttributeToCondition: false,
+    },
+    ...overrides,
+  };
+}
 
 // jsdom does not implement these DOM APIs that Radix UI's Select relies on
 // for scroll/pointer-capture handling. This is the first Select-driven RTL
@@ -230,5 +261,64 @@ describe("DiscoveryResults", () => {
 
     vi.doUnmock("@/lib/discovery/niche-score");
     vi.resetModules();
+  });
+
+  it("Phase 14 (ANL-01): threads holisticBrief from the candidate into GalleryConditionVision for display", () => {
+    // Give the candidate a `visionSkippedReason` (no gallery existed) so the
+    // brief actually renders — `makeCandidate`'s default `vision: null` /
+    // `visionSkippedReason: null` is the pre-vision "not yet run" state,
+    // distinct from every one of GalleryConditionVision's six content
+    // states, and correctly renders nothing new either way.
+    const candidatesWithBrief = variedCandidates.map((candidate, i) =>
+      i === 0
+        ? {
+            ...candidate,
+            visionSkippedReason: "no_images" as const,
+            holisticBrief: makeHolisticBrief(),
+          }
+        : candidate,
+    );
+
+    render(<DiscoveryResults candidates={candidatesWithBrief} />);
+
+    expect(
+      screen.getByText(
+        "Distinctive holistic brief item text for threading test",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("Phase 14 (ANL-04): ranking order is unaffected by attaching a holisticBrief to the last-ranked candidate", async () => {
+    const { unmount } = render(
+      <DiscoveryResults
+        candidates={variedCandidates.map((c) => ({ ...c, holisticBrief: null }))}
+      />,
+    );
+
+    await selectNiche("Inflyttningsklar");
+    const gridBefore = document.querySelector(".grid") as HTMLElement;
+    const orderBefore = within(gridBefore)
+      .getAllByText(/gatan/i)
+      .map((el) => el.textContent);
+
+    unmount();
+
+    // Attach the brief to whichever candidate landed LAST in the order
+    // just observed — proving the brief is not itself a ranking input,
+    // regardless of which candidate it lands on.
+    const lastAddress = orderBefore[orderBefore.length - 1];
+    const candidatesWithBriefOnLast = variedCandidates.map((c) => ({
+      ...c,
+      holisticBrief: c.address === lastAddress ? makeHolisticBrief() : null,
+    }));
+
+    render(<DiscoveryResults candidates={candidatesWithBriefOnLast} />);
+    await selectNiche("Inflyttningsklar");
+    const gridAfter = document.querySelector(".grid") as HTMLElement;
+    const orderAfter = within(gridAfter)
+      .getAllByText(/gatan/i)
+      .map((el) => el.textContent);
+
+    expect(orderAfter).toEqual(orderBefore);
   });
 });
