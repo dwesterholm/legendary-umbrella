@@ -43,7 +43,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 ### 🔨 v1.2 Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 
 - [ ] **Phase 13: Discovery UX / Poll-Timeout Fix** — the live discovery flow finishes inside the client poll window (no forced reload) and every job state shows a Swedish status label.
-- [ ] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution.
+- [x] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (completed 2026-08-06)
 - [ ] **Phase 15: ROI-Aware Opportunity Brief** — prioritized, buyer-segment-tailored opportunities with tiered cost/uplift, profit ±22% tax, freshness-based bathroom scoring, interior-designer specifics; `OpportunityBrief` schema passes a live Anthropic strict-output smoke.
 - [ ] **Phase 16: Value-Gap Scoring & Ranking** — §2.6 value-gap headline metric that re-orders results on the separate read path, with a "från bildtolkning" UI marker; separation static-grep test extended.
 - [ ] **Phase 17: Proposed Planritning Generation** — image-gen proposed floor plan for HIGH value-gap candidates only, daylight/bearing caveats stamped, bounded by cost caps; source images analyze-only (GDPR).
@@ -96,7 +96,7 @@ Plans:
 - [x] 14-03-PLAN.md — Genitive-tolerant `normalizeKommun` (makes `confidence: "high"` reachable) + `brf-lookup.ts` discovery-side orchestrator, `BRF_TOP_N=4`, never touches the `analyses` table (wave 2; ANL-03; D-14-09/12)
 - [x] 14-04-PLAN.md — UI: data-only marker "Baserat på områdesdata — ingen bildtolkning" replacing the `visionRanButEmpty` dead end + the never-imply-reno render guard (wave 2; ANL-01/ANL-04; D-14-04/07)
 - [x] 14-05-PLAN.md — `renderSek`/comps+BRF spend estimators, `runVisionPass` `initialSpentSek`, `resolveCompsForCandidates` amortized per-area comps fetch (wave 3; ANL-02; D-14-08/11)
-- [ ] 14-06-PLAN.md — Concurrent BRF top-N (`Promise.allSettled`) + the post-vision holistic-brief attachment across all four no-image-claims states (wave 4; ANL-01/ANL-03; D-14-01/10)
+- [x] 14-06-PLAN.md — Concurrent BRF top-N (`Promise.allSettled`) + the post-vision holistic-brief attachment across all four no-image-claims states (wave 4; ANL-01/ANL-03; D-14-01/10)
 
 **UI hint**: yes
 
@@ -162,7 +162,7 @@ Plans:
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
 | 13. Discovery UX / Poll-Timeout Fix | v1.2 | 4/5 | In Progress|  |
-| 14. Holistic Analysis Brain | v1.2 | 5/6 | In Progress|  |
+| 14. Holistic Analysis Brain | v1.2 | 6/6 | Complete   | 2026-08-06 |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |
 | 17. Proposed Planritning Generation | v1.2 | 0/TBD | Not started | - |

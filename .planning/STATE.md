@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
-status: executing
-stopped_at: Completed 14-05-PLAN.md
-last_updated: "2026-08-06T15:42:33.158Z"
+status: verifying
+stopped_at: Completed 14-06-PLAN.md — Phase 14 all 6 plans done, ready_for_verification
+last_updated: "2026-08-06T15:57:14.486Z"
 last_activity: 2026-08-05 -- Phase 14 execution started
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 12
-  completed_plans: 9
-  percent: 0
+  completed_plans: 10
+  percent: 11
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 Phase: 14 (holistic-analysis-brain) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-05 -- Phase 14 execution started
 Next step: Operator live-smoke re-run of Phase 13, then `/gsd-verify-phase 13`.
 
@@ -185,6 +185,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 14-05]: resolveCompsForCandidates resolves each candidate's OWN areaLabel and de-dupes the fetch set BY resolved areaId, running both resolve and fetch steps concurrently via Promise.allSettled
 - [Phase ?]: [Phase 14-05]: runVisionForJob pipeline is now enrich -> comps -> vision -> persist; comps spend seeds runVisionPass's initialSpentSek so comps/BRF/vision share ONE CAP_VISION_SEK_MAX pool (D-14-08)
 - [Phase ?]: [Phase 14-05]: resolveCompsForCandidates uses resolution == null (loose) not === null when checking a resolveArea outcome, so a test double or future caller returning undefined degrades identically rather than crashing into the whole-body catch
+- [Phase 14-06]: Comps run BEFORE BRF in the pipeline (D-14-08 front-load-the-cheap ordering); comps needed by every candidate's brief, BRF only covers the top-N
+- [Phase 14-06]: Drove vision_error/claims:[] test states by mocking @anthropic-ai/sdk directly (mirrors vision.test.ts), not by mocking vision.ts itself, to exercise the real runVisionPass code path
 
 ### Pending Todos
 
@@ -208,8 +210,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-06T15:42:33.153Z
-Stopped at: Completed 14-05-PLAN.md
+Last session: 2026-08-06T15:57:14.481Z
+Stopped at: Completed 14-06-PLAN.md — Phase 14 all 6 plans done, ready_for_verification
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
@@ -314,3 +316,4 @@ Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads
 | Phase Phase 14 P03 P03 | 20min | 3 tasks | 5 files |
 | Phase 14 P04 | 20min | 3 tasks | 4 files |
 | Phase 14 P05 | 17min | 3 tasks | 6 files |
+| Phase 14-holistic-analysis-brain P06 | 25min | 3 tasks | 2 files |
