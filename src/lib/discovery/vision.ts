@@ -440,7 +440,22 @@ export async function runVisionForCandidate(
  * its scrape cap can still report candidates with no vision, and a job that
  * hits ITS vision cap stops vision without failing the whole job.
  *
+ * D-14-08 (Phase 14, ANL-02): comps and BRF spend — computed earlier in
+ * `runVisionForJob`, BEFORE this pass runs — seed this SAME `CAP_VISION_SEK_MAX`
+ * pool via `opts.initialSpentSek`, so all three spend sources (comps, BRF,
+ * vision) share ONE ceiling rather than three independent ones that could
+ * jointly overspend. INTENDED consequence (14-RESEARCH.md Q3's "expected side
+ * effect"): a job with a large candidate set will now hit `"cost_cap"` MORE
+ * often than pre-Phase-14, since less of the shared 10 SEK pool remains for
+ * Sonnet calls once comps/BRF have already spent their share — a deliberate
+ * behaviour change, not a bug.
+ *
  * @param candidates - the job's persisted candidate set (read-only input)
+ * @param opts.initialSpentSek - OPTIONAL. Seeds the running vision-spend
+ *   accumulator (D-14-08) so a prior pass's spend (comps/BRF) counts against
+ *   the SAME `CAP_VISION_SEK_MAX` ceiling this pass enforces. Additive-optional
+ *   — every existing call site is unaffected when omitted. A non-finite or
+ *   negative value is treated as 0, exactly like omitting the option.
  * @param opts.booliIdOf - resolves a candidate's dedupe/logging key (falls
  *   back to `sourceListingUrl`, or — CR-03 (11-REVIEW.md) — the candidate's
  *   own array index when `sourceListingUrl` is null/missing, since
@@ -460,6 +475,11 @@ export async function runVisionPass(
     booliIdOf?: (candidate: DiscoveryCandidate, index: number) => string;
     /** Optional per-candidate broker-gallery bytes (analyze-only, transient). */
     brokerImagesOf?: (candidate: DiscoveryCandidate, index: number) => BrokerImageBytes[];
+    /** D-14-08 — seeds the running vision-spend accumulator so comps/BRF
+     * spend (computed earlier in `runVisionForJob`) shares this same
+     * `CAP_VISION_SEK_MAX` pool. Additive-OPTIONAL; omitted/non-finite/
+     * negative all behave as 0. */
+    initialSpentSek?: number;
   } = {},
 ): Promise<DiscoveryCandidate[]> {
   const booliIdOf =
@@ -470,7 +490,9 @@ export async function runVisionPass(
   // "Caching" Open Question 2, explicitly deferred to v2).
   const dedupe = new Map<string, VisionResult>();
 
-  let runningVisionSek = 0;
+  let runningVisionSek = Number.isFinite(opts.initialSpentSek)
+    ? Math.max(0, opts.initialSpentSek as number)
+    : 0;
   let costCapHit = false;
 
   const out: DiscoveryCandidate[] = [];

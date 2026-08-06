@@ -26,7 +26,7 @@ vi.mock("@anthropic-ai/sdk/helpers/zod", () => ({
 }));
 
 import { runVisionForCandidate, runVisionPass } from "@/lib/discovery/vision";
-import { CAP_VISION_SEK_MAX } from "@/lib/discovery/cost";
+import { CAP_VISION_SEK_MAX, estimateVisionCallSek } from "@/lib/discovery/cost";
 import { VISION_CONFIDENCE_THRESHOLD } from "@/lib/discovery/vision-schema";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 
@@ -681,5 +681,70 @@ describe("runVisionPass", () => {
 
     const totalSpent = result.reduce((sum, c) => sum + (c.vision?.costSek ?? 0), 0);
     expect(totalSpent).toBeLessThanOrEqual(CAP_VISION_SEK_MAX);
+  });
+
+  describe("runVisionPass — shared budget pool via initialSpentSek (D-14-08)", () => {
+    beforeEach(() => {
+      parse.mockResolvedValue({
+        parsed_output: { worthDeepPass: false },
+        usage: baseUsage(),
+        stop_reason: "end_turn",
+      });
+    });
+
+    it("initialSpentSek: CAP_VISION_SEK_MAX makes the FIRST image-bearing candidate 'cost_cap' with ZERO Anthropic calls", async () => {
+      const candidates = [
+        makeCandidate({ sourceListingUrl: "https://www.booli.se/annons/1" }),
+      ];
+
+      const result = await runVisionPass(candidates, { initialSpentSek: CAP_VISION_SEK_MAX });
+
+      expect(result[0].vision).toBeNull();
+      expect(result[0].visionSkippedReason).toBe("cost_cap");
+      expect(parse).not.toHaveBeenCalled();
+    });
+
+    it("initialSpentSek: 0 behaves identically to omitting the option", async () => {
+      const candidates = [
+        makeCandidate({ sourceListingUrl: "https://www.booli.se/annons/1" }),
+      ];
+
+      const withZero = await runVisionPass(candidates, { initialSpentSek: 0 });
+      const withOmitted = await runVisionPass(candidates);
+
+      expect(withZero).toEqual(withOmitted);
+    });
+
+    it("treats undefined / negative / NaN initialSpentSek all as 0", async () => {
+      const candidates = [
+        makeCandidate({ sourceListingUrl: "https://www.booli.se/annons/1" }),
+      ];
+
+      const withUndefined = await runVisionPass(candidates, { initialSpentSek: undefined });
+      const withNegative = await runVisionPass(candidates, { initialSpentSek: -5 });
+      const withNaN = await runVisionPass(candidates, { initialSpentSek: Number.NaN });
+      const withOmitted = await runVisionPass(candidates);
+
+      expect(withUndefined).toEqual(withOmitted);
+      expect(withNegative).toEqual(withOmitted);
+      expect(withNaN).toEqual(withOmitted);
+    });
+
+    it("a partial initialSpentSek just below the per-call estimate allows exactly one call, then cost_cap for the rest", async () => {
+      const partialBudget = CAP_VISION_SEK_MAX - estimateVisionCallSek() - 0.0001;
+      const candidates = Array.from({ length: 3 }, (_, i) =>
+        makeCandidate({ sourceListingUrl: `https://www.booli.se/annons/${i}` }),
+      );
+
+      const result = await runVisionPass(candidates, { initialSpentSek: partialBudget });
+
+      expect(parse).toHaveBeenCalledTimes(1);
+      expect(result[0].vision).not.toBeNull();
+      expect(result[0].visionSkippedReason).toBeNull();
+      for (const c of result.slice(1)) {
+        expect(c.vision).toBeNull();
+        expect(c.visionSkippedReason).toBe("cost_cap");
+      }
+    });
   });
 });
