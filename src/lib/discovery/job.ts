@@ -32,7 +32,12 @@ import { runVisionPass } from "@/lib/discovery/vision";
 import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
 import { normalizeSoldOutput, type SoldComp } from "@/lib/market/sold-schema";
 import { computeAreaComps, MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
-import { WIDENED_SIZE_BAND_PCT, WIDENED_MAX_AGE_MONTHS } from "@/lib/discovery/confounder-guard";
+import {
+  normalizeForConfounders,
+  buildHolisticBrief,
+  WIDENED_SIZE_BAND_PCT,
+  WIDENED_MAX_AGE_MONTHS,
+} from "@/lib/discovery/confounder-guard";
 import { lookupBrfSummary, BRF_TOP_N } from "@/lib/discovery/brf-lookup";
 import type { AreaCompsSummary, BrfSummary } from "@/lib/discovery/holistic-schema";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
@@ -343,9 +348,20 @@ export async function claimVisionSlice(
 }
 
 /**
- * `runVisionForJob` — Phase 11 (DISC-04) — a SEPARATE, additive post-scrape
- * pass that runs `runVisionPass` over a completed job's persisted candidates
- * and writes the vision-annotated results back in ONE UPDATE.
+ * `runVisionForJob` — Phase 11 (DISC-04), extended by Phase 14
+ * (ANL-01/02/03) — a SEPARATE, additive post-scrape pass that runs a
+ * completed job's persisted candidates through the FIVE-step pipeline
+ * enrich → comps → BRF → vision → brief, then writes the annotated results
+ * back in ONE UPDATE.
+ *
+ * Pipeline order (Phase 14, D-14-08): comps run BEFORE BRF deliberately —
+ * comps are per-area/amortized and cheap, and every candidate needs them for
+ * the holistic-brief fallback, whereas BRF only ever covers the D-14-01
+ * top-N. Vision runs last of the three spend sources so it sees whatever
+ * budget comps+BRF leave behind. `comps`/`brfSummary`/`holisticBrief` ride in
+ * the JSONB `results` column as additive-nullable candidate fields — the
+ * same established pattern as `vision`/`visionSkippedReason` — for Phase 15
+ * to render.
  *
  * This is intentionally NOT called from inside `runSlice` — it is invoked by
  * the caller (`tickDiscovery`/`sweep/route.ts`) ONLY once a job's scrape
@@ -357,6 +373,11 @@ export async function claimVisionSlice(
  * (the scrape cap) — this pass never reads or writes `cost_sek_total`, so a
  * job that hit its scrape cap can still receive vision, and a job that hits
  * its OWN vision cap simply stops running vision (never fails the job).
+ * Comps + BRF + vision all share this ONE `CAP_VISION_SEK_MAX` pool
+ * (D-14-08) — an intended, expected consequence is that a job with a large
+ * candidate set now hits `"cost_cap"` MORE often than pre-Phase-14, since
+ * less of the shared pool remains for Sonnet calls once comps/BRF have
+ * already spent their share.
  *
  * CR-02 (11-REVIEW.md): `runVisionPass` already catches per-candidate errors
  * internally (a single failing candidate degrades to
@@ -981,10 +1002,14 @@ export async function runVisionForJob(
       VISION_ENRICH_LIMIT,
     );
 
-    // Pipeline order (Phase 14, ANL-02/D-14-08): enrich → comps → vision →
-    // persist. Comps spend is checked/spent BEFORE vision and shares the
-    // SAME CAP_VISION_SEK_MAX pool via initialSpentSek — never a separate
-    // budget that could jointly overspend the two.
+    // Pipeline order (Phase 14, ANL-01/02/03/D-14-08): enrich → comps → BRF →
+    // vision → brief → persist. Comps run BEFORE BRF deliberately: comps are
+    // per-area/amortized and cheaper, and the buildHolisticBrief fallback
+    // below needs them for EVERY candidate, whereas BRF only ever covers the
+    // top-N (D-14-08's front-load-the-cheap-structurally-necessary-spend
+    // ordering). All three spend sources (comps, BRF, vision) share the SAME
+    // CAP_VISION_SEK_MAX pool via initialSpentSek — never three separate
+    // budgets that could jointly overspend.
     const comps = await resolveCompsForCandidates(supabase, enriched, {
       jobId,
       budgetSek: CAP_VISION_SEK_MAX,
@@ -994,12 +1019,72 @@ export async function runVisionForJob(
       areaComps: comps.byIndex.get(i) ?? null,
     }));
 
-    const withVision = await runVisionPass(withComps, {
-      brokerImagesOf: (_candidate, index) => brokerImages.get(index) ?? [],
-      initialSpentSek: comps.spentSek,
+    const brf = await lookupBrfForTopCandidates(withComps, {
+      jobId,
+      budgetSek: Math.max(0, CAP_VISION_SEK_MAX - comps.spentSek),
     });
+    const withHolisticInputs = withComps.map((c, i) => ({
+      ...c,
+      brfSummary: brf.byIndex.get(i) ?? null,
+    }));
+
+    const withVision = await runVisionPass(withHolisticInputs, {
+      brokerImagesOf: (_candidate, index) => brokerImages.get(index) ?? [],
+      initialSpentSek: comps.spentSek + brf.spentSek,
+    });
+
+    // Brief attachment (ANL-01, D-14-03/D-14-04): attached for ALL FOUR
+    // no-image-claims states — a `visionSkippedReason` of "no_images",
+    // "cost_cap" or "vision_error", PLUS a non-null `vision` whose `claims`
+    // array is empty (either the Haiku `worthDeepPass: false` path or the
+    // confidence/imageIndex filter path in vision.ts). In every one of those
+    // states there are zero image-derived conclusions while comps + hedonic
+    // remain available — exactly ANL-01's "every surfaced candidate leaves
+    // analysis with ≥1 actionable item". A candidate WITH a surviving claim
+    // never gets a brief (holisticBrief stays null). NOT changed by this
+    // step: `VisionResult.claims` stays `[]` and `visionResultSchema` is
+    // untouched (vision.ts is not edited by this plan), so
+    // `condition-score.ts`'s `claims.length === 0 → 0` behaviour is
+    // preserved — a data-only brief correctly contributes ZERO
+    // vision-derived condition signal.
+    const hasNoImageClaims = (c: DiscoveryCandidate) =>
+      c.vision === null || c.vision.claims.length === 0;
+    const withBriefs = withVision.map((c, index) => {
+      if (!hasNoImageClaims(c)) {
+        return { ...c, holisticBrief: null };
+      }
+      // Both normalizeForConfounders and buildHolisticBrief are pure, so
+      // this try/catch is defence-in-depth only — mirroring runVisionPass's
+      // per-candidate try/catch discipline one level up.
+      try {
+        const guard = normalizeForConfounders({
+          pricePerSqm: pricePerSqm(c),
+          livingArea: c.livingArea,
+          floor: c.floor,
+          balcony: c.balcony,
+          tenureForm: c.tenureForm,
+          comps: c.areaComps,
+          brf: c.brfSummary,
+        });
+        const holisticBrief = buildHolisticBrief({
+          guard,
+          comps: c.areaComps,
+          brf: c.brfSummary,
+          pricePerSqm: pricePerSqm(c),
+        });
+        return { ...c, holisticBrief };
+      } catch (error) {
+        console.error("[discovery-job] holistic brief build failed (non-fatal)", {
+          jobId,
+          candidateIndex: index,
+          code: error instanceof Error ? error.message : "UNKNOWN",
+        });
+        return { ...c, holisticBrief: null };
+      }
+    });
+
     const persisted = await updateJob(supabase, jobId, {
-      results: withVision,
+      results: withBriefs,
       status: "done",
     });
     if (!persisted) {
