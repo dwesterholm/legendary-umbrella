@@ -9,9 +9,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const fetchAreaListings = vi.fn();
 const fetchListing = vi.fn();
+const fetchSoldComps = vi.fn();
 vi.mock("@/lib/booli/client", () => ({
   fetchAreaListings: (...args: unknown[]) => fetchAreaListings(...args),
   fetchListing: (...args: unknown[]) => fetchListing(...args),
+  fetchSoldComps: (...args: unknown[]) => fetchSoldComps(...args),
   // Real allowlist semantics (https + booli.se host) so the WR-03 read-path
   // filter in claimVisionSlice is exercised faithfully, not stubbed away.
   isAllowedImageHost: (url: string) => {
@@ -64,11 +66,16 @@ import {
   enrichmentPriority,
   candidateMedianPricePerSqm,
   dedupeCandidates,
+  resolveCompsForCandidates,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
-import { discoveryCostSek } from "@/lib/discovery/cost";
-import { DETAIL_ENRICH_WAIT_SECS, DETAIL_ENRICH_MAX_RETRIES } from "@/lib/booli/client";
+import { discoveryCostSek, renderSek } from "@/lib/discovery/cost";
+import {
+  DETAIL_ENRICH_WAIT_SECS,
+  DETAIL_ENRICH_MAX_RETRIES,
+  type SoldSourceQuery,
+} from "@/lib/booli/client";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
 let updateCalls: Array<Record<string, unknown>>;
@@ -501,6 +508,15 @@ describe("dedupeCandidates", () => {
 });
 
 describe("runVisionForJob — Phase 11 (DISC-04) separate post-scrape pass", () => {
+  beforeEach(() => {
+    // Phase 14 (14-05): these tests only exercise the vision pass itself —
+    // area resolution for comps (resolveCompsForCandidates) is configured to
+    // cleanly miss so comps are skipped without any network call, keeping
+    // the pre-existing assertions about `updateJob`'s payload shape intact
+    // (fix by configuration, never by weakening an assertion).
+    resolveArea.mockResolvedValue(undefined);
+  });
+
   it("writes vision-annotated results back in ONE update, distinct from runSlice's own update", async () => {
     const supabase = makeSupabase();
     const results = [makeCandidate({ imageUrls: null })];
@@ -561,6 +577,13 @@ describe("runVisionForJob — Phase 11 (DISC-04) separate post-scrape pass", () 
 });
 
 describe("runVisionForJob — no processed_count write during vision (13-05 revert)", () => {
+  beforeEach(() => {
+    // Phase 14 (14-05): comps resolution cleanly misses (see the sibling
+    // describe block's comment above) so this test's payload-shape
+    // assertion is unaffected by the new comps-wiring step.
+    resolveArea.mockResolvedValue(undefined);
+  });
+
   it("issues EXACTLY ONE updateJob write (the terminal results+status write) and never writes processed_count, even across multiple successfully-enriched candidates", async () => {
     const supabase = makeSupabase();
     // Plain successful detail entities (no imageUrls) so enrichment succeeds
@@ -766,6 +789,368 @@ describe("claimAndRunVisionForJob — CR-04 (11-REVIEW.md) composes the CAS with
     // The job settles back to "done" — never double-processed, never
     // wedged at "vision_processing".
     expect(row.status).toBe("done");
+  });
+});
+
+/**
+ * Builds a single `SoldProperty:<id>` Apollo-shaped entry `normalizeSoldOutput`
+ * can parse for real (this module is deliberately NOT mocked — the plan
+ * requires `@/lib/market/sold-schema`/`@/lib/discovery/area-comps` to run for
+ * real, pure logic). Only `prisPerKvm` + `soldDate` are populated; `rooms`/
+ * `livingArea` are left absent so `computeAreaComps`'s size/room filter (which
+ * only narrows "when both sides known") never discriminates against these
+ * fixtures based on the candidate's own rooms/livingArea.
+ */
+function soldPropertyEntry(prisPerKvm: number, soldDate: string) {
+  return {
+    'displayAttributes({"queryContext":"SERP_LIST_LISTING"})': {
+      dataPoints: [{ value: { plainText: `${prisPerKvm} kr/m²` } }],
+    },
+    soldDate,
+  };
+}
+
+/** A bare Apollo-state-shaped map of `SoldProperty:<n>` entries — the shape
+ * `normalizeSoldOutput` accepts directly (no `__APOLLO_STATE__` wrapper
+ * needed; it falls back to the root object). */
+function apolloCompsPayload(prisPerKvmValues: number[], soldDate = "2026-07-01") {
+  const state: Record<string, unknown> = {};
+  prisPerKvmValues.forEach((v, i) => {
+    state[`SoldProperty:${i}`] = soldPropertyEntry(v, soldDate);
+  });
+  return state;
+}
+
+describe("resolveCompsForCandidates — ANL-02 amortized per-area comps", () => {
+  it("(a) two candidates sharing one areaLabel: resolveArea called ONCE, fetchSoldComps called EXACTLY ONCE, both get the same areaId", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-SAME-LABEL", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const candidates = [
+      makeCandidate({ areaLabel: "Södermalm" }),
+      makeCandidate({ areaLabel: "Södermalm" }),
+    ];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    expect(resolveArea).toHaveBeenCalledTimes(1);
+    expect(fetchSoldComps).toHaveBeenCalledTimes(1);
+    expect(result.byIndex.get(0)?.areaId).toBe("AREA-SAME-LABEL");
+    expect(result.byIndex.get(1)?.areaId).toBe("AREA-SAME-LABEL");
+  });
+
+  it("(b) two DIFFERENT labels resolving to the SAME areaId still produce exactly ONE fetchSoldComps call", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-SHARED", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const candidates = [
+      makeCandidate({ areaLabel: "Södermalm" }),
+      makeCandidate({ areaLabel: "Vasastan" }),
+    ];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    // Two distinct LABELS both get resolved...
+    expect(resolveArea).toHaveBeenCalledTimes(2);
+    // ...but the fetch set is de-duped BY areaId, not by label.
+    expect(fetchSoldComps).toHaveBeenCalledTimes(1);
+    expect(result.byIndex.get(0)?.areaId).toBe("AREA-SHARED");
+    expect(result.byIndex.get(1)?.areaId).toBe("AREA-SHARED");
+  });
+
+  it("(c) three distinct areas are fetched CONCURRENTLY — all three invoked before any resolves (sum-vs-max proof)", async () => {
+    resolveArea.mockImplementation(async (label: string) => ({
+      areaId: `AREA-${label}`,
+      source: "seed" as const,
+    }));
+    const deferredResolvers: Array<(value: { data: unknown; rendersUsed: number }) => void> = [];
+    fetchSoldComps.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          deferredResolvers.push(resolve);
+        }),
+    );
+    const candidates = [
+      makeCandidate({ areaLabel: "A" }),
+      makeCandidate({ areaLabel: "B" }),
+      makeCandidate({ areaLabel: "C" }),
+    ];
+    const supabase = makeSupabase();
+
+    const resultPromise = resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    // Poll until all three fetches have been ISSUED — proves they were
+    // invoked concurrently (never awaited one-at-a-time in a loop), since
+    // none of the three deferred promises has been resolved yet.
+    await vi.waitFor(() => {
+      expect(fetchSoldComps).toHaveBeenCalledTimes(3);
+    });
+    expect(deferredResolvers).toHaveLength(3);
+
+    for (const resolveFetch of deferredResolvers) {
+      resolveFetch({ data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]), rendersUsed: 1 });
+    }
+
+    await resultPromise;
+  });
+
+  it("(d) a candidate with areaLabel:null gets no resolve call and its areaComps stays absent", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-NULL-LABEL", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const candidates = [
+      makeCandidate({ areaLabel: null }),
+      makeCandidate({ areaLabel: "Södermalm" }),
+    ];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    expect(resolveArea).toHaveBeenCalledTimes(1);
+    expect(resolveArea).toHaveBeenCalledWith("Södermalm", supabase);
+    expect(result.byIndex.has(0)).toBe(false);
+    expect(result.byIndex.get(1)?.areaId).toBe("AREA-NULL-LABEL");
+  });
+
+  it("(e) resolveArea resolving null logs a non-fatal degrade; areaComps stays absent, no fetch is attempted", async () => {
+    resolveArea.mockResolvedValue(null);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const candidates = [makeCandidate({ areaLabel: "Ökänt område" })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    expect(fetchSoldComps).not.toHaveBeenCalled();
+    expect(result.byIndex.has(0)).toBe(false);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discovery-job] area resolution for comps degraded (non-fatal)",
+      expect.objectContaining({ areaLabel: "Ökänt område" }),
+    );
+
+    errorSpy.mockRestore();
+  });
+
+  it("(f) a rejecting fetchSoldComps degrades ONLY that area; the function still RESOLVES (never rejects) and other areas still succeed", async () => {
+    resolveArea.mockImplementation(async (label: string) => ({
+      areaId: `AREA-${label}`,
+      source: "seed" as const,
+    }));
+    fetchSoldComps.mockImplementation(async (query: SoldSourceQuery) => {
+      if ((query.breadcrumbs?.[0]?.url ?? "").includes("AREA-FAIL")) {
+        throw new Error("Kunde inte hamta saljdata fran Booli.");
+      }
+      return { data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]), rendersUsed: 1 };
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const candidates = [
+      makeCandidate({ areaLabel: "FAIL" }),
+      makeCandidate({ areaLabel: "OK" }),
+    ];
+    const supabase = makeSupabase();
+
+    const resultPromise = resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+    await expect(resultPromise).resolves.toBeTruthy();
+    const result = await resultPromise;
+
+    expect(result.byIndex.has(0)).toBe(false);
+    expect(result.byIndex.get(1)?.areaId).toBe("AREA-OK");
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discovery-job] comps fetch degraded (non-fatal)",
+      expect.objectContaining({ areaId: "AREA-FAIL" }),
+    );
+
+    errorSpy.mockRestore();
+  });
+
+  it("(g) budgetSek:0 performs ZERO resolve/fetch calls and reports areasSkippedForBudget > 0", async () => {
+    const candidates = [makeCandidate({ areaLabel: "Södermalm" })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 0,
+    });
+
+    expect(resolveArea).not.toHaveBeenCalled();
+    expect(fetchSoldComps).not.toHaveBeenCalled();
+    expect(result.areasSkippedForBudget).toBeGreaterThan(0);
+    expect(result.spentSek).toBe(0);
+  });
+
+  it("(h) spentSek equals renderSek(sum of rendersUsed) plus renderSek(1) per source:'probe' resolution", async () => {
+    resolveArea.mockImplementation(async (label: string) =>
+      label === "Probed"
+        ? { areaId: "AREA-PROBED", source: "probe" as const }
+        : { areaId: "AREA-SEEDED", source: "seed" as const },
+    );
+    fetchSoldComps.mockImplementation(async (query: SoldSourceQuery) => {
+      const isProbedArea = (query.breadcrumbs?.[0]?.url ?? "").includes("AREA-PROBED");
+      return {
+        data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+        rendersUsed: isProbedArea ? 2 : 1,
+      };
+    });
+    const candidates = [
+      makeCandidate({ areaLabel: "Probed" }),
+      makeCandidate({ areaLabel: "Seeded" }),
+    ];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    // rendersUsed sum (2 + 1) priced via renderSek, PLUS one renderSek(1) for
+    // the single "probe" resolution (the "seed" resolution costs nothing).
+    const expected = renderSek(2) + renderSek(1) + renderSek(1);
+    expect(result.spentSek).toBeCloseTo(expected, 10);
+  });
+
+  it("(i) a thin tight segment widens when the widened window admits more comps; confidence stays false while still under MIN_COMPS_FOR_CONFIDENCE", async () => {
+    // Rule 1 reconciliation: the plan's own action text asks for BOTH a
+    // "4-comp" thin tight segment AND `confident:false` surviving the widen.
+    // Since MIN_COMPS_FOR_CONFIDENCE=5 and a widen is only kept when it is
+    // STRICTLY larger than the tight count, a tight count of exactly 4 can
+    // only widen to >=5 — which flips `confident` to true by construction.
+    // This fixture starts the tight segment at 3 comps (still "thin", still
+    // < MIN_COMPS_FOR_CONFIDENCE) and widens to 4 — demonstrating the SAME
+    // widen-or-downgrade mechanics while satisfying "confident: false either
+    // way" literally, rather than the mathematically-impossible literal
+    // "4 comps" starting count.
+    resolveArea.mockResolvedValue({ areaId: "AREA-THIN", source: "seed" });
+    const recentComps: Record<string, unknown> = {
+      "SoldProperty:0": soldPropertyEntry(50000, "2026-07-01"),
+      "SoldProperty:1": soldPropertyEntry(55000, "2026-06-01"),
+      "SoldProperty:2": soldPropertyEntry(60000, "2026-05-01"),
+    };
+    // ~17-18 months before asOf (2026-08-06): excluded by the tight 12mo
+    // window, included by the widened 24mo window (WIDENED_MAX_AGE_MONTHS).
+    const olderComp = { "SoldProperty:3": soldPropertyEntry(65000, "2025-03-01") };
+    fetchSoldComps.mockResolvedValue({
+      data: { ...recentComps, ...olderComp },
+      rendersUsed: 1,
+    });
+    const candidates = [makeCandidate({ areaLabel: "Tunn", rooms: 3, livingArea: 65 })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+      asOf: "2026-08-06",
+    });
+
+    const summary = result.byIndex.get(0);
+    expect(summary?.sampleSize).toBe(4);
+    expect(summary?.widenedBand).toBe(true);
+    expect(summary?.confident).toBe(false);
+  });
+
+  it("(j) the persisted areaComps object's keys exactly match the AreaCompsSummary field list — no raw comp rows", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-KEYS", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const candidates = [makeCandidate({ areaLabel: "Keys" })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    const summary = result.byIndex.get(0);
+    expect(summary).toBeDefined();
+    expect(Object.keys(summary as object).sort()).toEqual(
+      [
+        "areaId",
+        "renovatedMedianPerSqm",
+        "unrenovatedMedianPerSqm",
+        "overallMedianPerSqm",
+        "renovatedCapPerSqm",
+        "sampleSize",
+        "confident",
+        "asOf",
+        "widenedBand",
+      ].sort(),
+    );
+  });
+});
+
+describe("runVisionForJob — comps wiring (14-05, D-14-08)", () => {
+  it("attaches comps to payload.results[i].areaComps in the single terminal update; keys stay exactly ['results','status']", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-WIRED", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const supabase = makeSupabase();
+    const results = [makeCandidate({ areaLabel: "Södermalm", imageUrls: null })];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    expect(updateCalls).toHaveLength(1);
+    const payload = updateCalls[0];
+    expect(Object.keys(payload).sort()).toEqual(["results", "status"]);
+    const written = payload.results as DiscoveryCandidate[];
+    expect(written[0].areaComps).not.toBeNull();
+    expect(written[0].areaComps?.areaId).toBe("AREA-WIRED");
+  });
+
+  it("runVisionPass receives initialSpentSek equal to comps.spentSek — proven via an exhausted-budget outcome (no Anthropic call attempted), keeping this file's Anthropic-free unit-test posture", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-EXHAUST", source: "seed" });
+    // An artificially large rendersUsed proves the WIRING arithmetic
+    // (rendersUsed -> renderSek -> spentSek -> initialSpentSek) — never a
+    // realistic fetchSoldComps return (real calls cap at
+    // COMPS_MAX_RENDERS_PER_AREA=2 own-render rungs). Chosen so comps.spentSek
+    // alone exceeds CAP_VISION_SEK_MAX, forcing the very first image-bearing
+    // candidate straight to "cost_cap" with ZERO Anthropic calls attempted —
+    // so this test needs no `@anthropic-ai/sdk` mock at all.
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 2000,
+    });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({
+        areaLabel: "Södermalm",
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const payload = updateCalls[0];
+    const written = payload.results as DiscoveryCandidate[];
+    expect(written[0].vision).toBeNull();
+    expect(written[0].visionSkippedReason).toBe("cost_cap");
   });
 });
 

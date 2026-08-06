@@ -1,22 +1,33 @@
 import {
   fetchAreaListings,
   fetchListing,
+  fetchSoldComps,
   isAllowedImageHost,
   DETAIL_ENRICH_WAIT_SECS,
   DETAIL_ENRICH_MAX_RETRIES,
+  type SoldSourceQuery,
 } from "@/lib/booli/client";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
-import { resolveArea, splitAreaQuery, type AreaResolution } from "@/lib/discovery/resolve-area";
+import {
+  resolveArea,
+  splitAreaQuery,
+  MAX_AREAS_PER_SEARCH,
+  type AreaResolution,
+} from "@/lib/discovery/resolve-area";
 import {
   toCandidate,
   filterCandidates,
   pricePerSqm,
   type DiscoveryCandidate,
 } from "@/lib/discovery/candidate";
-import { discoveryCostSek } from "@/lib/discovery/cost";
+import { discoveryCostSek, renderSek, estimateCompsFetchSek, CAP_VISION_SEK_MAX } from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
 import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
+import { normalizeSoldOutput, type SoldComp } from "@/lib/market/sold-schema";
+import { computeAreaComps, MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
+import { WIDENED_SIZE_BAND_PCT, WIDENED_MAX_AGE_MONTHS } from "@/lib/discovery/confounder-guard";
+import type { AreaCompsSummary } from "@/lib/discovery/holistic-schema";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
 import type { createClient } from "@/lib/supabase/server";
 
@@ -555,6 +566,251 @@ export async function enrichCandidateImages(
 }
 
 /**
+ * Builds the synthesized `SoldSourceQuery` `fetchSoldComps` needs from a
+ * resolved `areaId` alone. `lat`/`lng`/`booliId` are declared-but-unread by
+ * `fetchSoldComps`'s body (it only calls `resolveAreaId(query)` and
+ * `buildSlutpriserUrl(...)`), and with exactly ONE id in the `breadcrumbs`
+ * array every tier branch of `resolveAreaId` degenerates to `ids[0]` — so a
+ * single-crumb, zero-valued query is a valid, verified way to force a
+ * specific areaId through the existing tier-ladder resolver without a real
+ * breadcrumb ladder. `objectType: null` is an accepted limitation:
+ * `runVisionForJob` has no `filters` in scope and D-14-11 forbids a
+ * signature change to get one, and `computeAreaComps`'s own objectType
+ * clause only narrows "when both sides known" — a `null` here simply never
+ * narrows, it never fabricates a wrong filter.
+ */
+function buildCompsQuery(areaId: string): SoldSourceQuery {
+  return {
+    lat: 0,
+    lng: 0,
+    booliId: null,
+    breadcrumbs: [{ url: `https://www.booli.se/x?areaIds=${areaId}` }],
+    tier: "building",
+    objectType: null,
+  };
+}
+
+/** The result of `resolveCompsForCandidates` — one `AreaCompsSummary` per
+ * candidate index that got a resolvable area + comps, plus the spend/skip
+ * bookkeeping `runVisionForJob` folds into its shared budget pool. */
+export interface CompsResolution {
+  byIndex: Map<number, AreaCompsSummary>;
+  spentSek: number;
+  areasFetched: number;
+  areasSkippedForBudget: number;
+}
+
+/**
+ * `resolveCompsForCandidates` — ANL-02: wires real renovated-vs-unrenovated
+ * area comps into every enriched discovery candidate, resolved from that
+ * candidate's OWN `areaLabel` (Booli's own `descriptiveAreaName`, already
+ * carried on every candidate — no `runVisionForJob` signature change per
+ * D-14-11).
+ *
+ * Comps are fetched ONCE PER DISTINCT resolved areaId, never once per
+ * candidate — double-counting them per candidate would be real money.
+ * Two different area LABELS can resolve to the same areaId (a Booli quirk),
+ * so the fetch set is de-duped by areaId, not by label. Both the area
+ * RESOLUTION step and the comps FETCH step run concurrently
+ * (`Promise.allSettled`), so wall clock is max(area times), not
+ * sum(area times) — the same discipline `runSlice`'s own area loop already
+ * uses one level up.
+ *
+ * Budget is a pre-gate (check-before-spend, mirroring `runVisionPass`'s own
+ * discipline): the allowed area count is computed from `opts.budgetSek`
+ * BEFORE any network call, never after. Every failure path (an unresolvable
+ * label, a throwing comps fetch, a thin comp segment, budget exhaustion)
+ * degrades this candidate's `areaComps` to absent — this function NEVER
+ * throws and NEVER fails the tick.
+ *
+ * Only the pre-AGGREGATED `AreaCompsSummary` is ever stored — the raw
+ * `SoldComp[]` fetched per area lives in an in-memory `Map` local to this
+ * call only, never reaching the returned `CompsResolution` or persistence
+ * (14-RESEARCH.md Pitfall 5).
+ *
+ * @param supabase - a Supabase client scoped to the shared area-resolution cache
+ * @param candidates - the job's enriched candidate set (read-only input)
+ * @param opts.jobId - for GDPR-safe, coded non-fatal logging only
+ * @param opts.budgetSek - the SEK budget available for comps fetches THIS call
+ * @param opts.asOf - ISO "YYYY-MM-DD" reference date for the comps recency
+ *   filter (defaults to today)
+ */
+export async function resolveCompsForCandidates(
+  supabase: DiscoveryJobsWriter,
+  candidates: DiscoveryCandidate[],
+  opts: { jobId: string; budgetSek: number; asOf?: string },
+): Promise<CompsResolution> {
+  const { jobId } = opts;
+  // Mutable accumulators declared OUTSIDE the try block so the catch below
+  // can return whatever partial progress was made before an unexpected
+  // error, rather than discarding it (item f: never throw, never lose
+  // already-computed work).
+  const byIndex = new Map<number, AreaCompsSummary>();
+  let spentSek = 0;
+  let areasFetched = 0;
+  let areasSkippedForBudget = 0;
+
+  try {
+    const asOf = opts.asOf ?? new Date().toISOString().slice(0, 10);
+
+    // (a) Group candidate indices by areaLabel — a candidate without one is
+    // skipped honestly (no comps, no fabricated area). First
+    // MAX_AREAS_PER_SEARCH distinct labels, first-seen order, hard-bounding
+    // the number of resolutions/fetches exactly like runSlice's own area
+    // handling.
+    const labelToIndices = new Map<string, number[]>();
+    for (let i = 0; i < candidates.length; i++) {
+      const label = candidates[i].areaLabel;
+      if (!label || !label.trim()) continue;
+      const indices = labelToIndices.get(label) ?? [];
+      indices.push(i);
+      labelToIndices.set(label, indices);
+    }
+    const allLabels = [...labelToIndices.keys()].slice(0, MAX_AREAS_PER_SEARCH);
+
+    // (b) Budget pre-gate BEFORE any network work.
+    const allowedAreas = Math.max(0, Math.floor(opts.budgetSek / estimateCompsFetchSek()));
+    const labels = allLabels.slice(0, allowedAreas);
+    areasSkippedForBudget = allLabels.length - labels.length;
+
+    if (labels.length === 0) {
+      return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+    }
+
+    // (c) Resolve the allowed labels CONCURRENTLY. A null resolution is
+    // logged identically to a throw (the Phase 08-02 fallback-walker
+    // precedent) — the failure trail is equally visible either way.
+    const resolutions = await Promise.allSettled(labels.map((label) => resolveArea(label, supabase)));
+    const areaIdByLabel = new Map<string, string>();
+    for (let i = 0; i < resolutions.length; i++) {
+      const outcome = resolutions[i];
+      const label = labels[i];
+      if (outcome.status === "rejected") {
+        console.error("[discovery-job] area resolution for comps degraded (non-fatal)", {
+          jobId,
+          areaLabel: label,
+          code: outcome.reason instanceof Error ? outcome.reason.message : "UNKNOWN",
+        });
+        continue;
+      }
+      const resolution = outcome.value;
+      // `== null` (not `=== null`): resolveArea's real contract returns
+      // `AreaResolution | null`, but a test double or a future caller
+      // returning `undefined` must degrade identically — never crash into
+      // the whole-body catch over a loose-vs-strict nullish distinction.
+      if (resolution == null) {
+        console.error("[discovery-job] area resolution for comps degraded (non-fatal)", {
+          jobId,
+          areaLabel: label,
+          code: "AREA_UNRESOLVED",
+        });
+        continue;
+      }
+      areaIdByLabel.set(label, resolution.areaId);
+      // A live probe is a real Apify render.
+      if (resolution.source === "probe") {
+        spentSek += renderSek(1);
+      }
+    }
+
+    // Build the per-candidate-index areaId map, then de-dupe the fetch set
+    // BY areaId — two labels resolving to the same id must produce ONE fetch.
+    const areaIdByIndex = new Map<number, string>();
+    for (const label of labels) {
+      const areaId = areaIdByLabel.get(label);
+      if (!areaId) continue;
+      for (const idx of labelToIndices.get(label) ?? []) {
+        areaIdByIndex.set(idx, areaId);
+      }
+    }
+    const areaIds = [...new Set(areaIdByIndex.values())];
+
+    if (areaIds.length === 0) {
+      return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+    }
+
+    // (d) Fetch comps CONCURRENTLY, once per distinct areaId. `fetchSoldComps`
+    // THROWS on an unresolvable area and on transport failure — neither may
+    // fail the tick.
+    const fetches = await Promise.allSettled(
+      areaIds.map((areaId) => fetchSoldComps(buildCompsQuery(areaId))),
+    );
+    const compsByAreaId = new Map<string, SoldComp[]>();
+    for (let i = 0; i < fetches.length; i++) {
+      const outcome = fetches[i];
+      const areaId = areaIds[i];
+      if (outcome.status === "rejected") {
+        console.error("[discovery-job] comps fetch degraded (non-fatal)", {
+          jobId,
+          areaId,
+          code: outcome.reason instanceof Error ? outcome.reason.message : "UNKNOWN",
+        });
+        continue;
+      }
+      spentSek += renderSek(outcome.value.rendersUsed);
+      compsByAreaId.set(areaId, normalizeSoldOutput(outcome.value.data));
+      areasFetched += 1;
+    }
+
+    // (e) Per candidate: aggregate over the shared per-area comps array —
+    // pure array math, costs nothing extra, deliberately per-candidate
+    // (SPEC §2.6's widen-or-downgrade rule). NEVER store the raw SoldComp[]
+    // anywhere on the candidate (14-RESEARCH.md Pitfall 5) — only the
+    // AreaCompsSummary aggregate is kept.
+    for (const [idx, areaId] of areaIdByIndex.entries()) {
+      const comps = compsByAreaId.get(areaId);
+      if (!comps) continue;
+      const candidate = candidates[idx];
+      const tight = computeAreaComps(comps, {
+        rooms: candidate.rooms,
+        livingArea: candidate.livingArea,
+        asOf,
+        objectType: null,
+      });
+
+      let final = tight;
+      let widenedBand = false;
+      if (tight.sampleSize < MIN_COMPS_FOR_CONFIDENCE) {
+        const widened = computeAreaComps(comps, {
+          rooms: candidate.rooms,
+          livingArea: candidate.livingArea,
+          asOf,
+          objectType: null,
+          sizeBandPct: WIDENED_SIZE_BAND_PCT,
+          maxAgeMonths: WIDENED_MAX_AGE_MONTHS,
+        });
+        if (widened.sampleSize > tight.sampleSize) {
+          final = widened;
+          widenedBand = true;
+        }
+      }
+
+      byIndex.set(idx, {
+        areaId,
+        renovatedMedianPerSqm: final.renovatedMedianPerSqm,
+        unrenovatedMedianPerSqm: final.unrenovatedMedianPerSqm,
+        overallMedianPerSqm: final.overallMedianPerSqm,
+        renovatedCapPerSqm: final.renovatedCapPerSqm,
+        sampleSize: final.sampleSize,
+        confident: final.confident,
+        asOf,
+        widenedBand,
+      });
+    }
+
+    return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+  } catch (error) {
+    // (f) Never throw — return whatever partial progress the mutable
+    // accumulators above already captured.
+    console.error("[discovery-job] resolveCompsForCandidates failed (non-fatal)", {
+      jobId,
+      code: error instanceof Error ? error.message : "UNKNOWN",
+    });
+    return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+  }
+}
+
+/**
  * De-dupes candidates merged from multiple area searches. Keyed by
  * `sourceListingUrl` (the stable per-listing id); a candidate lacking one
  * falls back to address+price and, failing that, is always kept (never dropped
@@ -593,8 +849,23 @@ export async function runVisionForJob(
       results,
       VISION_ENRICH_LIMIT,
     );
-    const withVision = await runVisionPass(enriched, {
+
+    // Pipeline order (Phase 14, ANL-02/D-14-08): enrich → comps → vision →
+    // persist. Comps spend is checked/spent BEFORE vision and shares the
+    // SAME CAP_VISION_SEK_MAX pool via initialSpentSek — never a separate
+    // budget that could jointly overspend the two.
+    const comps = await resolveCompsForCandidates(supabase, enriched, {
+      jobId,
+      budgetSek: CAP_VISION_SEK_MAX,
+    });
+    const withComps = enriched.map((c, i) => ({
+      ...c,
+      areaComps: comps.byIndex.get(i) ?? null,
+    }));
+
+    const withVision = await runVisionPass(withComps, {
       brokerImagesOf: (_candidate, index) => brokerImages.get(index) ?? [],
+      initialSpentSek: comps.spentSek,
     });
     const persisted = await updateJob(supabase, jobId, {
       results: withVision,
