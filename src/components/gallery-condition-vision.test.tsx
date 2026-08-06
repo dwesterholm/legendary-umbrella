@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { GalleryConditionVision } from "@/components/gallery-condition-vision";
 import type { VisionResult } from "@/lib/discovery/vision-schema";
+import {
+  HOLISTIC_DATA_ONLY_MARKER,
+  type HolisticBrief,
+} from "@/lib/discovery/holistic-schema";
 
 function makeVision(overrides: Partial<VisionResult> = {}): VisionResult {
   return {
@@ -26,6 +30,37 @@ function makeVision(overrides: Partial<VisionResult> = {}): VisionResult {
   };
 }
 
+/**
+ * Phase 14 (ANL-01, D-14-04) fixture factory for `HolisticBrief` — mirrors
+ * `makeVision`'s override pattern. Defaults to a realistic hedged
+ * comps-positioning item + a confounder item, `confidence: "low"`, and the
+ * always-false `canAttributeToCondition` (D-14-05).
+ */
+function makeHolisticBrief(overrides: Partial<HolisticBrief> = {}): HolisticBrief {
+  return {
+    marker: HOLISTIC_DATA_ONLY_MARKER,
+    confidence: "low",
+    items: [
+      {
+        kind: "comps-positioning",
+        text: "Priset per kvadratmeter ligger under områdets median för renoverade bostäder, men det kan bero på flera faktorer — se punkten nedan.",
+      },
+      {
+        kind: "confounder",
+        text: "Hiss, exakt läge inom området och delområde är inte kända — de kan påverka prisnivån oavsett skick.",
+      },
+    ],
+    dataSources: ["comps", "hedonic"],
+    conditionAttribution: {
+      capped: true,
+      explainedPct: 0.2,
+      residualDrivers: ["läge", "våningsplan"],
+      canAttributeToCondition: false,
+    },
+    ...overrides,
+  };
+}
+
 const DEFAULT_SUN_PROPS = {
   latitude: null,
   longitude: null,
@@ -40,6 +75,7 @@ describe("GalleryConditionVision", () => {
         vision={null}
         visionSkippedReason="no_images"
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -57,6 +93,7 @@ describe("GalleryConditionVision", () => {
         vision={makeVision()}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -91,6 +128,7 @@ describe("GalleryConditionVision", () => {
         vision={vision}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -107,6 +145,7 @@ describe("GalleryConditionVision", () => {
         vision={null}
         visionSkippedReason="no_images"
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -123,6 +162,7 @@ describe("GalleryConditionVision", () => {
         vision={null}
         visionSkippedReason="cost_cap"
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -142,6 +182,7 @@ describe("GalleryConditionVision", () => {
         vision={null}
         visionSkippedReason="vision_error"
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -164,6 +205,7 @@ describe("GalleryConditionVision", () => {
         vision={makeVision({ claims: [] })}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -180,6 +222,7 @@ describe("GalleryConditionVision", () => {
         vision={makeVision()}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -206,6 +249,7 @@ describe("GalleryConditionVision", () => {
         vision={vision}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -235,6 +279,7 @@ describe("GalleryConditionVision", () => {
         vision={vision}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -251,6 +296,7 @@ describe("GalleryConditionVision", () => {
         vision={makeVision()}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -270,6 +316,7 @@ describe("GalleryConditionVision", () => {
         longitude={18.06}
         floor={3}
         orientation={{ facades: ["south"], confidence: 0.5 }}
+        holisticBrief={null}
       />,
     );
 
@@ -287,6 +334,7 @@ describe("GalleryConditionVision", () => {
         vision={makeVision()}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
@@ -313,10 +361,249 @@ describe("GalleryConditionVision", () => {
         })}
         visionSkippedReason={null}
         {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
       />,
     );
 
     expect(screen.getByText(/Bostaden verkar ljus/)).toBeInTheDocument();
     expect(screen.queryByText("Bild 0")).not.toBeInTheDocument();
+  });
+});
+
+describe("GalleryConditionVision — holistic-data-only brief (ANL-01, D-14-04)", () => {
+  it("renders the brief and NOT the 'För osäkert för att visa' dead end when vision ran with zero claims but a brief exists", () => {
+    const brief = makeHolisticBrief();
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={brief}
+      />,
+    );
+
+    expect(screen.getByText(HOLISTIC_DATA_ONLY_MARKER)).toBeInTheDocument();
+    expect(screen.getByText(brief.items[0].text)).toBeInTheDocument();
+    expect(screen.getByText(brief.items[1].text)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/För osäkert för att visa/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still renders the dead-end line when vision ran with zero claims and NO brief exists (Ringvägen 122 before/after pin)", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={null}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "För osäkert för att visa — inga bildbaserade slutsatser kunde dras med rimlig säkerhet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(HOLISTIC_DATA_ONLY_MARKER),
+    ).not.toBeInTheDocument();
+  });
+
+  it("coexists with the 'no_images' explanation when a brief exists (renders below it, does not replace it)", () => {
+    render(
+      <GalleryConditionVision
+        vision={null}
+        visionSkippedReason="no_images"
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Inga bilder tillgängliga för den här annonsen — ingen bildbedömning kunde göras.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(HOLISTIC_DATA_ONLY_MARKER)).toBeInTheDocument();
+  });
+
+  it("coexists with the 'cost_cap' explanation when a brief exists (renders below it, does not replace it)", () => {
+    render(
+      <GalleryConditionVision
+        vision={null}
+        visionSkippedReason="cost_cap"
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Bildbedömning kördes inte för den här annonsen (sökgränsen för bildanalys nåddes).",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(HOLISTIC_DATA_ONLY_MARKER)).toBeInTheDocument();
+  });
+
+  it("coexists with the 'vision_error' explanation when a brief exists (renders below it, does not replace it)", () => {
+    render(
+      <GalleryConditionVision
+        vision={null}
+        visionSkippedReason="vision_error"
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Bildbedömning kunde inte genomföras för den här annonsen just nu.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(HOLISTIC_DATA_ONLY_MARKER)).toBeInTheDocument();
+  });
+
+  it("does not render the brief when image-cited claims exist (the brief was never attached in that case)", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision()}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief()}
+      />,
+    );
+
+    expect(screen.getByText("Köket verkar renoverat")).toBeInTheDocument();
+    expect(
+      screen.queryByText(HOLISTIC_DATA_ONLY_MARKER),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders nothing new when holisticBrief is null, across every visionSkippedReason state", () => {
+    const states: Array<{
+      vision: VisionResult | null;
+      visionSkippedReason: "no_images" | "cost_cap" | "vision_error" | null;
+    }> = [
+      { vision: null, visionSkippedReason: "no_images" },
+      { vision: null, visionSkippedReason: "cost_cap" },
+      { vision: null, visionSkippedReason: "vision_error" },
+      { vision: makeVision({ claims: [] }), visionSkippedReason: null },
+    ];
+
+    for (const state of states) {
+      const { unmount } = render(
+        <GalleryConditionVision
+          vision={state.vision}
+          visionSkippedReason={state.visionSkippedReason}
+          {...DEFAULT_SUN_PROPS}
+          holisticBrief={null}
+        />,
+      );
+      expect(
+        screen.queryByText(HOLISTIC_DATA_ONLY_MARKER),
+      ).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("renders the 'Låg säkerhet' caption for confidence: 'low'", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief({ confidence: "low" })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Låg säkerhet — bygger på områdesdata/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the 'Måttlig säkerhet' caption for confidence: 'medium', never a high-confidence framing", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief({ confidence: "medium" })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Måttlig säkerhet — bygger på områdesdata/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Hög säkerhet/)).not.toBeInTheDocument();
+  });
+
+  it("is visually distinct from the image-interpretation identity — warm-gray container, no terracotta class", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief()}
+      />,
+    );
+
+    const marker = screen.getByText(HOLISTIC_DATA_ONLY_MARKER);
+    const briefContainer = marker.closest("div.rounded-lg") as HTMLElement;
+    expect(briefContainer).toBeTruthy();
+    expect(briefContainer.className).toContain("warm-gray");
+    expect(briefContainer.className).not.toMatch(/terracotta/);
+  });
+});
+
+describe("ANL-04 UI guard — never implies låg kr/m² ⇒ renoveringsobjekt", () => {
+  // Defence-in-depth DUPLICATE of the data-construction-layer guard in
+  // confounder-guard.ts (14-02's BANNED_RENO_ATTRIBUTION_PATTERNS /
+  // buildHolisticBrief's drop-and-replace — the PRIMARY enforcement point).
+  // This component-level assertion is deliberately INDEPENDENT of that
+  // module — it does NOT import its runtime patterns — so a regression in
+  // either layer is caught on its own; removing one guard does not silently
+  // disable the other.
+  const LAG_KR_IMPLIES_RENO_PATTERN =
+    /l[åa]gt?\s*(kr|pris)[\s/]*kv?m[\s\S]{0,60}renoverings(objekt|behov)/i;
+
+  const deepDiscountBrief = makeHolisticBrief({
+    items: [
+      {
+        kind: "comps-positioning",
+        text: "Priset per kvadratmeter ligger tydligt under områdets median för renoverade bostäder — det kan bero på flera faktorer, se punkten nedan.",
+      },
+      {
+        kind: "confounder",
+        text: "Hiss, exakt läge inom området och delområde är inte kända — de kan påverka prisnivån oavsett skick.",
+      },
+    ],
+  });
+
+  it("never renders 'renoveringsobjekt' or 'renoveringsbehov', even with a deep-discount-flavoured brief mentioning a low kr/m²", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={deepDiscountBrief}
+      />,
+    );
+
+    expect(document.body.textContent).not.toMatch(/renoveringsobjekt/i);
+    expect(document.body.textContent).not.toMatch(/renoveringsbehov/i);
+  });
+
+  it("never matches the låg-kr/m²-implies-renovation pattern in the rendered brief text", () => {
+    render(
+      <GalleryConditionVision
+        vision={makeVision({ claims: [] })}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={deepDiscountBrief}
+      />,
+    );
+
+    expect(document.body.textContent).not.toMatch(LAG_KR_IMPLIES_RENO_PATTERN);
   });
 });
