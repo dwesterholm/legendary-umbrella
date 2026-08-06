@@ -22,19 +22,80 @@ export interface DiscoveryUsage {
 }
 
 /**
+ * The SINGLE render→SEK conversion (14-RESEARCH.md "Don't Hand-Roll"). Every
+ * caller that needs to price a render count (discovery scrape renders, area
+ * comps fetches, …) MUST go through this function rather than re-inlining the
+ * per-render USD rate times the FX rate below — a second inline copy of that
+ * arithmetic would silently drift from the two underlying rate constants on a
+ * future rate change. Non-finite/negative input is treated as 0 renders
+ * (never a negative or NaN cost). Pure function — no side effects, no network.
+ *
+ * @param renders - the number of Apify renders to price
+ * @returns the SEK cost of that many renders
+ */
+export function renderSek(renders: number): number {
+  const n = Number.isFinite(renders) ? Math.max(0, renders) : 0;
+  return n * USD_PER_RENDER * USD_SEK_RATE;
+}
+
+/**
  * Computes the SEK cost of a discovery job from its Haiku intent-parse usage
  * and render count. Composes the existing `costSek` (Haiku) precedent with
- * the render-cost term used by `soldSourceCostSek` (`src/lib/market/cost.ts`).
- * Pure function — no side effects, no network.
+ * `renderSek`, the single render-cost conversion. Pure function — no side
+ * effects, no network.
  *
  * @param usage - Haiku token usage + render count
  * @returns the job's cost in SEK
  */
 export function discoveryCostSek(usage: DiscoveryUsage): number {
-  const renders = Number.isFinite(usage.renders) ? Math.max(0, usage.renders) : 0;
   const haikuSek = costSek(usage.haikuUsage);
-  const renderSek = renders * USD_PER_RENDER * USD_SEK_RATE;
-  return haikuSek + renderSek;
+  return haikuSek + renderSek(usage.renders);
+}
+
+/**
+ * `fetchSoldComps`'s (`src/lib/booli/client.ts`) worst case: its own
+ * fallback tree has exactly two own-render rungs (`own-playwright` +
+ * `own-playwright-retry`), and it returns `rendersUsed: result.rung`, so a
+ * single area's comps fetch costs AT MOST 2 renders.
+ */
+export const COMPS_MAX_RENDERS_PER_AREA = 2 as const;
+
+/**
+ * The worst-case pre-spend estimate for ONE area's comps fetch — mirrors
+ * `estimateVisionCallSek`'s named-worst-case-estimator precedent (a REAL,
+ * priced upper bound, never an arbitrary average).
+ *
+ * @returns the worst-case SEK cost of fetching comps for ONE area
+ */
+export function estimateCompsFetchSek(): number {
+  return renderSek(COMPS_MAX_RENDERS_PER_AREA);
+}
+
+/**
+ * A conservative upper bound on a single BRF extraction call's input tokens.
+ * A full årsredovisning iXBRL text is the dominant input-token cost; 60k
+ * input tokens is chosen so `estimateBrfLookupSek` exceeds the ~0.71 SEK per
+ * real call documented in `run-extraction.ts` — the two Allabrf `undici`
+ * fetches that precede the extraction carry ZERO SEK (they are not Apify
+ * renders — only latency).
+ */
+export const BRF_EXTRACT_INPUT_TOKENS_ESTIMATE = 60_000 as const;
+
+/** The real output ceiling for the single BRF Haiku call (`extract.ts:268`'s `max_tokens: 2048`). */
+export const BRF_EXTRACT_MAX_OUTPUT_TOKENS = 2048 as const;
+
+/**
+ * The worst-case pre-spend estimate for ONE BRF lookup's extraction call —
+ * mirrors `estimateCompsFetchSek`/`estimateVisionCallSek`'s named-worst-case-
+ * estimator precedent, built from the real Haiku cost model (`costSek`).
+ *
+ * @returns the worst-case SEK cost of ONE BRF extraction call
+ */
+export function estimateBrfLookupSek(): number {
+  return costSek({
+    input_tokens: BRF_EXTRACT_INPUT_TOKENS_ESTIMATE,
+    output_tokens: BRF_EXTRACT_MAX_OUTPUT_TOKENS,
+  });
 }
 
 /**

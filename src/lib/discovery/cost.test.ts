@@ -6,6 +6,10 @@ import {
   USD_PER_RENDER,
   CAP_VISION_SEK_MAX,
   visionCostSek,
+  renderSek,
+  COMPS_MAX_RENDERS_PER_AREA,
+  estimateCompsFetchSek,
+  estimateBrfLookupSek,
 } from "@/lib/discovery/cost";
 import { costSek, costSekSonnet, USD_SEK_RATE } from "@/lib/brf/cost";
 import { CAP_SEK_MAX } from "@/lib/discovery/filter-schema";
@@ -72,5 +76,62 @@ describe("visionCostSek — composes Haiku pre-filter + optional Sonnet deep-pas
     const viaVision = visionCostSek(haikuUsage, sonnetUsage) - costSek(haikuUsage);
     const ifBilledAsHaiku = costSek(sonnetUsage);
     expect(viaVision).toBeGreaterThan(ifBilledAsHaiku);
+  });
+});
+
+describe("renderSek — the single render→SEK conversion (14-05)", () => {
+  it("equals renders * USD_PER_RENDER * USD_SEK_RATE", () => {
+    expect(renderSek(2)).toBeCloseTo(2 * USD_PER_RENDER * USD_SEK_RATE, 10);
+  });
+
+  it("is 0 for 0 renders", () => {
+    expect(renderSek(0)).toBe(0);
+  });
+
+  it("clamps a negative render count to 0 (never a negative cost)", () => {
+    expect(renderSek(-3)).toBe(0);
+  });
+
+  it("clamps NaN to 0 (never a NaN cost)", () => {
+    expect(renderSek(Number.NaN)).toBe(0);
+  });
+});
+
+describe("discoveryCostSek — refactor is behaviour-preserving (14-05)", () => {
+  it("equals costSek(haikuUsage) + renderSek(renders)", () => {
+    const haikuUsage = { input_tokens: 1234, output_tokens: 56 };
+    const renders = 3;
+
+    const result = discoveryCostSek({ haikuUsage, renders });
+    const expected = costSek(haikuUsage) + renderSek(renders);
+
+    expect(result).toBeCloseTo(expected, 10);
+  });
+});
+
+describe("estimateCompsFetchSek / COMPS_MAX_RENDERS_PER_AREA — 14-05 (ANL-02)", () => {
+  it("COMPS_MAX_RENDERS_PER_AREA is 2 (fetchSoldComps's own-render rung count)", () => {
+    expect(COMPS_MAX_RENDERS_PER_AREA).toBe(2);
+  });
+
+  it("equals renderSek(COMPS_MAX_RENDERS_PER_AREA)", () => {
+    expect(estimateCompsFetchSek()).toBeCloseTo(renderSek(COMPS_MAX_RENDERS_PER_AREA), 10);
+  });
+});
+
+describe("estimateBrfLookupSek — 14-05 (D-14-08)", () => {
+  it("does not under-estimate the observed real per-extraction cost (~0.71 SEK)", () => {
+    expect(estimateBrfLookupSek()).toBeGreaterThanOrEqual(0.71);
+  });
+
+  it("stays below CAP_VISION_SEK_MAX — a single BRF lookup can never alone exhaust the pool", () => {
+    expect(estimateBrfLookupSek()).toBeLessThan(CAP_VISION_SEK_MAX);
+  });
+});
+
+describe("D-14-08 headroom check — worst-case comps + BRF batch leaves budget for vision", () => {
+  it("2 areas' comps + a full BRF_TOP_N(4)-sized BRF batch stays inside CAP_VISION_SEK_MAX", () => {
+    const worstCase = 2 * estimateCompsFetchSek() + 4 * estimateBrfLookupSek();
+    expect(worstCase).toBeLessThan(CAP_VISION_SEK_MAX);
   });
 });
