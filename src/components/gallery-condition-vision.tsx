@@ -1,10 +1,14 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { Database, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SunPathExposure } from "@/components/sun-path-exposure";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 import type { Facade } from "@/lib/discovery/sun-path";
+import {
+  HOLISTIC_DATA_ONLY_MARKER,
+  type HolisticBrief,
+} from "@/lib/discovery/holistic-schema";
 
 interface GalleryConditionVisionProps {
   /** Persisted per-candidate vision result — `null` when vision has not run
@@ -24,6 +28,63 @@ interface GalleryConditionVisionProps {
   longitude: number | null;
   floor: number | null;
   orientation: { facades: Facade[]; confidence: number } | null;
+  /** D-14-04's holistic-data-only brief (Phase 14, ANL-01) — attached by the
+   *  analysis pass when a candidate ends up with zero surviving image claims
+   *  (or has never been vision-processed). It is code-composed from
+   *  comps/BRF/hedonic aggregates (`buildHolisticBrief`, 14-02) — NEVER a
+   *  model output, NEVER scraped text. Exactly like `vision` and the
+   *  sun-path inputs above, this is NEVER fed into `computeNicheScore`/
+   *  `ReportFlags` — purely presentational (structural-separation
+   *  invariant, niche-score.test.ts). */
+  holisticBrief: HolisticBrief | null;
+}
+
+/**
+ * `HolisticDataBrief` — the D-14-04 data-only sub-block (Phase 14, ANL-01).
+ * A THIRD visual identity, distinct from BOTH the Eye/terracotta
+ * image-interpretation identity above it and `ReportFlags`' severity-chip/
+ * sage verified vocabulary: warm-gray/`Database`, so a buyer can tell
+ * "verified" (sage/chips), "image-interpreted" (terracotta/Eye), and
+ * "area-data-derived" (warm-gray/Database) apart at a glance — mirroring the
+ * Phase 11/Phase 12 identity decisions recorded in STATE.md.
+ *
+ * Renders the imported `HOLISTIC_DATA_ONLY_MARKER` (never a hardcoded copy),
+ * a mandatory downgraded-confidence caption (D-14-04: a data-only inference
+ * can never claim "high" confidence), and the pre-composed
+ * `brief.items[].text` strings verbatim — no numbers are formatted or
+ * recomputed here; every string is already composed and
+ * banned-pattern-cleared by `buildHolisticBrief` (14-02). `item.kind` is
+ * used only as a React key, never rendered as a visible label (D-14-07 keeps
+ * this minimal; per-kind presentation is Phase 15).
+ */
+function HolisticDataBrief({ brief }: { brief: HolisticBrief }) {
+  return (
+    <div className="rounded-lg border border-warm-gray-200 bg-warm-gray-50 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-warm-gray-100">
+          <Database className="h-3.5 w-3.5 text-warm-gray-600" />
+        </div>
+        <p className="text-sm font-medium text-warm-gray-700">
+          {HOLISTIC_DATA_ONLY_MARKER}
+        </p>
+      </div>
+      <p className="text-xs italic text-warm-gray-500">
+        {brief.confidence === "low"
+          ? "Låg säkerhet — bygger på områdesdata och uppgifter i annonsen, inte på en besiktning."
+          : "Måttlig säkerhet — bygger på områdesdata och uppgifter i annonsen, inte på en besiktning."}
+      </p>
+      <ul className="space-y-1">
+        {brief.items.map((item, index) => (
+          <li
+            key={`${item.kind}-${index}`}
+            className="text-sm text-warm-gray-700"
+          >
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /**
@@ -51,7 +112,7 @@ const ATTRIBUTE_LABELS: Record<VisionConditionClaim["attribute"], string> = {
  * Reads `DiscoveryCandidate.vision`/`visionSkippedReason` DIRECTLY (mirrors
  * `ReportFlags`' direct-props-read simplicity) — no transform layer.
  *
- * Five distinct content states (never a silently absent section):
+ * Six distinct content states (never a silently absent section):
  *   1. `visionSkippedReason === "no_images"` — no gallery existed.
  *   2. `visionSkippedReason === "cost_cap"` — vision was skipped (spend cap).
  *   3. `visionSkippedReason === "vision_error"` — the Claude call for THIS
@@ -62,7 +123,16 @@ const ATTRIBUTE_LABELS: Record<VisionConditionClaim["attribute"], string> = {
  *      (DISC-05, UI-SPEC Copywriting Contract) — distinct from and in
  *      addition to the general "Kan vara fel" closing disclaimer below.
  *   5. `vision` ran but every claim was suppressed (empty claims array) —
- *      "too uncertain to show."
+ *      "too uncertain to show." (Phase 14, D-14-04: REPLACED by state 6 when
+ *      a `holisticBrief` exists — the dead end only survives when there is
+ *      genuinely nothing to say.)
+ *   6. (Phase 14, ANL-01/D-14-04) The `HolisticDataBrief` data-only
+ *      sub-block: renders INSTEAD of state 5's dead-end line when a
+ *      `holisticBrief` exists, and additionally BELOW states 1-3 (comps +
+ *      hedonic data remain available even when zero images were
+ *      interpreted). Never renders alongside state 4 (image-cited claims
+ *      already exist, so the brief was never attached). See the truth table
+ *      comment above the `CardContent` branch ladder below.
  *
  * Also ALWAYS embeds `SunPathExposure` (DISC-06) inside this SAME
  * `CardContent`, after the claims list/disclaimers — a `Compass`/warm-gray
@@ -86,6 +156,7 @@ export function GalleryConditionVision({
   longitude,
   floor,
   orientation,
+  holisticBrief,
 }: GalleryConditionVisionProps) {
   const claims = vision?.claims ?? [];
   const hasClaims = claims.length > 0;
@@ -93,6 +164,7 @@ export function GalleryConditionVision({
   const hasRemodelPotentialClaim = claims.some(
     (claim) => claim.attribute === "remodelPotential",
   );
+  const hasHolisticBrief = holisticBrief !== null && holisticBrief.items.length > 0;
 
   return (
     <Card className="border-warm-gray-200 bg-warm-white">
@@ -111,6 +183,29 @@ export function GalleryConditionVision({
         </p>
       </CardHeader>
 
+      {/*
+        Phase 14 (D-14-04/D-14-07) truth table for the HolisticDataBrief
+        sub-block, added below WITHOUT touching the three
+        `visionSkippedReason` explanations' own JSX blocks:
+          - visionSkippedReason is "no_images"/"cost_cap"/"vision_error" →
+            the matching explanation renders EXACTLY as before (why no
+            images were interpreted still matters, Phase 11's operator
+            kill-criterion distinguishes the three), and the brief renders
+            BELOW whichever one fired, when hasHolisticBrief.
+          - visionSkippedReason === null && visionRanButEmpty → the "För
+            osäkert för att visa" dead end is REPLACED by the brief when
+            hasHolisticBrief (this is the Ringvägen 122 scenario: the
+            candidate reached analysis with zero image-derived claims but
+            comps + hedonic data are still available — ANL-01's "every
+            surfaced candidate leaves analysis with ≥1 actionable item").
+            The dead-end line only survives when hasHolisticBrief is false —
+            genuinely nothing to say.
+          - visionSkippedReason === null && hasClaims → unchanged, no brief
+            (image-cited claims already exist; the brief was never attached
+            by the analysis pass in this case).
+          - hasHolisticBrief === false → nothing new renders anywhere; every
+            existing state stays byte-identical to pre-Phase-14 output.
+      */}
       <CardContent className="space-y-3">
         {visionSkippedReason === "no_images" && (
           <p className="text-sm italic text-warm-gray-500">
@@ -132,12 +227,21 @@ export function GalleryConditionVision({
           </p>
         )}
 
-        {visionSkippedReason === null && visionRanButEmpty && (
+        {visionSkippedReason !== null && hasHolisticBrief && holisticBrief && (
+          <HolisticDataBrief brief={holisticBrief} />
+        )}
+
+        {visionSkippedReason === null && visionRanButEmpty && !hasHolisticBrief && (
           <p className="text-sm italic text-warm-gray-500">
             För osäkert för att visa — inga bildbaserade slutsatser kunde dras
             med rimlig säkerhet.
           </p>
         )}
+
+        {visionSkippedReason === null &&
+          visionRanButEmpty &&
+          hasHolisticBrief &&
+          holisticBrief && <HolisticDataBrief brief={holisticBrief} />}
 
         {visionSkippedReason === null && hasClaims && (
           <>
