@@ -26,3 +26,18 @@ not part of any plan's acceptance criteria).
   green. Recorded here for a future phase/operator to consider raising the
   `testTimeout` on CPU/IO-heavy fixtures or reducing parallel worker count in
   CI if this recurs.
+
+## 14-06: Same concurrency-timing flake recurred
+
+- **Found during:** Task 3 verification (`npm run test`, full suite) — the
+  exact same `job.test.ts` test named above (`elapsed).toBeLessThan(110)`,
+  "scrapes both areas CONCURRENTLY") failed once under full-suite parallel
+  load with `112` vs the `110` threshold, then passed on an immediate re-run
+  of the full suite (874/877, 3 pre-existing skips) and passed in isolation
+  (`npx vitest run src/lib/discovery/job.test.ts -t "scrapes both areas
+  CONCURRENTLY"`). Not in this plan's `files_modified` in a way that changes
+  its timing (the test predates 14-06; this plan only added new `describe`
+  blocks elsewhere in the same file). Confirms the sandbox-load-dependent
+  flakiness already logged under 14-03 is still present; not fixed here,
+  same recommendation stands (raise the fixed 110ms threshold or reduce
+  parallel worker count).

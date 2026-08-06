@@ -56,6 +56,35 @@ vi.mock("@/lib/broker/broker-images", () => ({
   fetchBrokerImageBytes: (...args: unknown[]) => fetchBrokerImageBytes(...args),
 }));
 
+// ANL-03 (14-06 Task 3): only lookupBrfSummary is mocked (network + LLM
+// edge) — BRF_TOP_N is preserved via importActual so tests assert against
+// the real exported constant, not a stubbed one.
+const lookupBrfSummary = vi.fn();
+vi.mock("@/lib/discovery/brf-lookup", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/discovery/brf-lookup")>()),
+  lookupBrfSummary: (...args: unknown[]) => lookupBrfSummary(...args),
+}));
+
+// ANL-01 (14-06 Task 3): mocks the Anthropic SDK directly (mirrors
+// vision.test.ts's shape) ONLY to drive the "vision_error" and
+// non-empty-claims:[] states through the REAL vision.ts/runVisionPass code
+// path — no vision.ts logic is stubbed, only the underlying LLM call.
+// Every pre-existing test in this file uses `imageUrls: null`, so `parse` is
+// never invoked by them and this mock is a no-op for the rest of the suite.
+const parse = vi.fn();
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: class MockAnthropic {
+    beta = {
+      messages: {
+        parse: (...args: unknown[]) => parse(...args),
+      },
+    };
+  },
+}));
+vi.mock("@anthropic-ai/sdk/helpers/zod", () => ({
+  zodOutputFormat: (schema: unknown) => ({ __mockFormat: true, schema }),
+}));
+
 import {
   runSlice,
   runVisionForJob,
@@ -67,15 +96,18 @@ import {
   candidateMedianPricePerSqm,
   dedupeCandidates,
   resolveCompsForCandidates,
+  lookupBrfForTopCandidates,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
-import { discoveryCostSek, renderSek } from "@/lib/discovery/cost";
+import { discoveryCostSek, renderSek, estimateBrfLookupSek } from "@/lib/discovery/cost";
 import {
   DETAIL_ENRICH_WAIT_SECS,
   DETAIL_ENRICH_MAX_RETRIES,
   type SoldSourceQuery,
 } from "@/lib/booli/client";
+import { BRF_TOP_N } from "@/lib/discovery/brf-lookup";
+import { HOLISTIC_DATA_ONLY_MARKER, type BrfSummary } from "@/lib/discovery/holistic-schema";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
 let updateCalls: Array<Record<string, unknown>>;
@@ -1151,6 +1183,449 @@ describe("runVisionForJob — comps wiring (14-05, D-14-08)", () => {
     const written = payload.results as DiscoveryCandidate[];
     expect(written[0].vision).toBeNull();
     expect(written[0].visionSkippedReason).toBe("cost_cap");
+  });
+});
+
+/** A minimal, valid `BrfSummary` fixture — the "ok" outcome shape lookupBrfSummary returns. */
+function makeBrfSummary(overrides: Partial<BrfSummary> = {}): BrfSummary {
+  return {
+    skuldPerKvm: 5000,
+    avgiftsniva: 3000,
+    kassaflode: 100000,
+    stambytePlanerat: null,
+    tomtratt: null,
+    fiscalYear: 2024,
+    source: "allabrf",
+    ...overrides,
+  };
+}
+
+/** Mirrors vision.test.ts's baseUsage() — a minimal Claude usage fixture. */
+function baseUsage() {
+  return {
+    input_tokens: 1000,
+    output_tokens: 100,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
+}
+
+/** A deep-pass attribute fixture — mirrors vision.test.ts's attr() helper. */
+function attr(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    claim: null,
+    imageIndex: 0,
+    whatWasSeen: "",
+    confidence: 0,
+    ...overrides,
+  };
+}
+
+describe("lookupBrfForTopCandidates — ANL-03 top-N concurrent BRF fetch", () => {
+  it("selects the top BRF_TOP_N by enrichmentVisitOrder, restricted to brfName-bearing candidates, in that order", async () => {
+    lookupBrfSummary.mockResolvedValue({ summary: null, costSek: 0, outcome: "no_document" });
+    const candidates = [
+      makeCandidate({ brfName: "Brf A", price: 4_000_000, livingArea: 40, constructionYear: 2015 }),
+      makeCandidate({ brfName: "Brf B", price: 3_000_000, livingArea: 40, constructionYear: 1962 }),
+      makeCandidate({ brfName: null, price: 3_500_000, livingArea: 50, constructionYear: 1930 }),
+      makeCandidate({ brfName: "Brf D", price: 4_500_000, livingArea: 45, constructionYear: 2020 }),
+      makeCandidate({ brfName: "Brf E", price: 2_800_000, livingArea: 40, constructionYear: 1905 }),
+      makeCandidate({ brfName: "Brf F", price: 3_900_000, livingArea: 60, constructionYear: 1975 }),
+      makeCandidate({ brfName: null, price: 4_200_000, livingArea: 42, constructionYear: 2018 }),
+      makeCandidate({ brfName: "Brf H", price: 3_100_000, livingArea: 62, constructionYear: 1900 }),
+    ];
+    // Assert against enrichmentVisitOrder's OWN output, never a hardcoded
+    // order — this tracks the real prelim rank.
+    const order = enrichmentVisitOrder(candidates);
+    const expectedIndices = order.filter((i) => candidates[i].brfName !== null).slice(0, BRF_TOP_N);
+    expect(expectedIndices.length).toBe(BRF_TOP_N); // 6 brfName-bearing candidates, BRF_TOP_N=4 < 6
+
+    await lookupBrfForTopCandidates(candidates, { jobId: "job-1", budgetSek: 10 });
+
+    expect(lookupBrfSummary).toHaveBeenCalledTimes(BRF_TOP_N);
+    expect(
+      lookupBrfSummary.mock.calls.map((call) => (call[0] as { brfName: string | null }).brfName),
+    ).toEqual(expectedIndices.map((idx) => candidates[idx].brfName));
+  });
+
+  it("a candidate with brfName: null is never attempted, even when it ranks first", async () => {
+    lookupBrfSummary.mockResolvedValue({ summary: null, costSek: 0, outcome: "no_document" });
+    const candidates = [
+      // Deep below-market + oldest stock -> ranks #1 by enrichmentPriority,
+      // but has no brfName -> nothing to search.
+      makeCandidate({ brfName: null, price: 2_000_000, livingArea: 40, constructionYear: 1900 }),
+      makeCandidate({ brfName: "Brf X", price: 4_000_000, livingArea: 40, constructionYear: 2015 }),
+    ];
+
+    await lookupBrfForTopCandidates(candidates, { jobId: "job-1", budgetSek: 10 });
+
+    expect(lookupBrfSummary).toHaveBeenCalledTimes(1);
+    expect(lookupBrfSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ brfName: "Brf X" }),
+    );
+  });
+
+  it("each call receives that candidate's own kommun and tenureForm (D-14-09 payoff)", async () => {
+    lookupBrfSummary.mockResolvedValue({ summary: null, costSek: 0, outcome: "no_document" });
+    const candidates = [
+      makeCandidate({ brfName: "Brf X", kommun: "Stockholm", tenureForm: "Bostadsrätt" }),
+    ];
+
+    await lookupBrfForTopCandidates(candidates, { jobId: "job-1", budgetSek: 10 });
+
+    expect(lookupBrfSummary).toHaveBeenCalledWith({
+      brfName: "Brf X",
+      kommun: "Stockholm",
+      tenureForm: "Bostadsrätt",
+    });
+  });
+
+  it("CONCURRENCY: all BRF_TOP_N invocations happen before any resolves (max-vs-sum proof, Phase 13 WR-02)", async () => {
+    const deferredResolvers: Array<
+      (value: { summary: null; costSek: number; outcome: "no_document" }) => void
+    > = [];
+    lookupBrfSummary.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          deferredResolvers.push(resolve);
+        }),
+    );
+    const candidates = Array.from({ length: BRF_TOP_N }, (_, i) =>
+      makeCandidate({
+        brfName: `Brf ${i}`,
+        sourceListingUrl: `https://www.booli.se/annons/${i}`,
+      }),
+    );
+
+    const resultPromise = lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    await vi.waitFor(() => {
+      expect(lookupBrfSummary).toHaveBeenCalledTimes(BRF_TOP_N);
+    });
+    expect(deferredResolvers).toHaveLength(BRF_TOP_N);
+
+    for (const resolve of deferredResolvers) {
+      resolve({ summary: null, costSek: 0.1, outcome: "no_document" });
+    }
+
+    await resultPromise;
+  });
+
+  it("a REJECTING lookupBrfSummary for one index leaves that candidate's brfSummary absent, logs the non-fatal line; the function resolves and other indices still succeed", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    lookupBrfSummary.mockImplementation(async (input: { brfName: string | null }) => {
+      if (input.brfName === "Brf FAIL") throw new Error("ALLABRF_TIMEOUT");
+      return { summary: makeBrfSummary(), costSek: 0.5, outcome: "ok" };
+    });
+    const candidates = [
+      makeCandidate({ brfName: "Brf FAIL" }),
+      makeCandidate({ brfName: "Brf OK" }),
+    ];
+
+    const resultPromise = lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+    await expect(resultPromise).resolves.toBeTruthy();
+    const result = await resultPromise;
+
+    expect(result.byIndex.has(0)).toBe(false);
+    expect(result.byIndex.get(1)).toBeDefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discovery-job] brf lookup degraded (non-fatal)",
+      expect.objectContaining({ candidateIndex: 0 }),
+    );
+
+    errorSpy.mockRestore();
+  });
+
+  it("a non-'ok' outcome (e.g. 'low_confidence') contributes no byIndex entry and logs a diagnostic naming the outcome", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    lookupBrfSummary.mockResolvedValue({ summary: null, costSek: 0, outcome: "low_confidence" });
+    const candidates = [makeCandidate({ brfName: "Brf X" })];
+
+    const result = await lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    expect(result.byIndex.has(0)).toBe(false);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[discovery-job] brf lookup outcome",
+      expect.objectContaining({ candidateIndex: 0, outcome: "low_confidence" }),
+    );
+
+    errorSpy.mockRestore();
+  });
+
+  it("spentSek equals the sum of every fulfilled costSek, including from non-'ok' outcomes", async () => {
+    lookupBrfSummary.mockImplementation(async (input: { brfName: string | null }) => {
+      if (input.brfName === "Brf A") {
+        return { summary: makeBrfSummary(), costSek: 0.8, outcome: "ok" };
+      }
+      return { summary: null, costSek: 0.3, outcome: "low_confidence" };
+    });
+    const candidates = [
+      makeCandidate({ brfName: "Brf A" }),
+      makeCandidate({ brfName: "Brf B" }),
+    ];
+
+    const result = await lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    expect(result.spentSek).toBeCloseTo(1.1, 10);
+  });
+
+  it("budgetSek: 0 performs ZERO lookupBrfSummary calls and reports skippedForBudget > 0", async () => {
+    const candidates = [makeCandidate({ brfName: "Brf X" })];
+
+    const result = await lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek: 0,
+    });
+
+    expect(lookupBrfSummary).not.toHaveBeenCalled();
+    expect(result.skippedForBudget).toBeGreaterThan(0);
+    expect(result.spentSek).toBe(0);
+  });
+
+  it("a partial budget allowing exactly 2 lookups attempts exactly 2 and reports skippedForBudget for the rest", async () => {
+    lookupBrfSummary.mockResolvedValue({ summary: null, costSek: 0, outcome: "no_document" });
+    const candidates = Array.from({ length: BRF_TOP_N }, (_, i) =>
+      makeCandidate({ brfName: `Brf ${i}` }),
+    );
+    const budgetSek = estimateBrfLookupSek() * 2;
+
+    const result = await lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek,
+    });
+
+    expect(lookupBrfSummary).toHaveBeenCalledTimes(2);
+    expect(result.skippedForBudget).toBe(BRF_TOP_N - 2);
+  });
+});
+
+describe("runVisionForJob — ANL-01 non-empty guarantee across all four no-claims states", () => {
+  it("visionSkippedReason: 'no_images' yields a non-null holisticBrief with >=1 item and the D-14-04 marker", async () => {
+    resolveArea.mockResolvedValue(undefined); // comps cleanly miss
+    const supabase = makeSupabase();
+    const results = [makeCandidate({ imageUrls: null, brfName: null })];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].visionSkippedReason).toBe("no_images");
+    expect(written[0].holisticBrief).not.toBeNull();
+    expect(written[0].holisticBrief?.items.length).toBeGreaterThanOrEqual(1);
+    expect(written[0].holisticBrief?.marker).toBe(HOLISTIC_DATA_ONLY_MARKER);
+  });
+
+  it("visionSkippedReason: 'cost_cap' yields a non-null holisticBrief with >=1 item and the D-14-04 marker", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-CAP", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 2000, // exhausts the shared pool before vision runs
+    });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({
+        areaLabel: "Södermalm",
+        brfName: null,
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].visionSkippedReason).toBe("cost_cap");
+    expect(written[0].holisticBrief).not.toBeNull();
+    expect(written[0].holisticBrief?.items.length).toBeGreaterThanOrEqual(1);
+    expect(written[0].holisticBrief?.marker).toBe(HOLISTIC_DATA_ONLY_MARKER);
+  });
+
+  it("visionSkippedReason: 'vision_error' yields a non-null holisticBrief with >=1 item and the D-14-04 marker", async () => {
+    resolveArea.mockResolvedValue(undefined);
+    parse.mockRejectedValueOnce(new Error("transient failure"));
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({
+        brfName: null,
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].visionSkippedReason).toBe("vision_error");
+    expect(written[0].holisticBrief).not.toBeNull();
+    expect(written[0].holisticBrief?.items.length).toBeGreaterThanOrEqual(1);
+    expect(written[0].holisticBrief?.marker).toBe(HOLISTIC_DATA_ONLY_MARKER);
+  });
+
+  it("a non-null vision whose claims is [] (Haiku worthDeepPass:false) yields a non-null holisticBrief with >=1 item and the D-14-04 marker", async () => {
+    resolveArea.mockResolvedValue(undefined);
+    parse.mockResolvedValueOnce({
+      parsed_output: { worthDeepPass: false },
+      usage: baseUsage(),
+      stop_reason: "end_turn",
+    });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({
+        brfName: null,
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].vision).not.toBeNull();
+    expect(written[0].vision?.claims).toEqual([]);
+    expect(written[0].holisticBrief).not.toBeNull();
+    expect(written[0].holisticBrief?.items.length).toBeGreaterThanOrEqual(1);
+    expect(written[0].holisticBrief?.marker).toBe(HOLISTIC_DATA_ONLY_MARKER);
+  });
+
+  it("a candidate WITH a surviving claim has holisticBrief === null", async () => {
+    resolveArea.mockResolvedValue(undefined);
+    parse
+      .mockResolvedValueOnce({
+        parsed_output: { worthDeepPass: true },
+        usage: baseUsage(),
+        stop_reason: "end_turn",
+      })
+      .mockResolvedValueOnce({
+        parsed_output: {
+          kitchen: attr({ claim: "Köket verkar renoverat", imageIndex: 1, confidence: 0.9 }),
+          bathroom: attr(),
+          overall: attr(),
+          remodelPotential: attr(),
+        },
+        usage: baseUsage(),
+        stop_reason: "end_turn",
+      });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({
+        brfName: null,
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+      }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].vision?.claims.length).toBeGreaterThan(0);
+    expect(written[0].holisticBrief).toBeNull();
+  });
+
+  it("zero holistic data (no comps, no BRF) still yields exactly one 'insufficient-data' item — the guarantee holds even with nothing to say", async () => {
+    resolveArea.mockResolvedValue(undefined);
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({ imageUrls: null, brfName: null, areaLabel: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].holisticBrief?.items).toHaveLength(1);
+    expect(written[0].holisticBrief?.items[0].kind).toBe("insufficient-data");
+  });
+
+  it("a candidate with both comps AND a BRF summary produces a brief whose dataSources contains 'comps' and 'brf'", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-BOTH", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    lookupBrfSummary.mockResolvedValue({ summary: makeBrfSummary(), costSek: 0.5, outcome: "ok" });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({ areaLabel: "Södermalm", brfName: "Brf X", imageUrls: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].holisticBrief?.dataSources).toEqual(
+      expect.arrayContaining(["comps", "brf"]),
+    );
+  });
+
+  it("the persisted brief's text never contains 'renoveringsobjekt' (end-to-end counterpart to 14-02/14-04's unit assertions)", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-RENO", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([100000, 105000, 110000, 115000, 120000]),
+      rendersUsed: 1,
+    });
+    lookupBrfSummary.mockResolvedValue({ summary: makeBrfSummary(), costSek: 0.5, outcome: "ok" });
+    const supabase = makeSupabase();
+    // Deep-discount pricing (well below the comps median) exercises the
+    // guard's discount-attribution path, the exact branch the banned-phrase
+    // guard exists for.
+    const results = [
+      makeCandidate({
+        areaLabel: "Södermalm",
+        brfName: "Brf X",
+        imageUrls: null,
+        price: 3_000_000,
+        livingArea: 50,
+      }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    const allText = written[0].holisticBrief?.items.map((i) => i.text).join(" ") ?? "";
+    expect(allText).not.toContain("renoveringsobjekt");
+  });
+
+  it("keeps the terminal update payload keys exactly ['results','status'] even with BRF+brief attached", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-KEYS2", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    lookupBrfSummary.mockResolvedValue({ summary: makeBrfSummary(), costSek: 0.5, outcome: "ok" });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({ areaLabel: "Södermalm", brfName: "Brf X", imageUrls: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    expect(Object.keys(updateCalls[0]).sort()).toEqual(["results", "status"]);
+    expect(updateCalls[0]).not.toHaveProperty("processed_count");
+    expect(updateCalls[0]).not.toHaveProperty("cost_sek_total");
+    expect(updateCalls[0]).not.toHaveProperty("candidate_count");
+  });
+
+  it("shared budget: an exhausted comps spend skips BRF entirely while the candidate still gets a holistic brief", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-EXHAUST3", source: "seed" });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 2000,
+    });
+    const supabase = makeSupabase();
+    const results = [
+      makeCandidate({ areaLabel: "Södermalm", brfName: "Brf X", imageUrls: null }),
+    ];
+
+    await runVisionForJob(supabase, "job-1", results);
+
+    expect(lookupBrfSummary).not.toHaveBeenCalled();
+    const written = updateCalls[0].results as DiscoveryCandidate[];
+    expect(written[0].holisticBrief).not.toBeNull();
   });
 });
 
