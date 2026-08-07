@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
-status: gaps_found
-stopped_at: Phase 14 verified — gaps_found (2/4 must-haves). ANL-03 + ANL-04 gaps open; next is /gsd-plan-phase 14 --gaps
+status: planned
+stopped_at: Phase 14 gap-closure planned — 14-07..14-10 created, plan-checker PASS. Next is /gsd-execute-phase 14 --gaps-only
 last_updated: "2026-08-06T15:57:14.486Z"
 last_activity: 2026-08-05 -- Phase 14 execution started
 progress:
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 ## Current Position
 
-Phase: 14 (holistic-analysis-brain) — VERIFIED, GAPS FOUND
-Plan: 6 of 6 executed
-Status: Verification `gaps_found` — 2/4 must-haves. ANL-01/ANL-02 pass; ANL-03 and ANL-04 failed on BRF-summary correctness (avgiftsniva unit error, discarded sanity-band confidence, raw `ej_nämnt` enum in prose) plus an uncounted-spend accounting bug.
-Last activity: 2026-08-06 -- Phase 14 executed + reviewed + verified
-Next step: `/gsd-plan-phase 14 --gaps` to close the ANL-03/ANL-04 gaps. Operator live-smoke re-run of Phase 13 still outstanding.
+Phase: 14 (holistic-analysis-brain) — GAP CLOSURE PLANNED
+Plan: 6 of 6 executed; 4 gap-closure plans (14-07..14-10) planned, 0 executed
+Status: Verification `gaps_found` (2/4 must-haves). ANL-01/ANL-02 pass; ANL-03 and ANL-04 failed on BRF-summary correctness. Gap plans 14-07..14-10 created and PASSED plan-checker; they close CR-01..CR-04 + WR-01. Operator decisions: soliditet deferral ACCEPTED (documentation only, 14-09); fix scope limited to the 4 Criticals + WR-01 (WR-04/06/09/10/11 stay open by decision).
+Last activity: 2026-08-07 -- Phase 14 gap closure planned
+Next step: `/gsd-execute-phase 14 --gaps-only`. Operator live-smoke re-run of Phase 13 still outstanding.
 
 ## Roadmap Summary (v1.2 — CURRENT)
 
