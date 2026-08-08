@@ -128,6 +128,10 @@ None - no external service configuration required.
 - `confounder-guard.test.ts`'s `makeBrf` helper already defaults to a trusted `fieldConfidence`, so plan 14-10's new gating logic can be exercised against both the default-trusted case and explicit overrides without further fixture repair.
 - The DEFERRED-LIVE operator gate (re-running the fixes against a real Allabrf-extracted document once Supabase is restored and the operator IP is unblocked) remains outstanding and does not block this plan or 14-10.
 
+## Self-Check: PASSED
+
+All 7 created/modified source files confirmed present on disk; all 4 commit hashes (`97df551`, `d87592e`, `9797e09`, `f77c533`) confirmed present in `git log --oneline --all`.
+
 ---
 *Phase: 14-holistic-analysis-brain*
 *Completed: 2026-08-08*
