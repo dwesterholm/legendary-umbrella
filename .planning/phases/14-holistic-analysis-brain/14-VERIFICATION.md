@@ -3,7 +3,12 @@ phase: 14-holistic-analysis-brain
 verified: 2026-08-06T19:00:00Z
 status: gaps_found
 score: 2/4 must-haves verified
-overrides_applied: 0
+overrides:
+  - must_have: "ANL-03: BRF summary includes soliditet"
+    reason: "No field exists on brfExtractionSchema; rarely cleanly extractable from iXBRL; debt/m² carries most of the balance-sheet signal (14-CONTEXT.md D-14-02, and the matching Deferred Ideas entry). Accepted as a scope deferral, not a defect — the remaining ANL-03 fields (avgift, debt/m², stambyte funding state, tomträtt) ship and are fixed by plans 14-07 and 14-10."
+    accepted_by: "Daniel Westerholm"
+    accepted_at: "2026-08-08T14:51:40Z"
+overrides_applied: 1
 gaps:
   - truth: "ANL-03: top candidates' value case folds in an accurate BRF summary (avgift, debt/m², stambyte funding state, tomträtt, soliditet)"
     status: failed
@@ -174,6 +179,8 @@ The gap is in the *semantics of the data being composed and priced* — exactly 
 5. `soliditet` — named explicitly in REQUIREMENTS.md's ANL-03 text — was never implemented. This was a disclosed, reasoned scope decision made during planning (14-CONTEXT.md D-14-02), not a silent shortcut, but the requirement's literal wording and its "Complete" status in REQUIREMENTS.md do not reflect that deferral.
 
 None of these were fixed after the code review that found them (`5e27016` is the last commit touching this phase's files) — they are live in the code executor claims is "complete."
+
+Item 5 of the list above (`soliditet`) has been accepted as a deferral, not re-opened as a defect: see the frontmatter `overrides` entry, accepted by Daniel Westerholm on 2026-08-08T14:51:40Z. Items 1-4 (CR-01/02/03/04) are closed by plans 14-07, 14-08 and 14-10 — a re-verifier should carry the override forward rather than re-raising the soliditet gap.
 
 **This looks like a case where several deviations were deliberate scope calls but others are unaddressed correctness bugs.** Recommend the developer either fix CR-01/02/03/04 in a closure plan, or — for soliditet only, given its documented rationale — add an explicit override:
 
