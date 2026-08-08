@@ -43,7 +43,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 ### 🔨 v1.2 Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 
 - [ ] **Phase 13: Discovery UX / Poll-Timeout Fix** — the live discovery flow finishes inside the client poll window (no forced reload) and every job state shows a Swedish status label.
-- [x] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (all 6 plans executed 2026-08-06; verification `gaps_found` 2/4 — gap-closure plans 14-07..14-10 planned 2026-08-07) (completed 2026-08-08)
+- [ ] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (all 6 plans executed 2026-08-06; verification `gaps_found` 2/4 — gap-closure plans 14-07..14-10 executed 2026-08-08; re-verification 2026-08-08 `gaps_found` 3/4 — ANL-04 BRF-debt confounder still failing, `HIGH_BRF_DEBT_PER_SQM` collides with the sanity-band max)
 - [ ] **Phase 15: ROI-Aware Opportunity Brief** — prioritized, buyer-segment-tailored opportunities with tiered cost/uplift, profit ±22% tax, freshness-based bathroom scoring, interior-designer specifics; `OpportunityBrief` schema passes a live Anthropic strict-output smoke.
 - [ ] **Phase 16: Value-Gap Scoring & Ranking** — §2.6 value-gap headline metric that re-orders results on the separate read path, with a "från bildtolkning" UI marker; separation static-grep test extended.
 - [ ] **Phase 17: Proposed Planritning Generation** — image-gen proposed floor plan for HIGH value-gap candidates only, daylight/bearing caveats stamped, bounded by cost caps; source images analyze-only (GDPR).
@@ -169,7 +169,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
 | 13. Discovery UX / Poll-Timeout Fix | v1.2 | 4/5 | In Progress|  |
-| 14. Holistic Analysis Brain | v1.2 | 10/10 | Complete   | 2026-08-08 |
+| 14. Holistic Analysis Brain | v1.2 | 10/10 | Gaps Found |  |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |
 | 17. Proposed Planritning Generation | v1.2 | 0/TBD | Not started | - |
