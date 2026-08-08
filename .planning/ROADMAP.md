@@ -43,7 +43,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 ### 🔨 v1.2 Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 
 - [ ] **Phase 13: Discovery UX / Poll-Timeout Fix** — the live discovery flow finishes inside the client poll window (no forced reload) and every job state shows a Swedish status label.
-- [ ] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (all 6 plans executed 2026-08-06; verification `gaps_found` 2/4 — gap-closure plans 14-07..14-10 planned 2026-08-07)
+- [x] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (all 6 plans executed 2026-08-06; verification `gaps_found` 2/4 — gap-closure plans 14-07..14-10 planned 2026-08-07) (completed 2026-08-08)
 - [ ] **Phase 15: ROI-Aware Opportunity Brief** — prioritized, buyer-segment-tailored opportunities with tiered cost/uplift, profit ±22% tax, freshness-based bathroom scoring, interior-designer specifics; `OpportunityBrief` schema passes a live Anthropic strict-output smoke.
 - [ ] **Phase 16: Value-Gap Scoring & Ranking** — §2.6 value-gap headline metric that re-orders results on the separate read path, with a "från bildtolkning" UI marker; separation static-grep test extended.
 - [ ] **Phase 17: Proposed Planritning Generation** — image-gen proposed floor plan for HIGH value-gap candidates only, daylight/bearing caveats stamped, bounded by cost caps; source images analyze-only (GDPR).
@@ -103,7 +103,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 - [x] 14-07-PLAN.md — Carry `scoreExtraction`'s per-field confidence onto `BrfSummary` + `brfFieldTrusted` fail-closed gate + charge billed-but-failed BRF extractions against the shared cap (gap wave 1; ANL-03/ANL-04; CR-02 part 1, CR-04)
 - [x] 14-08-PLAN.md — Make the LOCKED structural-separation grep see multi-line named imports, with real-file positive controls (gap wave 1; ANL-04; WR-01)
 - [x] 14-09-PLAN.md — Record the accepted `soliditet` deferral as a named override + reword REQUIREMENTS.md's ANL-03 to match what shipped (gap wave 1; ANL-03; D-14-02)
-- [ ] 14-10-PLAN.md — Gate the debt-inclusive discount math and BRF display on confidence, state avgift as kr/kvm och år with a derived kr/mån, map stambyte to prose and suppress `ej_nämnt` (gap wave 2; ANL-01/ANL-03/ANL-04; CR-01/CR-02/CR-03)
+- [x] 14-10-PLAN.md — Gate the debt-inclusive discount math and BRF display on confidence, state avgift as kr/kvm och år with a derived kr/mån, map stambyte to prose and suppress `ej_nämnt` (gap wave 2; ANL-01/ANL-03/ANL-04; CR-01/CR-02/CR-03)
 
 **UI hint**: yes
 
@@ -169,7 +169,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
 | 13. Discovery UX / Poll-Timeout Fix | v1.2 | 4/5 | In Progress|  |
-| 14. Holistic Analysis Brain | v1.2 | 9/10 | In Progress|  |
+| 14. Holistic Analysis Brain | v1.2 | 10/10 | Complete   | 2026-08-08 |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |
 | 17. Proposed Planritning Generation | v1.2 | 0/TBD | Not started | - |
