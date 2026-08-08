@@ -134,7 +134,7 @@ export async function lookupBrfSummary(input: BrfLookupInput): Promise<BrfLookup
       contentHash,
     });
 
-    const { normalized } = scoreExtraction(result.parsed);
+    const { normalized, perFieldConfidence } = scoreExtraction(result.parsed);
 
     const summary: BrfSummary = {
       skuldPerKvm: normalized.skuldPerKvm,
@@ -144,6 +144,23 @@ export async function lookupBrfSummary(input: BrfLookupInput): Promise<BrfLookup
       tomtratt: tomtrattFromTenureForm(input.tenureForm),
       fiscalYear: doc.fiscalYear,
       source: "allabrf",
+      // CR-02 (14-REVIEW.md): carry the sanity-band-downgraded confidence
+      // onto the summary WITHOUT dropping the value — sanity.ts:49-51 is
+      // explicit that a value is never dropped, only its confidence
+      // lowered, and the single-listing path depends on that contract.
+      // The discovery path gates at the point of USE instead (plan 14-10):
+      // an out-of-band skuldPerKvm must not be presentable as fact AND must
+      // not enter normalizeForConfounders's
+      // effectivePricePerSqm = pricePerSqm + brf.skuldPerKvm arithmetic,
+      // because that is what can flip deepDiscount and silently disable the
+      // SPEC §2.6 20% attribution cap (ANL-04). Read the three keys
+      // explicitly (never spread perFieldConfidence, which also carries
+      // underhallsplanStatus — not a BrfSummary field).
+      fieldConfidence: {
+        skuldPerKvm: perFieldConfidence.skuldPerKvm ?? null,
+        avgiftsniva: perFieldConfidence.avgiftsniva ?? null,
+        kassaflode: perFieldConfidence.kassaflode ?? null,
+      },
     };
 
     return { summary, costSek: costSek(result.usage), outcome: "ok" };

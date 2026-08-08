@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { brfFieldTrusted } from "@/lib/discovery/holistic-schema";
+import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
 
 /**
  * brf-lookup.test.ts — mocks ONLY the network/LLM edges
@@ -202,6 +204,11 @@ describe("lookupBrfSummary", () => {
     expect(bostadsrattResult.summary?.stambytePlanerat).toBe("planerat");
     expect(bostadsrattResult.summary?.tomtratt).toBeNull();
     expect(bostadsrattResult.costSek).toBeGreaterThan(0);
+    expect(bostadsrattResult.summary?.fieldConfidence).toEqual({
+      skuldPerKvm: 0.9,
+      avgiftsniva: 0.9,
+      kassaflode: 0.8,
+    });
 
     const tomtrattResult = await lookupBrfSummary({
       brfName: "Brf Björken 3",
@@ -209,6 +216,76 @@ describe("lookupBrfSummary", () => {
       tenureForm: "Tomträtt",
     });
     expect(tomtrattResult.summary?.tomtratt).toBe(true);
+  });
+
+  it('"ok" — an out-of-band skuldPerKvm keeps its value but arrives UNTRUSTED (CR-02)', async () => {
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2024,
+      availableYears: [2024],
+    });
+    extractBrfFinancials.mockResolvedValue({
+      parsed: {
+        ...extractionFixture(),
+        skuldPerKvm: {
+          value: 480_000,
+          confidence: 0.95,
+          sourceQuote: "total skuld: 480 000",
+          pageRef: 3,
+        },
+      },
+      usage: { input_tokens: 1000, output_tokens: 500 },
+      citations: [],
+    });
+
+    const result = await lookupBrfSummary({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholm",
+      tenureForm: null,
+    });
+
+    expect(result.outcome).toBe("ok");
+    expect(result.summary?.skuldPerKvm).toBe(480_000);
+    expect(result.summary?.fieldConfidence?.skuldPerKvm).toBeLessThan(OSAKER_THRESHOLD);
+    expect(brfFieldTrusted(result.summary, "skuldPerKvm")).toBe(false);
+  });
+
+  it('"ok" — an out-of-band avgiftsniva keeps its value but arrives UNTRUSTED (CR-02)', async () => {
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2024,
+      availableYears: [2024],
+    });
+    extractBrfFinancials.mockResolvedValue({
+      parsed: {
+        ...extractionFixture(),
+        avgiftsniva: {
+          value: 4_200,
+          confidence: 0.9,
+          sourceQuote: "avgift: 4200/mån",
+          pageRef: 3,
+        },
+      },
+      usage: { input_tokens: 1000, output_tokens: 500 },
+      citations: [],
+    });
+
+    const result = await lookupBrfSummary({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholm",
+      tenureForm: null,
+    });
+
+    expect(result.outcome).toBe("ok");
+    expect(result.summary?.avgiftsniva).toBe(4_200);
+    expect(result.summary?.fieldConfidence?.avgiftsniva).toBeLessThan(OSAKER_THRESHOLD);
+    expect(brfFieldTrusted(result.summary, "avgiftsniva")).toBe(false);
   });
 
   it(`BRF_TOP_N is pinned to 4, within the D-14-01 3-5 band`, () => {
