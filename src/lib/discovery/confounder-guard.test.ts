@@ -42,7 +42,11 @@ function makeComps(overrides: Partial<AreaCompsSummary> = {}): AreaCompsSummary 
 function makeBrf(overrides: Partial<BrfSummary> = {}): BrfSummary {
   return {
     skuldPerKvm: null,
-    avgiftsniva: 3_500,
+    // CR-01: avgiftsniva is SEK/m² PER YEAR with a 300-1200 plausible band
+    // (sanity.ts:27); 650 is a monthly-total-shaped fixture within that band
+    // — this is what made CR-01's ~6x kr/mån mislabeling survive review, so
+    // it stays the default going forward.
+    avgiftsniva: 650,
     kassaflode: 100_000,
     stambytePlanerat: null,
     tomtratt: null,
@@ -359,7 +363,7 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
 
   it("buildBrfItem suppresses an untrusted avgiftsniva figure and appends the hedge text", () => {
     const brf = makeBrf({
-      avgiftsniva: 4_200,
+      avgiftsniva: 900,
       skuldPerKvm: null,
       kassaflode: null,
       fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.2, kassaflode: 0.8 },
@@ -367,8 +371,7 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
     const brief = briefFrom({ brf });
     const item = brief.items.find((i) => i.kind === "brf");
     expect(item).toBeDefined();
-    expect(item!.text).not.toContain("4200");
-    expect(item!.text).not.toContain("4 200");
+    expect(item!.text).not.toContain("900");
     expect(item!.text).toContain(BRF_UNTRUSTED_FIGURE_TEXT);
   });
 
@@ -389,13 +392,78 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
 
   it("a brief built from a fully untrusted BRF still satisfies items.length >= 1 (ANL-01)", () => {
     const brf = makeBrf({
-      avgiftsniva: 4_200,
+      avgiftsniva: 900,
       skuldPerKvm: 480_000,
       kassaflode: 1,
       fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.2, kassaflode: 0.2 },
     });
     const brief = briefFrom({ brf });
     expect(brief.items.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("CR-01 — the avgift sentence carries the unit the field actually has", () => {
+  it("states kr/kvm och år AND a derived kr/mån figure when livingArea is known", () => {
+    const brf = makeBrf({ avgiftsniva: 650 });
+    const brief = briefFrom({ brf, livingArea: 70 });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("650 kr/kvm och år");
+    expect(item!.text).toContain("3792 kr/mån");
+    expect(item!.text).toContain("70 kvm");
+  });
+
+  it("states ONLY kr/kvm och år, with no kr/mån substring at all, when livingArea is null", () => {
+    const brf = makeBrf({ avgiftsniva: 650 });
+    const brief = briefFrom({ brf, livingArea: null });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("650 kr/kvm och år");
+    expect(item!.text).not.toContain("kr/mån");
+  });
+
+  it("guards against a livingArea of 0 — no divide-by-zero, no kr/mån substring", () => {
+    const brf = makeBrf({ avgiftsniva: 650 });
+    const brief = briefFrom({ brf, livingArea: 0 });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).not.toContain("kr/mån");
+  });
+
+  it("an untrusted avgiftsniva with a known livingArea still shows neither the raw value nor kr/mån", () => {
+    const brf = makeBrf({
+      avgiftsniva: 900,
+      skuldPerKvm: null,
+      kassaflode: null,
+      fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.2, kassaflode: 0.8 },
+    });
+    const brief = briefFrom({ brf, livingArea: 70 });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).not.toContain("900");
+    expect(item!.text).not.toContain("kr/mån");
+    expect(item!.text).toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+  });
+
+  it("across a wide table of fixtures, no item text ever states a bare kr/mån without also stating kr/kvm och år", () => {
+    const table: Partial<ConfounderGuardInput>[] = [
+      {},
+      { brf: makeBrf({ avgiftsniva: 650 }), livingArea: 70 },
+      { brf: makeBrf({ avgiftsniva: 700 }), livingArea: null },
+      { brf: makeBrf({ avgiftsniva: 1000, skuldPerKvm: 5_000 }), livingArea: 45 },
+      { brf: makeBrf({ avgiftsniva: null }), livingArea: 60 },
+      { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }), livingArea: 55 },
+      { pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps(), livingArea: 80 },
+      { brf: makeBrf({ avgiftsniva: 550, stambytePlanerat: "planerat" }), livingArea: 90 },
+    ];
+    for (const overrides of table) {
+      const brief = briefFrom(overrides);
+      const concatenated = brief.items.map((i) => i.text).join(" ");
+      const monthlyMatches = concatenated.match(/\d+\s*kr\/mån/g) ?? [];
+      if (monthlyMatches.length > 0) {
+        expect(concatenated).toContain("kr/kvm och år");
+      }
+    }
   });
 });
 
@@ -407,6 +475,7 @@ function briefFrom(overrides: Partial<ConfounderGuardInput> = {}) {
     comps: input.comps,
     brf: input.brf,
     pricePerSqm: input.pricePerSqm,
+    livingArea: input.livingArea,
   };
   return buildHolisticBrief(briefInput);
 }
@@ -422,7 +491,7 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
   it("returns items.length >= 1 for at least four further input shapes", () => {
     const shapes: Partial<ConfounderGuardInput>[] = [
       { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) },
-      { brf: makeBrf({ avgiftsniva: 3_800 }) },
+      { brf: makeBrf({ avgiftsniva: 700 }) },
       { pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() },
       { floor: 2, balcony: false },
     ];
@@ -448,11 +517,11 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
   });
 
   it("a brf-present input produces a brf item mentioning the avgift figure and the fiscalYear", () => {
-    const brf = makeBrf({ avgiftsniva: 4_200, fiscalYear: 2024, stambytePlanerat: null });
+    const brf = makeBrf({ avgiftsniva: 650, fiscalYear: 2024, stambytePlanerat: null });
     const brief = briefFrom({ brf });
     const item = brief.items.find((i) => i.kind === "brf");
     expect(item).toBeDefined();
-    expect(item!.text).toContain("4200");
+    expect(item!.text).toContain("650 kr/kvm och år");
     expect(item!.text).toContain("2024");
   });
 
@@ -467,7 +536,7 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
       {},
       { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) },
       { pricePerSqm: 40_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }, // deep discount, very low kr/m²
-      { brf: makeBrf({ avgiftsniva: 3_800, skuldPerKvm: 25_000 }) },
+      { brf: makeBrf({ avgiftsniva: 700, skuldPerKvm: 25_000 }) },
       { pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() },
       { floor: 2, balcony: false, tenureForm: "Tomträtt" },
       { pricePerSqm: 60_000, brf: makeBrf({ skuldPerKvm: 8_000 }), comps: makeComps({ sampleSize: 4, confident: false }) },

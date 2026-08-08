@@ -1076,6 +1076,7 @@ export async function runVisionForJob(
           comps: c.areaComps,
           brf: c.brfSummary,
           pricePerSqm: pricePerSqm(c),
+          livingArea: c.livingArea,
         });
         return { ...c, holisticBrief };
       } catch (error) {

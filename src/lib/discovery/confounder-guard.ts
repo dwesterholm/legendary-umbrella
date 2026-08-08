@@ -324,6 +324,13 @@ export interface BuildHolisticBriefInput {
   readonly comps: AreaCompsSummary | null;
   readonly brf: BrfSummary | null;
   readonly pricePerSqm: number | null;
+  /**
+   * The candidate's boarea in m², used ONLY to derive a monthly avgift from
+   * the SEK/m²/år `avgiftsniva` (CR-01). Never used for anything else here —
+   * WR-06 (using `pricePerSqm` in the comps-positioning item) stays OUT OF
+   * SCOPE.
+   */
+  readonly livingArea: number | null;
 }
 
 function confounderLabel(id: ConfounderId): string {
@@ -412,7 +419,7 @@ function buildConfounderItems(guard: ConfounderGuardResult): HolisticBriefItem[]
   return items;
 }
 
-function buildBrfItem(brf: BrfSummary | null): HolisticBriefItem | null {
+function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): HolisticBriefItem | null {
   if (brf === null) return null;
   const parts: string[] = [];
   // CR-02: each numeric sentence is gated on `brfFieldTrusted` — a sanity-
@@ -424,7 +431,20 @@ function buildBrfItem(brf: BrfSummary | null): HolisticBriefItem | null {
   let anyFigureSuppressed = false;
   if (brf.avgiftsniva !== null) {
     if (brfFieldTrusted(brf, "avgiftsniva")) {
-      parts.push(`Avgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/mån.`);
+      // CR-01: `avgiftsniva` is SEK/m² PER YEAR (prompt.ts:29, sanity.ts:27's
+      // 300-1200 band, score.ts:15's ~550-750 healthy middle) — NEVER a
+      // monthly figure. The ONLY per-month figure this module may ever emit
+      // is one DERIVED as avgiftsniva * livingArea / 12 (see the clause
+      // below); the raw field itself must never be relabelled per-month
+      // (the ~6x understatement CR-01 fixes).
+      if (livingArea === null || !Number.isFinite(livingArea) || livingArea <= 0) {
+        parts.push(`Årsavgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/kvm och år.`);
+      } else {
+        parts.push(
+          `Årsavgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/kvm och år ` +
+            `(motsvarar ca ${Math.round((brf.avgiftsniva * livingArea) / 12)} kr/mån för ${Math.round(livingArea)} kvm).`,
+        );
+      }
     } else {
       anyFigureSuppressed = true;
     }
@@ -461,7 +481,7 @@ function buildBrfItem(brf: BrfSummary | null): HolisticBriefItem | null {
  * inspected first, then replaced with a safe fallback.
  */
 export function buildHolisticBrief(input: BuildHolisticBriefInput): HolisticBrief {
-  const { guard, comps, brf } = input;
+  const { guard, comps, brf, livingArea } = input;
 
   const dataSources: Array<"comps" | "brf" | "hedonic"> = [];
   if (comps !== null) dataSources.push("comps");
@@ -479,7 +499,7 @@ export function buildHolisticBrief(input: BuildHolisticBriefInput): HolisticBrie
   if (comps !== null || brf !== null) {
     items.push(...buildConfounderItems(guard));
   }
-  const brfItem = buildBrfItem(brf);
+  const brfItem = buildBrfItem(brf, livingArea);
   if (brfItem !== null) items.push(brfItem);
 
   // GUARANTEE (ANL-01): items.length >= 1 for every possible input.
