@@ -4,6 +4,7 @@ import {
   buildHolisticBrief,
   BANNED_RENO_ATTRIBUTION_PATTERNS,
   RENO_ATTRIBUTION_FALLBACK_TEXT,
+  BRF_UNTRUSTED_FIGURE_TEXT,
   MAX_CONDITION_EXPLAINED_PCT,
   DISCOUNT_ATTRIBUTION_TRIGGER_PCT,
   HIGH_BRF_DEBT_PER_SQM,
@@ -112,6 +113,13 @@ describe("discount vs renovated median", () => {
 
 describe("the >25% guard caps condition-explained at 20% and routes the residual to the specific confounders present", () => {
   it("caps conditionExplainedPct and names bottenvaning + brf_debt_high in order", () => {
+    // NOTE (CR-02 design note): 20_000 sits outside BRF_SANITY_BANDS.skuldPerKvm
+    // (max 15_000), so a real extraction of this value would carry a
+    // downgraded confidence. `makeBrf`'s default `fieldConfidence` is
+    // trusted (0.9) — this fixture is therefore a SYNTHETIC "trusted
+    // out-of-band value" shape (a future confidence source, e.g. manual
+    // correction), not one the raw extraction pipeline can produce today. A
+    // future reader should not mistake it for that shape.
     const r = normalizeForConfounders(
       makeInput({
         pricePerSqm: 50_000, // + 20_000 debt = 70_000 effective
@@ -200,6 +208,9 @@ describe("confidence is never high", () => {
         comps: makeComps({ sampleSize: 6, confident: true, renovatedMedianPerSqm: 100_000 }),
       }),
       makeInput({ comps: makeComps({ sampleSize: 4, confident: false }) }),
+      // Synthetic trusted-out-of-band shape (see CR-02 design note above) —
+      // 20_000 is outside BRF_SANITY_BANDS.skuldPerKvm but makeBrf's default
+      // fieldConfidence is trusted.
       makeInput({ pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() }),
       makeInput({ pricePerSqm: 120_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }),
     ];
@@ -248,6 +259,7 @@ describe("D-14-05 default posture", () => {
         brf: makeBrf({ skuldPerKvm: 2_000 }),
         comps: makeComps({ confident: true, renovatedMedianPerSqm: 100_000 }),
       }),
+      // Synthetic trusted-out-of-band shape (see CR-02 design note above).
       makeInput({ pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() }),
       makeInput({ comps: makeComps({ sampleSize: 4, confident: false }) }),
       makeInput({ pricePerSqm: 120_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }),
@@ -282,6 +294,108 @@ describe("SPEC-locked constants sanity", () => {
     expect(DISCOUNT_ATTRIBUTION_TRIGGER_PCT).toBe(0.25);
     expect(MAX_CONDITION_EXPLAINED_PCT).toBe(0.2);
     expect(HIGH_BRF_DEBT_PER_SQM).toBe(15_000);
+  });
+});
+
+describe("CR-02 — an untrusted BRF debt figure never reaches the discount math", () => {
+  it("ANL-04 keystone: an out-of-band skuldPerKvm at low confidence is excluded from the math AND the §2.6 cap still fires on the genuinely deep discount", () => {
+    // Before this fix, this exact input produced deepDiscount === false and
+    // no cap: 60_000 + 480_000 = 540_000 effective, far ABOVE the 100_000
+    // renovated median, making discountVsRenovatedPct strongly negative.
+    const r = normalizeForConfounders(
+      makeInput({
+        pricePerSqm: 60_000,
+        comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+        brf: makeBrf({ skuldPerKvm: 480_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.debtIncluded).toBe(false);
+    expect(r.effectivePricePerSqm).toBe(60_000);
+    expect(r.deepDiscount).toBe(true);
+    expect(r.conditionExplainedPct).toBe(MAX_CONDITION_EXPLAINED_PCT);
+    expect(r.conditionCapApplied).toBe(true);
+  });
+
+  it("the same debt figure at trusted confidence IS admitted into the math", () => {
+    const r = normalizeForConfounders(
+      makeInput({
+        pricePerSqm: 60_000,
+        comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+        brf: makeBrf({ skuldPerKvm: 8_000, fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.debtIncluded).toBe(true);
+    expect(r.effectivePricePerSqm).toBe(68_000);
+  });
+
+  it("an untrusted skuldPerKvm > HIGH_BRF_DEBT_PER_SQM does NOT produce brf_debt_high but DOES produce brf_unknown", () => {
+    const r = normalizeForConfounders(
+      makeInput({
+        brf: makeBrf({ skuldPerKvm: 20_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.residualDrivers).not.toContain("brf_debt_high");
+    expect(r.unknownConfounders).toContain("brf_unknown");
+  });
+
+  it("a trusted skuldPerKvm > HIGH_BRF_DEBT_PER_SQM still produces brf_debt_high (branch preserved)", () => {
+    const r = normalizeForConfounders(makeInput({ brf: makeBrf({ skuldPerKvm: 20_000 }) }));
+    expect(r.residualDrivers).toContain("brf_debt_high");
+  });
+
+  it("brf === null pushes brf_unknown exactly once (no double push)", () => {
+    const r = normalizeForConfounders(makeInput({ brf: null }));
+    expect(r.unknownConfounders.filter((c) => c === "brf_unknown")).toHaveLength(1);
+  });
+
+  it("an untrusted debt figure also pushes brf_unknown exactly once", () => {
+    const r = normalizeForConfounders(
+      makeInput({
+        brf: makeBrf({ skuldPerKvm: 8_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.unknownConfounders.filter((c) => c === "brf_unknown")).toHaveLength(1);
+  });
+
+  it("buildBrfItem suppresses an untrusted avgiftsniva figure and appends the hedge text", () => {
+    const brf = makeBrf({
+      avgiftsniva: 4_200,
+      skuldPerKvm: null,
+      kassaflode: null,
+      fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.2, kassaflode: 0.8 },
+    });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).not.toContain("4200");
+    expect(item!.text).not.toContain("4 200");
+    expect(item!.text).toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+  });
+
+  it("buildBrfItem does NOT append the hedge text when every numeric field is simply null (nothing suppressed)", () => {
+    const brf = makeBrf({
+      avgiftsniva: null,
+      skuldPerKvm: null,
+      kassaflode: null,
+      stambytePlanerat: null,
+      tomtratt: true,
+      fiscalYear: null,
+    });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).not.toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+  });
+
+  it("a brief built from a fully untrusted BRF still satisfies items.length >= 1 (ANL-01)", () => {
+    const brf = makeBrf({
+      avgiftsniva: 4_200,
+      skuldPerKvm: 480_000,
+      kassaflode: 1,
+      fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.2, kassaflode: 0.2 },
+    });
+    const brief = briefFrom({ brf });
+    expect(brief.items.length).toBeGreaterThanOrEqual(1);
   });
 });
 

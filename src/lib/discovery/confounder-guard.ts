@@ -23,6 +23,7 @@
 import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
 import {
   tomtrattFromTenureForm,
+  brfFieldTrusted,
   HOLISTIC_DATA_ONLY_MARKER,
   type AreaCompsSummary,
   type BrfSummary,
@@ -131,23 +132,33 @@ export function normalizeForConfounders(
 ): ConfounderGuardResult {
   const { pricePerSqm, livingArea, floor, balcony, tenureForm, comps, brf } = input;
 
+  // CR-02 (14-REVIEW.md): the SINGLE trust decision for the BRF debt figure,
+  // computed once and reused by rules 1/5/6 below. `sanity.ts`'s
+  // `applySanityChecks` forces confidence below `OSAKER_THRESHOLD` for an
+  // out-of-band `skuldPerKvm` WITHOUT dropping the value — so `brfFieldTrusted`
+  // is the only legitimate admission gate for a BRF debt figure into
+  // user-facing math. Without this gate, a classic misextraction (total debt
+  // read as debt/m², e.g. 480 000 instead of ~8 000) would push
+  // `effectivePricePerSqm` far above `renovatedMedianPerSqm`, making
+  // `discountVsRenovatedPct` strongly negative -> `deepDiscount === false` ->
+  // the SPEC §2.6 20% cap never fires on a genuinely deeply-discounted
+  // candidate (ANL-04).
+  const debtUsable = brfFieldTrusted(brf, "skuldPerKvm");
+
   // 1. Debt-inclusive kr/m² normalization (SPEC §2.6 "Normalize kr/m²
   // inclusive of förening debt/m²"). KNOWN ASYMMETRY: the comp side's debt is
   // unknowable from `computeAreaComps` output, so a debt-adjusted candidate
   // is compared against un-adjusted comps — this is why `debtIncluded ===
   // true` forces `confidence: "low"` (rule 7) rather than being presented as
-  // a precise figure.
+  // a precise figure. An UNTRUSTED debt figure (debtUsable === false) is
+  // treated exactly like "no BRF at all" — never admitted into the math.
   let effectivePricePerSqm: number | null;
   let debtIncluded: boolean;
   if (pricePerSqm === null) {
     effectivePricePerSqm = null;
     debtIncluded = false;
-  } else if (
-    brf?.skuldPerKvm !== null &&
-    brf?.skuldPerKvm !== undefined &&
-    Number.isFinite(brf.skuldPerKvm)
-  ) {
-    effectivePricePerSqm = pricePerSqm + brf.skuldPerKvm;
+  } else if (debtUsable) {
+    effectivePricePerSqm = pricePerSqm + brf!.skuldPerKvm!;
     debtIncluded = true;
   } else {
     effectivePricePerSqm = pricePerSqm;
@@ -188,12 +199,18 @@ export function normalizeForConfounders(
   const residualDrivers: ConfounderId[] = [];
   if (floor !== null && floor <= 0) residualDrivers.push("bottenvaning");
   if (balcony === false) residualDrivers.push("no_balcony");
-  if (
-    brf?.skuldPerKvm !== null &&
-    brf?.skuldPerKvm !== undefined &&
-    Number.isFinite(brf.skuldPerKvm) &&
-    brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM
-  ) {
+  // DESIGN NOTE (CR-02): HIGH_BRF_DEBT_PER_SQM (15 000) is numerically
+  // identical to BRF_SANITY_BANDS.skuldPerKvm.max, so an extraction-sourced
+  // value that trips this rule is exactly the set the sanity band downgrades
+  // — meaning `brf_debt_high` is now reachable only for a figure whose
+  // confidence came from somewhere other than the raw extraction (e.g.
+  // `applyManualConfidence`'s `MANUAL_CONFIDENCE`, or a future band
+  // widening). This is the INTENDED trade: naming "hög föreningsskuld per
+  // kvm" as a KNOWN confounder on the strength of a figure the sanity band
+  // just rejected would assert a fact from garbage, whereas routing it to
+  // `brf_unknown` (rule 6 below) is true either way and is strictly more
+  // conservative for attribution (D-14-05).
+  if (debtUsable && brf!.skuldPerKvm! > HIGH_BRF_DEBT_PER_SQM) {
     residualDrivers.push("brf_debt_high");
   }
   if (brf?.tomtratt === true || tomtrattFromTenureForm(tenureForm) === true) {
@@ -213,12 +230,19 @@ export function normalizeForConfounders(
   ];
   if (floor === null) unknownConfounders.push("floor_unknown");
   if (balcony === null) unknownConfounders.push("balcony_unknown");
-  if (brf === null) unknownConfounders.push("brf_unknown");
+  // CR-02: an untrusted debt reading is an ABSENCE of usable
+  // föreningsekonomi data — D-14-05's posture is that an unevaluable
+  // confounder is named as unknown rather than silently dropped. Pushed at
+  // most once (brf === null and !debtUsable never both independently push).
+  if (brf === null || !debtUsable) unknownConfounders.push("brf_unknown");
   // Per 14-01, tenureForm structurally cannot DISPROVE tomträtt, so anything
   // other than a positive match is unknown, including "Bostadsrätt".
   if (tomtrattFromTenureForm(tenureForm) !== true) unknownConfounders.push("tomtratt_unknown");
 
-  // 7. compsThin / confidence. Never "high" (D-14-04).
+  // 7. compsThin / confidence. Never "high" (D-14-04). This expression
+  // already requires `debtIncluded === true` for `"medium"`, so an untrusted
+  // debt figure automatically keeps the brief at `"low"` — this now follows
+  // from the CR-02 gate above rather than by accident.
   const compsThin = comps === null || comps.sampleSize < MIN_COMPS_FOR_CONFIDENCE;
   const confidence: "low" | "medium" =
     comps !== null &&
@@ -281,6 +305,19 @@ export const BANNED_RENO_ATTRIBUTION_PATTERNS: readonly RegExp[] = [
  */
 export const RENO_ATTRIBUTION_FALLBACK_TEXT =
   "Ett lägre pris per kvadratmeter är enbart en signal om att titta närmare — det kan lika gärna bero på våning, hiss, balkong, mikroläge, delområde eller föreningens skuld som på skicket. Ingen slutsats om skick dras här.";
+
+/**
+ * CR-02's display counterpart to the `debtUsable` arithmetic gate: appended
+ * to a `buildBrfItem` result when a NON-NULL numeric field (avgiftsniva /
+ * skuldPerKvm / kassaflode) was withheld for low confidence
+ * (`brfFieldTrusted` returned `false` even though the value existed). Never
+ * appended when the field was simply null (absent data is not a withheld
+ * figure). Keeps the item ACTIONABLE (ANL-01) — the user is told a figure
+ * was withheld and exactly what to check — instead of either asserting a
+ * sanity-rejected number as fact or silently shrinking the brief.
+ */
+export const BRF_UNTRUSTED_FIGURE_TEXT =
+  "Någon av föreningens siffror låg utanför ett rimligt intervall och visas därför inte här — kontrollera avgift och skuld per kvm i föreningens årsredovisning.";
 
 export interface BuildHolisticBriefInput {
   readonly guard: ConfounderGuardResult;
@@ -378,15 +415,39 @@ function buildConfounderItems(guard: ConfounderGuardResult): HolisticBriefItem[]
 function buildBrfItem(brf: BrfSummary | null): HolisticBriefItem | null {
   if (brf === null) return null;
   const parts: string[] = [];
-  if (brf.avgiftsniva !== null) parts.push(`Avgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/mån.`);
-  if (brf.skuldPerKvm !== null) {
-    const flag = brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM ? " (högre än vanligt)" : "";
-    parts.push(`Föreningens skuld per kvm verkar ligga kring ${Math.round(brf.skuldPerKvm)} kr/kvm${flag}.`);
+  // CR-02: each numeric sentence is gated on `brfFieldTrusted` — a sanity-
+  // rejected figure is never displayed as a normal reading (T-14-42). A
+  // NON-NULL value that gets suppressed for low confidence sets
+  // `anyFigureSuppressed`, appended as `BRF_UNTRUSTED_FIGURE_TEXT` below; a
+  // simply-null field is absent data, not a withheld figure, and does not
+  // trigger the hedge.
+  let anyFigureSuppressed = false;
+  if (brf.avgiftsniva !== null) {
+    if (brfFieldTrusted(brf, "avgiftsniva")) {
+      parts.push(`Avgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/mån.`);
+    } else {
+      anyFigureSuppressed = true;
+    }
   }
-  if (brf.kassaflode !== null) parts.push(`Kassaflödet verkar ligga kring ${Math.round(brf.kassaflode)} kr.`);
+  if (brf.skuldPerKvm !== null) {
+    if (brfFieldTrusted(brf, "skuldPerKvm")) {
+      const flag = brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM ? " (högre än vanligt)" : "";
+      parts.push(`Föreningens skuld per kvm verkar ligga kring ${Math.round(brf.skuldPerKvm)} kr/kvm${flag}.`);
+    } else {
+      anyFigureSuppressed = true;
+    }
+  }
+  if (brf.kassaflode !== null) {
+    if (brfFieldTrusted(brf, "kassaflode")) {
+      parts.push(`Kassaflödet verkar ligga kring ${Math.round(brf.kassaflode)} kr.`);
+    } else {
+      anyFigureSuppressed = true;
+    }
+  }
   if (brf.stambytePlanerat !== null) parts.push(`Stambyte-läge: ${brf.stambytePlanerat}.`);
   if (brf.tomtratt === true) parts.push("Föreningen har tomträtt.");
   if (brf.fiscalYear !== null) parts.push(`Siffrorna kommer från räkenskapsåret ${brf.fiscalYear}.`);
+  if (anyFigureSuppressed) parts.push(BRF_UNTRUSTED_FIGURE_TEXT);
   if (parts.length === 0) return null;
   return { kind: "brf", text: parts.join(" ") };
 }
