@@ -17,7 +17,7 @@
 
 - [x] **ANL-01**: Every surfaced candidate leaves analysis with ≥1 actionable opportunity — when deep-pass attributes are all filtered out, a holistic-data-only opportunity brief is produced instead of empty `claims: []`.
 - [x] **ANL-02**: Per-candidate analysis folds renovated-vs-unrenovated area comps (R_med / U_med from `computeAreaComps`) into the value case, using the re-resolved areaId (no DB migration; rides in JSONB `results`).
-- [x] **ANL-03**: Per-candidate analysis folds a BRF summary (avgift, debt/m², stambyte funding state, tomträtt, soliditet) into the value case for top candidates, respecting cost caps.
+- [x] **ANL-03**: Per-candidate analysis folds a BRF summary (avgift, debt/m², stambyte funding state, tomträtt) into the value case for top candidates, respecting cost caps. (`soliditet` deferred, not dropped: no field exists on `brfExtractionSchema`, it is rarely cleanly extractable from iXBRL, and debt/m² carries most of the balance-sheet signal — 14-CONTEXT.md D-14-02; accepted by the developer, recorded as the `overrides` entry in 14-VERIFICATION.md. Revisit under a later analysis-quality pass if BRF fidelity proves insufficient.)
 - [x] **ANL-04**: A low kr/m² is normalized against confounders (floor, elevator, balcony, micro-location, sub-area, tomträtt, BRF debt) before any condition/reno attribution; the UI never renders text implying "low kr/m² ⇒ renovation object".
 
 ### Opportunity Brief (Phase A.5)
