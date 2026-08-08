@@ -5,12 +5,14 @@ import {
   tomtrattFromTenureForm,
   areaCompsSummarySchema,
   brfSummarySchema,
+  brfFieldTrusted,
   holisticBriefSchema,
   HOLISTIC_BRIEF_ITEM_KINDS,
   type AreaCompsSummary,
   type BrfSummary,
   type HolisticBrief,
 } from "@/lib/discovery/holistic-schema";
+import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
 
 describe("HOLISTIC_DATA_ONLY_MARKER — D-14-04's data-only marker", () => {
   it("is the exact Swedish marker string", () => {
@@ -73,6 +75,7 @@ describe("brfSummarySchema — read guard", () => {
     tomtratt: null,
     fiscalYear: 2025,
     source: "allabrf",
+    fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.9, kassaflode: 0.8 },
   };
 
   it("round-trips a fully-populated object", () => {
@@ -84,6 +87,76 @@ describe("brfSummarySchema — read guard", () => {
   it("rejects a wrong-typed field", () => {
     const result = brfSummarySchema.safeParse({ ...valid, source: "manual" });
     expect(result.success).toBe(false);
+  });
+
+  it("a legacy row without fieldConfidence still parses, degrading to null (never dropping the candidate)", () => {
+    const { fieldConfidence, ...legacyRow } = valid;
+    void fieldConfidence;
+    const result = brfSummarySchema.safeParse(legacyRow);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.fieldConfidence).toBeNull();
+  });
+});
+
+describe("brfFieldTrusted — the OSAKER_THRESHOLD gate", () => {
+  const base: BrfSummary = {
+    skuldPerKvm: null,
+    avgiftsniva: null,
+    kassaflode: null,
+    stambytePlanerat: null,
+    tomtratt: null,
+    fiscalYear: null,
+    source: "allabrf",
+    fieldConfidence: null,
+  };
+
+  it("returns false for a null summary", () => {
+    expect(brfFieldTrusted(null, "skuldPerKvm")).toBe(false);
+  });
+
+  it("returns false when the field's value is null, even with a high confidence", () => {
+    const brf: BrfSummary = {
+      ...base,
+      skuldPerKvm: null,
+      fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: null, kassaflode: null },
+    };
+    expect(brfFieldTrusted(brf, "skuldPerKvm")).toBe(false);
+  });
+
+  it("returns false when fieldConfidence is null (legacy row, unknown confidence, fail closed)", () => {
+    const brf: BrfSummary = { ...base, skuldPerKvm: 8000, fieldConfidence: null };
+    expect(brfFieldTrusted(brf, "skuldPerKvm")).toBe(false);
+  });
+
+  it("returns false when the mapped confidence was downgraded below OSAKER_THRESHOLD (sanity downgrade)", () => {
+    const brf: BrfSummary = {
+      ...base,
+      skuldPerKvm: 480_000,
+      fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: null, kassaflode: null },
+    };
+    expect(brfFieldTrusted(brf, "skuldPerKvm")).toBe(false);
+  });
+
+  it("returns true at the OSAKER_THRESHOLD boundary (>=, matching the UI badge boundary)", () => {
+    const brf: BrfSummary = {
+      ...base,
+      skuldPerKvm: 8000,
+      fieldConfidence: { skuldPerKvm: OSAKER_THRESHOLD, avgiftsniva: null, kassaflode: null },
+    };
+    expect(brfFieldTrusted(brf, "skuldPerKvm")).toBe(true);
+  });
+
+  it("returns false for a value just below OSAKER_THRESHOLD", () => {
+    const brf: BrfSummary = {
+      ...base,
+      skuldPerKvm: 8000,
+      fieldConfidence: {
+        skuldPerKvm: OSAKER_THRESHOLD - 0.01,
+        avgiftsniva: null,
+        kassaflode: null,
+      },
+    };
+    expect(brfFieldTrusted(brf, "skuldPerKvm")).toBe(false);
   });
 });
 

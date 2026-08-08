@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
 
 /**
  * holistic-schema.ts — Phase 14 (ANL-01/02/03) PERSISTED holistic-analysis
@@ -116,6 +117,16 @@ export const areaCompsSummarySchema = z.object({
 // ---------------------------------------------------------------------------
 
 /**
+ * The three numeric `BrfSummary` fields `scoreExtraction`
+ * (`src/lib/brf/run-extraction.ts`) reports a per-field confidence for that
+ * this module carries onto `BrfSummary.fieldConfidence`. Deliberately
+ * excludes `underhallsplanStatus` — that key is NOT on `BrfSummary`.
+ */
+export const BRF_CONFIDENCE_FIELDS = ["skuldPerKvm", "avgiftsniva", "kassaflode"] as const;
+
+export type BrfConfidenceField = (typeof BRF_CONFIDENCE_FIELDS)[number];
+
+/**
  * The per-candidate BRF summary (D-14-02): `skuldPerKvm`/`avgiftsniva`/
  * `kassaflode`/`stambytePlanerat` from the existing `brfExtractionSchema`
  * (`src/lib/schemas/brf.ts`), plus `tomtratt` — derived from the LISTING's
@@ -123,6 +134,15 @@ export const areaCompsSummarySchema = z.object({
  * itself (the BRF document has no tomträtt field). `soliditet` is DEFERRED —
  * no field exists on `brfExtractionSchema` today (14-CONTEXT.md Deferred
  * Ideas). Only aggregate figures are carried here — never raw document text.
+ *
+ * `fieldConfidence` (CR-02, 14-REVIEW.md): the per-field confidence AFTER
+ * `applySanityChecks` (`src/lib/brf/sanity.ts`), which forces an out-of-band
+ * `skuldPerKvm`/`avgiftsniva` reading to `0.2` — strictly below
+ * `OSAKER_THRESHOLD` — WITHOUT altering the value itself. `null` means
+ * "confidence unknown" (a row persisted before this field existed, or a
+ * legacy read), which every consumer MUST treat as UNTRUSTED — this is the
+ * same trust pipeline the single-listing "Osäker — kontrollera själv" badge
+ * uses (D-14-02).
  */
 export interface BrfSummary {
   readonly skuldPerKvm: number | null;
@@ -133,12 +153,25 @@ export interface BrfSummary {
   readonly tomtratt: true | null;
   readonly fiscalYear: number | null;
   readonly source: "allabrf";
+  /**
+   * Per-field confidence after the sanity-band downgrade (CR-02). `null`
+   * means unknown (legacy row) — never treat `null` as trusted.
+   */
+  readonly fieldConfidence: Readonly<Record<BrfConfidenceField, number | null>> | null;
 }
 
 /**
  * Read-path Zod guard for a persisted `BrfSummary` (same read-guard
  * discipline as `areaCompsSummarySchema` — nullable-tolerant, no numeric
  * constraints).
+ *
+ * `fieldConfidence`'s `.default(null)` is LOAD-BEARING: this schema is
+ * nested inside `discoveryCandidateSchema` (`candidate.ts`), whose consumer
+ * (`src/app/(app)/discover/[jobId]/page.tsx`) drops the ENTIRE candidate on
+ * a nested parse failure — a required key here (with no default) would
+ * erase every pre-existing persisted candidate from the results page the
+ * moment this field shipped. A legacy row without the key parses to
+ * `fieldConfidence: null`, which `brfFieldTrusted` treats as untrusted.
  */
 export const brfSummarySchema = z.object({
   skuldPerKvm: z.number().nullable(),
@@ -148,7 +181,42 @@ export const brfSummarySchema = z.object({
   tomtratt: z.literal(true).nullable(),
   fiscalYear: z.number().nullable(),
   source: z.literal("allabrf"),
+  fieldConfidence: z
+    .object({
+      skuldPerKvm: z.number().nullable(),
+      avgiftsniva: z.number().nullable(),
+      kassaflode: z.number().nullable(),
+    })
+    .nullable()
+    .default(null),
 });
+
+/**
+ * `brfFieldTrusted` — the SINGLE fail-closed `OSAKER_THRESHOLD` gate every
+ * consumer must use to decide whether a `BrfSummary` figure may be
+ * presented as fact or used in downstream arithmetic (CR-02, 14-REVIEW.md).
+ *
+ * Fails CLOSED: a `null` summary, a `null` value, a missing/`null`
+ * `fieldConfidence` map, or a confidence strictly below `OSAKER_THRESHOLD`
+ * all return `false`. An absent confidence is an absence of evidence, not
+ * evidence of trustworthiness — per D-14-05 the phase's default posture is
+ * "cannot attribute", never a silent assumption. This is deliberately the
+ * ONLY place that decision is made; plan 14-10 calls it from both
+ * `normalizeForConfounders` and `buildBrfItem`.
+ *
+ * @param brf - the `BrfSummary` to check, or `null`
+ * @param field - which confidence-tracked field to check
+ * @returns `true` only when the field's value is a finite number AND its
+ *   confidence is a finite number `>= OSAKER_THRESHOLD`
+ */
+export function brfFieldTrusted(brf: BrfSummary | null, field: BrfConfidenceField): boolean {
+  if (brf === null) return false;
+  const value = brf[field];
+  if (value === null || !Number.isFinite(value)) return false;
+  if (brf.fieldConfidence === null) return false;
+  const confidence = brf.fieldConfidence[field];
+  return confidence !== null && Number.isFinite(confidence) && confidence >= OSAKER_THRESHOLD;
+}
 
 // ---------------------------------------------------------------------------
 // HolisticBrief — the no-empty-analysis fallback (ANL-01, D-14-03/D-14-04)
