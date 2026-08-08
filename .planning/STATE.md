@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
-status: planned
-stopped_at: Phase 14 gap-closure planned — 14-07..14-10 created, plan-checker PASS. Next is /gsd-execute-phase 14 --gaps-only
-last_updated: "2026-08-06T15:57:14.486Z"
-last_activity: 2026-08-05 -- Phase 14 execution started
+status: executing
+stopped_at: Completed 14-07-PLAN.md — ANL-03/ANL-04 DATA SPINE gap closure (BrfSummary.fieldConfidence + brfFieldTrusted gate + billed-failure cost accounting)
+last_updated: "2026-08-08T14:45:02.142Z"
+last_activity: 2026-08-08 -- Phase 14 execution started
 progress:
   total_phases: 9
-  completed_phases: 1
-  total_plans: 12
-  completed_plans: 10
-  percent: 11
+  completed_phases: 0
+  total_plans: 16
+  completed_plans: 11
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 ## Current Position
 
-Phase: 14 (holistic-analysis-brain) — GAP CLOSURE PLANNED
-Plan: 6 of 6 executed; 4 gap-closure plans (14-07..14-10) planned, 0 executed
-Status: Verification `gaps_found` (2/4 must-haves). ANL-01/ANL-02 pass; ANL-03 and ANL-04 failed on BRF-summary correctness. Gap plans 14-07..14-10 created and PASSED plan-checker; they close CR-01..CR-04 + WR-01. Operator decisions: soliditet deferral ACCEPTED (documentation only, 14-09); fix scope limited to the 4 Criticals + WR-01 (WR-04/06/09/10/11 stay open by decision).
-Last activity: 2026-08-07 -- Phase 14 gap closure planned
+Phase: 14 (holistic-analysis-brain) — EXECUTING
+Plan: 2 of 10
+Status: Ready to execute
+Last activity: 2026-08-08 -- Phase 14 execution started
 Next step: `/gsd-execute-phase 14 --gaps-only`. Operator live-smoke re-run of Phase 13 still outstanding.
 
 ## Roadmap Summary (v1.2 — CURRENT)
@@ -187,6 +187,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 14-05]: resolveCompsForCandidates uses resolution == null (loose) not === null when checking a resolveArea outcome, so a test double or future caller returning undefined degrades identically rather than crashing into the whole-body catch
 - [Phase 14-06]: Comps run BEFORE BRF in the pipeline (D-14-08 front-load-the-cheap ordering); comps needed by every candidate's brief, BRF only covers the top-N
 - [Phase 14-06]: Drove vision_error/claims:[] test states by mocking @anthropic-ai/sdk directly (mirrors vision.test.ts), not by mocking vision.ts itself, to exercise the real runVisionPass code path
+- [Phase 14-07]: fieldConfidence required-on-interface, defaulted-in-schema — Interface requires it so no writer can silently omit it; Zod .nullable().default(null) lets a legacy persisted row (nested inside discoveryCandidateSchema, whose consumer drops the whole candidate on nested parse failure) still parse, degrading to untrusted null.
+- [Phase 14-07]: brfFieldTrusted fails closed on every axis (null summary/value/map/sub-threshold) — D-14-05 default posture is cannot-attribute — absent confidence is absence of evidence, never a silent trust assumption.
+- [Phase 14-07]: CLAUDE_CALL_FAILED stays charged at 0 SEK in BILLED_CALLS_BY_EXTRACTION_CODE — It is extract.ts's catch-all for a transport/auth/rate-limit failure that never completed a billed model call, so there is nothing real to charge.
 
 ### Pending Todos
 
@@ -210,8 +213,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-06T15:57:14.481Z
-Stopped at: Completed 14-06-PLAN.md — Phase 14 all 6 plans done, ready_for_verification
+Last session: 2026-08-08T14:45:02.137Z
+Stopped at: Completed 14-07-PLAN.md — ANL-03/ANL-04 DATA SPINE gap closure (BrfSummary.fieldConfidence + brfFieldTrusted gate + billed-failure cost accounting)
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
@@ -317,3 +320,4 @@ Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads
 | Phase 14 P04 | 20min | 3 tasks | 4 files |
 | Phase 14 P05 | 17min | 3 tasks | 6 files |
 | Phase 14-holistic-analysis-brain P06 | 25min | 3 tasks | 2 files |
+| Phase 14 P07 | 22min | 3 tasks | 7 files |
