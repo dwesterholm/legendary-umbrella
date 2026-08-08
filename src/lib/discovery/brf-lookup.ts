@@ -4,6 +4,7 @@ import { resolveOrgNr } from "@/lib/brf-source/org-nr-resolver";
 import { extractBrfFinancials } from "@/lib/brf/extract";
 import { scoreExtraction } from "@/lib/brf/run-extraction";
 import { costSek } from "@/lib/brf/cost";
+import { estimateBrfLookupSek } from "@/lib/discovery/cost";
 import { tomtrattFromTenureForm, type BrfSummary } from "@/lib/discovery/holistic-schema";
 
 /**
@@ -53,6 +54,23 @@ import { tomtrattFromTenureForm, type BrfSummary } from "@/lib/discovery/holisti
  * assert against this constant instead of a literal.
  */
 export const BRF_TOP_N = 4;
+
+/**
+ * Per-extraction-failure-code billed-call count (CR-04, 14-REVIEW.md), taken
+ * straight from `extract.ts`'s throw points: `CLAUDE_REFUSAL` and
+ * `CLAUDE_PARSE_EMPTY` each throw after ONE completed model call.
+ * `CLAUDE_MAX_TOKENS` retries `runOnce()` once before throwing, so TWO calls
+ * were billed. Any code NOT in this map — notably `CLAUDE_CALL_FAILED`,
+ * `extract.ts`'s catch-all for a transport/auth/rate-limit failure that
+ * never completed a billed call — is charged 0 SEK. That exclusion is
+ * deliberate, not an oversight: a transport failure before the model ever
+ * responds incurs no Anthropic spend to account for.
+ */
+export const BILLED_CALLS_BY_EXTRACTION_CODE: Readonly<Record<string, number>> = {
+  CLAUDE_REFUSAL: 1,
+  CLAUDE_PARSE_EMPTY: 1,
+  CLAUDE_MAX_TOKENS: 2,
+};
 
 /** The discriminated outcome of one `lookupBrfSummary` call. */
 export type BrfLookupOutcome =
@@ -167,9 +185,19 @@ export async function lookupBrfSummary(input: BrfLookupInput): Promise<BrfLookup
   } catch (error) {
     // GDPR-safe logging: the coded message ONLY — never the document text,
     // the org.nr, financials, or quotes.
-    console.error("[discovery-brf-lookup]", {
-      code: error instanceof Error ? error.message : "UNKNOWN",
-    });
-    return { summary: null, costSek: 0, outcome: "extract_failed" };
+    const code = error instanceof Error ? error.message : "UNKNOWN";
+    console.error("[discovery-brf-lookup]", { code });
+    // CR-04 (14-REVIEW.md): a code in BILLED_CALLS_BY_EXTRACTION_CODE means
+    // Anthropic already billed 1 or 2 calls before extract.ts threw — charge
+    // that real estimated spend against the shared CAP_VISION_SEK_MAX pool
+    // (D-14-08: comps + BRF + vision share ONE 10 SEK ceiling) instead of
+    // reporting 0. Under-counting a spend gate is the dangerous direction:
+    // 4 top-N candidates all failing on CLAUDE_MAX_TOKENS would otherwise
+    // silently record ~6.2 SEK of real spend as 0 SEK.
+    return {
+      summary: null,
+      costSek: (BILLED_CALLS_BY_EXTRACTION_CODE[code] ?? 0) * estimateBrfLookupSek(),
+      outcome: "extract_failed",
+    };
   }
 }

@@ -47,6 +47,7 @@ function makeBrf(overrides: Partial<BrfSummary> = {}): BrfSummary {
     tomtratt: null,
     fiscalYear: 2025,
     source: "allabrf",
+    fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.9, kassaflode: 0.8 },
     ...overrides,
   };
 }

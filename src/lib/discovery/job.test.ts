@@ -1196,6 +1196,7 @@ function makeBrfSummary(overrides: Partial<BrfSummary> = {}): BrfSummary {
     tomtratt: null,
     fiscalYear: 2024,
     source: "allabrf",
+    fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.9, kassaflode: 0.8 },
     ...overrides,
   };
 }
@@ -1379,6 +1380,25 @@ describe("lookupBrfForTopCandidates — ANL-03 top-N concurrent BRF fetch", () =
     });
 
     expect(result.spentSek).toBeCloseTo(1.1, 10);
+  });
+
+  it("a billed-then-failed extraction's non-zero costSek is no longer invisible to the shared pool (CR-04)", async () => {
+    lookupBrfSummary.mockResolvedValue({
+      summary: null,
+      costSek: 1.23,
+      outcome: "extract_failed",
+    });
+    const candidates = Array.from({ length: BRF_TOP_N }, (_, i) =>
+      makeCandidate({ brfName: `Brf ${i}` }),
+    );
+
+    const result = await lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      budgetSek: 10,
+    });
+
+    expect(result.attemptedIndices.length).toBe(BRF_TOP_N);
+    expect(result.spentSek).toBeCloseTo(1.23 * result.attemptedIndices.length, 10);
   });
 
   it("budgetSek: 0 performs ZERO lookupBrfSummary calls and reports skippedForBudget > 0", async () => {

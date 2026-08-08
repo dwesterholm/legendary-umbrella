@@ -935,7 +935,12 @@ export async function lookupBrfForTopCandidates(
         continue;
       }
       const { index, result } = outcome.value;
-      // A failed extraction returns costSek: 0, so always adding is safe.
+      // result.costSek is always a finite non-negative number and now
+      // INCLUDES the estimated spend of a billed-then-failed extraction
+      // (BILLED_CALLS_BY_EXTRACTION_CODE, CR-04) — a code Anthropic already
+      // billed 1-2 calls for before extract.ts threw. Unconditional
+      // accumulation is what keeps the shared CAP_VISION_SEK_MAX pool honest
+      // when it is seeded into runVisionPass via initialSpentSek (D-14-08).
       spentSek += result.costSek;
       if (result.summary !== null) {
         byIndex.set(index, result.summary);

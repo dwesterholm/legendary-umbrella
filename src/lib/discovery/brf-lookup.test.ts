@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { brfFieldTrusted } from "@/lib/discovery/holistic-schema";
 import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
+import { estimateBrfLookupSek } from "@/lib/discovery/cost";
 
 /**
  * brf-lookup.test.ts — mocks ONLY the network/LLM edges
@@ -146,7 +147,7 @@ describe("lookupBrfSummary", () => {
     expect(extractBrfFinancials).not.toHaveBeenCalled();
   });
 
-  it('"extract_failed" — a coded extraction error degrades cleanly and never logs the document text', async () => {
+  it('"extract_failed" — CLAUDE_REFUSAL charges ONE billed call and never logs the document text', async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     searchAllabrfByName.mockResolvedValue([
       { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
@@ -164,13 +165,85 @@ describe("lookupBrfSummary", () => {
       tenureForm: null,
     });
 
-    expect(result).toEqual({ summary: null, costSek: 0, outcome: "extract_failed" });
+    expect(result).toEqual({
+      summary: null,
+      costSek: estimateBrfLookupSek(),
+      outcome: "extract_failed",
+    });
     expect(errorSpy).toHaveBeenCalled();
     for (const call of errorSpy.mock.calls) {
       const serialized = JSON.stringify(call);
       expect(serialized).not.toContain("SECRET_DOCUMENT_TEXT_FIXTURE");
       expect(serialized).toContain("CLAUDE_REFUSAL");
     }
+  });
+
+  it('"extract_failed" — CLAUDE_PARSE_EMPTY charges ONE billed call', async () => {
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2023,
+      availableYears: [2023],
+    });
+    extractBrfFinancials.mockRejectedValue(new Error("CLAUDE_PARSE_EMPTY"));
+
+    const result = await lookupBrfSummary({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholm",
+      tenureForm: null,
+    });
+
+    expect(result).toEqual({
+      summary: null,
+      costSek: estimateBrfLookupSek(),
+      outcome: "extract_failed",
+    });
+  });
+
+  it('"extract_failed" — CLAUDE_MAX_TOKENS charges TWO billed calls (the real retry-then-throw path)', async () => {
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2023,
+      availableYears: [2023],
+    });
+    extractBrfFinancials.mockRejectedValue(new Error("CLAUDE_MAX_TOKENS"));
+
+    const result = await lookupBrfSummary({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholm",
+      tenureForm: null,
+    });
+
+    expect(result).toEqual({
+      summary: null,
+      costSek: 2 * estimateBrfLookupSek(),
+      outcome: "extract_failed",
+    });
+  });
+
+  it('"extract_failed" — CLAUDE_CALL_FAILED (no billed call completed) charges 0 SEK', async () => {
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2023,
+      availableYears: [2023],
+    });
+    extractBrfFinancials.mockRejectedValue(new Error("CLAUDE_CALL_FAILED"));
+
+    const result = await lookupBrfSummary({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholm",
+      tenureForm: null,
+    });
+
+    expect(result).toEqual({ summary: null, costSek: 0, outcome: "extract_failed" });
   });
 
   it('"ok" — a genitive listing kommun ("Stockholms") corroborates a nominative registry kommun ("Stockholm") end-to-end', async () => {
