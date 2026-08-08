@@ -319,6 +319,22 @@ export const RENO_ATTRIBUTION_FALLBACK_TEXT =
 export const BRF_UNTRUSTED_FIGURE_TEXT =
   "Någon av föreningens siffror låg utanför ett rimligt intervall och visas därför inte här — kontrollera avgift och skuld per kvm i föreningens årsredovisning.";
 
+/**
+ * CR-03: `stambytePlanerat` is a bounded enum keyed to `brfExtractionSchema`
+ * (`src/lib/schemas/brf.ts`) / the extraction prompt (`prompt.ts:36-40`), NOT
+ * free-form prose — concatenating it verbatim leaked the raw token into
+ * buyer-facing Swedish. `"ej_nämnt"` maps to `null` deliberately: per
+ * `prompt.ts:40` it means the document does NOT mention stambyte at all, so
+ * rendering it would present an ABSENCE of information as an information
+ * item — padding a brief whose entire purpose (ANL-01) is at least one
+ * ACTIONABLE item.
+ */
+export const STAMBYTE_PROSE: Readonly<Record<string, string | null>> = {
+  planerat: "Föreningen har ett planerat stambyte.",
+  nyligen_genomfort: "Föreningen har nyligen genomfört stambyte.",
+  ej_nämnt: null,
+};
+
 export interface BuildHolisticBriefInput {
   readonly guard: ConfounderGuardResult;
   readonly comps: AreaCompsSummary | null;
@@ -362,7 +378,13 @@ function confounderLabel(id: ConfounderId): string {
   }
 }
 
-function applyBannedAttributionGuard(text: string): string {
+/**
+ * Exported (was module-private) per CR-03: after this fix no pipeline field
+ * carries free-form prose into a brief item, so the drop-and-replace
+ * enforcement branch can no longer be reached through a fixture and must be
+ * proven directly. Behaviour is unchanged.
+ */
+export function applyBannedAttributionGuard(text: string): string {
   const isBanned = BANNED_RENO_ATTRIBUTION_PATTERNS.some((pattern) => pattern.test(text));
   return isBanned ? RENO_ATTRIBUTION_FALLBACK_TEXT : text;
 }
@@ -464,7 +486,15 @@ function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): Holist
       anyFigureSuppressed = true;
     }
   }
-  if (brf.stambytePlanerat !== null) parts.push(`Stambyte-läge: ${brf.stambytePlanerat}.`);
+  // CR-03: lookup through STAMBYTE_PROSE rather than concatenating the raw
+  // enum. The `?? null` branch is a FAIL-CLOSED guard for a value outside
+  // the enum — `BrfSummary.stambytePlanerat` is still typed `string | null`
+  // (WR-09 narrowing it to `StambyteStatus` is OUT OF SCOPE for this
+  // gap-closure run) — so no unmapped token can ever reach user-facing
+  // prose, and "ej_nämnt" correctly produces no sentence at all.
+  const stambyteProse =
+    brf.stambytePlanerat === null ? null : STAMBYTE_PROSE[brf.stambytePlanerat] ?? null;
+  if (stambyteProse !== null) parts.push(stambyteProse);
   if (brf.tomtratt === true) parts.push("Föreningen har tomträtt.");
   if (brf.fiscalYear !== null) parts.push(`Siffrorna kommer från räkenskapsåret ${brf.fiscalYear}.`);
   if (anyFigureSuppressed) parts.push(BRF_UNTRUSTED_FIGURE_TEXT);

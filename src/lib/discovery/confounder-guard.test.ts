@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeForConfounders,
   buildHolisticBrief,
+  applyBannedAttributionGuard,
   BANNED_RENO_ATTRIBUTION_PATTERNS,
   RENO_ATTRIBUTION_FALLBACK_TEXT,
   BRF_UNTRUSTED_FIGURE_TEXT,
@@ -549,6 +550,9 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
         expect(concatenated).not.toMatch(pattern);
       }
       expect(concatenated).not.toContain("renoveringsobjekt");
+      // CR-03 no-raw-enum invariant: a snake_case token in Swedish prose is
+      // by construction an internal identifier leak.
+      expect(concatenated).not.toMatch(/[A-Za-zÅÄÖåäö]+_[A-Za-zÅÄÖåäö]+/);
     }
   });
 
@@ -558,15 +562,73 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
     }
   });
 
-  it("exercises the drop-and-replace enforcement branch: a brf item whose composed text would contain the banned word is replaced entirely", () => {
-    // stambytePlanerat is a free string field the builder concatenates
-    // verbatim into the brf item's text — feeding a banned word through it
-    // proves the enforcement path replaces, not merely permits, bad text.
-    const brf = makeBrf({ stambytePlanerat: "Föreningen klassas som ett renoveringsobjekt enligt senaste protokollet" });
+  // CR-03: stambytePlanerat is now a bounded enum lookup (STAMBYTE_PROSE),
+  // not free-form prose, so the banned word can no longer reach the brf
+  // item through this field. The drop-and-replace enforcement branch is
+  // proven directly below instead.
+  it("applyBannedAttributionGuard replaces banned text and passes clean text through unchanged", () => {
+    expect(
+      applyBannedAttributionGuard("Priset är lågt kr/kvm och det är ett renoveringsbehov enligt mäklaren."),
+    ).toBe(RENO_ATTRIBUTION_FALLBACK_TEXT);
+    expect(applyBannedAttributionGuard("Avgiften är låg.")).toBe("Avgiften är låg.");
+  });
+
+  it("a free-form banned string fed through stambytePlanerat is now dropped entirely, never rendered", () => {
+    // stambytePlanerat is a BOUNDED ENUM lookup (STAMBYTE_PROSE) as of
+    // CR-03 — a free-form string is an unmapped value and fails closed to
+    // no sentence at all, so this string can no longer reach any item text.
+    const freeForm = "Föreningen klassas som ett renoveringsobjekt enligt senaste protokollet";
+    const brf = makeBrf({ stambytePlanerat: freeForm });
+    const brief = briefFrom({ brf });
+    const concatenated = brief.items.map((i) => i.text).join(" ");
+    expect(concatenated).not.toContain(freeForm);
+    expect(concatenated).not.toContain("Stambyte-läge");
+  });
+});
+
+describe("CR-03 — stambyte renders as prose, and 'not mentioned' is not an item", () => {
+  it('stambytePlanerat "planerat" renders the planned-stambyte sentence', () => {
+    const brf = makeBrf({ stambytePlanerat: "planerat" });
     const brief = briefFrom({ brf });
     const item = brief.items.find((i) => i.kind === "brf");
     expect(item).toBeDefined();
-    expect(item!.text).toBe(RENO_ATTRIBUTION_FALLBACK_TEXT);
-    expect(item!.text).not.toContain("renoveringsobjekt");
+    expect(item!.text).toContain("Föreningen har ett planerat stambyte.");
+  });
+
+  it('stambytePlanerat "nyligen_genomfort" renders the completed-stambyte sentence', () => {
+    const brf = makeBrf({ stambytePlanerat: "nyligen_genomfort" });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("Föreningen har nyligen genomfört stambyte.");
+  });
+
+  it('stambytePlanerat "ej_nämnt" produces NO stambyte sentence, and with every other field null produces NO brf item at all', () => {
+    const brf = makeBrf({
+      stambytePlanerat: "ej_nämnt",
+      avgiftsniva: null,
+      skuldPerKvm: null,
+      kassaflode: null,
+      fiscalYear: null,
+      tomtratt: null,
+    });
+    const brief = briefFrom({ brf });
+    expect(brief.items.some((i) => i.kind === "brf")).toBe(false);
+    expect(brief.items.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("an unmapped stambytePlanerat string is suppressed entirely — fails closed", () => {
+    const brf = makeBrf({ stambytePlanerat: "some_unmapped_value" });
+    const brief = briefFrom({ brf });
+    const concatenated = brief.items.map((i) => i.text).join(" ");
+    expect(concatenated).not.toContain("some_unmapped_value");
+  });
+
+  it("stambytePlanerat null is unchanged — no sentence, no throw", () => {
+    const brf = makeBrf({ stambytePlanerat: null });
+    expect(() => briefFrom({ brf })).not.toThrow();
+    const brief = briefFrom({ brf });
+    const concatenated = brief.items.map((i) => i.text).join(" ");
+    expect(concatenated).not.toContain("Stambyte-läge");
   });
 });
