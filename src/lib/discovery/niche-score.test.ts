@@ -306,6 +306,17 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
   // BRF lookup) extends this SAME invariant with the three new Phase-14
   // analysis-path modules — registered here BEFORE any of them exist, since
   // the guard is silently inert for an unlisted module specifier.
+  //
+  // WR-01 (gap closure, 14-08): the matcher below used to filter
+  // `source.split("\n")` down to lines matching `/^\s*import\b/` — but a
+  // multi-line named import puts the module specifier on the CLOSING
+  // `} from "...";` line, which never matches that per-line filter. That is
+  // the exact shape Prettier produces for more than one named import, and the
+  // exact shape `candidate.ts` and `confounder-guard.ts` already use for
+  // these very modules. The matcher below instead inspects whole (possibly
+  // multi-line) import/export-from statements and side-effect imports via a
+  // narrow, comment-and-string-safe regex, so it can no longer be silently
+  // inert against the style the codebase actually uses.
   const VISION_MODULE_SPECIFIERS = [
     "discovery/vision-schema",
     "discovery/vision\"",
@@ -320,14 +331,36 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/brf-lookup",
   ];
 
+  // Matches a whole `import ... from "..."` / `export ... from "..."`
+  // statement, including one that spans multiple lines (a multi-line named
+  // import puts the specifier on the closing `} from "...";` line). The
+  // `[\w*\s{},$]*?` clause is DELIBERATELY NARROW: it admits only the
+  // characters that can legally appear in an import/export clause
+  // (identifiers, `type`, `as`, `*`, braces, commas, `$`, and whitespace
+  // INCLUDING newlines so multi-line clauses match), so the match can never
+  // run past a `(`, `;`, `/` or `=` into unrelated code or into a comment. A
+  // greedy `[\s\S]*?` would swallow prose between statements and produce
+  // false positives from a doc comment that merely names a module — exactly
+  // the kind of comment niche-score.ts's own header carries.
+  const IMPORT_FROM_STATEMENT_RE =
+    /^[ \t]*(?:import|export)\s+[\w*\s{},$]*?from\s*["'][^"']+["']/gm;
+  // Matches a whole side-effect import: `import "...";` with no `from`
+  // clause and no bindings.
+  const SIDE_EFFECT_IMPORT_RE = /^[ \t]*import\s*["'][^"']+["']/gm;
+
+  function sourceImportsVisionModule(source: string): boolean {
+    const statements = [
+      ...(source.match(IMPORT_FROM_STATEMENT_RE) ?? []),
+      ...(source.match(SIDE_EFFECT_IMPORT_RE) ?? []),
+    ];
+    return statements.some((statement) =>
+      VISION_MODULE_SPECIFIERS.some((specifier) => statement.includes(specifier)),
+    );
+  }
+
   function importsVisionModule(sourcePath: string): boolean {
     const source = readFileSync(join(process.cwd(), sourcePath), "utf-8");
-    const importLines = source
-      .split("\n")
-      .filter((line) => /^\s*import\b/.test(line));
-    return importLines.some((line) =>
-      VISION_MODULE_SPECIFIERS.some((specifier) => line.includes(specifier)),
-    );
+    return sourceImportsVisionModule(source);
   }
 
   it("niche-score.ts does not import from vision-schema.ts, vision.ts, or sun-path.ts", () => {
@@ -336,5 +369,75 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
 
   it("flags.ts does not import from vision-schema.ts, vision.ts, or sun-path.ts", () => {
     expect(importsVisionModule("src/lib/report/flags.ts")).toBe(false);
+  });
+
+  describe("WR-01 — the matcher sees multi-line named imports", () => {
+    it("detects a multi-line named import of a registered specifier (the case the line-anchored matcher missed)", () => {
+      // This assertion FAILS against the pre-WR-01 line-anchored
+      // implementation: the specifier lives on the closing `} from "...";`
+      // line, which `/^\s*import\b/` never matches.
+      const source =
+        'import {\n  buildHolisticBrief,\n  normalizeForConfounders,\n} from "@/lib/discovery/confounder-guard";';
+      expect(sourceImportsVisionModule(source)).toBe(true);
+    });
+
+    it("detects a multi-line named TYPE import of a registered specifier", () => {
+      const source = 'import type {\n  BrfSummary,\n} from "@/lib/discovery/holistic-schema";';
+      expect(sourceImportsVisionModule(source)).toBe(true);
+    });
+
+    it("detects a single-line named import (unchanged pre-existing behaviour)", () => {
+      const source = 'import { computeAreaComps } from "@/lib/discovery/area-comps";';
+      expect(sourceImportsVisionModule(source)).toBe(true);
+    });
+
+    it("detects a side-effect import with no bindings", () => {
+      const source = 'import "@/lib/discovery/vision";';
+      expect(sourceImportsVisionModule(source)).toBe(true);
+    });
+
+    it("detects a re-export of a registered specifier", () => {
+      const source = 'export { buildHolisticBrief } from "@/lib/discovery/confounder-guard";';
+      expect(sourceImportsVisionModule(source)).toBe(true);
+    });
+
+    it("does NOT fire on a comment that merely mentions a registered specifier", () => {
+      // Guards against a matcher so greedy it fires on prose — which would
+      // make the invariant unusable and invite someone to weaken it.
+      const source =
+        '// never import from @/lib/discovery/confounder-guard here\nimport { z } from "zod/v4";';
+      expect(sourceImportsVisionModule(source)).toBe(false);
+    });
+
+    it("does NOT fire on a string literal containing a registered specifier", () => {
+      const source = 'const s = "@/lib/discovery/brf-lookup";';
+      expect(sourceImportsVisionModule(source)).toBe(false);
+    });
+
+    it("does NOT fire on an unrelated single-line import", () => {
+      const source = 'import { z } from "zod/v4";';
+      expect(sourceImportsVisionModule(source)).toBe(false);
+    });
+
+    // Real-file positive controls: these are NOT guarded files. They prove
+    // the matcher recognises the exact multi-line import style the codebase
+    // actually uses for the registered specifiers, so a green
+    // niche-score.ts / flags.ts assertion means something — an always-false
+    // matcher would otherwise pass the whole suite silently (T-14-36).
+    it("candidate.ts (real file) — recognised as importing a registered specifier via a multi-line import", () => {
+      expect(importsVisionModule("src/lib/discovery/candidate.ts")).toBe(true);
+    });
+
+    it("confounder-guard.ts (real file) — recognised as importing a registered specifier via a multi-line import", () => {
+      expect(importsVisionModule("src/lib/discovery/confounder-guard.ts")).toBe(true);
+    });
+
+    it("niche-score.ts (real file) — still does not import a registered specifier", () => {
+      expect(importsVisionModule("src/lib/discovery/niche-score.ts")).toBe(false);
+    });
+
+    it("flags.ts (real file) — still does not import a registered specifier", () => {
+      expect(importsVisionModule("src/lib/report/flags.ts")).toBe(false);
+    });
   });
 });
