@@ -1,6 +1,6 @@
 ---
 phase: 14-holistic-analysis-brain
-reviewed: 2026-08-06T18:10:00Z
+reviewed: 2026-08-08T17:40:00Z
 depth: standard
 files_reviewed: 25
 files_reviewed_list:
@@ -30,535 +30,513 @@ files_reviewed_list:
   - src/lib/discovery/vision.test.ts
   - src/lib/discovery/vision.ts
 findings:
-  critical: 4
-  warning: 11
-  info: 6
-  total: 21
+  critical: 2
+  warning: 16
+  info: 7
+  total: 25
 status: issues_found
 ---
 
 # Phase 14: Code Review Report
 
-**Reviewed:** 2026-08-06T18:10:00Z
+**Reviewed:** 2026-08-08T17:40:00Z
 **Depth:** standard
 **Files Reviewed:** 25
 **Status:** issues_found
 
 ## Summary
 
-Phase 14 adds the "holistic analysis brain": a persisted holistic schema
-(`holistic-schema.ts`), a pure confounder guard + brief builder
-(`confounder-guard.ts`), a discovery-side BRF orchestrator (`brf-lookup.ts`),
-two new spend-gated resolution passes in `job.ts`
-(`resolveCompsForCandidates` / `lookupBrfForTopCandidates`), a shared
-`CAP_VISION_SEK_MAX` pool seeded via `runVisionPass({ initialSpentSek })`,
-genitive-tolerant kommun normalization, and a new warm-gray `HolisticDataBrief`
-UI sub-block.
+This is a **re-review** of the same file set after gap-closure plans 14-07..14-10
+landed. Verification first, then new findings.
 
-Mechanically the code is careful: `tsc --noEmit` is clean, all 324 tests across
-the changed suites pass, the never-throw / never-wedge / GDPR-safe-logging
-disciplines are consistently applied, and the PII allowlist and read-path Zod
-guards were extended correctly (24 fields, counted and verified).
+### Prior findings that ARE now resolved
 
-The defects are concentrated in the **semantics of the data being composed and
-priced**, not in the plumbing:
+| Prior ID | Status | Evidence |
+|---|---|---|
+| CR-01 (`avgiftsniva` printed as "kr/mån") | **FIXED** | `confounder-guard.ts:454-473` now emits `"… kr/kvm och år"` and only derives a per-month figure as `avgiftsniva * livingArea / 12`, guarded on `Number.isFinite(livingArea) && livingArea > 0`. The misleading `4_200` fixture is gone; `confounder-guard.test.ts:407-466` pins both the unit string and the "never a bare kr/mån" invariant across a fixture table. |
+| CR-02 (sanity downgrade discarded) | **FIXED** | `BrfSummary.fieldConfidence` (`holistic-schema.ts:147-192`) + the single fail-closed gate `brfFieldTrusted` (`holistic-schema.ts:212-219`), consumed by both `normalizeForConfounders` (`confounder-guard.ts:146`) and `buildBrfItem` (`:455/:475/:483`). `fieldConfidence.default(null)` correctly prevents legacy rows from being dropped by the nested read guard. |
+| CR-03 (raw `ej_nämnt` in prose) | **FIXED** | `STAMBYTE_PROSE` (`confounder-guard.ts:332-336`) maps the enum and returns `null` for `ej_nämnt`; `:495-497` no longer concatenates the token. |
+| CR-04 (failed BRF extraction reports 0 SEK) | **PARTIALLY FIXED** | `BILLED_CALLS_BY_EXTRACTION_CODE` (`brf-lookup.ts:69-73`) now charges 1–2 × `estimateBrfLookupSek()` on the throw path, and the codes match `extract.ts:301/308/313` exactly. The **success-after-retry** leak is still open (see WR-02), and the fix introduced a new gate/charge asymmetry (WR-01). |
+| WR-01 (static-grep guard blind to multi-line imports) | **FIXED** | `niche-score.test.ts:337-354` now matches whole `import … from "…"` statements with a deliberately narrow character class. |
 
-1. The BRF summary is rendered with the **wrong unit** — `avgiftsniva` is
-   SEK/m²/år but is printed to the user as "kr/mån".
-2. The BRF extraction's **sanity-band confidence downgrade is discarded**, so
-   an implausible `skuldPerKvm` is both shown to the buyer and silently folded
-   into the debt-inclusive discount math that decides `deepDiscount`.
-3. A raw snake_case enum token (`ej_nämnt`) is concatenated into Swedish
-   user-facing prose.
-4. The shared `CAP_VISION_SEK_MAX` pool can be exceeded by ~60% because a
-   failed BRF extraction reports `costSek: 0` after 1–2 real Anthropic calls.
+### Prior findings still open
 
-Additionally, the static-grep test that is the *sole* enforcement of the locked
-structural-separation invariant — and which Phase 14 explicitly leans on — only
-inspects lines that begin with `import`, so it is blind to multi-line named
-imports (the exact form the new modules are imported with elsewhere).
+WR-02..WR-11 and IN-01..IN-06 from the previous pass are **all still present**,
+re-verified line by line below (renumbered here as WR-04, WR-08..WR-16 and
+IN-01..IN-06).
 
-No injection, SSRF, XSS, secret-leak or authz defect was found. The synthetic
-`buildCompsQuery` URL is re-parsed with a digit-only regex before any outbound
-request, and `buildSlutpriserUrl` uses `URLSearchParams`, so the areaId
-round-trip is safe.
+### New findings
+
+Two new **BLOCKER**s, both in spend/decision correctness rather than plumbing:
+
+1. **`runSlice`'s render accounting is now wrong by up to 10×.**
+   `fetchAreaListings` was rewritten to walk up to `MAX_AREA_PAGES = 5` pages
+   (page 1 sequential + 4 in parallel), each page attempting two own-render
+   rungs — but `runSlice` still counts **one render per area** and the pre-gate
+   still prices one render per area. `CAP_SEK_MAX` is therefore not enforceable,
+   and two doc comments in `job.ts` assert the opposite of what the code does.
+
+2. **The CR-02 trust gate made the SPEC §2.2 "> 15 000 kr/m² debt" red flag
+   structurally unreachable — and, worse, now makes a genuinely high-debt
+   förening look *cheaper*.** `HIGH_BRF_DEBT_PER_SQM` is numerically identical
+   to `BRF_SANITY_BANDS.skuldPerKvm.max`, so every real high-debt reading is
+   confidence-downgraded, excluded from the debt-inclusive kr/m² normalization
+   (SPEC §2.6 rule 1), never named as `brf_debt_high`, and surfaced to the user
+   as "a figure was outside a reasonable range" rather than "this förening
+   carries dangerous debt."
+
+Mechanics remain careful otherwise: `npx tsc --noEmit` is clean, all 374 tests
+across the 13 changed/related suites pass, `searchAllabrfByName` /
+`fetchAllabrfDocument` `encodeURIComponent` their inputs (`allabrf.ts:69,73`),
+`buildSlutpriserUrl`/`buildTillSaluUrl` use `URLSearchParams`, no secrets, no
+`eval`/`innerHTML`, no debug artifacts, and the GDPR-safe coded-logging
+discipline holds in every new catch block.
 
 ---
+
+## Structural Findings (fallow)
+
+No `<structural_findings>` block was supplied for this run. The cross-module
+facts below were derived directly and are cited inline: `effectivePricePerSqm`
+/ `compsThin` / `debtIncluded` have no consumer outside
+`confounder-guard.ts` + its test (WR-11); `BRF_CONFIDENCE_FIELDS` is exported
+but referenced only inside its own module; `BuildHolisticBriefInput.pricePerSqm`
+is written by `job.ts:1078` and read by nobody (WR-10).
+
+---
+
+## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: `avgiftsniva` rendered with the wrong unit — SEK/m²/år printed as "kr/mån"
+### CR-01: `runSlice` counts one render per area while `fetchAreaListings` now renders up to ten — the `CAP_SEK_MAX` gate and the persisted cost ledger are both under-counted by up to 10×
 
-**File:** `src/lib/discovery/confounder-guard.ts:381`
+**Files:** `src/lib/discovery/job.ts:89-104`, `src/lib/discovery/job.ts:192`, `src/lib/discovery/job.ts:214-219`, `src/lib/discovery/job.ts:258-259`, `src/lib/booli/client.ts:669`, `src/lib/booli/client.ts:798-825`
 **Severity:** BLOCKER
 
-**Issue:** `buildBrfItem` composes:
+**Issue:** `fetchAreaListings` no longer performs a single render. It fetches
+page 1, and when that page is full fetches pages 2..`MAX_AREA_PAGES` **in
+parallel** (`client.ts:798-825`, `MAX_AREA_PAGES = 5`), each page going through
+`walkFallbackTree` over two own-playwright rungs — so one call is 1..10 paid
+Apify renders.
+
+`runSlice` still models it as one:
 
 ```ts
-if (brf.avgiftsniva !== null) parts.push(`Avgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/mån.`);
+// job.ts:192 — pre-gate
+const projectedCost = cost_sek_total + estimatedSliceCostSek(areaIds.length);
+...
+// job.ts:214-219 — post-scrape accounting
+let rendersUsed = 0;
+for (...) {
+  if (outcome.status === "fulfilled") {
+    rendersUsed += 1;          // ONE per AREA, not per PAGE/rung
+    raw.push(...outcome.value);
+  }
 ```
 
-`avgiftsniva` is unambiguously **årsavgift per kvm, SEK/m² och ÅR** — see
-`src/lib/brf/prompt.ts:26` ("avgiftsniva — årsavgift per kvm, SEK/m² och ÅR"),
-`src/lib/brf/sanity.ts:26` (`avgiftsniva: { min: 300, max: 1200 }` documented as
-"Årsavgift per kvm, SEK/m²/år"), and `src/lib/brf/score.ts:15`. The brief prints
-it as a **total monthly fee**.
+Three concrete consequences:
 
-A real in-band value of 650 SEK/m²/år renders as "Avgiften ligger kring 650
-kr/mån." For a 70 m² flat the true monthly fee is 650 × 70 / 12 ≈ 3 792 kr/mån —
-the brief understates it by ~6×. This is a user-facing financial figure in a
-buying decision, on a surface whose whole premise (`HOLISTIC_DATA_ONLY_MARKER`)
-is "trust this, it's data not image interpretation."
+1. **The cost cap is not enforceable.** With 4 areas × 5 pages the real spend is
+   up to ~20 renders (~1.21 SEK) against a gate that authorised 4 (~0.24 SEK).
+   `cost_sek_total` is persisted from the same under-count, so the error
+   compounds across slices and `cap_reached` fires far too late — or never.
+2. **Two doc comments now state the opposite of the code.**
+   `job.ts:89-93`: *"This estimate assumes one render (the `fetchAreaListings`
+   call this slice is about to make) … so it is a conservative
+   (never-under-count) pre-check."* It is now a systematic under-count.
+   `job.ts:258-259`: *"`fetchAreaListings` is one-shot (no pagination — it
+   renders a single till-salu page)"* — directly contradicted by
+   `client.ts:790-825`. This is load-bearing prose: it is the stated
+   justification for treating a successful sweep as terminal.
+3. **Concurrency is unbounded by the ledger.** Up to `(MAX_AREA_PAGES - 1) ×
+   areaIds.length` = 16 simultaneous Apify renders can be in flight with no
+   spend gate having priced them.
 
-The bug is entrenched by the test at
-`src/lib/discovery/confounder-guard.test.ts:336`, which uses
-`avgiftsniva: 4_200` — a plausible *monthly total*, ~3.5× outside the
-`BRF_SANITY_BANDS.avgiftsniva` 300–1200 band, i.e. the test author read the
-field as kr/mån too. Contrast `src/lib/discovery/brf-lookup.test.ts:39`, whose
-fixture correctly uses `600`.
-
-**Fix:** State the unit the field actually carries, or convert with the
-candidate's `livingArea` (which `buildHolisticBrief` already has access to via
-its unused `pricePerSqm` input — see WR-06):
+**Fix:** Make the render count flow back from the client instead of being
+assumed, and price the worst case in the pre-gate.
 
 ```ts
-// Option A — state the real unit (no extra inputs needed):
-if (brf.avgiftsniva !== null) {
-  parts.push(`Årsavgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/kvm och år.`);
+// client.ts — return the real render count alongside the listings
+export interface AreaListingsResult {
+  listings: Record<string, unknown>[];
+  rendersUsed: number;          // incremented inside fetchAreaPage per rung attempted
 }
 
-// Option B — derive the monthly total when livingArea is known (thread it into
-// BuildHolisticBriefInput alongside the already-present-but-unused pricePerSqm):
-if (brf.avgiftsniva !== null && livingArea !== null && livingArea > 0) {
-  const perMonth = Math.round((brf.avgiftsniva * livingArea) / 12);
-  parts.push(
-    `Årsavgiften ligger kring ${Math.round(brf.avgiftsniva)} kr/kvm och år ` +
-      `(motsvarar ca ${perMonth} kr/mån för ${Math.round(livingArea)} kvm).`,
-  );
+// cost.ts — a named worst case, mirroring estimateCompsFetchSek's precedent
+export const AREA_MAX_RENDERS_PER_AREA = MAX_AREA_PAGES * 2;
+export function estimateAreaFetchSek(): number {
+  return renderSek(AREA_MAX_RENDERS_PER_AREA);
 }
+
+// job.ts:192
+const projectedCost = cost_sek_total + estimateAreaFetchSek() * areaIds.length;
+
+// job.ts:218
+rendersUsed += outcome.value.rendersUsed;   // never a hardcoded 1
 ```
 
-Also fix the `4_200` fixture in `confounder-guard.test.ts:336` so it stays
-inside the sanity band.
+Then delete the `job.ts:89-93` "never-under-count" claim and the
+`job.ts:258-259` "one-shot (no pagination)" sentence and replace them with the
+real justification for terminality (`fetchAreaListings` walks to
+`MAX_AREA_PAGES` itself, so no further page remains for a later slice).
 
 ---
 
-### CR-02: BRF sanity-band confidence downgrade is discarded — an implausible `skuldPerKvm` is shown to the user *and* silently changes the deep-discount classification
+### CR-02: the new `brfFieldTrusted` gate makes the SPEC §2.2 high-debt red flag unreachable *and* removes real high debt from the debt-inclusive kr/m² — a dangerously indebted förening now reads as a bigger bargain
 
-**Files:** `src/lib/discovery/brf-lookup.ts:137-147`, `src/lib/discovery/confounder-guard.ts:145-155`, `src/lib/discovery/confounder-guard.ts:191-198`, `src/lib/discovery/confounder-guard.ts:382-385`
+**Files:** `src/lib/discovery/confounder-guard.ts:45`, `src/lib/discovery/confounder-guard.ts:146`, `src/lib/discovery/confounder-guard.ts:155-166`, `src/lib/discovery/confounder-guard.ts:202-215`, `src/lib/discovery/confounder-guard.ts:474-481`, `src/lib/brf/sanity.ts:24-25`
 **Severity:** BLOCKER
 
-**Issue:** `lookupBrfSummary` calls `scoreExtraction`, which returns
-`{ normalized, grade, perFieldConfidence }`, and then throws away everything
-except `normalized`:
+**Issue:** `HIGH_BRF_DEBT_PER_SQM = 15_000` (`confounder-guard.ts:45`) is
+numerically **identical** to `BRF_SANITY_BANDS.skuldPerKvm.max = 15000`
+(`sanity.ts:24`). `applySanityChecks` forces any value outside the band to
+`DOWNGRADED_CONFIDENCE = 0.2`, which is below `OSAKER_THRESHOLD`, so
+`brfFieldTrusted(brf, "skuldPerKvm")` is `false` for **every** extraction-sourced
+debt figure above 15 000 kr/m². `scoreExtraction` is called from
+`brf-lookup.ts:155` with the default `manualFields = []`, so the discovery path
+has no other confidence source. The gate is therefore total.
+
+The code acknowledges half of this at `:202-212` ("This is the INTENDED trade")
+but the trade as implemented is not conservative — it is the wrong direction on
+the decision that matters:
+
+1. **The debt-inclusive normalization silently drops the debt.**
+   `:155-166` treats an untrusted figure "exactly like no BRF at all", so
+   `effectivePricePerSqm = pricePerSqm` for exactly the föreningar whose debt
+   SPEC §2.6 rule 1 exists to add in. A candidate at 55 000 kr/m² in a förening
+   at 30 000 kr/m² debt should be compared at 85 000; it is compared at 55 000.
+   `discountVsRenovatedPct` comes out **larger**, `deepDiscount` is **more**
+   likely to fire, and the candidate is surfaced as a bigger bargain than it is.
+   That is the exact failure mode the previous CR-02 fix was meant to prevent,
+   inverted.
+2. **`brf_debt_high` is dead code.** `:213` requires `debtUsable && skuldPerKvm >
+   15_000` — mutually exclusive by construction. The only test that reaches it
+   (`confounder-guard.test.ts:346-349`) uses a synthetic trusted-out-of-band
+   fixture the pipeline cannot produce, and the test at `:120-140` documents
+   that explicitly. So the SPEC §2.2 ">15k red flag" never appears in a real
+   brief.
+3. **The display flag is dead too.** `:476`
+   `brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM ? " (högre än vanligt)" : ""` sits
+   inside the `brfFieldTrusted` branch, so the ternary's true arm is unreachable.
+4. **The symmetric low-debt case is also wrong.** The band's *lower* bound is
+   2 000 kr/m², so a debt-light or debt-free förening — the most attractive
+   possible signal — is likewise suppressed and reported to the user as a figure
+   that "låg utanför ett rimligt intervall" (see WR-05).
+
+**Fix:** Separate "implausible reading" from "alarming but plausible reading".
+The sanity band's job is to catch unit/denominator confusion (total debt read as
+debt/m², i.e. six figures), not to reject a real 30 000 kr/m². Give the
+discovery path an explicit implausibility ceiling well above the red-flag
+threshold, and treat the band between them as *trusted-and-alarming*:
 
 ```ts
-const { normalized } = scoreExtraction(result.parsed);
+// confounder-guard.ts
+/** Above this a skuldPerKvm reading is a denominator/unit misextraction, not a
+ *  fact about the förening (a real Swedish BRF does not carry 100k+ kr/m²). */
+export const IMPLAUSIBLE_BRF_DEBT_PER_SQM = 60_000;
+
+const debtValue = brf?.skuldPerKvm ?? null;
+const debtImplausible =
+  debtValue !== null && (!Number.isFinite(debtValue) || debtValue > IMPLAUSIBLE_BRF_DEBT_PER_SQM);
+// Trust the figure for arithmetic when it is present and plausible, regardless
+// of the >15k sanity downgrade — a high-but-real debt MUST enter the
+// debt-inclusive basis and MUST be named as brf_debt_high.
+const debtUsable = debtValue !== null && !debtImplausible;
 ```
 
-`scoreExtraction` runs `applySanityChecks`, which — per
-`src/lib/brf/sanity.ts:49-51` — deliberately **never drops or alters the
-value**, only forces `confidence` to `DOWNGRADED_CONFIDENCE = 0.2` (below
-`OSAKER_THRESHOLD = 0.5`) when the figure falls outside its plausible band
-(`skuldPerKvm` 2 000–15 000, `avgiftsniva` 300–1 200). The single-listing UI
-relies on that confidence to render the "Osäker — kontrollera själv" badge. The
-discovery path has no such badge and no such gate: `BrfSummary` carries the
-value with **no confidence field at all**, and the only downstream guard is
-`Number.isFinite`.
-
-Consequences, both real:
-
-1. **Display.** `buildBrfItem` prints the raw figure — "Föreningens skuld per
-   kvm verkar ligga kring 480000 kr/kvm (högre än vanligt)" — as if it were a
-   normal reading. The classic misextraction the sanity band exists to catch is
-   exactly this: total debt read as debt/m².
-
-2. **Silent misclassification.** `normalizeForConfounders` rule 1 adds the
-   unvetted figure straight into the comparison basis:
-
-   ```ts
-   effectivePricePerSqm = pricePerSqm + brf.skuldPerKvm;
-   ```
-
-   A 100× over-read pushes `effectivePricePerSqm` far above
-   `renovatedMedianPerSqm`, making `discountVsRenovatedPct` strongly negative →
-   `deepDiscount === false` → `conditionExplainedPct = Math.max(0, negative) = 0`.
-   A genuinely deeply-discounted candidate is silently reclassified as
-   not-discounted, *and* the SPEC §2.6 20% attribution cap never fires. The
-   guard that exists to prevent over-attribution is disabled by garbage input.
-
-   Rule 5's `brf_debt_high` threshold (`> HIGH_BRF_DEBT_PER_SQM = 15_000`) is
-   *identical* to the sanity band's upper bound, so **every** value that trips
-   the sanity downgrade also unconditionally lands in `residualDrivers` as a
-   confirmed known confounder.
-
-**Fix:** Carry the per-field confidence into `BrfSummary` and gate on
-`OSAKER_THRESHOLD` before the value is displayed or used in arithmetic.
-
-```ts
-// brf-lookup.ts
-import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
-
-const { normalized, perFieldConfidence } = scoreExtraction(result.parsed);
-
-/** Below OSAKER_THRESHOLD the figure failed the plausible-band check — do not
- *  present it as a fact and do not feed it into the discount math. */
-const trusted = <T,>(key: string, value: T | null): T | null =>
-  (perFieldConfidence[key] ?? 0) >= OSAKER_THRESHOLD ? value : null;
-
-const summary: BrfSummary = {
-  skuldPerKvm: trusted("skuldPerKvm", normalized.skuldPerKvm),
-  avgiftsniva: trusted("avgiftsniva", normalized.avgiftsniva),
-  kassaflode: trusted("kassaflode", normalized.kassaflode),
-  // ...
-};
-```
-
-If nulling is judged too lossy, the alternative is to add a
-`confidence: Record<string, number>` field to `BrfSummary` +
-`brfSummarySchema` and have `normalizeForConfounders` skip low-confidence
-values in rule 1 / rule 5 while `buildBrfItem` renders them with an explicit
-"osäker uppgift" hedge. Either way the downgrade signal must not be dropped on
-the floor.
-
----
-
-### CR-03: Raw snake_case enum token rendered into Swedish user-facing prose
-
-**File:** `src/lib/discovery/confounder-guard.ts:387`
-**Severity:** BLOCKER
-
-**Issue:**
-
-```ts
-if (brf.stambytePlanerat !== null) parts.push(`Stambyte-läge: ${brf.stambytePlanerat}.`);
-```
-
-`stambytePlanerat` is a bounded enum — `"planerat" | "nyligen_genomfort" |
-"ej_nämnt"` (`src/lib/schemas/brf.ts:63-64`) — not free prose. The rendered
-output is literally `Stambyte-läge: nyligen_genomfort.` or
-`Stambyte-läge: ej_nämnt.`: an internal identifier, underscore and all, shipped
-into a buyer-facing Swedish sentence.
-
-Worse, `"ej_nämnt"` is explicitly defined by the prompt
-(`src/lib/brf/prompt.ts:40`) as *"the document does not mention stambyte at
-all — use `ej_nämnt` (not null)"*. Because the guard is `!== null`, the
-**absence of information is rendered as an information item on every BRF-bearing
-candidate**, padding a brief whose entire purpose (ANL-01) is "≥1 *actionable*
-item."
-
-**Fix:** Map the enum to prose and suppress the not-mentioned case.
-
-```ts
-const STAMBYTE_LABEL: Record<StambyteStatus & string, string | null> = {
-  planerat: "Föreningen har ett planerat stambyte.",
-  nyligen_genomfort: "Föreningen har nyligen genomfört stambyte.",
-  ej_nämnt: null, // absence of a mention is not an item
-};
-
-const stambyteText = brf.stambytePlanerat
-  ? STAMBYTE_LABEL[brf.stambytePlanerat as keyof typeof STAMBYTE_LABEL]
-  : null;
-if (stambyteText) parts.push(stambyteText);
-```
-
-See also WR-09 — typing `BrfSummary.stambytePlanerat` as `StambyteStatus | null`
-instead of `string | null` is what makes the exhaustive map above type-safe.
-
----
-
-### CR-04: The shared `CAP_VISION_SEK_MAX` ceiling can be exceeded by ~60% — a failed BRF extraction reports `costSek: 0` after 1–2 billed Anthropic calls
-
-**Files:** `src/lib/discovery/brf-lookup.ts:150-157`, `src/lib/discovery/job.ts:937-939`, `src/lib/discovery/job.ts:1022-1034`
-**Severity:** BLOCKER
-
-**Issue:** D-14-08's whole premise is that comps + BRF + vision share **one**
-enforceable 10 SEK ceiling. `lookupBrfSummary`'s catch block breaks that:
-
-```ts
-} catch (error) {
-  console.error("[discovery-brf-lookup]", { code: ... });
-  return { summary: null, costSek: 0, outcome: "extract_failed" };
-}
-```
-
-`extractBrfFinancials` throws **after** the Anthropic call has already been
-billed (`src/lib/brf/extract.ts:296-313`): `CLAUDE_REFUSAL` = 1 billed call,
-`CLAUDE_PARSE_EMPTY` = 1 billed call, `CLAUDE_MAX_TOKENS` = **2** billed calls
-(it retries `runOnce()` before throwing). Every one of those reports 0 SEK.
-
-`job.ts:938` even documents the wrong invariant:
-
-```ts
-// A failed extraction returns costSek: 0, so always adding is safe.
-spentSek += result.costSek;
-```
-
-That is safe from `NaN`, not correct.
-
-Concrete magnitude, using the repo's own rates (`USD_PER_MTOK.input = 1`,
-`output = 5`, `USD_SEK_RATE = 11`) and this phase's own worst-case estimate
-(60 000 in / 2 048 out): one call ≈ **0.77 SEK**. With `BRF_TOP_N = 4` all
-failing on `CLAUDE_MAX_TOKENS`, ~**6.2 SEK** of real spend is recorded as 0.
-`brf.spentSek` then contributes 0 to
-`initialSpentSek: comps.spentSek + brf.spentSek`, so `runVisionPass` still gets
-the full ~10 SEK pool. Total real spend ≈ 16.2 SEK against a 10 SEK cap.
-
-A secondary leak in the same accounting: even on the **success-after-retry**
-path, `extractBrfFinancials` returns `toClaudeUsage(message.usage)` for the
-*last* message only, so the first (truncated, billed) call is invisible to
-`costSek(result.usage)`.
-
-**Fix:** Charge the estimated cost of any attempt that reached the model, and
-prefer over-counting to under-counting in a spend gate.
-
-```ts
-// brf-lookup.ts
-import { estimateBrfLookupSek } from "@/lib/discovery/cost";
-
-const MODEL_REACHING_CODES = new Set([
-  "CLAUDE_REFUSAL",
-  "CLAUDE_MAX_TOKENS",
-  "CLAUDE_PARSE_EMPTY",
-]);
-
-} catch (error) {
-  const code = error instanceof Error ? error.message : "UNKNOWN";
-  console.error("[discovery-brf-lookup]", { code });
-  // The model was already billed before it threw — charge the worst-case
-  // estimate rather than 0, or the shared CAP_VISION_SEK_MAX pool silently
-  // over-spends (D-14-08).
-  const billed = MODEL_REACHING_CODES.has(code) ? estimateBrfLookupSek() : 0;
-  return { summary: null, costSek: billed, outcome: "extract_failed" };
-}
-```
-
-Then delete the now-wrong comment at `job.ts:938` and replace it with the real
-reason (`costSek` is always a finite non-negative number).
+and keep `brfFieldTrusted` as the *display* gate only for the fields whose
+downgrade genuinely means "we can't read this" (see WR-05 for splitting the
+hedge text). If the band boundary must stay shared, at minimum raise
+`BRF_SANITY_BANDS.skuldPerKvm.max` above `HIGH_BRF_DEBT_PER_SQM` so the two
+thresholds stop cancelling each other, and add a test asserting
+`brf_debt_high` is reachable from a value the extraction pipeline can actually
+produce.
 
 ---
 
 ## Warnings
 
-### WR-01: The structural-separation static-grep guard is blind to multi-line imports
+### WR-01: the BRF budget pre-gate prices one extraction call, but a single failure can now be charged for two
 
-**File:** `src/lib/discovery/niche-score.test.ts:323-331`
+**Files:** `src/lib/discovery/job.ts:905`, `src/lib/discovery/brf-lookup.ts:69-73`, `src/lib/discovery/brf-lookup.ts:197-201`
 **Severity:** WARNING
 
-**Issue:** This test is the *only* enforcement of the locked structural
-separation constraint, and Phase 14 explicitly relies on it — three new
-specifiers were registered "BEFORE any of them exist, since the guard is
-silently inert for an unlisted module specifier"
-(`niche-score.test.ts:305-308`). But the matcher only inspects lines that
-*start* with `import`:
+**Issue:** The CR-04 gap-closure made a `CLAUDE_MAX_TOKENS` failure cost
+`2 × estimateBrfLookupSek()`, but the pre-gate that authorises the attempt still
+divides by one call:
 
 ```ts
-const importLines = source
-  .split("\n")
-  .filter((line) => /^\s*import\b/.test(line));
-return importLines.some((line) =>
-  VISION_MODULE_SPECIFIERS.some((specifier) => line.includes(specifier)),
+const allowed = Math.max(0, Math.floor(opts.budgetSek / estimateBrfLookupSek()));
+```
+
+With ~0.3 SEK of pool left, `allowed === 0` — fine. With ~0.8 SEK left,
+`allowed === 1` and the single authorised attempt can charge ~1.54 SEK, a ~90%
+overshoot of the remaining pool. `BRF_TOP_N = 4` bounds the absolute damage
+(4 × 2 × 0.77 ≈ 6.2 SEK < 10), so this is not a runaway — but the gate no longer
+means what its doc comment says ("check-before-spend").
+
+**Fix:** Price the same worst case the charge path can produce.
+
+```ts
+const MAX_BILLED_CALLS_PER_LOOKUP = Math.max(...Object.values(BILLED_CALLS_BY_EXTRACTION_CODE));
+const allowed = Math.max(
+  0,
+  Math.floor(opts.budgetSek / (estimateBrfLookupSek() * MAX_BILLED_CALLS_PER_LOOKUP)),
 );
 ```
 
-A multi-line named import puts the module specifier on the `} from "..."` line,
-which does not match `/^\s*import\b/` and is therefore never checked. That is
-exactly the shape Prettier produces for >1 named import — and exactly how
-`candidate.ts:6-13` and `confounder-guard.ts:24-31` import the new Phase 14
-modules today. A future edit adding
+---
+
+### WR-02: CR-04 only fixed the throw path — a *successful* extraction after a `max_tokens` retry still reports one call's cost for two billed calls
+
+**Files:** `src/lib/brf/extract.ts:305-322`, `src/lib/discovery/brf-lookup.ts:184`
+**Severity:** WARNING
+
+**Issue:** `extract.ts:306` retries `runOnce()` on truncation; when the second
+attempt succeeds it returns `usage: toClaudeUsage(message.usage)` for the
+**second message only**. `brf-lookup.ts:184` then records
+`costSek(result.usage)` — half the real spend. The gap-closure comment at
+`brf-lookup.ts:190-196` claims the shared pool is now "honest", which is only
+true for the failure path.
+
+**Fix:** Accumulate usage across attempts inside `extract.ts` and return the sum:
 
 ```ts
-import {
-  normalizeForConfounders,
-  buildHolisticBrief,
-} from "@/lib/discovery/confounder-guard";
-```
-
-to `niche-score.ts` would pass this test silently. The guard being registered
-early is worthless if the matcher can't see the import.
-
-**Fix:** Match against the whole source with an import-statement regex rather
-than line-by-line:
-
-```ts
-function importsVisionModule(sourcePath: string): boolean {
-  const source = readFileSync(join(process.cwd(), sourcePath), "utf-8");
-  // Match complete (possibly multi-line) import/export-from statements.
-  const statements = source.match(/^\s*(?:import|export)\b[\s\S]*?from\s*["'][^"']+["']/gm) ?? [];
-  const sideEffect = source.match(/^\s*import\s*["'][^"']+["']/gm) ?? [];
-  return [...statements, ...sideEffect].some((stmt) =>
-    VISION_MODULE_SPECIFIERS.some((specifier) => stmt.includes(specifier)),
-  );
+let message = await runOnce();
+const usageParts: ClaudeUsage[] = [toClaudeUsage(message.usage)];
+if (message.stop_reason === "max_tokens") {
+  message = await runOnce();
+  usageParts.push(toClaudeUsage(message.usage));
+  if (message.stop_reason === "max_tokens") throw new Error("CLAUDE_MAX_TOKENS");
 }
+...
+return { parsed: ..., usage: sumClaudeUsage(usageParts), citations: ... };
 ```
-
-Add a regression test that a multi-line import of a listed specifier is
-detected (feed the matcher a fixture string rather than a real file).
 
 ---
 
-### WR-02: `estimateVisionCallSek()` ignores broker images — the "REAL, priced worst-case" claim is no longer true
+### WR-03: the vision pass discards billed Haiku spend on a failed candidate — the same leak CR-04 closed for BRF
 
-**Files:** `src/lib/discovery/cost.ts:170-183`, `src/lib/discovery/vision.ts:241-246`
+**Files:** `src/lib/discovery/vision.ts:268-281`, `src/lib/discovery/vision.ts:556-563`
 **Severity:** WARNING
 
-**Issue:** `estimateVisionCallSek` prices exactly `CAP_IMAGES_PER_LISTING` (4)
-images and documents itself as "a genuine upper bound on what the imminent call
-can cost." But `runVisionForCandidate` sends **both** sets, each independently
-capped:
+**Issue:** `runVisionForCandidate` throws `CLAUDE_REFUSAL` / `CLAUDE_MAX_TOKENS`
+/ `CLAUDE_PARSE_EMPTY` *after* the Haiku pre-filter has completed and been
+billed (`vision.ts:268-281`), and a Sonnet failure occurs after a fully billed
+Haiku call. `runVisionPass`'s catch records nothing:
 
 ```ts
-const capped = imageUrls.slice(0, CAP_IMAGES_PER_LISTING);
-const cappedBroker = brokerImages.slice(0, CAP_IMAGES_PER_LISTING);
-const sentCount = capped.length + cappedBroker.length;   // up to 8
+// vision.ts:557-559
+// Degrade this candidate and continue; the
+// running cost total is untouched since no cost was returned.
 ```
 
-Using the repo's rates: 4 images → 0.461 SEK/candidate; 8 images →
-0.737 SEK/candidate. The estimate under-counts by ~60%.
+"No cost was returned" is not "no cost was incurred". With D-14-08 now routing
+comps + BRF + vision through one pool, this is the same class of defect the
+phase treated as a BLOCKER on the BRF side, left unfixed on the larger spender.
 
-Impact is bounded (the running total accumulates *actual* `costSek`, so the
-overshoot past the cap is at most one call's estimate error, ~0.28 SEK), but the
-constant is now a false worst case and the comment asserting otherwise will
-mislead the next reader — the same class of drift `estimateVisionCallSek` was
-introduced (11-REVIEW CR-01) to eliminate.
+**Fix:** Mirror `BILLED_CALLS_BY_EXTRACTION_CODE`:
+
+```ts
+} catch (error) {
+  const code = error instanceof Error ? error.message : "CLAUDE_CALL_FAILED";
+  // The pre-filter (and possibly the deep pass) was already billed before the
+  // throw — charge the worst-case estimate rather than 0 (D-14-08).
+  if (code !== "CLAUDE_CALL_FAILED") runningVisionSek += estimateVisionCallSek();
+  out.push({ ...candidate, vision: null, visionSkippedReason: "vision_error" });
+}
+```
+
+---
+
+### WR-04: `estimateVisionCallSek()` still prices 4 images while up to 8 are sent
+
+**Files:** `src/lib/discovery/cost.ts:160-183`, `src/lib/discovery/vision.ts:241-246`
+**Severity:** WARNING (carried forward, unfixed)
+
+**Issue:** `runVisionForCandidate` caps Booli URLs and broker bytes
+*independently* (`vision.ts:241-242`), so `sentCount` reaches
+`2 × CAP_IMAGES_PER_LISTING`. `estimateVisionCallSek` prices
+`CAP_IMAGES_PER_LISTING` while its doc comment at `cost.ts:164-166` claims "a
+genuine upper bound on what the imminent call can cost" — ~60% low.
 
 **Fix:**
 
 ```ts
 export function estimateVisionCallSek(): number {
-  // Worst case sends BOTH image sets: Booli URLs AND broker bytes, each capped
-  // at CAP_IMAGES_PER_LISTING independently (vision.ts's `capped`/`cappedBroker`).
-  const MAX_IMAGES_PER_CALL = CAP_IMAGES_PER_LISTING * 2;
-  const imageTokens = MAX_IMAGES_PER_CALL * IMAGE_TOKENS_STANDARD_TIER;
-  // ...unchanged
+  // Worst case sends BOTH image sets, each capped independently (vision.ts:241-242).
+  const imageTokens = CAP_IMAGES_PER_LISTING * 2 * IMAGE_TOKENS_STANDARD_TIER;
+  ...
 }
 ```
 
 ---
 
-### WR-03: Area-resolution probe renders are charged *after* the comps budget pre-gate
+### WR-05: `BRF_UNTRUSTED_FIGURE_TEXT` tells the user a figure was "outside a reasonable range" even when no range was ever checked
 
-**File:** `src/lib/discovery/job.ts:699-702`, `src/lib/discovery/job.ts:738-741`
+**Files:** `src/lib/discovery/confounder-guard.ts:319-320`, `src/lib/discovery/confounder-guard.ts:482-488`, `src/lib/brf/run-extraction.ts:186-191`
 **Severity:** WARNING
 
-**Issue:** The pre-gate prices only the comps fetch:
+**Issue:** The hedge asserts a specific fact:
+
+> "Någon av föreningens siffror **låg utanför ett rimligt intervall** och visas
+> därför inte här…"
+
+But `anyFigureSuppressed` is set by *any* sub-threshold confidence, and only two
+of the three gated fields have a band at all. `run-extraction.ts:189` passes
+`kassaflode: extraction.kassaflode.confidence` through **untouched** — there is
+no `BRF_SANITY_BANDS.kassaflode`. So a kassaflöde the model merely read off a
+smudged scan at confidence 0.4 produces a sentence claiming it was out of range.
+The same applies to a low-confidence-but-in-band `skuldPerKvm`/`avgiftsniva`
+(scanned document, derived figure — `prompt.ts` explicitly instructs the model to
+lower confidence for those). On a surface whose whole premise is
+`HOLISTIC_DATA_ONLY_MARKER` ("trust this, it's data"), stating an unsupported
+reason is exactly the discipline violation this phase is built around.
+
+**Fix:** Distinguish the two causes and word each honestly.
 
 ```ts
-const allowedAreas = Math.max(0, Math.floor(opts.budgetSek / estimateCompsFetchSek()));
-```
+export const BRF_OUT_OF_BAND_FIGURE_TEXT =
+  "En av föreningens siffror låg utanför ett rimligt intervall och visas därför inte här — kontrollera avgift och skuld per kvm i föreningens årsredovisning.";
+export const BRF_LOW_CONFIDENCE_FIGURE_TEXT =
+  "En av föreningens siffror kunde inte läsas med tillräcklig säkerhet och visas därför inte här — kontrollera den i föreningens årsredovisning.";
 
-but a cache/seed miss makes `resolveArea` run a live Booli probe — a paid Apify
-render — whose cost is added only afterwards:
-
-```ts
-if (resolution.source === "probe") {
-  spentSek += renderSek(1);
-}
-```
-
-So up to `MAX_AREAS_PER_SEARCH` (4) extra renders can be spent past a gate that
-never accounted for them, violating the "check-before-spend, never after"
-discipline the function's own doc comment claims. The SEK amount is small
-(~0.24 SEK) but the *latency* is not — each probe is a full headless render
-inside an already-loaded vision tick.
-
-**Fix:** Price the worst case per area in the gate:
-
-```ts
-// A cache/seed miss costs one probe render on top of the comps fetch.
-const perAreaWorstCase = estimateCompsFetchSek() + renderSek(1);
-const allowedAreas = Math.max(0, Math.floor(opts.budgetSek / perAreaWorstCase));
+// buildBrfItem: track WHY each field was suppressed
+const outOfBand = (field: BrfConfidenceField, value: number) =>
+  field in BRF_SANITY_BANDS &&
+  (value < BRF_SANITY_BANDS[field].min || value > BRF_SANITY_BANDS[field].max);
 ```
 
 ---
 
-### WR-04: `MAX_AREAS_PER_SEARCH` is repurposed as a distinct-`areaLabel` cap, silently starving candidates of comps with no signal
+### WR-06: two object-literal lookups keyed by an untrusted string are documented as fail-closed but resolve `Object.prototype` members
 
-**File:** `src/lib/discovery/job.ts:689-702`
+**Files:** `src/lib/discovery/confounder-guard.ts:489-497`, `src/lib/discovery/brf-lookup.ts:197-201`
 **Severity:** WARNING
 
-**Issue:**
+**Issue:** Both new lookups index a plain object literal with a string whose
+domain is not statically constrained, and both rely on `?? null` / `?? 0` as the
+guard. Neither `??` fires for an inherited property.
+
+1. `confounder-guard.ts:495-496`:
+   ```ts
+   const stambyteProse =
+     brf.stambytePlanerat === null ? null : STAMBYTE_PROSE[brf.stambytePlanerat] ?? null;
+   ```
+   `BrfSummary.stambytePlanerat` is typed `string | null` and
+   `brfSummarySchema` accepts **any** string (`holistic-schema.ts:180`), so
+   `"toString"` yields `Function.prototype.toString`, `"constructor"` yields
+   `Object` — neither is nullish, so `parts.push(<function>)` succeeds and
+   `parts.join(" ")` stringifies the function source **into buyer-facing Swedish
+   prose**. The comment at `:489-494` explicitly claims "no unmapped token can
+   ever reach user-facing prose"; that claim is false.
+2. `brf-lookup.ts:199`:
+   ```ts
+   costSek: (BILLED_CALLS_BY_EXTRACTION_CODE[code] ?? 0) * estimateBrfLookupSek(),
+   ```
+   `code` is `error.message` — arbitrary. `"constructor"` gives
+   `Object * number = NaN`. That `NaN` propagates to `BrfResolution.spentSek`
+   (`job.ts:944`, whose comment asserts "always a finite non-negative number"),
+   then to `initialSpentSek: comps.spentSek + brf.spentSek` — and
+   `runVisionPass`'s `Number.isFinite` guard silently resets the pool to **0**,
+   discarding the comps spend too.
+
+Neither is reachable through today's write path (`normalized.stambytePlanerat`
+comes from a Zod-validated enum; `extract.ts` throws only its four coded
+strings), so this is latent — but both sites are *specifically* the
+defence-in-depth guards the gap closure added.
+
+**Fix:** Use own-property lookups or a `Map`.
 
 ```ts
-const allLabels = [...labelToIndices.keys()].slice(0, MAX_AREAS_PER_SEARCH);
-// ...
-areasSkippedForBudget = allLabels.length - labels.length;
+const STAMBYTE_PROSE = new Map<string, string | null>([
+  ["planerat", "Föreningen har ett planerat stambyte."],
+  ["nyligen_genomfort", "Föreningen har nyligen genomfört stambyte."],
+  ["ej_nämnt", null],
+]);
+const stambyteProse =
+  brf.stambytePlanerat === null ? null : STAMBYTE_PROSE.get(brf.stambytePlanerat) ?? null;
+
+const billedCalls = Object.hasOwn(BILLED_CALLS_BY_EXTRACTION_CODE, code)
+  ? BILLED_CALLS_BY_EXTRACTION_CODE[code]
+  : 0;
 ```
 
-`MAX_AREAS_PER_SEARCH = 4` was sized for **user-typed** area names in
-`splitAreaQuery` ("Södermalm och Vasastan"). Here it caps **distinct scraped
-`descriptiveAreaName` values across the whole candidate set** — a different and
-much larger population, since Booli's `descriptiveAreaName` is per-listing and
-frequently finer-grained than the searched area.
-
-Two problems:
-
-1. Candidates whose label falls outside the first 4 (first-seen order, i.e.
-   effectively Booli's relevance order) get `areaComps: null` and therefore fall
-   through to `buildHolisticBrief`'s `"insufficient-data"` fallback. In a
-   25-candidate multi-neighbourhood job that can be the majority of results —
-   directly undercutting ANL-01's "every surfaced candidate leaves analysis with
-   ≥1 *actionable* item."
-2. The loss is **invisible**. `areasSkippedForBudget` is computed from
-   `allLabels` (already truncated), so labels dropped by the `MAX_AREAS_PER_SEARCH`
-   cap are counted nowhere and logged nowhere.
-
-**Fix:** Use a purpose-named constant, and report the truncation:
-
-```ts
-/** Max distinct scraped areaLabels a single vision pass will resolve comps for.
- *  Distinct from MAX_AREAS_PER_SEARCH (a user-typed-query cap). */
-const MAX_COMPS_AREAS_PER_PASS = 8;
-
-const distinctLabels = [...labelToIndices.keys()];
-const allLabels = distinctLabels.slice(0, MAX_COMPS_AREAS_PER_PASS);
-const areasSkippedForCap = distinctLabels.length - allLabels.length;
-if (areasSkippedForCap > 0) {
-  console.error("[discovery-job] comps area cap truncated label set", {
-    jobId, distinct: distinctLabels.length, kept: allLabels.length,
-  });
-}
-```
-
-and surface `areasSkippedForCap` on `CompsResolution` alongside
-`areasSkippedForBudget`.
+Also fix the false claim in the `job.ts:938-943` comment (it is a hope, not an
+invariant) by clamping: `spentSek += Number.isFinite(result.costSek) ? Math.max(0, result.costSek) : 0;`.
 
 ---
 
-### WR-05: Nested read-guards fail the *whole* candidate, contradicting the degrade-gracefully precedent in the same schema
+### WR-07: every brief lists the same unknown-confounder labels twice, verbatim
 
-**File:** `src/lib/discovery/candidate.ts:337-345`
+**Files:** `src/lib/discovery/confounder-guard.ts:413-418`, `src/lib/discovery/confounder-guard.ts:429-442`
 **Severity:** WARNING
 
-**Issue:** The three new sub-schemas are strict:
+**Issue:** `buildCompsPositioningItem` emits, when
+`canAttributeToCondition === false` (which is *always*, by design — `:256-263`):
 
 ```ts
-areaComps: areaCompsSummarySchema.nullable().default(null),
-brfSummary: brfSummarySchema.nullable().default(null),
-holisticBrief: holisticBriefSchema.nullable().default(null),
+const named = [...guard.residualDrivers, ...guard.unknownConfounders].map(confounderLabel).join(", ");
+parts.push(`Skillnaden kan bero på skick, men kan lika gärna bero på faktorer … : ${named}.`);
 ```
 
-`holisticBriefSchema.confidence` is `z.enum(["low", "medium"])` and
-`brfSummarySchema` uses `z.literal("allabrf")` / `z.literal(true).nullable()`.
-`holistic-schema.ts:198-200` frames this as "a stored `"high"` … fails
-`safeParse` rather than being silently trusted" — but the *actual* consumer is
-`src/app/(app)/discover/[jobId]/page.tsx:77-79`:
+and `buildConfounderItems` then emits the *same* two lists again as separate
+items (`:431-440`). Any brief with comps therefore repeats
+"hiss (okänt), mikroläge (okänt), delområde (okänt), …" word for word in
+adjacent bullets. ANL-01's success criterion is ≥1 **actionable** item; padding
+the list with a duplicate degrades exactly that.
+
+**Fix:** Let the comps item state the positioning and defer naming to the
+confounder items:
 
 ```ts
-.map((raw) => discoveryCandidateSchema.safeParse(raw))
-.filter((parsed) => parsed.success)
+if (guard.canAttributeToCondition === false) {
+  parts.push(
+    "Skillnaden kan bero på skick, men kan lika gärna bero på faktorer som priset ensamt inte kan skilja ut (se nedan).",
+  );
+}
 ```
 
-A drifted `holisticBrief.confidence` therefore doesn't drop the *brief* — it
-drops the **entire candidate** from the user's results page, silently. A
-write-path bug affecting all candidates would present as "Inga träffar denna
-gång" with a fully-populated `results` array in the DB.
+---
 
-This is also inconsistent with the `imageUrls` field two blocks above, which
-deliberately uses `.transform()` to *filter* offending values rather than fail
-the parse, with an explicit comment about degrading gracefully.
+### WR-08: `conditionAttribution.explainedPct` asserts an attribution the same object says is impossible
 
-**Fix:** Degrade the sub-object to `null` instead of failing the candidate:
+**Files:** `src/lib/discovery/confounder-guard.ts:183-195`, `src/lib/discovery/confounder-guard.ts:556-562`
+**Severity:** WARNING (carried forward, unfixed)
+
+**Issue:** `canAttributeToCondition` is unconditionally `false` this phase
+(`:226-230` always pushes three `*_unknown` ids), yet `:558` persists
+`explainedPct: guard.conditionExplainedPct` — a positive number up to 25%. The
+JSONB record simultaneously says "cannot attribute to condition" and "here is
+the fraction attributable to condition". Phase 15/16 consumers reading
+`explainedPct` have no reason to also check the flag.
+
+**Fix:**
+
+```ts
+explainedPct: guard.canAttributeToCondition ? guard.conditionExplainedPct : null,
+```
+
+---
+
+### WR-09: a nested read-guard failure drops the *whole candidate* from the results page
+
+**Files:** `src/lib/discovery/candidate.ts:337-345`, `src/app/(app)/discover/[jobId]/page.tsx:75-79`
+**Severity:** WARNING (carried forward, unfixed — surface area increased)
+
+**Issue:** `page.tsx:77-79` does
+`.map(safeParse).filter((p) => p.success)`, so any nested failure removes the
+candidate entirely. Phase 14 tripled the nested-schema surface:
+`brfSummarySchema.source: z.literal("allabrf")` (`holistic-schema.ts:183`),
+`holisticBriefSchema.confidence: z.enum(["low","medium"])` (`:272`),
+`areaCompsSummarySchema`'s nine required keys (`:103-113`). A write-path bug or
+a second BRF source would present as "Inga träffar denna gång" with a fully
+populated `results` array. This contradicts the `imageUrls` field two blocks
+above, which deliberately `.transform()`s away offending values rather than
+failing (`candidate.ts:306-310`).
+
+**Fix:**
 
 ```ts
 const softNullable = <S extends z.ZodTypeAny>(schema: S) =>
@@ -575,34 +553,22 @@ holisticBrief: softNullable(holisticBriefSchema),
 
 ---
 
-### WR-06: `BuildHolisticBriefInput.pricePerSqm` is dead, and the "comps-positioning" item never states the candidate's position
+### WR-10: `BuildHolisticBriefInput.pricePerSqm` is dead, and the "comps-positioning" item never states the candidate's position
 
-**Files:** `src/lib/discovery/confounder-guard.ts:285-290`, `src/lib/discovery/confounder-guard.ts:326-361`, `src/lib/discovery/job.ts:1069-1074`
-**Severity:** WARNING
+**Files:** `src/lib/discovery/confounder-guard.ts:338-350`, `src/lib/discovery/confounder-guard.ts:392-427`, `src/lib/discovery/job.ts:1074-1080`
+**Severity:** WARNING (carried forward, unfixed)
 
-**Issue:** `BuildHolisticBriefInput` declares `pricePerSqm: number | null`, and
-`job.ts` pays to compute it a second time to supply it:
+**Issue:** `buildHolisticBrief` destructures `{ guard, comps, brf, livingArea }`
+(`:514`) and `buildCompsPositioningItem` destructures `{ guard, comps }`
+(`:393`) — `pricePerSqm` is read nowhere, yet `job.ts:1078` pays to compute it a
+second time to supply it. The interface even documents `livingArea` as "used
+ONLY to derive a monthly avgift … WR-06 stays OUT OF SCOPE", i.e. the dead field
+was knowingly left in place. Functionally, the item emits the sample size and
+the two medians but never the candidate's own kr/m² and never
+`guard.discountVsRenovatedPct` — so a "positioning" item does not position.
 
-```ts
-const holisticBrief = buildHolisticBrief({
-  guard,
-  comps: c.areaComps,
-  brf: c.brfSummary,
-  pricePerSqm: pricePerSqm(c),   // never read by the callee
-});
-```
-
-Neither `buildHolisticBrief` nor `buildCompsPositioningItem` ever reads it.
-
-That dead parameter is the symptom of a functional gap: the item whose `kind` is
-`"comps-positioning"` never positions the candidate. It emits the sample size
-and the two medians, but not the candidate's own kr/m² and not
-`guard.discountVsRenovatedPct` — both already computed. The opening sentence,
-`"Priset per kvadratmeter ligger mot ett urval av N sålda jämförelseobjekt."`,
-is also not idiomatic Swedish and conveys no comparison.
-
-**Fix:** Either delete the field from the interface and the `job.ts` call site,
-or use it:
+**Fix:** Delete the field from `BuildHolisticBriefInput` and from the `job.ts`
+call site, or consume it:
 
 ```ts
 if (input.pricePerSqm !== null) {
@@ -620,163 +586,126 @@ if (guard.discountVsRenovatedPct !== null) {
 
 ---
 
-### WR-07: `ConfounderGuardResult.effectivePricePerSqm` and `compsThin` are computed but consumed nowhere
+### WR-11: `effectivePricePerSqm`, `debtIncluded` and `compsThin` are computed but consumed nowhere
 
-**File:** `src/lib/discovery/confounder-guard.ts:96-115`, `src/lib/discovery/confounder-guard.ts:222`
-**Severity:** WARNING
+**Files:** `src/lib/discovery/confounder-guard.ts:96-116`, `src/lib/discovery/confounder-guard.ts:246`
+**Severity:** WARNING (carried forward, unfixed)
 
-**Issue:** A repo-wide grep for `effectivePricePerSqm`, `compsThin` and
-`debtIncluded` outside `confounder-guard.ts` (and its own test) returns nothing.
-`compsThin` in particular duplicates information already available as
-`comps.confident` / `comps.sampleSize` on the persisted `AreaCompsSummary`, and
+**Issue:** A repo-wide grep finds these three symbols only inside
+`confounder-guard.ts` and its own test (the `effectivePricePerSqm` hit in
+`brf-lookup.ts` is a prose mention in a comment, `:172`). `compsThin` duplicates
+`comps.confident` / `comps.sampleSize` on the persisted summary, and
 `effectivePricePerSqm` — the single most decision-relevant derived number in the
-module (CR-02) — is discarded rather than persisted, so the debt-inclusive basis
-behind a `deepDiscount` verdict is not auditable after the fact.
+module, and the one CR-02 above turns on — is discarded rather than persisted,
+so a `deepDiscount` verdict is not auditable after the fact.
 
-**Fix:** Either drop the unused fields from `ConfounderGuardResult`, or (better
-for CR-02's auditability) carry `effectivePricePerSqm` + `debtIncluded` into
-`HolisticBrief.conditionAttribution` and its Zod guard so the persisted brief
-records what basis produced the verdict.
+**Fix:** Drop `compsThin`, and carry `effectivePricePerSqm` + `debtIncluded`
+into `HolisticBrief.conditionAttribution` (and `holisticBriefSchema`) so the
+persisted brief records the basis that produced the verdict.
 
 ---
 
-### WR-08: `kommunFromBreadcrumbs`'s doc comment states the opposite of what the code in the same change set does
+### WR-12: the comps budget pre-gate does not price the area-resolution probe renders it authorises
+
+**Files:** `src/lib/discovery/job.ts:699-702`, `src/lib/discovery/job.ts:738-741`
+**Severity:** WARNING (carried forward, unfixed)
+
+**Issue:** `allowedAreas = floor(budgetSek / estimateCompsFetchSek())` prices
+only the comps fetch, but a cache/seed miss makes `resolveArea` run a live Booli
+probe whose cost is added *after* the fact (`spentSek += renderSek(1)`),
+violating the function's own stated check-before-spend discipline. Small in SEK
+(~0.24), material in latency (a full headless render inside an already-loaded
+vision tick).
+
+**Fix:**
+
+```ts
+const perAreaWorstCase = estimateCompsFetchSek() + renderSek(1);
+const allowedAreas = Math.max(0, Math.floor(opts.budgetSek / perAreaWorstCase));
+```
+
+---
+
+### WR-13: `MAX_AREAS_PER_SEARCH` is repurposed as a distinct-`areaLabel` cap, silently starving candidates of comps
+
+**File:** `src/lib/discovery/job.ts:689-702`
+**Severity:** WARNING (carried forward, unfixed)
+
+**Issue:** `MAX_AREAS_PER_SEARCH = 4` (`resolve-area.ts:48`) was sized for
+*user-typed* area names in `splitAreaQuery`. At `job.ts:697` it caps **distinct
+scraped `descriptiveAreaName` values across the whole candidate set** — a much
+larger population. Candidates outside the first 4 labels get `areaComps: null`
+and fall through to the `"insufficient-data"` brief. The loss is invisible:
+`areasSkippedForBudget` is computed from the already-truncated `allLabels`
+(`:702`), so cap-dropped labels are counted and logged nowhere.
+
+**Fix:** Introduce `MAX_COMPS_AREAS_PER_PASS` (purpose-named, larger), compute
+`areasSkippedForCap = distinctLabels.length - allLabels.length`, log it, and
+surface it on `CompsResolution`.
+
+---
+
+### WR-14: `kommunFromBreadcrumbs`'s NOTE states the opposite of what `normalizeKommun` now does
 
 **File:** `src/lib/booli/client.ts:186-196`
-**Severity:** WARNING
+**Severity:** WARNING (carried forward, unfixed)
 
-**Issue:**
+**Issue:** The comment still reads *"`resolveOrgNr`'s `normalizeKommun` does an
+exact case-insensitive comparison with no genitive normalization yet (plan
+14-03's fix, not this plan's) … accepted limitation pending 14-03."* 14-03
+shipped: `org-nr-resolver.ts:168-178` does full genitive normalization, and
+`fetch-brf-auto.ts:90-97` documents the correct state. Two comments in the tree
+now contradict each other about the same behaviour; a reader following this one
+concludes discovery BRF lookups can never reach `"high"` — the exact false
+belief 14-03 existed to remove.
 
-```
- * NOTE: … `resolveOrgNr`'s `normalizeKommun` does an exact case-insensitive
- * comparison with no genitive normalization yet (plan 14-03's fix, not this
- * plan's). A format mismatch fails CLOSED to "low" confidence … accepted
- * limitation pending 14-03.
-```
-
-14-03 shipped in this same change set: `normalizeKommun`
-(`org-nr-resolver.ts:168-178`) is now exported and does full genitive
-normalization. `fetch-brf-auto.ts:90-97` documents the *correct* state
-("is now HANDLED by `org-nr-resolver.ts`'s `normalizeKommun`"), so the codebase
-carries two comments that directly contradict each other about the same
-behaviour.
-
-A reader following the `client.ts` comment would conclude discovery BRF lookups
-can never reach `"high"` confidence — the exact false belief that motivated
-14-03 — and might "fix" it a second time.
-
-**Fix:** Replace the stale NOTE with a pointer to the live behaviour:
-
-```
- * NOTE: Booli breadcrumb labels are in the Swedish genitive ("Stockholms
- * kommun" -> "Stockholms"); the registry carries the nominative ("Stockholm").
- * `resolveOrgNr` normalizes BOTH sides through `normalizeKommun`
- * (org-nr-resolver.ts, D-14-09), so this function may return the genitive stem
- * unchanged — no de-genitivization is needed or wanted here.
-```
+**Fix:** Replace with a description of the live behaviour (both sides normalized
+through `normalizeKommun`, so returning the genitive stem here is intentional).
 
 ---
 
-### WR-09: `BrfSummary.stambytePlanerat` is typed `string | null`, discarding the `StambyteStatus` enum contract
+### WR-15: `BrfSummary.stambytePlanerat` is typed `string | null`, discarding the `StambyteStatus` enum contract
 
-**File:** `src/lib/discovery/holistic-schema.ts:131`, `src/lib/discovery/holistic-schema.ts:146`
-**Severity:** WARNING
+**Files:** `src/lib/discovery/holistic-schema.ts:151`, `src/lib/discovery/holistic-schema.ts:180`
+**Severity:** WARNING (carried forward, unfixed)
 
 **Issue:** `src/lib/schemas/brf.ts:78` exports
-`StambyteStatus = "planerat" | "nyligen_genomfort" | "ej_nämnt"`, but
-`BrfSummary` widens it to `string | null` and `brfSummarySchema` to
-`z.string().nullable()`. That widening is what makes CR-03's fix unable to be an
-exhaustive map, and it is already being exploited:
-`confounder-guard.test.ts:381` feeds `stambytePlanerat: "Föreningen klassas som
-ett renoveringsobjekt enligt senaste protokollet"` — a value the production
-extraction schema can never produce. The banned-attribution enforcement branch
-is therefore only proven against an impossible input.
+`StambyteStatus = "planerat" | "nyligen_genomfort" | "ej_nämnt"`, and
+`brfExtractionSchema` / `brfDataSchema` both constrain it as a Zod enum
+(`:63-64`, `:172-174`). `BrfSummary` widens it to `string`, which is what forces
+`STAMBYTE_PROSE` to be an unsafe `Record<string, …>` lookup (WR-06) instead of
+an exhaustive map. The gap-closure comment at `confounder-guard.ts:491-493`
+explicitly defers this.
 
 **Fix:**
 
 ```ts
 import type { StambyteStatus } from "@/lib/schemas/brf";
-
 readonly stambytePlanerat: StambyteStatus | null;
-// and in the Zod guard:
+// and in the read guard:
 stambytePlanerat: z.enum(["planerat", "nyligen_genomfort", "ej_nämnt"]).nullable(),
 ```
 
-Then re-point the banned-attribution test at an input the pipeline can actually
-produce (e.g. a `confounderLabel` or a comps figure path), so the enforcement
-branch is proven against a reachable input.
-
 ---
 
-### WR-10: `conditionAttribution.explainedPct` asserts an attribution the same object says is impossible
+### WR-16: `job.ts` attaches a brief for a candidate state `GalleryConditionVision` will not render
 
-**File:** `src/lib/discovery/confounder-guard.ts:172-184`, `src/lib/discovery/confounder-guard.ts:238-239`, `src/lib/discovery/confounder-guard.ts:446-451`
-**Severity:** WARNING
+**Files:** `src/lib/discovery/job.ts:1055-1056`, `src/components/gallery-condition-vision.tsx:230-244`
+**Severity:** WARNING (carried forward, unfixed)
 
-**Issue:** `canAttributeToCondition` is hard-`false` for all of Phase 14 (rule 6
-unconditionally pushes three `*_unknown` ids, so
-`unknownConfounders.length === 0` never holds — documented at lines 104-111).
-Yet rule 4 still produces a non-null, positive `conditionExplainedPct` — up to
-the full 25% discount in the non-deep-discount branch — and persists it as
-`conditionAttribution.explainedPct`.
+**Issue:** The attach predicate is `c.vision === null || c.vision.claims.length === 0`.
+The render predicates are `visionSkippedReason !== null && hasHolisticBrief`
+(`:230`) and `visionSkippedReason === null && visionRanButEmpty && hasHolisticBrief`
+(`:241-244`), where `visionRanButEmpty = vision !== null && !hasClaims`. The cell
+`vision === null && visionSkippedReason === null` therefore gets a brief attached
+and rendered **nowhere** — and `discovery-results.test.tsx:270-274` now documents
+that state as "correctly renders nothing new", entrenching the mismatch. No test
+covers it in `gallery-condition-vision.test.tsx`. The invariant that keeps it
+unreachable is held by convention across two files.
 
-The persisted brief therefore simultaneously says *"we cannot attribute this to
-condition"* and *"here is the fraction attributable to condition."* Phase 15/16
-consumers reading `explainedPct` off the JSONB have no reason to also check
-`canAttributeToCondition`, and D-14-05's whole point is that "cannot attribute"
-is the **default posture**, not a footnote.
-
-**Fix:** Gate the value on the flag that governs it:
-
-```ts
-conditionAttribution: {
-  // D-14-05: an explained fraction is only meaningful when the discount CAN be
-  // attributed to condition at all. Otherwise it is null (unknown), never 0
-  // (which would read as "condition explains nothing") and never a positive
-  // number (which would read as an attribution we just said we cannot make).
-  explainedPct: guard.canAttributeToCondition ? guard.conditionExplainedPct : null,
-  capped: guard.conditionCapApplied,
-  ...
-}
-```
-
----
-
-### WR-11: `job.ts` attaches a brief for a candidate state `GalleryConditionVision` will not render
-
-**Files:** `src/lib/discovery/job.ts:1050-1051`, `src/components/gallery-condition-vision.tsx:230-244`
-**Severity:** WARNING
-
-**Issue:** The attach predicate is broader than the render predicate.
-
-`job.ts`:
-
-```ts
-const hasNoImageClaims = (c: DiscoveryCandidate) =>
-  c.vision === null || c.vision.claims.length === 0;
-```
-
-`gallery-condition-vision.tsx` renders the brief in exactly two cells:
-
-```tsx
-{visionSkippedReason !== null && hasHolisticBrief && holisticBrief && <HolisticDataBrief … />}
-{visionSkippedReason === null && visionRanButEmpty && hasHolisticBrief && holisticBrief && <HolisticDataBrief … />}
-```
-
-with `visionRanButEmpty = vision !== null && !hasClaims`. The cell
-`vision === null && visionSkippedReason === null` gets a brief attached and
-rendered **nowhere** — no dead-end line either, since that branch also requires
-`visionRanButEmpty`. The component's own truth-table comment (lines 186-208)
-enumerates the other cells but omits this one.
-
-It is not reachable through today's `runVisionPass` (every `vision: null` push
-sets a `visionSkippedReason`), but that is an invariant held only by convention
-across two files, and it is exactly the kind of coupling a Phase 15/16 edit
-breaks — with the failure mode being "the brief silently vanishes," not a crash.
-
-**Fix:** Collapse the two render cells into one that does not depend on
-`visionSkippedReason` at all — the analysis pass already guarantees a brief is
-only attached when there are no image claims:
+**Fix:** Collapse the two render cells into one that does not consult
+`visionSkippedReason` — the analysis pass already guarantees a brief is only
+attached when there are no image claims:
 
 ```tsx
 {hasHolisticBrief && holisticBrief && <HolisticDataBrief brief={holisticBrief} />}
@@ -792,35 +721,37 @@ only attached when there are no image claims:
 
 ### IN-01: `dataSources` claims sources that produced no item
 
-**File:** `src/lib/discovery/confounder-guard.ts:405-408`
+**File:** `src/lib/discovery/confounder-guard.ts:516-519`
 `"hedonic"` is pushed unconditionally — including on the `"insufficient-data"`
-path, where no hedonic reasoning was emitted — and `"brf"` is pushed whenever
-`brf !== null` even if `buildBrfItem` returned `null` (all fields null).
+path where no hedonic reasoning was emitted — and `"brf"` is pushed whenever
+`brf !== null` even if `buildBrfItem` returned `null`.
 **Fix:** derive `dataSources` from the items actually produced.
 
-### IN-02: `"medium"` confidence is effectively unreachable, undocumented
+### IN-02: `"medium"` confidence is now doubly unreachable and still undocumented
 
-**File:** `src/lib/discovery/confounder-guard.ts:222-230`
-`confidence === "medium"` requires `debtIncluded === true`, which requires a
-non-null `brf.skuldPerKvm`. Only `BRF_TOP_N = 4` candidates per job ever get a
-BRF summary, so for ~84% of a 25-candidate job the value is a constant `"low"`.
-The `canAttributeToCondition` always-false case is explicitly documented
-(lines 104-111); this one is not. **Fix:** document it with the same rigour, or
-allow `"medium"` on confident comps alone.
+**File:** `src/lib/discovery/confounder-guard.ts:247-254`
+`"medium"` requires `debtIncluded === true`, which after CR-02's gate requires a
+*trusted* `skuldPerKvm` on one of only `BRF_TOP_N = 4` candidates. For a
+25-candidate job the value is a constant `"low"` for ≥84% of results, and the
+`brfFieldTrusted` gate shrinks the remainder further. The always-false
+`canAttributeToCondition` case is documented with care (`:105-112`); this one is
+not.
+**Fix:** document it with equal rigour, or allow `"medium"` on confident comps alone.
 
 ### IN-03: `applyBannedAttributionGuard` can emit duplicate identical items
 
-**File:** `src/lib/discovery/confounder-guard.ts:436-439`
-If two items trip a banned pattern, both are replaced with the same
+**File:** `src/lib/discovery/confounder-guard.ts:547-550`
+Two items tripping a banned pattern are both replaced with the same
 `RENO_ATTRIBUTION_FALLBACK_TEXT`, producing a brief with two identical bullets.
 **Fix:** de-duplicate after the guard pass.
 
 ### IN-04: comps label grouping keys on the untrimmed `areaLabel`
 
 **File:** `src/lib/discovery/job.ts:690-696`
-`if (!label || !label.trim()) continue;` guards emptiness but the map is keyed
-on the raw `label`, so `"Södermalm"` and `"Södermalm "` become two entries and
-fire two concurrent `resolveArea` calls (both cache-miss, since they race).
+`if (!label || !label.trim()) continue;` guards emptiness but the map is keyed on
+the raw `label`, so `"Södermalm"` and `"Södermalm "` become two entries and fire
+two concurrent `resolveArea` calls (both cache-miss, since they race) — also
+consuming two of the four `MAX_AREAS_PER_SEARCH` slots (WR-13).
 **Fix:** key on `label.trim()`.
 
 ### IN-05: an empty-string `brfName` consumes a BRF top-N slot
@@ -828,36 +759,54 @@ fire two concurrent `resolveArea` calls (both cache-miss, since they race).
 **File:** `src/lib/discovery/job.ts:900-902`
 `.filter((i) => candidates[i].brfName !== null)` lets `""` through.
 `toCandidate`'s `str()` prevents that on the write path, but
-`discoveryCandidateSchema.brfName` is `z.string().nullable()`, so a drifted
-persisted row can carry `""` — burning one of only four slots on a guaranteed
-`"no_name"`. **Fix:** `.filter((i) => (candidates[i].brfName ?? "").trim().length > 0)`.
+`discoveryCandidateSchema.brfName` is `z.string().nullable()` and
+`claimVisionSlice` (`job.ts:341-347`) casts the raw JSONB **without** running the
+schema at all — so a drifted row can burn one of only four slots on a guaranteed
+`"no_name"`.
+**Fix:** `.filter((i) => (candidates[i].brfName ?? "").trim().length > 0)`.
 
 ### IN-06: comps-positioning opening sentence is not idiomatic Swedish
 
-**File:** `src/lib/discovery/confounder-guard.ts:331-335`
+**File:** `src/lib/discovery/confounder-guard.ts:397-401`
 `"Priset per kvadratmeter ligger mot ett urval av N sålda jämförelseobjekt."` —
 "ligger mot ett urval" is not a natural construction. Suggest
 `"Priset per kvadratmeter jämförs här mot N sålda jämförelseobjekt i området."`
-(and see WR-06, which would give the sentence something to actually compare).
+(and see WR-10, which would give the sentence something to compare).
+
+### IN-07: `VISION_ENRICH_LIMIT` detail renders are still outside the cost ledger
+
+**File:** `src/lib/discovery/job.ts:419-429`
+Up to 8 paid Apify detail renders per job are acknowledged in the comment as "not
+yet folded into the persisted cost ledger". Combined with CR-01 this is the
+second unpriced render source in the same pass.
+**Fix:** fold `enrichCandidateImages`'s fetch count into `renderSek` and the
+shared pool, or record it as an explicit deferred item with a ticket rather than
+a prose aside.
 
 ---
 
 ## Verification performed
 
 - `npx tsc --noEmit` — clean.
-- `npx vitest run` over all 12 changed/related suites — 324 tests, all passing.
-  No test was found to be skipped, assertion-free, or self-mocking.
-- Static traces: `discoveryCandidateSchema` consumers, `effectivePricePerSqm` /
-  `compsThin` / `debtIncluded` consumers, `avgiftsniva` unit definition across
-  `prompt.ts` / `sanity.ts` / `score.ts`, `stambytePlanerat` enum domain,
-  `scoreExtraction` return shape, `extractBrfFinancials` throw-after-bill paths,
-  `resolveAreaId`'s digit-only regex against `buildCompsQuery`'s synthetic URL.
-- Live-network / live-DB verification deliberately out of scope per the phase
-  brief (Supabase paused, operator IP Booli/Cloudflare-blocked) and not reported
-  as a finding.
+- `npx vitest run` over all 13 changed/related suites — 374 tests, all passing.
+  No skipped, assertion-free or self-mocking test found.
+- Re-verified each prior finding against current source (resolution table in the
+  Summary), including reading `sanity.ts`, `run-extraction.ts:166-201`,
+  `extract.ts:265-340` and `schemas/brf.ts:55-120` to confirm the
+  `perFieldConfidence` key set, the exact thrown error strings, the
+  `kassaflode`-has-no-band fact, and the `usage`-of-last-message behaviour.
+- Traced `discoveryCandidateSchema` consumers (`page.tsx:75-79`) and the
+  unparsed `claimVisionSlice` cast (`job.ts:341-347`).
+- Injection/SSRF spot-check: `allabrf.ts:69,73` `encodeURIComponent`s both the
+  BRF name and the org.nr; `resolveOrgNr` gates on Luhn before any URL is built;
+  `buildTillSaluUrl`/`buildSlutpriserUrl` use `URLSearchParams`;
+  `claimVisionSlice` re-applies `isAllowedImageHost`. No injection, XSS,
+  secret-leak or authz defect found.
+- Live-network / live-DB verification deliberately out of scope (Supabase paused,
+  operator IP Booli/Cloudflare-blocked) and not reported as a finding.
 
 ---
 
-_Reviewed: 2026-08-06T18:10:00Z_
+_Reviewed: 2026-08-08T17:40:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
