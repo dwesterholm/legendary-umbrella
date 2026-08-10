@@ -813,3 +813,95 @@ describe("filterCandidates — deterministic in-code AND filter", () => {
     expect(result.scanned).toBe(CAP_CANDIDATES_MAX + 5);
   });
 });
+
+describe("discoveryCandidateSchema — WR-09: a drifted NESTED field degrades to null, never dropping the candidate", () => {
+  /** The minimal set of keys with no `.default(null)` — everything else is additive. */
+  const requiredKeys = {
+    address: "Testgatan 1",
+    price: 3_500_000,
+    rooms: 3,
+    livingArea: 65,
+    areaLabel: "Södermalm",
+    thumbnailUrl: null,
+    sourceListingUrl: "https://www.booli.se/annons/1",
+  };
+
+  it.each([
+    // A future/second BRF source — brfSummarySchema pins source: "allabrf".
+    [
+      "brfSummary",
+      {
+        skuldPerKvm: 12_000,
+        avgiftsniva: 550,
+        kassaflode: 1,
+        stambytePlanerat: null,
+        tomtratt: null,
+        fiscalYear: 2025,
+        source: "hittabrf",
+      },
+    ],
+    // A write-path bug persisting the D-14-04-forbidden "high" confidence.
+    [
+      "holisticBrief",
+      {
+        marker: "m",
+        confidence: "high",
+        items: [],
+        dataSources: [],
+        conditionAttribution: {
+          explainedPct: null,
+          capped: false,
+          residualDrivers: [],
+          canAttributeToCondition: false,
+        },
+      },
+    ],
+    // A comps aggregate missing required keys.
+    ["areaComps", { areaId: "115341", sampleSize: 12 }],
+    // Outright wrong types.
+    ["brfSummary", "not-an-object"],
+    ["areaComps", 42],
+    ["holisticBrief", []],
+  ])("a drifted %s parses to null and the candidate SURVIVES", (key, drifted) => {
+    const result = discoveryCandidateSchema.safeParse({ ...requiredKeys, [key as string]: drifted });
+
+    // Before WR-09 this failed, and page.tsx's `.filter(p => p.success)`
+    // removed the whole listing — "Inga träffar denna gång" against a fully
+    // populated results array.
+    expect(result.success).toBe(true);
+    expect(result.data?.[key as "brfSummary" | "areaComps" | "holisticBrief"]).toBeNull();
+    // The rest of the candidate is intact, not partially applied.
+    expect(result.data?.address).toBe("Testgatan 1");
+    expect(result.data?.price).toBe(3_500_000);
+  });
+
+  it("a VALID nested field is still fully parsed, never silently nulled", () => {
+    const result = discoveryCandidateSchema.safeParse({
+      ...requiredKeys,
+      areaComps: {
+        areaId: "115341",
+        renovatedMedianPerSqm: 95_000,
+        unrenovatedMedianPerSqm: 75_000,
+        overallMedianPerSqm: 85_000,
+        renovatedCapPerSqm: 100_000,
+        sampleSize: 12,
+        confident: true,
+        asOf: "2026-08-05",
+        widenedBand: false,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.areaComps?.areaId).toBe("115341");
+    expect(result.data?.areaComps?.sampleSize).toBe(12);
+  });
+
+  it("a MISSING nested key still parses to null (the .default(null) backward-compat behaviour is preserved)", () => {
+    const result = discoveryCandidateSchema.safeParse(requiredKeys);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.areaComps).toBeNull();
+    expect(result.data?.brfSummary).toBeNull();
+    expect(result.data?.holisticBrief).toBeNull();
+  });
+});

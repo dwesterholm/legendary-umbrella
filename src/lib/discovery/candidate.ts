@@ -258,6 +258,32 @@ export function toCandidate(raw: Record<string, unknown>): DiscoveryCandidate {
 }
 
 /**
+ * WR-09 (14-REVIEW.md): a nested read guard that degrades the FIELD instead of
+ * the whole candidate.
+ *
+ * `schema.nullable().default(null)` fails the PARENT parse when the nested
+ * object is present but shape-drifted, and `page.tsx` drops any candidate whose
+ * parse failed — so one bad `brfSummary` erased an otherwise perfectly good
+ * listing from the results page. This accepts anything, tries the real schema,
+ * and falls back to `null` on failure: strictly more available data, and never
+ * an unvalidated value (a failed parse yields `null`, never the raw input).
+ *
+ * `.optional()` before the transform keeps a MISSING key parsing to `null`,
+ * preserving the `.default(null)` backward-compatibility behaviour every other
+ * additive field in this schema relies on.
+ */
+function softNullable<S extends z.ZodType>(schema: S) {
+  return z
+    .unknown()
+    .optional()
+    .transform((value): z.output<S> | null => {
+      if (value === null || value === undefined) return null;
+      const parsed = schema.safeParse(value);
+      return parsed.success ? parsed.data : null;
+    });
+}
+
+/**
  * Read-path Zod guard for `discovery_jobs.results` (mirrors the dashboard's
  * `listingDataSchema.safeParse` discipline — CR-01). A malformed/shape-drifted
  * row degrades to a skipped candidate rather than crashing the results page
@@ -340,9 +366,20 @@ export const discoveryCandidateSchema = z.object({
   // (not `undefined`) — this file's own CR-01 fix comment above explains why
   // an `undefined` would silently break `=== null` guards downstream.
   kommun: z.string().nullable().default(null),
-  areaComps: areaCompsSummarySchema.nullable().default(null),
-  brfSummary: brfSummarySchema.nullable().default(null),
-  holisticBrief: holisticBriefSchema.nullable().default(null),
+  // WR-09 (14-REVIEW.md): SOFT-nullable, not `schema.nullable()`. The consumer
+  // (`src/app/(app)/discover/[jobId]/page.tsx`) does
+  // `.map(safeParse).filter((p) => p.success)`, so a nested parse failure
+  // removed the ENTIRE candidate from the results page — a write-path bug or a
+  // second BRF source would present as "Inga träffar denna gång" against a
+  // fully populated `results` array. Phase 14 tripled that nested surface
+  // (`brfSummarySchema.source: z.literal("allabrf")`, `holisticBriefSchema
+  // .confidence: z.enum(["low","medium"])`, `areaCompsSummarySchema`'s nine
+  // required keys). Degrading the offending FIELD to null mirrors `imageUrls`
+  // above, which deliberately `.transform()`s away offending values rather
+  // than failing the candidate.
+  areaComps: softNullable(areaCompsSummarySchema),
+  brfSummary: softNullable(brfSummarySchema),
+  holisticBrief: softNullable(holisticBriefSchema),
 });
 
 /** Result of filtering a candidate array: what's shown vs. how many matched. */
