@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis
-status: executing
-stopped_at: Completed 14-10-PLAN.md — closed CR-01/CR-02/CR-03 (ANL-03/ANL-04 verification gaps)
-last_updated: "2026-08-08T15:41:52.059Z"
-last_activity: 2026-08-08 -- Phase 14 execution started
+status: ready
+stopped_at: Phase 14 complete — verification 4/4, four live-operator items deferred to 14-UAT.md
+last_updated: "2026-08-10T12:07:41.556Z"
+last_activity: 2026-08-10
 progress:
   total_phases: 9
   completed_phases: 1
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-17)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** Phase 14 — holistic-analysis-brain
+**Current focus:** Phase 15 — roi-aware-opportunity-brief
 
 ## Current Position
 
-Phase: 14 (holistic-analysis-brain) — EXECUTING
-Plan: 5 of 10
+Phase: 15
+Plan: Not started
 Status: Ready to execute
-Last activity: 2026-08-08 -- Phase 14 execution started
-Next step: `/gsd-execute-phase 14 --gaps-only`. Operator live-smoke re-run of Phase 13 still outstanding.
+Last activity: 2026-08-10
+Next step: `/gsd-discuss-phase 15`. Outstanding: Phase 13 operator live-smoke re-run (13-03), and Phase 14's four deferred live-operator items in 14-UAT.md (blocked on the paused Supabase project + a non-blocked IP).
 
 ## Roadmap Summary (v1.2 — CURRENT)
 
