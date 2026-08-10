@@ -5,7 +5,8 @@ import {
   applyBannedAttributionGuard,
   BANNED_RENO_ATTRIBUTION_PATTERNS,
   RENO_ATTRIBUTION_FALLBACK_TEXT,
-  BRF_UNTRUSTED_FIGURE_TEXT,
+  BRF_OUT_OF_BAND_FIGURE_TEXT,
+  BRF_LOW_CONFIDENCE_FIGURE_TEXT,
   MAX_CONDITION_EXPLAINED_PCT,
   DISCOUNT_ATTRIBUTION_TRIGGER_PCT,
   HIGH_BRF_DEBT_PER_SQM,
@@ -412,7 +413,8 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
     const item = brief.items.find((i) => i.kind === "brf");
     expect(item).toBeDefined();
     expect(item!.text).toContain("30000 kr/kvm (högre än vanligt)");
-    expect(item!.text).not.toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+    expect(item!.text).not.toContain(BRF_OUT_OF_BAND_FIGURE_TEXT);
+    expect(item!.text).not.toContain(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
   });
 
   it("the implausibility ceiling sits well ABOVE the SPEC §2.2 alarm threshold and above the shared sanity band", () => {
@@ -437,7 +439,7 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
     expect(r.unknownConfounders.filter((c) => c === "brf_unknown")).toHaveLength(1);
   });
 
-  it("buildBrfItem suppresses an untrusted avgiftsniva figure and appends the hedge text", () => {
+  it("buildBrfItem suppresses an untrusted avgiftsniva figure and appends the LOW-CONFIDENCE hedge (WR-05: 900 is IN band, so no range check failed)", () => {
     const brf = makeBrf({
       avgiftsniva: 900,
       skuldPerKvm: null,
@@ -448,7 +450,38 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
     const item = brief.items.find((i) => i.kind === "brf");
     expect(item).toBeDefined();
     expect(item!.text).not.toContain("900");
-    expect(item!.text).toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+    expect(item!.text).toContain(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
+    // Claiming a range check that never ran would be the WR-05 defect.
+    expect(item!.text).not.toContain(BRF_OUT_OF_BAND_FIGURE_TEXT);
+  });
+
+  it("WR-05: an OUT-OF-BAND avgiftsniva gets the out-of-range wording instead", () => {
+    const brf = makeBrf({
+      avgiftsniva: 4_200, // outside the 300-1200 SEK/m²/år band (a kr/mån misread)
+      skuldPerKvm: null,
+      kassaflode: null,
+      fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.2, kassaflode: 0.8 },
+    });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).not.toContain("4200");
+    expect(item!.text).toContain(BRF_OUT_OF_BAND_FIGURE_TEXT);
+    expect(item!.text).not.toContain(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
+  });
+
+  it("WR-05: a suppressed kassaflode NEVER claims it was out of range — that field has no band at all", () => {
+    const brf = makeBrf({
+      avgiftsniva: null,
+      skuldPerKvm: null,
+      kassaflode: 5_000,
+      fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.9, kassaflode: 0.3 },
+    });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
+    expect(item!.text).not.toContain(BRF_OUT_OF_BAND_FIGURE_TEXT);
   });
 
   it("buildBrfItem does NOT append the hedge text when every numeric field is simply null (nothing suppressed)", () => {
@@ -463,7 +496,8 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
     const brief = briefFrom({ brf });
     const item = brief.items.find((i) => i.kind === "brf");
     expect(item).toBeDefined();
-    expect(item!.text).not.toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+    expect(item!.text).not.toContain(BRF_OUT_OF_BAND_FIGURE_TEXT);
+    expect(item!.text).not.toContain(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
   });
 
   it("a brief built from a fully untrusted BRF still satisfies items.length >= 1 (ANL-01)", () => {
@@ -518,7 +552,7 @@ describe("CR-01 — the avgift sentence carries the unit the field actually has"
     expect(item).toBeDefined();
     expect(item!.text).not.toContain("900");
     expect(item!.text).not.toContain("kr/mån");
-    expect(item!.text).toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+    expect(item!.text).toContain(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
   });
 
   it("across a wide table of fixtures, no item text ever states a bare kr/mån without also stating kr/kvm och år", () => {

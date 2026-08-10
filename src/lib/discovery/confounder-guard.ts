@@ -27,6 +27,7 @@ import {
   brfFieldTrusted,
   HOLISTIC_DATA_ONLY_MARKER,
   type AreaCompsSummary,
+  type BrfConfidenceField,
   type BrfSummary,
   type HolisticBrief,
   type HolisticBriefItem,
@@ -386,17 +387,41 @@ export const RENO_ATTRIBUTION_FALLBACK_TEXT =
   "Ett lägre pris per kvadratmeter är enbart en signal om att titta närmare — det kan lika gärna bero på våning, hiss, balkong, mikroläge, delområde eller föreningens skuld som på skicket. Ingen slutsats om skick dras här.";
 
 /**
- * CR-02's display counterpart to the `debtUsable` arithmetic gate: appended
- * to a `buildBrfItem` result when a NON-NULL numeric field (avgiftsniva /
- * skuldPerKvm / kassaflode) was withheld for low confidence
- * (`brfFieldTrusted` returned `false` even though the value existed). Never
- * appended when the field was simply null (absent data is not a withheld
- * figure). Keeps the item ACTIONABLE (ANL-01) — the user is told a figure
- * was withheld and exactly what to check — instead of either asserting a
- * sanity-rejected number as fact or silently shrinking the brief.
+ * CR-02's display counterpart to the `debtUsable` arithmetic gate, split in two
+ * by WR-05 (14-REVIEW.md) because the two suppression CAUSES are different
+ * facts and only one of them involves a range at all:
+ *
+ *  - `BRF_OUT_OF_BAND_FIGURE_TEXT` — the value exists but falls outside its
+ *    `BRF_SANITY_BANDS` band, i.e. a likely unit/denominator misextraction.
+ *    Only `skuldPerKvm` and `avgiftsniva` HAVE a band.
+ *  - `BRF_LOW_CONFIDENCE_FIGURE_TEXT` — the value is in-band (or has no band at
+ *    all, as `kassaflode` does) and was simply not legible enough. Claiming it
+ *    "låg utanför ett rimligt intervall" would state a range check that never
+ *    ran — on a surface whose whole premise is `HOLISTIC_DATA_ONLY_MARKER`
+ *    ("trust this, it's data"), an unsupported reason is exactly the discipline
+ *    violation this phase is built around.
+ *
+ * Either is appended only for a NON-NULL value that was withheld; a simply-null
+ * field is absent data, not a withheld figure. Both keep the item ACTIONABLE
+ * (ANL-01) by telling the user what to check.
  */
-export const BRF_UNTRUSTED_FIGURE_TEXT =
-  "Någon av föreningens siffror låg utanför ett rimligt intervall och visas därför inte här — kontrollera avgift och skuld per kvm i föreningens årsredovisning.";
+export const BRF_OUT_OF_BAND_FIGURE_TEXT =
+  "En av föreningens siffror låg utanför ett rimligt intervall och visas därför inte här — kontrollera avgift och skuld per kvm i föreningens årsredovisning.";
+
+/** See `BRF_OUT_OF_BAND_FIGURE_TEXT` — the honest wording when no range was checked. */
+export const BRF_LOW_CONFIDENCE_FIGURE_TEXT =
+  "En av föreningens siffror kunde inte läsas med tillräcklig säkerhet och visas därför inte här — kontrollera den i föreningens årsredovisning.";
+
+/**
+ * Whether `value` falls outside `field`'s plausible band. `false` when the
+ * field has NO band (`kassaflode`) — the absence of a band is precisely why
+ * such a figure must never be reported as "out of range" (WR-05).
+ */
+function brfFigureOutOfBand(field: BrfConfidenceField, value: number): boolean {
+  if (!(field in BRF_SANITY_BANDS)) return false;
+  const band = BRF_SANITY_BANDS[field as keyof typeof BRF_SANITY_BANDS];
+  return value < band.min || value > band.max;
+}
 
 /**
  * CR-03: `stambytePlanerat` is a bounded enum keyed to `brfExtractionSchema`
@@ -523,13 +548,18 @@ function buildConfounderItems(guard: ConfounderGuardResult): HolisticBriefItem[]
 function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): HolisticBriefItem | null {
   if (brf === null) return null;
   const parts: string[] = [];
-  // CR-02: each numeric sentence is gated on `brfFieldTrusted` — a sanity-
-  // rejected figure is never displayed as a normal reading (T-14-42). A
-  // NON-NULL value that gets suppressed for low confidence sets
-  // `anyFigureSuppressed`, appended as `BRF_UNTRUSTED_FIGURE_TEXT` below; a
-  // simply-null field is absent data, not a withheld figure, and does not
-  // trigger the hedge.
-  let anyFigureSuppressed = false;
+  // CR-02: each numeric sentence is gated before display — a sanity-rejected
+  // figure is never shown as a normal reading (T-14-42). WR-05: a suppressed
+  // NON-NULL value records WHY it was withheld, so the hedge sentence states a
+  // true reason instead of always claiming a range check that may never have
+  // run. A simply-null field is absent data, not a withheld figure, and
+  // triggers no hedge at all.
+  let outOfBandSuppressed = false;
+  let lowConfidenceSuppressed = false;
+  const recordSuppressed = (field: BrfConfidenceField, value: number): void => {
+    if (brfFigureOutOfBand(field, value)) outOfBandSuppressed = true;
+    else lowConfidenceSuppressed = true;
+  };
   if (brf.avgiftsniva !== null) {
     if (brfFieldTrusted(brf, "avgiftsniva")) {
       // CR-01: `avgiftsniva` is SEK/m² PER YEAR (prompt.ts:29, sanity.ts:27's
@@ -547,7 +577,7 @@ function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): Holist
         );
       }
     } else {
-      anyFigureSuppressed = true;
+      recordSuppressed("avgiftsniva", brf.avgiftsniva);
     }
   }
   if (brf.skuldPerKvm !== null) {
@@ -561,14 +591,20 @@ function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): Holist
       const flag = brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM ? " (högre än vanligt)" : "";
       parts.push(`Föreningens skuld per kvm verkar ligga kring ${Math.round(brf.skuldPerKvm)} kr/kvm${flag}.`);
     } else {
-      anyFigureSuppressed = true;
+      // A suppressed debt figure is ALWAYS an implausible reading now
+      // (`brfDebtPerSqmUsable` admits every plausible one), which is an
+      // out-of-range fact — never the low-confidence wording.
+      outOfBandSuppressed = true;
     }
   }
   if (brf.kassaflode !== null) {
     if (brfFieldTrusted(brf, "kassaflode")) {
       parts.push(`Kassaflödet verkar ligga kring ${Math.round(brf.kassaflode)} kr.`);
     } else {
-      anyFigureSuppressed = true;
+      // WR-05: `kassaflode` has NO BRF_SANITY_BANDS entry — `run-extraction.ts`
+      // passes its model confidence through untouched — so a suppression here
+      // can only ever mean "not legible enough", never "out of range".
+      recordSuppressed("kassaflode", brf.kassaflode);
     }
   }
   // CR-03: lookup through STAMBYTE_PROSE rather than concatenating the raw
@@ -582,7 +618,10 @@ function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): Holist
   if (stambyteProse !== null) parts.push(stambyteProse);
   if (brf.tomtratt === true) parts.push("Föreningen har tomträtt.");
   if (brf.fiscalYear !== null) parts.push(`Siffrorna kommer från räkenskapsåret ${brf.fiscalYear}.`);
-  if (anyFigureSuppressed) parts.push(BRF_UNTRUSTED_FIGURE_TEXT);
+  // WR-05: state each cause that actually occurred, out-of-band first. Both can
+  // fire in one brief (e.g. a misextracted debt AND an illegible kassaflöde).
+  if (outOfBandSuppressed) parts.push(BRF_OUT_OF_BAND_FIGURE_TEXT);
+  if (lowConfidenceSuppressed) parts.push(BRF_LOW_CONFIDENCE_FIGURE_TEXT);
   if (parts.length === 0) return null;
   return { kind: "brf", text: parts.join(" ") };
 }
