@@ -972,13 +972,18 @@ export async function lookupBrfForTopCandidates(
         continue;
       }
       const { index, result } = outcome.value;
-      // result.costSek is always a finite non-negative number and now
-      // INCLUDES the estimated spend of a billed-then-failed extraction
-      // (BILLED_CALLS_BY_EXTRACTION_CODE, CR-04) — a code Anthropic already
-      // billed 1-2 calls for before extract.ts threw. Unconditional
-      // accumulation is what keeps the shared CAP_VISION_SEK_MAX pool honest
+      // result.costSek INCLUDES the estimated spend of a billed-then-failed
+      // extraction (BILLED_CALLS_BY_EXTRACTION_CODE, CR-04) — a code Anthropic
+      // already billed 1-2 calls for before extract.ts threw. Accumulating it
+      // unconditionally is what keeps the shared CAP_VISION_SEK_MAX pool honest
       // when it is seeded into runVisionPass via initialSpentSek (D-14-08).
-      spentSek += result.costSek;
+      //
+      // WR-06 (14-REVIEW.md): "always a finite non-negative number" was a HOPE,
+      // not an invariant — a drifted/NaN costSek would poison `spentSek`, and
+      // runVisionPass's own Number.isFinite guard would then reset the shared
+      // pool to 0, silently discarding the comps spend as well. Clamp here so
+      // the invariant is enforced rather than asserted.
+      spentSek += Number.isFinite(result.costSek) ? Math.max(0, result.costSek) : 0;
       if (result.summary !== null) {
         byIndex.set(index, result.summary);
       }

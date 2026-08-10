@@ -218,9 +218,20 @@ export async function lookupBrfSummary(input: BrfLookupInput): Promise<BrfLookup
     // reporting 0. Under-counting a spend gate is the dangerous direction:
     // 4 top-N candidates all failing on CLAUDE_MAX_TOKENS would otherwise
     // silently record ~6.2 SEK of real spend as 0 SEK.
+    // WR-06 (14-REVIEW.md): `code` is `error.message` — an arbitrary string.
+    // Indexing the object literal resolved `Object.prototype` members
+    // (`"constructor"` yielded the `Object` function, which `?? 0` does not
+    // catch), giving `Object * number = NaN`. That NaN propagated into
+    // `BrfResolution.spentSek` and then into `runVisionPass`'s
+    // `initialSpentSek`, whose `Number.isFinite` guard silently reset the
+    // shared pool to 0 — discarding the comps spend too. `Object.hasOwn`
+    // makes the fail-closed intent real.
+    const billedCalls = Object.hasOwn(BILLED_CALLS_BY_EXTRACTION_CODE, code)
+      ? BILLED_CALLS_BY_EXTRACTION_CODE[code]
+      : 0;
     return {
       summary: null,
-      costSek: (BILLED_CALLS_BY_EXTRACTION_CODE[code] ?? 0) * estimateBrfLookupSek(),
+      costSek: billedCalls * estimateBrfLookupSek(),
       outcome: "extract_failed",
     };
   }

@@ -733,6 +733,19 @@ describe("CR-03 — stambyte renders as prose, and 'not mentioned' is not an ite
     expect(concatenated).not.toContain("some_unmapped_value");
   });
 
+  it("WR-06 — an Object.prototype member name is NOT resolved into buyer-facing prose", () => {
+    // Before the Map, `STAMBYTE_PROSE["toString"]` returned
+    // Function.prototype.toString — not nullish, so `?? null` never fired and
+    // the function SOURCE was join(" ")-ed into Swedish prose.
+    for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty", "__proto__"]) {
+      const brief = briefFrom({ brf: makeBrf({ stambytePlanerat: inherited }) });
+      const concatenated = brief.items.map((i) => i.text).join(" ");
+      expect(concatenated).not.toContain("function");
+      expect(concatenated).not.toContain("native code");
+      expect(concatenated).not.toContain(inherited);
+    }
+  });
+
   it("stambytePlanerat null is unchanged — no sentence, no throw", () => {
     const brf = makeBrf({ stambytePlanerat: null });
     expect(() => briefFrom({ brf })).not.toThrow();

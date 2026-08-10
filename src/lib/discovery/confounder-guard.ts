@@ -418,7 +418,9 @@ export const BRF_LOW_CONFIDENCE_FIGURE_TEXT =
  * such a figure must never be reported as "out of range" (WR-05).
  */
 function brfFigureOutOfBand(field: BrfConfidenceField, value: number): boolean {
-  if (!(field in BRF_SANITY_BANDS)) return false;
+  // `Object.hasOwn`, not `in`: `in` walks the prototype chain (WR-06's class of
+  // defect). `field` is a bounded union today, so this is defence-in-depth.
+  if (!Object.hasOwn(BRF_SANITY_BANDS, field)) return false;
   const band = BRF_SANITY_BANDS[field as keyof typeof BRF_SANITY_BANDS];
   return value < band.min || value > band.max;
 }
@@ -432,12 +434,20 @@ function brfFigureOutOfBand(field: BrfConfidenceField, value: number): boolean {
  * rendering it would present an ABSENCE of information as an information
  * item — padding a brief whose entire purpose (ANL-01) is at least one
  * ACTIONABLE item.
+ *
+ * WR-06 (14-REVIEW.md): a `Map`, NOT an object literal. `BrfSummary
+ * .stambytePlanerat` is read from persisted JSONB, and an object-literal lookup
+ * keyed by an unconstrained string resolves `Object.prototype` members —
+ * `STAMBYTE_PROSE["toString"]` returned `Function.prototype.toString`, which is
+ * not nullish, so `?? null` never fired and the FUNCTION SOURCE would have been
+ * `join(" ")`-ed into buyer-facing Swedish prose. `Map.get` has no prototype
+ * chain to fall through, so the fail-closed claim above actually holds.
  */
-export const STAMBYTE_PROSE: Readonly<Record<string, string | null>> = {
-  planerat: "Föreningen har ett planerat stambyte.",
-  nyligen_genomfort: "Föreningen har nyligen genomfört stambyte.",
-  ej_nämnt: null,
-};
+export const STAMBYTE_PROSE: ReadonlyMap<string, string | null> = new Map([
+  ["planerat", "Föreningen har ett planerat stambyte."],
+  ["nyligen_genomfort", "Föreningen har nyligen genomfört stambyte."],
+  ["ej_nämnt", null],
+]);
 
 export interface BuildHolisticBriefInput {
   readonly guard: ConfounderGuardResult;
@@ -608,13 +618,12 @@ function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): Holist
     }
   }
   // CR-03: lookup through STAMBYTE_PROSE rather than concatenating the raw
-  // enum. The `?? null` branch is a FAIL-CLOSED guard for a value outside
-  // the enum — `BrfSummary.stambytePlanerat` is still typed `string | null`
-  // (WR-09 narrowing it to `StambyteStatus` is OUT OF SCOPE for this
-  // gap-closure run) — so no unmapped token can ever reach user-facing
-  // prose, and "ej_nämnt" correctly produces no sentence at all.
+  // enum, so no unmapped token can reach user-facing prose and "ej_nämnt"
+  // correctly produces no sentence at all. WR-06: the lookup is a `Map.get`,
+  // which — unlike the object-literal indexing this used to be — cannot
+  // resolve an `Object.prototype` member for a drifted persisted value.
   const stambyteProse =
-    brf.stambytePlanerat === null ? null : STAMBYTE_PROSE[brf.stambytePlanerat] ?? null;
+    brf.stambytePlanerat === null ? null : STAMBYTE_PROSE.get(brf.stambytePlanerat) ?? null;
   if (stambyteProse !== null) parts.push(stambyteProse);
   if (brf.tomtratt === true) parts.push("Föreningen har tomträtt.");
   if (brf.fiscalYear !== null) parts.push(`Siffrorna kommer från räkenskapsåret ${brf.fiscalYear}.`);

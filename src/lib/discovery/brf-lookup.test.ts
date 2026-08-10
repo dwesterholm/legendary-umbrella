@@ -440,6 +440,38 @@ describe("lookupBrfSummary", () => {
     expect(brfFieldTrusted(result.summary, "avgiftsniva")).toBe(false);
   });
 
+  it("WR-06 — an Object.prototype member name as the error code charges 0, never NaN", async () => {
+    // `code` is `error.message` — arbitrary. Indexing the billed-calls object
+    // literal with "constructor" returned the Object function, which `?? 0`
+    // does not catch, so `Object * number` produced NaN. That NaN reached
+    // BrfResolution.spentSek and then runVisionPass's initialSpentSek, whose
+    // Number.isFinite guard reset the shared pool to 0 — discarding the comps
+    // spend with it.
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2023,
+      availableYears: [2023],
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    for (const inherited of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+      extractBrfFinancials.mockRejectedValue(new Error(inherited));
+      const result = await lookupBrfSummary({
+        brfName: "Brf Björken 3",
+        kommun: "Stockholm",
+        tenureForm: null,
+      });
+      expect(result.outcome).toBe("extract_failed");
+      expect(Number.isFinite(result.costSek)).toBe(true);
+      expect(result.costSek).toBe(0);
+    }
+
+    errorSpy.mockRestore();
+  });
+
   it(`BRF_TOP_N is pinned to 4, within the D-14-01 3-5 band`, () => {
     expect(BRF_TOP_N).toBe(4);
     expect(BRF_TOP_N).toBeGreaterThanOrEqual(3);
