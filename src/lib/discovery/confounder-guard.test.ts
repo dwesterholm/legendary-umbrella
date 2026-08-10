@@ -16,6 +16,7 @@ import {
 } from "@/lib/discovery/confounder-guard";
 import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
 import { BRF_SANITY_BANDS } from "@/lib/brf/sanity";
+import type { StambyteStatus } from "@/lib/schemas/brf";
 import {
   HOLISTIC_DATA_ONLY_MARKER,
   type AreaCompsSummary,
@@ -803,7 +804,11 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
     // CR-03 — a free-form string is an unmapped value and fails closed to
     // no sentence at all, so this string can no longer reach any item text.
     const freeForm = "Föreningen klassas som ett renoveringsobjekt enligt senaste protokollet";
-    const brf = makeBrf({ stambytePlanerat: freeForm });
+    // `as StambyteStatus` deliberately simulates a DRIFTED persisted row —
+    // WR-15 narrowed the field's type, so this shape is now unrepresentable on
+    // the write path and the cast is what keeps the defence-in-depth branch
+    // exercised at runtime.
+    const brf = makeBrf({ stambytePlanerat: freeForm as StambyteStatus });
     const brief = briefFrom({ brf });
     const concatenated = brief.items.map((i) => i.text).join(" ");
     expect(concatenated).not.toContain(freeForm);
@@ -843,7 +848,8 @@ describe("CR-03 — stambyte renders as prose, and 'not mentioned' is not an ite
   });
 
   it("an unmapped stambytePlanerat string is suppressed entirely — fails closed", () => {
-    const brf = makeBrf({ stambytePlanerat: "some_unmapped_value" });
+    // Cast: a drifted persisted value (see the WR-15 note above).
+    const brf = makeBrf({ stambytePlanerat: "some_unmapped_value" as StambyteStatus });
     const brief = briefFrom({ brf });
     const concatenated = brief.items.map((i) => i.text).join(" ");
     expect(concatenated).not.toContain("some_unmapped_value");
@@ -854,7 +860,10 @@ describe("CR-03 — stambyte renders as prose, and 'not mentioned' is not an ite
     // Function.prototype.toString — not nullish, so `?? null` never fired and
     // the function SOURCE was join(" ")-ed into Swedish prose.
     for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty", "__proto__"]) {
-      const brief = briefFrom({ brf: makeBrf({ stambytePlanerat: inherited }) });
+      const brief = briefFrom({
+        // Cast: a drifted persisted value (see the WR-15 note above).
+        brf: makeBrf({ stambytePlanerat: inherited as StambyteStatus }),
+      });
       const concatenated = brief.items.map((i) => i.text).join(" ");
       expect(concatenated).not.toContain("function");
       expect(concatenated).not.toContain("native code");

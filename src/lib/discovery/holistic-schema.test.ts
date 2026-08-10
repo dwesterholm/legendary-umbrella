@@ -8,6 +8,7 @@ import {
   brfFieldTrusted,
   holisticBriefSchema,
   HOLISTIC_BRIEF_ITEM_KINDS,
+  STAMBYTE_STATUSES,
   type AreaCompsSummary,
   type BrfSummary,
   type HolisticBrief,
@@ -193,6 +194,45 @@ describe("holisticBriefSchema — read guard", () => {
   it("rejects confidence: 'high' — a data-only brief can never claim high confidence", () => {
     const result = holisticBriefSchema.safeParse({ ...valid, confidence: "high" });
     expect(result.success).toBe(false);
+  });
+
+  it("WR-15 — a drifted stambytePlanerat token normalizes to null WITHOUT discarding the avgift/debt figures", () => {
+    const drifted = {
+      skuldPerKvm: 12_000,
+      avgiftsniva: 550,
+      kassaflode: 150_000,
+      stambytePlanerat: "toString", // an Object.prototype name, and not the enum
+      tomtratt: null,
+      fiscalYear: 2025,
+      source: "allabrf",
+      fieldConfidence: { skuldPerKvm: 0.9, avgiftsniva: 0.9, kassaflode: 0.8 },
+    };
+
+    const result = brfSummarySchema.safeParse(drifted);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.stambytePlanerat).toBeNull();
+    // The valuable figures survive — failing the whole parse would have lost
+    // them (and, via candidate.ts's WR-09 soft guard, the whole BRF summary).
+    expect(result.data?.skuldPerKvm).toBe(12_000);
+    expect(result.data?.avgiftsniva).toBe(550);
+  });
+
+  it("WR-15 — each real StambyteStatus value round-trips unchanged", () => {
+    for (const status of STAMBYTE_STATUSES) {
+      const result = brfSummarySchema.safeParse({
+        skuldPerKvm: null,
+        avgiftsniva: null,
+        kassaflode: null,
+        stambytePlanerat: status,
+        tomtratt: null,
+        fiscalYear: null,
+        source: "allabrf",
+        fieldConfidence: null,
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.stambytePlanerat).toBe(status);
+    }
   });
 
   it("WR-11 — a brief persisted BEFORE effectivePricePerSqm/debtIncluded existed still parses, defaulting both", () => {

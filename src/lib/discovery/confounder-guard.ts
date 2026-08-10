@@ -21,6 +21,7 @@
  */
 
 import { BRF_SANITY_BANDS } from "@/lib/brf/sanity";
+import type { StambyteStatus } from "@/lib/schemas/brf";
 import {
   tomtrattFromTenureForm,
   brfFieldTrusted,
@@ -446,7 +447,7 @@ function brfFigureOutOfBand(field: BrfConfidenceField, value: number): boolean {
  * `join(" ")`-ed into buyer-facing Swedish prose. `Map.get` has no prototype
  * chain to fall through, so the fail-closed claim above actually holds.
  */
-export const STAMBYTE_PROSE: ReadonlyMap<string, string | null> = new Map([
+export const STAMBYTE_PROSE: ReadonlyMap<NonNullable<StambyteStatus>, string | null> = new Map([
   ["planerat", "Föreningen har ett planerat stambyte."],
   ["nyligen_genomfort", "Föreningen har nyligen genomfört stambyte."],
   ["ej_nämnt", null],

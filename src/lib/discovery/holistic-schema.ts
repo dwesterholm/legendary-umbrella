@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
+import type { StambyteStatus } from "@/lib/schemas/brf";
 
 /**
  * holistic-schema.ts — Phase 14 (ANL-01/02/03) PERSISTED holistic-analysis
@@ -127,6 +128,18 @@ export const BRF_CONFIDENCE_FIELDS = ["skuldPerKvm", "avgiftsniva", "kassaflode"
 export type BrfConfidenceField = (typeof BRF_CONFIDENCE_FIELDS)[number];
 
 /**
+ * The `StambyteStatus` values, as a runtime array (WR-15). Declared here rather
+ * than imported as data because `src/lib/schemas/brf.ts` exports the enum only
+ * as a TYPE; the `satisfies` clause makes any drift between the two a COMPILE
+ * error rather than a silent mismatch.
+ */
+export const STAMBYTE_STATUSES = [
+  "planerat",
+  "nyligen_genomfort",
+  "ej_nämnt",
+] as const satisfies readonly NonNullable<StambyteStatus>[];
+
+/**
  * The per-candidate BRF summary (D-14-02): `skuldPerKvm`/`avgiftsniva`/
  * `kassaflode`/`stambytePlanerat` from the existing `brfExtractionSchema`
  * (`src/lib/schemas/brf.ts`), plus `tomtratt` — derived from the LISTING's
@@ -148,7 +161,14 @@ export interface BrfSummary {
   readonly skuldPerKvm: number | null;
   readonly avgiftsniva: number | null;
   readonly kassaflode: number | null;
-  readonly stambytePlanerat: string | null;
+  /**
+   * WR-15 (14-REVIEW.md): the `StambyteStatus` ENUM, not a bare `string`.
+   * `src/lib/schemas/brf.ts` constrains this field as a Zod enum on both
+   * `brfExtractionSchema` and `brfDataSchema`; widening it to `string` here
+   * discarded that contract and was what forced `STAMBYTE_PROSE` to be an
+   * unsafe unbounded lookup (WR-06) instead of an exhaustive map.
+   */
+  readonly stambytePlanerat: StambyteStatus | null;
   /** Derived from the listing's tenureForm — never from the BRF document. */
   readonly tomtratt: true | null;
   readonly fiscalYear: number | null;
@@ -177,7 +197,18 @@ export const brfSummarySchema = z.object({
   skuldPerKvm: z.number().nullable(),
   avgiftsniva: z.number().nullable(),
   kassaflode: z.number().nullable(),
-  stambytePlanerat: z.string().nullable(),
+  // WR-15: normalized to the `StambyteStatus` enum. A drifted persisted token
+  // degrades to `null` ("not known") rather than failing the whole
+  // `brfSummarySchema` parse — which, given the WR-09 soft guard in
+  // `candidate.ts`, would have discarded the far more valuable avgift/debt
+  // figures alongside it. Fail-closed AND maximally available.
+  stambytePlanerat: z
+    .unknown()
+    .transform((value): StambyteStatus | null =>
+      STAMBYTE_STATUSES.includes(value as NonNullable<StambyteStatus>)
+        ? (value as StambyteStatus)
+        : null,
+    ),
   tomtratt: z.literal(true).nullable(),
   fiscalYear: z.number().nullable(),
   source: z.literal("allabrf"),
