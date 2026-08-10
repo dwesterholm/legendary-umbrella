@@ -453,12 +453,16 @@ export interface BuildHolisticBriefInput {
   readonly guard: ConfounderGuardResult;
   readonly comps: AreaCompsSummary | null;
   readonly brf: BrfSummary | null;
+  /**
+   * The candidate's own kr/m². WR-10 (14-REVIEW.md): this used to be written by
+   * `job.ts` and read by NOBODY — `buildCompsPositioningItem` emitted the sample
+   * size and the two medians but never the candidate's own position, so a
+   * "positioning" item did not position. It is now consumed there.
+   */
   readonly pricePerSqm: number | null;
   /**
    * The candidate's boarea in m², used ONLY to derive a monthly avgift from
-   * the SEK/m²/år `avgiftsniva` (CR-01). Never used for anything else here —
-   * WR-06 (using `pricePerSqm` in the comps-positioning item) stays OUT OF
-   * SCOPE.
+   * the SEK/m²/år `avgiftsniva` (CR-01) — never for anything else here.
    */
   readonly livingArea: number | null;
 }
@@ -504,15 +508,21 @@ export function applyBannedAttributionGuard(text: string): string {
 }
 
 function buildCompsPositioningItem(input: BuildHolisticBriefInput): HolisticBriefItem | null {
-  const { guard, comps } = input;
+  const { guard, comps, pricePerSqm } = input;
   if (comps === null || guard.discountVsRenovatedPct === null) return null;
 
   const parts: string[] = [];
-  parts.push(
-    `Priset per kvadratmeter ligger mot ett urval av ${comps.sampleSize} sålda jämförelseobjekt` +
-      (comps.widenedBand ? " (brett urval)" : "") +
-      ".",
-  );
+  // WR-10: state the candidate's OWN kr/m² when known — an item called
+  // "comps-positioning" that never names the thing being positioned is not a
+  // positioning item. Falls back to the previous wording when `pricePerSqm` is
+  // null, so nothing is fabricated.
+  const sampleClause =
+    `${comps.sampleSize} sålda jämförelseobjekt` + (comps.widenedBand ? " (brett urval)" : "");
+  if (pricePerSqm !== null && Number.isFinite(pricePerSqm)) {
+    parts.push(`Priset ligger på ca ${Math.round(pricePerSqm)} kr/kvm och jämförs mot ${sampleClause}.`);
+  } else {
+    parts.push(`Priset per kvadratmeter ligger mot ett urval av ${sampleClause}.`);
+  }
   if (comps.renovatedMedianPerSqm !== null) {
     parts.push(
       `Median för nyare/renoverade objekt verkar ligga kring ${Math.round(comps.renovatedMedianPerSqm)} kr/kvm.`,
@@ -521,6 +531,19 @@ function buildCompsPositioningItem(input: BuildHolisticBriefInput): HolisticBrie
   if (comps.unrenovatedMedianPerSqm !== null) {
     parts.push(
       `Median för äldre/orenoverade objekt verkar ligga kring ${Math.round(comps.unrenovatedMedianPerSqm)} kr/kvm.`,
+    );
+  }
+  // WR-10: the actual position against the renovated median — the single most
+  // decision-relevant number the guard computes, previously never surfaced.
+  // Uses `effectivePricePerSqm` implicitly (the discount is computed from it),
+  // so a debt-inclusive basis is reflected here rather than the raw asking
+  // kr/m². Deliberately states no conclusion about SKICK (SPEC §2.6).
+  if (guard.discountVsRenovatedPct !== null) {
+    const pct = Math.round(Math.abs(guard.discountVsRenovatedPct) * 100);
+    parts.push(
+      guard.discountVsRenovatedPct >= 0
+        ? `Det är ca ${pct}% under medianen för nyare/renoverade objekt.`
+        : `Det är ca ${pct}% över medianen för nyare/renoverade objekt.`,
     );
   }
 

@@ -626,6 +626,52 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
     expect(item!.text).toContain(String(comps.sampleSize));
   });
 
+  it("WR-10 — the comps-positioning item actually POSITIONS: it states the candidate's own kr/m² and its distance from the renovated median", () => {
+    const brief = briefFrom({
+      pricePerSqm: 70_000,
+      comps: makeComps({ renovatedMedianPerSqm: 100_000, sampleSize: 7 }),
+    });
+    const item = brief.items.find((i) => i.kind === "comps-positioning");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("70000 kr/kvm");
+    expect(item!.text).toContain("30% under medianen för nyare/renoverade objekt");
+  });
+
+  it("WR-10 — an ABOVE-median candidate is described as over, never clamped to a discount", () => {
+    const brief = briefFrom({
+      pricePerSqm: 110_000,
+      comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+    });
+    const item = brief.items.find((i) => i.kind === "comps-positioning");
+    expect(item!.text).toContain("10% över medianen för nyare/renoverade objekt");
+    expect(item!.text).not.toContain("under medianen");
+  });
+
+  it("WR-10 — the positioning reflects the DEBT-INCLUSIVE basis, not the raw asking kr/m²", () => {
+    // 55 000 asking + 30 000 real debt = 85 000 effective vs a 100 000 median →
+    // 15% under, NOT the 45% the raw asking price alone would suggest. This is
+    // the ANL-04 safeguard being visible to the user.
+    const brief = briefFrom({
+      pricePerSqm: 55_000,
+      brf: makeBrf({ skuldPerKvm: 30_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+    });
+    const item = brief.items.find((i) => i.kind === "comps-positioning");
+    expect(item!.text).toContain("15% under medianen för nyare/renoverade objekt");
+    expect(item!.text).not.toContain("45%");
+  });
+
+  it("WR-10 — with pricePerSqm null the item falls back to the previous wording, fabricating nothing", () => {
+    const brief = briefFrom({
+      pricePerSqm: null,
+      comps: makeComps({ renovatedMedianPerSqm: 100_000, sampleSize: 7 }),
+    });
+    // No comps-positioning item at all when the discount is uncomputable — the
+    // guard returns null for discountVsRenovatedPct with no price.
+    expect(brief.items.find((i) => i.kind === "comps-positioning")).toBeUndefined();
+    expect(brief.items.length).toBeGreaterThanOrEqual(1);
+  });
+
   it("WR-07 — the unknown-confounder labels are named ONCE, in the confounder item, never duplicated into the comps item", () => {
     const brief = briefFrom({
       pricePerSqm: 50_000,
