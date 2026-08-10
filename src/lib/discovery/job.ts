@@ -24,8 +24,10 @@ import {
 import {
   discoveryCostSek,
   renderSek,
+  estimateAreaFetchSek,
   estimateCompsFetchSek,
   estimateBrfLookupSek,
+  AREA_RENDER_RUNGS_PER_PAGE,
   CAP_VISION_SEK_MAX,
 } from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
@@ -84,13 +86,17 @@ export interface ClaimedDiscoveryJob {
 }
 
 /**
- * A conservative per-slice cost estimate used ONLY for the pre-spend gate
- * (step 3) — the real persisted cost is computed post-scrape from actual
- * usage via `discoveryCostSek`. This estimate assumes one render (the
- * `fetchAreaListings` call this slice is about to make) at the per-render USD
- * rate, converted to SEK — it deliberately ignores the (comparatively tiny)
- * Haiku parse cost already spent in `startDiscovery`, so it is a conservative
- * (never-under-count) pre-check.
+ * Prices a known render count for this slice — used for the POST-scrape
+ * persisted ledger, where `renders` is the real count `fetchAreaListings`
+ * reported (CR-01, 14-REVIEW.md). It deliberately ignores the (comparatively
+ * tiny) Haiku parse cost already spent in `startDiscovery`.
+ *
+ * The step-3 PRE-spend gate does NOT use this with an assumed count: one
+ * `fetchAreaListings` call walks up to `MAX_AREA_PAGES` pages × two own-render
+ * rungs, so the gate prices `estimateAreaFetchSek()` per area — the real
+ * worst case. Assuming one render per area here made the gate a systematic
+ * UNDER-count of up to 10x, which is the one direction a spend cap must never
+ * err in.
  */
 function estimatedSliceCostSek(renders: number = 1): number {
   return discoveryCostSek({
@@ -188,8 +194,11 @@ export async function runSlice(
   }
 
   // (3) COST PRE-CHECK — gates the SPEND for ALL area renders this slice, not
-  // just the already-recorded total (one render per resolved area).
-  const projectedCost = cost_sek_total + estimatedSliceCostSek(areaIds.length);
+  // just the already-recorded total. CR-01 (14-REVIEW.md): priced at
+  // `estimateAreaFetchSek()` per area — `fetchAreaListings`'s real worst case
+  // (`MAX_AREA_PAGES` pages × two own-render rungs), NOT one render per area.
+  // The gate must never authorise less than the slice can actually spend.
+  const projectedCost = cost_sek_total + estimateAreaFetchSek() * areaIds.length;
   if (projectedCost > cap_sek) {
     await updateJob(supabase, jobId, { status: "done", cap_reached: true });
     return;
@@ -215,9 +224,14 @@ export async function runSlice(
   for (let i = 0; i < settled.length; i++) {
     const outcome = settled[i];
     if (outcome.status === "fulfilled") {
-      rendersUsed += 1;
-      raw.push(...outcome.value);
+      // CR-01: the REAL render count the client reported (1..MAX_AREA_PAGES ×
+      // AREA_RENDER_RUNGS), never a hardcoded 1.
+      rendersUsed += outcome.value.rendersUsed;
+      raw.push(...outcome.value.listings);
     } else {
+      // A thrown area means page 1 exhausted EVERY rung — those renders were
+      // paid for and must be recorded, not written off as free.
+      rendersUsed += AREA_RENDER_RUNGS_PER_PAGE;
       anyThrew = true;
       console.error("[discovery-job] kill-switch degraded", {
         jobId,
@@ -227,7 +241,14 @@ export async function runSlice(
     }
   }
   if (raw.length === 0) {
-    await updateJob(supabase, jobId, { status: anyThrew ? "degraded" : "done" });
+    // CR-01: even a fully-failed sweep burned real renders (page 1 exhausting
+    // both rungs per area). Persist that spend — silently discarding it let
+    // repeated blocked slices spend without ever advancing `cost_sek_total`
+    // toward `cap_sek`.
+    await updateJob(supabase, jobId, {
+      status: anyThrew ? "degraded" : "done",
+      cost_sek_total: cost_sek_total + estimatedSliceCostSek(rendersUsed),
+    });
     return;
   }
 
@@ -255,10 +276,16 @@ export async function runSlice(
   const newCostSekTotal = cost_sek_total + sliceCostSek;
   const capReached = newCandidateCount >= cap_candidates;
 
-  // A successful sweep is TERMINAL. `fetchAreaListings` is one-shot (no
-  // pagination — it renders a single till-salu page), so once a slice returns
-  // there is no further page to fetch: the job is done whether or not it hit
-  // `cap_candidates`. Gating `done` on `capReached` left any UNDER-cap search
+  // A successful sweep is TERMINAL. `fetchAreaListings` walks the till-salu
+  // pagination to `MAX_AREA_PAGES` ITSELF (page 1 sequentially, then pages
+  // 2..N in parallel — booli/client.ts) and stops early on a short page, so
+  // once a slice returns there is no further page a later slice could fetch:
+  // the job is done whether or not it hit `cap_candidates`. (CR-01,
+  // 14-REVIEW.md: this used to claim `fetchAreaListings` was "one-shot (no
+  // pagination)", which the client has not been true of since the &page=N
+  // walk landed — the terminality conclusion is unchanged, but it rests on
+  // the walk being EXHAUSTIVE, not absent.) Gating `done` on `capReached`
+  // left any UNDER-cap search
   // (e.g. few 1-rok under 4M) stuck in "processing" forever — no second page
   // existed to reach the cap, the 5-min stale-reclaim window matched the
   // client's 5-min poll timeout so no further slice ran in time, and the vision

@@ -10,6 +10,10 @@ import {
   COMPS_MAX_RENDERS_PER_AREA,
   estimateCompsFetchSek,
   estimateBrfLookupSek,
+  AREA_MAX_PAGES_PER_AREA,
+  AREA_MAX_RENDERS_PER_AREA,
+  AREA_RENDER_RUNGS_PER_PAGE,
+  estimateAreaFetchSek,
 } from "@/lib/discovery/cost";
 import { costSek, costSekSonnet, USD_SEK_RATE } from "@/lib/brf/cost";
 import { CAP_SEK_MAX } from "@/lib/discovery/filter-schema";
@@ -116,6 +120,23 @@ describe("estimateCompsFetchSek / COMPS_MAX_RENDERS_PER_AREA — 14-05 (ANL-02)"
 
   it("equals renderSek(COMPS_MAX_RENDERS_PER_AREA)", () => {
     expect(estimateCompsFetchSek()).toBeCloseTo(renderSek(COMPS_MAX_RENDERS_PER_AREA), 10);
+  });
+});
+
+describe("estimateAreaFetchSek — CR-01 (14-REVIEW.md): the area pre-gate must never under-count", () => {
+  it("prices the full page-walk worst case, not one render", () => {
+    expect(AREA_MAX_RENDERS_PER_AREA).toBe(
+      AREA_MAX_PAGES_PER_AREA * AREA_RENDER_RUNGS_PER_PAGE,
+    );
+    expect(estimateAreaFetchSek()).toBeCloseTo(renderSek(AREA_MAX_RENDERS_PER_AREA), 10);
+  });
+
+  it("is strictly greater than a single render — the exact under-count CR-01 reports", () => {
+    expect(estimateAreaFetchSek()).toBeGreaterThan(renderSek(1));
+  });
+
+  it("four areas' worst case still fits inside the scrape cap so a normal search is not pre-gated away", () => {
+    expect(4 * estimateAreaFetchSek()).toBeLessThan(DISCOVERY_COST_CAP_SEK);
   });
 });
 

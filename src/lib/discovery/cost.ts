@@ -72,6 +72,46 @@ export function estimateCompsFetchSek(): number {
 }
 
 /**
+ * `fetchAreaListings`'s own render rungs per till-salu PAGE — mirrors
+ * `client.ts`'s `AREA_RENDER_RUNGS` (own-playwright + own-playwright-retry).
+ * Hand-mirrored rather than imported for the same reason
+ * `COMPS_MAX_RENDERS_PER_AREA` is: `client.ts` pulls in the Apify transport,
+ * which this pure cost module (and its test) must not depend on. A drift guard
+ * in `client.test.ts` asserts the two stay equal.
+ */
+export const AREA_RENDER_RUNGS_PER_PAGE = 2 as const;
+
+/**
+ * `fetchAreaListings`'s page cap per area — mirrors `client.ts`'s
+ * `MAX_AREA_PAGES` (page 1 sequential + pages 2..N in parallel). Same
+ * hand-mirroring rationale and drift guard as
+ * `AREA_RENDER_RUNGS_PER_PAGE` above.
+ */
+export const AREA_MAX_PAGES_PER_AREA = 5 as const;
+
+/**
+ * CR-01 (14-REVIEW.md): ONE area's worst-case paid-render count. Before this
+ * existed, `runSlice`'s pre-gate priced ONE render per area while
+ * `fetchAreaListings` could perform up to `MAX_AREA_PAGES × AREA_RENDER_RUNGS`
+ * = 10 — so `CAP_SEK_MAX` authorised a spend up to 10x below what the slice
+ * could actually incur, and was therefore not enforceable.
+ */
+export const AREA_MAX_RENDERS_PER_AREA: number =
+  AREA_MAX_PAGES_PER_AREA * AREA_RENDER_RUNGS_PER_PAGE;
+
+/**
+ * The worst-case pre-spend estimate for ONE area's till-salu sweep — mirrors
+ * `estimateCompsFetchSek`/`estimateVisionCallSek`'s named-worst-case-estimator
+ * precedent (a REAL, priced upper bound, never an average). Used by `runSlice`'s
+ * step-3 cost pre-check, which must NEVER under-count.
+ *
+ * @returns the worst-case SEK cost of fetching every till-salu page for ONE area
+ */
+export function estimateAreaFetchSek(): number {
+  return renderSek(AREA_MAX_RENDERS_PER_AREA);
+}
+
+/**
  * A conservative upper bound on a single BRF extraction call's input tokens.
  * A full årsredovisning iXBRL text is the dominant input-token cost; 60k
  * input tokens is chosen so `estimateBrfLookupSek` exceeds the ~0.71 SEK per

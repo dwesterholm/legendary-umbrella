@@ -100,7 +100,12 @@ import {
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
-import { discoveryCostSek, renderSek, estimateBrfLookupSek } from "@/lib/discovery/cost";
+import {
+  discoveryCostSek,
+  renderSek,
+  estimateBrfLookupSek,
+  AREA_RENDER_RUNGS_PER_PAGE,
+} from "@/lib/discovery/cost";
 import {
   DETAIL_ENRICH_WAIT_SECS,
   DETAIL_ENRICH_MAX_RETRIES,
@@ -165,17 +170,23 @@ function claimedRow(
 beforeEach(() => {
   vi.clearAllMocks();
   resolveArea.mockResolvedValue({ areaId: "115341", source: "seed" });
-  fetchAreaListings.mockResolvedValue([
-    {
-      streetAddress: "Testgatan 1",
-      price: 3_500_000,
-      rooms: 3,
-      livingArea: 65,
-      descriptiveAreaName: "Södermalm",
-      thumbnailUrl: "https://img.example/1.jpg",
-      url: "https://www.booli.se/annons/1",
-    },
-  ]);
+  // CR-01 (14-REVIEW.md): `fetchAreaListings` now returns
+  // `{ listings, rendersUsed }` so `runSlice` prices the REAL render count
+  // (up to MAX_AREA_PAGES x AREA_RENDER_RUNGS per area) instead of assuming 1.
+  fetchAreaListings.mockResolvedValue({
+    listings: [
+      {
+        streetAddress: "Testgatan 1",
+        price: 3_500_000,
+        rooms: 3,
+        livingArea: 65,
+        descriptiveAreaName: "Södermalm",
+        thumbnailUrl: "https://img.example/1.jpg",
+        url: "https://www.booli.se/annons/1",
+      },
+    ],
+    rendersUsed: 1,
+  });
 });
 
 describe("runSlice — incremental cap gate (DISC-02)", () => {
@@ -297,9 +308,10 @@ describe("runSlice — happy path scrape + persist", () => {
     expect(payload.cost_sek_total as number).toBeGreaterThan(0);
   });
 
-  it("marks status done (a one-shot sweep is terminal) even when candidate_count is under cap; cap_reached stays false", async () => {
-    // fetchAreaListings has no pagination — one slice fetches everything the
-    // area can give, so an under-cap result is COMPLETE, not "more to come".
+  it("marks status done (an exhaustive sweep is terminal) even when candidate_count is under cap; cap_reached stays false", async () => {
+    // fetchAreaListings walks the &page=N pagination to MAX_AREA_PAGES itself
+    // (CR-01: it is NOT "one-shot"), so one slice fetches everything the area
+    // can give and an under-cap result is COMPLETE, not "more to come".
     // (Regression guard: gating done on capReached previously stranded such
     // searches in "processing" forever, so vision never ran — see job.ts §6.)
     const supabase = makeSupabase();
@@ -429,10 +441,11 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
     );
   });
 
-  it("resolves + scrapes BOTH areas, merges results, and bills one render per area", async () => {
-    fetchAreaListings.mockImplementation(async (areaId: string) => [
-      listing(areaId, `https://www.booli.se/annons/${areaId}`),
-    ]);
+  it("resolves + scrapes BOTH areas, merges results, and bills the renders each area reported", async () => {
+    fetchAreaListings.mockImplementation(async (areaId: string) => ({
+      listings: [listing(areaId, `https://www.booli.se/annons/${areaId}`)],
+      rendersUsed: 1,
+    }));
     const supabase = makeSupabase();
 
     await runSlice(supabase, multiRow());
@@ -448,7 +461,10 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
 
   it("de-dupes a listing that surfaces in both area searches", async () => {
     // Same listing URL returned for both areas → one merged candidate.
-    fetchAreaListings.mockResolvedValue([listing("x", "https://www.booli.se/annons/dup")]);
+    fetchAreaListings.mockResolvedValue({
+      listings: [listing("x", "https://www.booli.se/annons/dup")],
+      rendersUsed: 1,
+    });
     const supabase = makeSupabase();
 
     await runSlice(supabase, multiRow());
@@ -459,7 +475,10 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
   it("proceeds with the surviving area when one area's scrape throws (partial failure)", async () => {
     fetchAreaListings.mockImplementation(async (areaId: string) => {
       if (areaId === "115349") throw new Error("blocked");
-      return [listing(areaId, `https://www.booli.se/annons/${areaId}`)];
+      return {
+        listings: [listing(areaId, `https://www.booli.se/annons/${areaId}`)],
+        rendersUsed: 1,
+      };
     });
     const supabase = makeSupabase();
 
@@ -469,11 +488,13 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
     const payload = updateCalls[0];
     expect(payload.status).not.toBe("degraded");
     expect((payload.results as unknown[]).length).toBe(1);
-    // Only one render actually succeeded → billed for one.
-    expect(payload.cost_sek_total).toBeCloseTo(RENDER_SEK, 10);
+    // CR-01: the surviving area's 1 render PLUS the failed area's exhausted
+    // rungs. A thrown area still paid for every rung it attempted, so billing
+    // it as free (the old `RENDER_SEK` expectation) under-counted real spend.
+    expect(payload.cost_sek_total).toBeCloseTo(RENDER_SEK * (1 + AREA_RENDER_RUNGS_PER_PAGE), 10);
   });
 
-  it("degrades only when EVERY area's scrape throws (the block signal)", async () => {
+  it("degrades only when EVERY area's scrape throws (the block signal), still recording the renders both areas burned", async () => {
     fetchAreaListings.mockRejectedValue(new Error("captcha"));
     const supabase = makeSupabase();
 
@@ -481,6 +502,13 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
 
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0]).toMatchObject({ status: "degraded" });
+    // CR-01: a fully-blocked sweep is not a free sweep — both areas exhausted
+    // page 1's rungs, and that spend must advance cost_sek_total toward
+    // cap_sek rather than being silently discarded.
+    expect(updateCalls[0].cost_sek_total).toBeCloseTo(
+      RENDER_SEK * 2 * AREA_RENDER_RUNGS_PER_PAGE,
+      10,
+    );
   });
 
   it("fails (with a diagnostic log) when NO area name resolves", async () => {
@@ -509,7 +537,10 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
     const DELAYS: Record<string, number> = { "115341": 100, "115349": 20 };
     fetchAreaListings.mockImplementation(async (areaId: string) => {
       await new Promise((resolve) => setTimeout(resolve, DELAYS[areaId] ?? 0));
-      return [listing(areaId, `https://www.booli.se/annons/${areaId}`)];
+      return {
+        listings: [listing(areaId, `https://www.booli.se/annons/${areaId}`)],
+        rendersUsed: 1,
+      };
     });
     const supabase = makeSupabase();
 

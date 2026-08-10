@@ -26,8 +26,15 @@ import {
   kommunFromBreadcrumbs,
   isAllowedImageHost,
   AREA_PAGE_WAIT_SECS,
+  AREA_RENDER_RUNGS,
+  MAX_AREA_PAGES,
   type SoldSourceQuery,
 } from "@/lib/booli/client";
+import {
+  AREA_MAX_PAGES_PER_AREA,
+  AREA_MAX_RENDERS_PER_AREA,
+  AREA_RENDER_RUNGS_PER_PAGE,
+} from "@/lib/discovery/cost";
 
 const DETAIL_URL = "https://www.booli.se/bostad/305443";
 
@@ -277,8 +284,8 @@ describe("fetchAreaListings", () => {
 
     const result = await fetchAreaListings("115341");
 
-    expect(result).toHaveLength(3);
-    expect(result.map((r) => r.booliId)).toEqual(["1", "2", "3"]);
+    expect(result.listings).toHaveLength(3);
+    expect(result.listings.map((r) => r.booliId)).toEqual(["1", "2", "3"]);
   });
 
   it("returns an honest empty [] for a SUCCEEDED render with zero Listing: entities (WR-01 — a genuinely empty area is NOT a dead source)", async () => {
@@ -293,10 +300,11 @@ describe("fetchAreaListings", () => {
 
     const result = await fetchAreaListings("999999");
 
-    expect(result).toEqual([]);
+    expect(result.listings).toEqual([]);
     // Rung 1 alone served the (honest, empty) result — no fallthrough to
     // rung 2, since an empty-but-successful render is not a rung failure.
     expect(actorCall).toHaveBeenCalledTimes(1);
+    expect(result.rendersUsed).toBe(1);
   });
 
   it("falls to rung 2 (own-playwright-retry) when rung 1 throws — rung fallthrough mirrors fetchListing", async () => {
@@ -310,7 +318,9 @@ describe("fetchAreaListings", () => {
     const result = await fetchAreaListings("115341");
 
     expect(actorCall).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(1);
+    expect(result.listings).toHaveLength(1);
+    // CR-01: rung 2 serving means TWO renders were paid for, not one.
+    expect(result.rendersUsed).toBe(2);
   });
 
   it("throws (HIGH-1) when both own-render rungs fail — no paid-actor rung 3 for area search (scrapeBooli is single-listing shaped)", async () => {
@@ -368,8 +378,10 @@ describe("fetchAreaListings", () => {
 
     const result = await fetchAreaListings("115341");
 
-    expect(result).toHaveLength(100); // page 1 + the 4 parallel pages, all distinct
+    expect(result.listings).toHaveLength(100); // page 1 + the 4 parallel pages, all distinct
     expect(actorCall).toHaveBeenCalledTimes(5); // 1 sequential + 4 parallel
+    // CR-01: the ledger must see all five renders, not one per area.
+    expect(result.rendersUsed).toBe(5);
     // Every later page's &page=N URL was requested.
     const requestedPages = actorCall.mock.calls.map((c) => pageOfUrl(c[0].startUrls[0].url)).sort();
     expect(requestedPages).toEqual([1, 2, 3, 4, 5]);
@@ -380,8 +392,9 @@ describe("fetchAreaListings", () => {
 
     const result = await fetchAreaListings("115341");
 
-    expect(result).toHaveLength(5);
+    expect(result.listings).toHaveLength(5);
     expect(actorCall).toHaveBeenCalledTimes(1); // page 1 only — no parallel batch
+    expect(result.rendersUsed).toBe(1);
   });
 
   it("de-dupes listings that repeat across pages (by booliId)", async () => {
@@ -395,7 +408,7 @@ describe("fetchAreaListings", () => {
 
     const result = await fetchAreaListings("115341");
 
-    expect(result).toHaveLength(20); // deduped, not 60
+    expect(result.listings).toHaveLength(20); // deduped, not 60
   });
 
   it("keeps every page that succeeds when a LATER parallel page fails (non-fatal)", async () => {
@@ -412,7 +425,19 @@ describe("fetchAreaListings", () => {
 
     const result = await fetchAreaListings("115341");
 
-    expect(result).toHaveLength(80); // pages 1,2,4,5 — page 3's failure dropped, not fatal
+    expect(result.listings).toHaveLength(80); // pages 1,2,4,5 — page 3's failure dropped, not fatal
+    // CR-01: page 3 exhausted BOTH rungs before failing — 4 served pages at
+    // rung 1 (4 renders) + page 3's two failed rungs = 6 paid renders. A
+    // failed page is not a free page.
+    expect(result.rendersUsed).toBe(4 + AREA_RENDER_RUNGS);
+  });
+
+  it("CR-01 — the worst case fetchAreaListings can reach is exactly the count cost.ts prices", () => {
+    // Drift guard: `discovery/cost.ts` hand-mirrors these two client constants
+    // (it must stay free of the Apify transport import), so pin them here.
+    expect(AREA_MAX_PAGES_PER_AREA).toBe(MAX_AREA_PAGES);
+    expect(AREA_RENDER_RUNGS_PER_PAGE).toBe(AREA_RENDER_RUNGS);
+    expect(AREA_MAX_RENDERS_PER_AREA).toBe(MAX_AREA_PAGES * AREA_RENDER_RUNGS);
   });
 });
 

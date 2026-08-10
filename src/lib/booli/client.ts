@@ -666,7 +666,7 @@ const FULL_PAGE_THRESHOLD = 20;
  * pagination largely unnecessary for the below-market use case; a future
  * refinement.)
  */
-const MAX_AREA_PAGES = 5;
+export const MAX_AREA_PAGES = 5;
 
 /**
  * D-02 (13-CONTEXT.md, RESEARCH Open Question #1) — a scoped, materially
@@ -738,20 +738,58 @@ function listingKey(listing: Record<string, unknown>): string | null {
  * data at all is caught earlier, inside `runPlaywrightRender` itself (dead
  * source), so only a confirmed-successful-but-empty render ever reaches
  * `extractListingEntities`. This function therefore returns a genuinely
- * empty `[]` for a sparse/new area instead of forcing it through the
+ * empty `listings: []` for a sparse/new area instead of forcing it through the
  * `walkFallbackTree` exhaustion path and misreporting it as "source failed."
+ *
+ * Cost reporting (CR-01, 14-REVIEW.md): the returned `rendersUsed` is the REAL
+ * paid-render count across every page and rung attempted (1..`MAX_AREA_PAGES` ×
+ * `AREA_RENDER_RUNGS`), so `runSlice` can price its persisted ledger from what
+ * actually happened instead of assuming one render per area.
  */
 /**
+ * The number of own-playwright rungs `fetchAreaPage` walks per page — i.e. the
+ * maximum paid Apify renders ONE page can consume, and exactly the number
+ * consumed when a page fails (all rungs attempted before `walkFallbackTree`
+ * throws). CR-01 (14-REVIEW.md): `runSlice`'s cost ledger reads this so a
+ * failed page is not silently accounted as 0 renders. Mirrored in
+ * `discovery/cost.ts` as `AREA_RENDER_RUNGS_PER_PAGE`, with a drift guard in
+ * `client.test.ts`.
+ */
+export const AREA_RENDER_RUNGS = 2;
+
+/** ACQ-02 result: the merged listings PLUS the paid renders they cost (CR-01). */
+export interface AreaListingsResult {
+  listings: Record<string, unknown>[];
+  /**
+   * The real number of paid Apify renders this call consumed — every rung of
+   * every page attempted, successful or not. `runSlice` prices the persisted
+   * `cost_sek_total` from this rather than assuming one render per area, which
+   * under-counted real spend by up to 10x and made `CAP_SEK_MAX`
+   * unenforceable (CR-01, 14-REVIEW.md).
+   */
+  rendersUsed: number;
+}
+
+/** One page's outcome: its entities plus the renders that page consumed. */
+interface AreaPageResult {
+  listings: Record<string, unknown>[];
+  rendersUsed: number;
+}
+
+/**
  * Renders ONE till-salu page for `areaId` through the two own-playwright rungs
- * and returns its `Listing:` entities. Throws (HIGH-1) only when BOTH rungs
- * fail — the caller decides whether that's fatal (page 1) or skippable (a
- * later page in the parallel batch).
+ * and returns its `Listing:` entities plus the renders consumed
+ * (`result.rung` — the same `rendersUsed: result.rung` convention
+ * `fetchSoldComps` already uses). Throws (HIGH-1) only when BOTH rungs fail —
+ * the caller decides whether that's fatal (page 1) or skippable (a later page
+ * in the parallel batch) — and a throw means all `AREA_RENDER_RUNGS` renders
+ * were paid for.
  */
 async function fetchAreaPage(
   areaId: string,
   objectType: string | null | undefined,
   page: number,
-): Promise<Record<string, unknown>[]> {
+): Promise<AreaPageResult> {
   const url = buildTillSaluUrl(areaId, objectType, page);
   const rungs = [
     {
@@ -773,15 +811,17 @@ async function fetchAreaPage(
   console.error(
     `[booli-client] fetchAreaListings page ${page} served by rung ${result.rung} (${result.source}, health=${result.health})`,
   );
-  return result.data;
+  return { listings: result.data, rendersUsed: result.rung };
 }
 
 export async function fetchAreaListings(
   areaId: string,
   objectType?: string | null,
-): Promise<Record<string, unknown>[]> {
+): Promise<AreaListingsResult> {
   const seen = new Set<string>();
   const collected: Record<string, unknown>[] = [];
+  // CR-01: accumulated from every page's real rung count, never assumed.
+  let rendersUsed = 0;
   const addNew = (listings: Record<string, unknown>[]): void => {
     for (const listing of listings) {
       const key = listingKey(listing);
@@ -796,11 +836,12 @@ export async function fetchAreaListings(
   // exactly as the pre-pagination single-render path did. Its SIZE also decides
   // whether the area is large enough to paginate at all.
   const page1 = await fetchAreaPage(areaId, objectType, 1);
-  addNew(page1);
+  rendersUsed += page1.rendersUsed;
+  addNew(page1.listings);
 
   // Only a FULL page 1 implies a large result set worth paginating; a short
   // page 1 is a small area already returned in full.
-  if (page1.length >= FULL_PAGE_THRESHOLD) {
+  if (page1.listings.length >= FULL_PAGE_THRESHOLD) {
     // Fetch pages 2..MAX_AREA_PAGES IN PARALLEL — each is an independent
     // ~15-45s render, so concurrency collapses the wall-clock to ~one render
     // instead of (MAX-1) sequential ones. `allSettled`: a later page failing
@@ -814,8 +855,12 @@ export async function fetchAreaListings(
     for (let i = 0; i < settled.length; i++) {
       const outcome = settled[i];
       if (outcome.status === "fulfilled") {
-        addNew(outcome.value);
+        rendersUsed += outcome.value.rendersUsed;
+        addNew(outcome.value.listings);
       } else {
+        // CR-01: a failed page still consumed EVERY rung's render — bill them.
+        // Under-counting a spend gate is the dangerous direction.
+        rendersUsed += AREA_RENDER_RUNGS;
         console.error(
           `[booli-client] fetchAreaListings page ${laterPages[i]} failed (non-fatal; keeping ${collected.length} listings)`,
           {
@@ -828,9 +873,9 @@ export async function fetchAreaListings(
   }
 
   console.error(
-    `[booli-client] fetchAreaListings collected ${collected.length} listings for area ${areaId}`,
+    `[booli-client] fetchAreaListings collected ${collected.length} listings for area ${areaId} (${rendersUsed} renders)`,
   );
-  return collected;
+  return { listings: collected, rendersUsed };
 }
 
 // ---------------------------------------------------------------------------
