@@ -72,6 +72,25 @@ export const BILLED_CALLS_BY_EXTRACTION_CODE: Readonly<Record<string, number>> =
   CLAUDE_MAX_TOKENS: 2,
 };
 
+/**
+ * WR-01 (14-REVIEW.md): the MOST billed calls one `lookupBrfSummary` can
+ * charge. Derived from the map above rather than restated, so a future code
+ * with a higher call count raises the caller's pre-gate automatically.
+ * `Math.max(1, ...)` keeps it a sane positive divisor even if the map were
+ * ever emptied.
+ *
+ * `lookupBrfForTopCandidates`'s budget pre-gate (job.ts) MUST price this, not
+ * one call: a gate that authorises an attempt able to charge twice what the
+ * gate priced is not a check-before-spend gate.
+ *
+ * This is also the worst case on the SUCCESS path — `extract.ts` retries once
+ * on truncation and (WR-02) now reports the summed usage of both attempts.
+ */
+export const MAX_BILLED_CALLS_PER_LOOKUP: number = Math.max(
+  1,
+  ...Object.values(BILLED_CALLS_BY_EXTRACTION_CODE),
+);
+
 /** The discriminated outcome of one `lookupBrfSummary` call. */
 export type BrfLookupOutcome =
   | "ok"

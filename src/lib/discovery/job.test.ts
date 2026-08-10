@@ -111,7 +111,11 @@ import {
   DETAIL_ENRICH_MAX_RETRIES,
   type SoldSourceQuery,
 } from "@/lib/booli/client";
-import { BRF_TOP_N } from "@/lib/discovery/brf-lookup";
+import {
+  BRF_TOP_N,
+  BILLED_CALLS_BY_EXTRACTION_CODE,
+  MAX_BILLED_CALLS_PER_LOOKUP,
+} from "@/lib/discovery/brf-lookup";
 import { HOLISTIC_DATA_ONLY_MARKER, type BrfSummary } from "@/lib/discovery/holistic-schema";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
@@ -1450,7 +1454,11 @@ describe("lookupBrfForTopCandidates — ANL-03 top-N concurrent BRF fetch", () =
     const candidates = Array.from({ length: BRF_TOP_N }, (_, i) =>
       makeCandidate({ brfName: `Brf ${i}` }),
     );
-    const budgetSek = estimateBrfLookupSek() * 2;
+    // WR-01: the gate prices the WORST case one lookup can charge
+    // (MAX_BILLED_CALLS_PER_LOOKUP extraction calls), so "budget for 2
+    // lookups" is 2 x that worst case — not 2 x a single call, which is what
+    // this fixture used to assume and is exactly the overshoot WR-01 reports.
+    const budgetSek = estimateBrfLookupSek() * MAX_BILLED_CALLS_PER_LOOKUP * 2;
 
     const result = await lookupBrfForTopCandidates(candidates, {
       jobId: "job-1",
@@ -1459,6 +1467,28 @@ describe("lookupBrfForTopCandidates — ANL-03 top-N concurrent BRF fetch", () =
 
     expect(lookupBrfSummary).toHaveBeenCalledTimes(2);
     expect(result.skippedForBudget).toBe(BRF_TOP_N - 2);
+  });
+
+  it("WR-01 — a budget covering only ONE billed call authorises ZERO lookups (the attempt could charge two)", async () => {
+    lookupBrfSummary.mockResolvedValue({ summary: null, costSek: 0, outcome: "no_document" });
+    const candidates = [makeCandidate({ brfName: "Brf X" })];
+
+    const result = await lookupBrfForTopCandidates(candidates, {
+      jobId: "job-1",
+      // Enough for one call, NOT enough for the retry-then-throw worst case.
+      budgetSek: estimateBrfLookupSek() * 1.5,
+    });
+
+    expect(lookupBrfSummary).not.toHaveBeenCalled();
+    expect(result.skippedForBudget).toBe(1);
+    expect(result.spentSek).toBe(0);
+  });
+
+  it("WR-01 — the pre-gate divisor equals the maximum the charge path can bill", () => {
+    expect(MAX_BILLED_CALLS_PER_LOOKUP).toBe(
+      Math.max(...Object.values(BILLED_CALLS_BY_EXTRACTION_CODE)),
+    );
+    expect(MAX_BILLED_CALLS_PER_LOOKUP).toBe(2);
   });
 });
 

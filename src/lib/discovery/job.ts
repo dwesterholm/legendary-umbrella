@@ -40,7 +40,11 @@ import {
   WIDENED_SIZE_BAND_PCT,
   WIDENED_MAX_AGE_MONTHS,
 } from "@/lib/discovery/confounder-guard";
-import { lookupBrfSummary, BRF_TOP_N } from "@/lib/discovery/brf-lookup";
+import {
+  lookupBrfSummary,
+  BRF_TOP_N,
+  MAX_BILLED_CALLS_PER_LOOKUP,
+} from "@/lib/discovery/brf-lookup";
 import type { AreaCompsSummary, BrfSummary } from "@/lib/discovery/holistic-schema";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
 import type { createClient } from "@/lib/supabase/server";
@@ -928,8 +932,14 @@ export async function lookupBrfForTopCandidates(
       .filter((i) => candidates[i].brfName !== null)
       .slice(0, BRF_TOP_N);
 
-    // Budget pre-gate BEFORE any network work.
-    const allowed = Math.max(0, Math.floor(opts.budgetSek / estimateBrfLookupSek()));
+    // Budget pre-gate BEFORE any network work. WR-01 (14-REVIEW.md): priced at
+    // the worst case ONE lookup can charge (`MAX_BILLED_CALLS_PER_LOOKUP` ×
+    // one extraction call), not one call — a CLAUDE_MAX_TOKENS failure, and a
+    // success after a truncation retry, both bill twice, so dividing by a
+    // single call authorised attempts that could overshoot the remaining pool
+    // by ~90%.
+    const worstCasePerLookup = estimateBrfLookupSek() * MAX_BILLED_CALLS_PER_LOOKUP;
+    const allowed = Math.max(0, Math.floor(opts.budgetSek / worstCasePerLookup));
     const attempted = eligible.slice(0, allowed);
     skippedForBudget = eligible.length - attempted.length;
     attemptedIndices = attempted;
