@@ -97,6 +97,7 @@ import {
   dedupeCandidates,
   resolveCompsForCandidates,
   lookupBrfForTopCandidates,
+  MAX_COMPS_AREAS_PER_PASS,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
@@ -106,6 +107,7 @@ import {
   estimateBrfLookupSek,
   estimateCompsFetchSek,
   AREA_RENDER_RUNGS_PER_PAGE,
+  CAP_VISION_SEK_MAX,
 } from "@/lib/discovery/cost";
 import {
   DETAIL_ENRICH_WAIT_SECS,
@@ -118,6 +120,7 @@ import {
   MAX_BILLED_CALLS_PER_LOOKUP,
 } from "@/lib/discovery/brf-lookup";
 import { HOLISTIC_DATA_ONLY_MARKER, type BrfSummary } from "@/lib/discovery/holistic-schema";
+import { MAX_AREAS_PER_SEARCH } from "@/lib/discovery/resolve-area";
 
 /** Captures every `.update(payload)` call on the mocked `discovery_jobs` table. */
 let updateCalls: Array<Record<string, unknown>>;
@@ -1069,6 +1072,65 @@ describe("resolveCompsForCandidates — ANL-02 amortized per-area comps", () => 
     expect(fetchSoldComps).not.toHaveBeenCalled();
     expect(result.areasSkippedForBudget).toBeGreaterThan(0);
     expect(result.spentSek).toBe(0);
+  });
+
+  it("WR-13 — the per-pass area cap is purpose-named and larger than the user-typed-query cap it used to borrow", () => {
+    expect(MAX_COMPS_AREAS_PER_PASS).toBeGreaterThan(MAX_AREAS_PER_SEARCH);
+    // Worst-case comps spend for a full pass must stay a small slice of the
+    // shared D-14-08 pool, leaving room for BRF top-N + vision.
+    const worstCase = MAX_COMPS_AREAS_PER_PASS * (estimateCompsFetchSek() + renderSek(1));
+    expect(worstCase).toBeLessThan(CAP_VISION_SEK_MAX / 2);
+  });
+
+  it("WR-13 — labels dropped by the CAP are counted and logged, not silently lost", async () => {
+    resolveArea.mockImplementation(async (label: string) => ({
+      areaId: `AREA-${label}`,
+      source: "seed" as const,
+    }));
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Two more distinct labels than the cap allows.
+    const overCap = MAX_COMPS_AREAS_PER_PASS + 2;
+    const candidates = Array.from({ length: overCap }, (_, i) =>
+      makeCandidate({ areaLabel: `Område ${i}`, sourceListingUrl: `https://www.booli.se/annons/${i}` }),
+    );
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: CAP_VISION_SEK_MAX,
+    });
+
+    // Before WR-13 this loss was invisible: areasSkippedForBudget was computed
+    // from the already-truncated label list, so cap-dropped labels were
+    // counted and logged nowhere.
+    expect(result.areasSkippedForCap).toBe(2);
+    expect(resolveArea).toHaveBeenCalledTimes(MAX_COMPS_AREAS_PER_PASS);
+    expect(errSpy).toHaveBeenCalledWith(
+      "[discovery-job] comps areas dropped by the per-pass cap",
+      expect.objectContaining({ areasSkippedForCap: 2, cap: MAX_COMPS_AREAS_PER_PASS }),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("WR-13 — areasSkippedForCap is 0 when every distinct label fits", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-1", source: "seed" as const });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const candidates = [makeCandidate({ areaLabel: "Södermalm" })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: CAP_VISION_SEK_MAX,
+    });
+
+    expect(result.areasSkippedForCap).toBe(0);
   });
 
   it("WR-12 — a budget covering only the comps fetch (not the probe render it authorises) allows ZERO areas", async () => {

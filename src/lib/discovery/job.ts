@@ -9,12 +9,7 @@ import {
 } from "@/lib/booli/client";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
-import {
-  resolveArea,
-  splitAreaQuery,
-  MAX_AREAS_PER_SEARCH,
-  type AreaResolution,
-} from "@/lib/discovery/resolve-area";
+import { resolveArea, splitAreaQuery, type AreaResolution } from "@/lib/discovery/resolve-area";
 import {
   toCandidate,
   filterCandidates,
@@ -649,6 +644,28 @@ function buildCompsQuery(areaId: string): SoldSourceQuery {
   };
 }
 
+/**
+ * WR-13 (14-REVIEW.md): the per-PASS cap on distinct scraped area labels the
+ * comps resolution will cover.
+ *
+ * This used to be `MAX_AREAS_PER_SEARCH` (4, `resolve-area.ts`), which was
+ * sized for USER-TYPED area names in `splitAreaQuery` ("Södermalm och
+ * Vasastan") — a handful by construction. Reusing it here capped a completely
+ * different and much larger population: the distinct `descriptiveAreaName`
+ * values Booli returns ACROSS THE WHOLE CANDIDATE SET. Candidates outside the
+ * first 4 labels silently got `areaComps: null` and fell through to the
+ * "insufficient-data" brief.
+ *
+ * 8 doubles the coverage while keeping the worst-case comps spend
+ * (8 × (`estimateCompsFetchSek()` + one probe render) ≈ 1.5 SEK) a small slice
+ * of the shared `CAP_VISION_SEK_MAX` pool, leaving room for the BRF top-N and
+ * the vision pass (D-14-08) — the budget pre-gate below still binds first
+ * whenever the pool is tighter than that. It also bounds Apify concurrency to
+ * 8 simultaneous area resolutions/fetches, in line with the area sweep's own
+ * `MAX_AREA_PAGES` bound.
+ */
+export const MAX_COMPS_AREAS_PER_PASS = 8;
+
 /** The result of `resolveCompsForCandidates` — one `AreaCompsSummary` per
  * candidate index that got a resolvable area + comps, plus the spend/skip
  * bookkeeping `runVisionForJob` folds into its shared budget pool. */
@@ -657,6 +674,13 @@ export interface CompsResolution {
   spentSek: number;
   areasFetched: number;
   areasSkippedForBudget: number;
+  /**
+   * Distinct area labels dropped by `MAX_COMPS_AREAS_PER_PASS` — as opposed to
+   * by the budget gate. WR-13: this loss used to be INVISIBLE, because
+   * `areasSkippedForBudget` was computed from the ALREADY-TRUNCATED label list,
+   * so cap-dropped labels were counted and logged nowhere.
+   */
+  areasSkippedForCap: number;
 }
 
 /**
@@ -708,15 +732,15 @@ export async function resolveCompsForCandidates(
   let spentSek = 0;
   let areasFetched = 0;
   let areasSkippedForBudget = 0;
+  let areasSkippedForCap = 0;
 
   try {
     const asOf = opts.asOf ?? new Date().toISOString().slice(0, 10);
 
     // (a) Group candidate indices by areaLabel — a candidate without one is
     // skipped honestly (no comps, no fabricated area). First
-    // MAX_AREAS_PER_SEARCH distinct labels, first-seen order, hard-bounding
-    // the number of resolutions/fetches exactly like runSlice's own area
-    // handling.
+    // MAX_COMPS_AREAS_PER_PASS distinct labels, first-seen order, hard-bounding
+    // the number of resolutions/fetches.
     const labelToIndices = new Map<string, number[]>();
     for (let i = 0; i < candidates.length; i++) {
       const label = candidates[i].areaLabel;
@@ -725,7 +749,22 @@ export async function resolveCompsForCandidates(
       indices.push(i);
       labelToIndices.set(label, indices);
     }
-    const allLabels = [...labelToIndices.keys()].slice(0, MAX_AREAS_PER_SEARCH);
+    // WR-13: count the labels the CAP drops, before truncating — computing the
+    // skip counts from the already-truncated list made this loss invisible.
+    const distinctLabels = [...labelToIndices.keys()];
+    const allLabels = distinctLabels.slice(0, MAX_COMPS_AREAS_PER_PASS);
+    areasSkippedForCap = distinctLabels.length - allLabels.length;
+    if (areasSkippedForCap > 0) {
+      // Diagnostic: a candidate silently falling through to the
+      // "insufficient-data" brief because its area never got comps must be
+      // explainable from the logs, not guessed at.
+      console.error("[discovery-job] comps areas dropped by the per-pass cap", {
+        jobId,
+        distinctLabels: distinctLabels.length,
+        cap: MAX_COMPS_AREAS_PER_PASS,
+        areasSkippedForCap,
+      });
+    }
 
     // (b) Budget pre-gate BEFORE any network work. WR-12 (14-REVIEW.md): one
     // allowed area can cost the comps fetch PLUS a live `resolveArea` probe
@@ -739,7 +778,7 @@ export async function resolveCompsForCandidates(
     areasSkippedForBudget = allLabels.length - labels.length;
 
     if (labels.length === 0) {
-      return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+      return { byIndex, spentSek, areasFetched, areasSkippedForBudget, areasSkippedForCap };
     }
 
     // (c) Resolve the allowed labels CONCURRENTLY. A null resolution is
@@ -791,7 +830,7 @@ export async function resolveCompsForCandidates(
     const areaIds = [...new Set(areaIdByIndex.values())];
 
     if (areaIds.length === 0) {
-      return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+      return { byIndex, spentSek, areasFetched, areasSkippedForBudget, areasSkippedForCap };
     }
 
     // (d) Fetch comps CONCURRENTLY, once per distinct areaId. `fetchSoldComps`
@@ -863,7 +902,7 @@ export async function resolveCompsForCandidates(
       });
     }
 
-    return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+    return { byIndex, spentSek, areasFetched, areasSkippedForBudget, areasSkippedForCap };
   } catch (error) {
     // (f) Never throw — return whatever partial progress the mutable
     // accumulators above already captured.
@@ -871,7 +910,7 @@ export async function resolveCompsForCandidates(
       jobId,
       code: error instanceof Error ? error.message : "UNKNOWN",
     });
-    return { byIndex, spentSek, areasFetched, areasSkippedForBudget };
+    return { byIndex, spentSek, areasFetched, areasSkippedForBudget, areasSkippedForCap };
   }
 }
 
