@@ -185,6 +185,22 @@ export function visionCostSek(
  */
 const IMAGE_TOKENS_STANDARD_TIER = 1568 as const;
 
+/**
+ * The number of independently-capped image SETS `runVisionForCandidate` sends
+ * in one message: the Booli/bcdn.se URL set and the broker-gallery byte set,
+ * each `.slice(0, CAP_IMAGES_PER_LISTING)`d on its own (`vision.ts`). WR-04
+ * (14-REVIEW.md) — pricing only one of them understated the per-call worst
+ * case by ~60%.
+ */
+const VISION_IMAGE_SETS_PER_CALL = 2 as const;
+
+/**
+ * The real per-call image ceiling: both independently-capped sets. Exported so
+ * a test can pin it against `CAP_IMAGES_PER_LISTING` rather than a literal.
+ */
+export const VISION_MAX_IMAGES_PER_CALL: number =
+  CAP_IMAGES_PER_LISTING * VISION_IMAGE_SETS_PER_CALL;
+
 /** Conservative max output tokens per call (mirrors `max_tokens` in
  * `vision.ts`'s Haiku pre-filter (300) and Sonnet deep-pass (1024) calls). */
 const HAIKU_MAX_OUTPUT_TOKENS = 300 as const;
@@ -197,7 +213,7 @@ const SONNET_MAX_OUTPUT_TOKENS = 1024 as const;
  * reusable pre-spend-gate helper tied to the actual cost model — NOT an
  * arbitrary `CAP_VISION_SEK_MAX / candidates.length` average.
  *
- * Worst case: `CAP_IMAGES_PER_LISTING` images sent TWICE (once to Haiku,
+ * Worst case: `VISION_MAX_IMAGES_PER_CALL` images sent TWICE (once to Haiku,
  * once to Sonnet — `runVisionForCandidate` always runs the pre-filter, and
  * MAY run the full-image-set Sonnet deep pass), each image priced at the
  * Standard-tier ~1568-visual-token estimate, plus each call's `max_tokens`
@@ -205,10 +221,17 @@ const SONNET_MAX_OUTPUT_TOKENS = 1024 as const;
  * imminent call can cost — never an average that shrinks as the candidate
  * count grows.
  *
+ * WR-04 (14-REVIEW.md): the per-call image count is `2 ×
+ * CAP_IMAGES_PER_LISTING`, not `CAP_IMAGES_PER_LISTING` — `runVisionForCandidate`
+ * caps the Booli URL set and the broker-gallery byte set INDEPENDENTLY
+ * (`vision.ts`: `imageUrls.slice(0, CAP)` + `brokerImages.slice(0, CAP)`) and
+ * sends both in the same message. Pricing one cap made this "genuine upper
+ * bound" ~60% low, which is the wrong direction for a pre-spend gate.
+ *
  * @returns the worst-case SEK cost of ONE candidate's full two-pass vision call
  */
 export function estimateVisionCallSek(): number {
-  const imageTokens = CAP_IMAGES_PER_LISTING * IMAGE_TOKENS_STANDARD_TIER;
+  const imageTokens = VISION_MAX_IMAGES_PER_CALL * IMAGE_TOKENS_STANDARD_TIER;
 
   const haikuUsage: ClaudeUsage = {
     input_tokens: imageTokens,

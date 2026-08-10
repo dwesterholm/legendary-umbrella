@@ -14,9 +14,11 @@ import {
   AREA_MAX_RENDERS_PER_AREA,
   AREA_RENDER_RUNGS_PER_PAGE,
   estimateAreaFetchSek,
+  estimateVisionCallSek,
+  VISION_MAX_IMAGES_PER_CALL,
 } from "@/lib/discovery/cost";
 import { costSek, costSekSonnet, USD_SEK_RATE } from "@/lib/brf/cost";
-import { CAP_SEK_MAX } from "@/lib/discovery/filter-schema";
+import { CAP_SEK_MAX, CAP_IMAGES_PER_LISTING } from "@/lib/discovery/filter-schema";
 
 describe("discoveryCostSek — Haiku parse cost + per-render scrape cost", () => {
   it("equals costSek(haikuUsage) + renders * USD_PER_RENDER * USD_SEK_RATE", () => {
@@ -120,6 +122,32 @@ describe("estimateCompsFetchSek / COMPS_MAX_RENDERS_PER_AREA — 14-05 (ANL-02)"
 
   it("equals renderSek(COMPS_MAX_RENDERS_PER_AREA)", () => {
     expect(estimateCompsFetchSek()).toBeCloseTo(renderSek(COMPS_MAX_RENDERS_PER_AREA), 10);
+  });
+});
+
+describe("estimateVisionCallSek — WR-04 (14-REVIEW.md): both image sets are priced", () => {
+  it("prices the two independently-capped image sets runVisionForCandidate sends", () => {
+    expect(VISION_MAX_IMAGES_PER_CALL).toBe(CAP_IMAGES_PER_LISTING * 2);
+  });
+
+  it("exceeds what a single-image-set estimate would have produced", () => {
+    // Reconstructing the OLD (single-cap) figure from the same rate model: the
+    // corrected estimate must be strictly larger, since input tokens are the
+    // dominant term and only they changed.
+    const IMAGE_TOKENS = 1568;
+    const singleSetHaiku = costSek({
+      input_tokens: CAP_IMAGES_PER_LISTING * IMAGE_TOKENS,
+      output_tokens: 300,
+    });
+    const singleSetSonnet = costSekSonnet({
+      input_tokens: CAP_IMAGES_PER_LISTING * IMAGE_TOKENS,
+      output_tokens: 1024,
+    });
+    expect(estimateVisionCallSek()).toBeGreaterThan(singleSetHaiku + singleSetSonnet);
+  });
+
+  it("still leaves room for several candidates inside CAP_VISION_SEK_MAX (the gate must not starve the pass)", () => {
+    expect(estimateVisionCallSek() * 3).toBeLessThan(CAP_VISION_SEK_MAX);
   });
 });
 
