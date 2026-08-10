@@ -14,6 +14,7 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 - ✅ **v1.1 Owned Data Layer & Intelligent Discovery** shipped code-complete 2026-07-07 (Phases 5–12; 27 plans; 629 tests; migrations 006–011 live). Archive: `milestones/v1.1-ROADMAP.md` · audit: `milestones/v1.1-MILESTONE-AUDIT.md`.
   - **Discovery surface (Phases 9–12): legal go/no-go = GO (operator, 2026-07-08); `DISCOVERY_ENABLED` now ON** in the operator env. The flag is retained as the runtime kill switch (not removed). Live validation gates (Phase 11 20–30-listing accuracy gate + Phase 12 floor-plan hedging kill-criterion, see phase `*-UAT.md`) still stand as separate operator checks. Phases 5–8 (owned acquisition, broker extraction, macro context, BRF auto-fetch) are independently shippable after lighter live smoke checks.
 - 🔨 **v1.2 Renovator-Grade Discovery Analysis** started 2026-07-17. The discovery data layer is solid; **analysis quality is the gap** — turn the image-only condition read into a holistic, ROI-aware, buyer-tailored opportunity brief per candidate, and fix the poll-timeout UX that the richer scrape surfaced. Cores already built + tested on `main` (`flip-economics.ts`, `area-comps.ts`, pre-filter/triage flips); this milestone wires them into the live analysis. See `.planning/research/2026-07-10-ANALYSIS-REDESIGN-SPEC.md`.
+  - **Phase 14 (Holistic Analysis Brain) complete 2026-08-10** — comps + BRF now fold into every candidate's value case, no candidate leaves analysis with empty `claims: []`, and low kr/m² is normalized against confounders (incl. a trusted-but-alarming BRF debt figure) before any condition attribution. Took two gap-closure rounds plus a code-review fix pass; 4/4 must-haves verified, 972 tests. Four live-operator checks are deferred in `phases/14-holistic-analysis-brain/14-UAT.md`, blocked on the paused Supabase project and a Booli/Cloudflare-blocked operator IP. Phase 13's live-smoke re-run (13-03) is still outstanding.
 
 ## Current Milestone: v1.2 Renovator-Grade Discovery Analysis
 
@@ -63,12 +64,12 @@ Give Swedish home buyers an independent, data-driven analysis of any listing —
 - ✓ Configurable niche ranking of discovery candidates — v1.1 (DISC-03)
 - ✓ Hedged, image-cited gallery condition vision — v1.1 (DISC-04)
 - ✓ Floor-plan investigation-prompts + theoretical sun-path — v1.1 (DISC-05/06)
+- ✓ Holistic per-candidate analysis — folds BRF (avgift/debt/stambyte/tomträtt) + renovated-vs-unrenovated comps into the value case, and normalizes low kr/m² against confounders before any reno attribution — Validated in Phase 14: Holistic Analysis Brain (ANL-02/03/04; `soliditet` deferred by operator acceptance, D-14-02)
+- ✓ Every surfaced candidate gets ≥1 actionable opportunity (no empty `claims: []`) — Validated in Phase 14: Holistic Analysis Brain (ANL-01)
 
 ### Active (v1.2 — scoped in REQUIREMENTS.md)
 
 - [ ] Discovery flow completes within the client poll window (no forced reload)
-- [ ] Holistic per-candidate analysis — fold BRF (avgift/debt/stambyte) + renovated-vs-unrenovated comps into the value case
-- [ ] Every surfaced candidate gets ≥1 actionable opportunity (no empty `claims: []`)
 - [ ] ROI-aware, buyer-segment-tailored opportunity brief — tiered cost/profit bands, profit shown with & without tax
 - [ ] Value-gap headline metric that also re-orders discovery results (separate read path)
 - [ ] Proposed planritning (image-gen) for HIGH value-gap candidates, with daylight/bearing caveats
@@ -152,4 +153,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-17 — milestone v1.2 (Renovator-Grade Discovery Analysis) started*
+*Last updated: 2026-08-10 — Phase 14 (Holistic Analysis Brain) complete; milestone v1.2 in progress*
