@@ -187,12 +187,19 @@ export function brfNameFromBreadcrumbs(breadcrumbs: unknown): string | null {
  * `fetch-brf-auto.ts`'s typed `Breadcrumb[] | null`.
  *
  * NOTE: Booli breadcrumb labels are in the Swedish genitive form ("Stockholms
- * kommun" -> "Stockholms"), which may not exactly match a registry's
- * nominative kommun name ("Stockholm") — `resolveOrgNr`'s `normalizeKommun`
- * does an exact case-insensitive comparison with no genitive normalization
- * yet (plan 14-03's fix, not this plan's). A format mismatch fails CLOSED to
- * "low" confidence (never wrongly promotes to "high"), which is the safe
- * direction per Pitfall 4 — accepted limitation pending 14-03.
+ * kommun" -> "Stockholms"), which does NOT match a registry's nominative kommun
+ * name ("Stockholm") textually. Returning the genitive stem here is
+ * nevertheless intentional and correct: `resolveOrgNr`'s `normalizeKommun`
+ * (`org-nr-resolver.ts`) strips the "kommun" suffix and the genitive "-s" (with
+ * a >3-character stem guard) and applies that SAME transform to BOTH sides of
+ * the comparison, so "Stockholms" and "Stockholm" both reduce to "stockholm"
+ * and corroborate. WR-14 (14-REVIEW.md): this comment previously still said
+ * `normalizeKommun` does "an exact case-insensitive comparison with no genitive
+ * normalization yet (plan 14-03's fix, not this plan's) … accepted limitation
+ * pending 14-03" — 14-03 shipped, and `fetch-brf-auto.ts:90-97` documents the
+ * live behaviour, so the two comments contradicted each other and a reader
+ * following this one would conclude discovery BRF lookups can never reach
+ * "high" (the exact false belief 14-03 existed to remove).
  */
 export function kommunFromBreadcrumbs(breadcrumbs: unknown): string | null {
   if (!Array.isArray(breadcrumbs)) return null;
