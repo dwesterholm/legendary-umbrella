@@ -466,6 +466,23 @@ describe("GalleryConditionVision — holistic-data-only brief (ANL-01, D-14-04)"
     expect(screen.getByText(HOLISTIC_DATA_ONLY_MARKER)).toBeInTheDocument();
   });
 
+  it("WR-16 — renders the brief for vision === null && visionSkippedReason === null, the cell job.ts attaches to but nothing used to render", () => {
+    // job.ts's attach predicate is `c.vision === null || c.vision.claims.length
+    // === 0`, so this state DOES get a brief attached. Both previous render
+    // cells consulted visionSkippedReason, so it rendered nowhere — an
+    // invariant held only by convention across two files, with no test.
+    render(
+      <GalleryConditionVision
+        vision={null}
+        visionSkippedReason={null}
+        {...DEFAULT_SUN_PROPS}
+        holisticBrief={makeHolisticBrief()}
+      />,
+    );
+
+    expect(screen.getByText(HOLISTIC_DATA_ONLY_MARKER)).toBeInTheDocument();
+  });
+
   it("does not render the brief when image-cited claims exist (the brief was never attached in that case)", () => {
     render(
       <GalleryConditionVision

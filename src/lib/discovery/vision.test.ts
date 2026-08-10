@@ -758,10 +758,22 @@ describe("runVisionPass", () => {
         makeCandidate({ sourceListingUrl: "https://www.booli.se/annons/1" }),
       ];
 
-      const withZero = await runVisionPass(candidates, { initialSpentSek: 0 });
-      const withOmitted = await runVisionPass(candidates);
+      // `VisionResult.ranAt` is `new Date().toISOString()`, so a bare
+      // `toEqual` between two sequential passes fails whenever they straddle a
+      // millisecond boundary — a real, pre-existing flake unrelated to what
+      // this test is about. Freeze the clock so the comparison measures the
+      // BEHAVIOUR (identical results) and nothing else; the assertion itself is
+      // unchanged and no field is excluded from it.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-10T12:00:00.000Z"));
+      try {
+        const withZero = await runVisionPass(candidates, { initialSpentSek: 0 });
+        const withOmitted = await runVisionPass(candidates);
 
-      expect(withZero).toEqual(withOmitted);
+        expect(withZero).toEqual(withOmitted);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("treats undefined / negative / NaN initialSpentSek all as 0", async () => {

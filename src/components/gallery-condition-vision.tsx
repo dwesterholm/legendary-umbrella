@@ -200,9 +200,14 @@ export function GalleryConditionVision({
             surfaced candidate leaves analysis with ≥1 actionable item").
             The dead-end line only survives when hasHolisticBrief is false —
             genuinely nothing to say.
-          - visionSkippedReason === null && hasClaims → unchanged, no brief
-            (image-cited claims already exist; the brief was never attached
-            by the analysis pass in this case).
+          - vision === null && visionSkippedReason === null → the brief
+            renders too (WR-16, 14-REVIEW.md). This cell used to render
+            NOTHING even though job.ts attaches a brief for it, because both
+            brief cells consulted visionSkippedReason; the invariant keeping
+            it unreachable was held by convention across two files.
+          - hasClaims → no brief (image-cited claims already exist; the
+            analysis pass never attaches one in this case, and this component
+            enforces it independently).
           - hasHolisticBrief === false → nothing new renders anywhere; every
             existing state stays byte-identical to pre-Phase-14 output.
       */}
@@ -227,7 +232,24 @@ export function GalleryConditionVision({
           </p>
         )}
 
-        {visionSkippedReason !== null && hasHolisticBrief && holisticBrief && (
+        {/*
+          WR-16 (14-REVIEW.md): ONE cell, not two keyed on
+          `visionSkippedReason`. The two previous cells covered
+          `visionSkippedReason !== null` and
+          `visionSkippedReason === null && visionRanButEmpty`, which left the
+          state `vision === null && visionSkippedReason === null` getting a
+          brief ATTACHED by the analysis pass (`job.ts`'s attach predicate is
+          `c.vision === null || c.vision.claims.length === 0`) and rendered
+          NOWHERE. That invariant was held only by convention across two files.
+          The analysis pass already guarantees a brief is attached only when
+          there are no image claims, so gating on `!hasClaims` alone is both
+          sufficient and reachable in every no-claims state. `!hasClaims` is
+          kept (the review's suggestion drops it) so the defence-in-depth
+          behaviour "image-cited claims suppress the data-only brief" — which
+          this component's own test documents — still holds if a future write
+          path ever attaches both.
+        */}
+        {hasHolisticBrief && holisticBrief && !hasClaims && (
           <HolisticDataBrief brief={holisticBrief} />
         )}
 
@@ -237,11 +259,6 @@ export function GalleryConditionVision({
             med rimlig säkerhet.
           </p>
         )}
-
-        {visionSkippedReason === null &&
-          visionRanButEmpty &&
-          hasHolisticBrief &&
-          holisticBrief && <HolisticDataBrief brief={holisticBrief} />}
 
         {visionSkippedReason === null && hasClaims && (
           <>
