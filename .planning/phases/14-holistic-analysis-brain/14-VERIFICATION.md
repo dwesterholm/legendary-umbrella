@@ -1,89 +1,41 @@
 ---
 phase: 14-holistic-analysis-brain
-verified: 2026-08-08T18:00:00Z
-status: gaps_found
-score: 3/4 must-haves verified
+verified: 2026-08-10T14:10:00Z
+status: passed
+verifier_status: human_needed
+score: 4/4 must-haves verified
 overrides:
   - must_have: "ANL-03: BRF summary includes soliditet"
     reason: "No field exists on brfExtractionSchema; rarely cleanly extractable from iXBRL; debt/m² carries most of the balance-sheet signal (14-CONTEXT.md D-14-02, and the matching Deferred Ideas entry). Accepted as a scope deferral, not a defect — the remaining ANL-03 fields (avgift, debt/m², stambyte funding state, tomträtt) ship and are fixed by plans 14-07 and 14-10."
     accepted_by: "Daniel Westerholm"
     accepted_at: "2026-08-08T14:51:40Z"
-overrides_applied: 1
+  - must_have: "The four live-operator human_verification items below"
+    reason: >
+      All 4/4 automated must-haves verified against source, and the verifier found
+      no regressions across the 20 fix(14) commits. The verifier returned
+      human_needed solely because of the four live-operator items in
+      human_verification, every one of which is blocked by environment rather than
+      by code: the Supabase project (nsheegvczxjeeayngqrv) is paused so resolveArea
+      cannot read area_cache, and the operator IP is Booli/Cloudflare-blocked (403
+      on detail pages). None are new — all four are carried forward unchanged from
+      prior passes. Deferred as a live-operator gate per 14-VALIDATION.md,
+      consistent with the Phases 11-13 precedent. Items persisted to 14-UAT.md
+      (status deferred_live) so they remain discoverable via /gsd-progress and
+      /gsd-audit-uat; work them with /gsd-verify-work 14 once Supabase is restored
+      and the run originates from a non-blocked IP.
+    accepted_by: "Daniel Westerholm"
+    accepted_at: "2026-08-10T14:20:00Z"
+    tracked_in: ".planning/phases/14-holistic-analysis-brain/14-UAT.md"
+overrides_applied: 2
 re_verification:
   previous_status: gaps_found
-  previous_score: 2/4
+  previous_score: 3/4
   gaps_closed:
-    - "ANL-03: avgiftsniva unit mislabeling (CR-01) — now states kr/kvm och år, derives kr/mån from livingArea"
-    - "ANL-03: sanity-band confidence downgrade discarded (original CR-02) — BrfSummary.fieldConfidence now carries the downgrade through scoreExtraction, and the single brfFieldTrusted gate is consumed by both normalizeForConfounders and buildBrfItem"
-    - "ANL-03: raw stambytePlanerat enum token concatenated into prose (CR-03) — STAMBYTE_PROSE map now used, ej_nämnt correctly suppressed"
-    - "ANL-03: BRF extraction failure reported as costSek: 0 after a billed call (CR-04) — throw path now charges BILLED_CALLS_BY_EXTRACTION_CODE × estimateBrfLookupSek(), partially (see gaps_remaining)"
-    - "ANL-03: soliditet deferral now recorded as an explicit human-accepted override (plan 14-09) rather than a silent gap"
-  gaps_remaining:
-    - "ANL-04: the CR-02 trust gate (14-REVIEW.md's re-review Critical #2) makes the SPEC §2.2 >15k-debt red flag structurally unreachable through the real extraction pipeline, AND silently excludes genuinely high (but real) BRF debt from the debt-inclusive kr/m² basis — independently confirmed against source, not just the review claim."
+    - "ANL-04: HIGH_BRF_DEBT_PER_SQM (15k, SPEC §2.2 alarm) no longer shares a value with BRF_SANITY_BANDS.skuldPerKvm.max (the implausibility ceiling). A new IMPLAUSIBLE_BRF_DEBT_PER_SQM = 60_000 and brfDebtPerSqmUsable() split 'is this even a debt/m² figure' (misextraction, suppressed) from 'is this förening dangerously indebted' (real signal, trusted for arithmetic AND named brf_debt_high). Independently re-derived against source: confounder-guard.ts:47/78/112-126, sanity.ts left deliberately unmodified (confirmed still shared with the single-listing Osäker badge / /sa-raknar-vi)."
+    - "ANL-04: a real-pipeline-reachable test now exists — brf-lookup.test.ts:334 runs lookupBrfSummary end-to-end (mocking only the Allabrf/Claude edges, so scoreExtraction -> applySanityChecks executes for real) with a genuinely high 30_000 skuldPerKvm, asserts the real pipeline band-downgrades its confidence below OSAKER_THRESHOLD, and then asserts brfDebtPerSqmUsable() still returns true, debtIncluded/effectivePricePerSqm fold the debt in, brf_debt_high fires, and buildHolisticBrief renders it with the '(högre än vanligt)' flag. This is not a fixture that bypasses applySanityChecks — traced brf-lookup.ts:174 (scoreExtraction call, no manualFields) end to end."
+    - "ANL-04: buildBrfItem (confounder-guard.ts:626-642) now gates the debt sentence on brfDebtPerSqmUsable, not brfFieldTrusted — a real 20-40k debt renders as fact with the flag; only a >60k implausible misextraction is withheld. Confirmed by direct read plus confounder-guard.test.ts:430-443 and brf-lookup.test.ts:396-406."
+  gaps_remaining: []
   regressions: []
-gaps:
-  - truth: "ANL-04: kr/m² is normalized against confounders — including BRF debt — before any condition/reno attribution"
-    status: failed
-    reason: >
-      Independently confirmed against source (not just trusting 14-REVIEW.md's
-      CR-02 finding): `HIGH_BRF_DEBT_PER_SQM = 15_000`
-      (confounder-guard.ts:45) is numerically IDENTICAL to
-      `BRF_SANITY_BANDS.skuldPerKvm.max = 15000` (sanity.ts:24-25).
-      `applySanityChecks` (sanity.ts:56-74) forces confidence to
-      `DOWNGRADED_CONFIDENCE = 0.2` for ANY skuldPerKvm outside [2000, 15000]
-      — strictly below `OSAKER_THRESHOLD = 0.5`. `brf-lookup.ts:155` calls
-      `scoreExtraction(result.parsed)` with the default `manualFields = []`
-      (run-extraction.ts:166-201) — the discovery path never supplies a
-      manual override. Consequence, traced end to end: for EVERY real
-      extraction-sourced skuldPerKvm > 15 000, `brfFieldTrusted` is
-      structurally `false` (confidence forced to 0.2 < 0.5), so
-      `debtUsable = false` (confounder-guard.ts:146) — the debt is dropped
-      from `effectivePricePerSqm` (rule 1, treated exactly like no BRF at
-      all) rather than "normalized against"; `brf_debt_high` cannot be
-      pushed to `residualDrivers` (rule 5's `debtUsable &&
-      skuldPerKvm > HIGH_BRF_DEBT_PER_SQM` is mutually exclusive by
-      construction, since `debtUsable` can only be true when the value is
-      IN-band, i.e. <= 15000); and the display flag `" (högre än vanligt)"`
-      (:476) is unreachable for the same reason. A genuinely
-      dangerously-indebted förening is therefore both hidden from the debt-
-      inclusive price basis (making it read as a BIGGER discount than it
-      is) and never named as a known confounder — the opposite of "before
-      any condition/reno attribution, normalize against BRF debt."
-      Independently re-derived the test-suite proof: `makeBrf()`'s default
-      `fieldConfidence = { skuldPerKvm: 0.9, ... }`
-      (confounder-guard.test.ts:56) is a fixed synthetic value that bypasses
-      `applySanityChecks` entirely — the only test that reaches
-      `brf_debt_high` (`confounder-guard.test.ts:346-349`, "a trusted
-      skuldPerKvm > HIGH_BRF_DEBT_PER_SQM still produces brf_debt_high")
-      constructs a shape (`skuldPerKvm: 20_000` at confidence `0.9`) that
-      the real `scoreExtraction` → `applySanityChecks` chain can never
-      produce, and `confounder-guard.test.ts:336-343` explicitly documents
-      the real-pipeline-reachable case as "does NOT produce brf_debt_high."
-      This is a confirmed, live, unresolved correctness defect, not a
-      hypothetical — it was introduced by the SAME gap-closure work
-      (plan 14-10 / commit `0e41637`-adjacent CR-02 fix) that closed the
-      prior gap and replaced it with a different, equally severe one.
-    artifacts:
-      - path: "src/lib/discovery/confounder-guard.ts"
-        issue: >
-          Line 45 (`HIGH_BRF_DEBT_PER_SQM = 15_000`) collides with
-          `sanity.ts:24`'s `skuldPerKvm.max = 15000`; line 146
-          (`debtUsable = brfFieldTrusted(...)`) gates rule 1 (:160-166),
-          rule 5 (:213-215) and the display flag (:476) all off the same
-          collision, so all three fail together for every real high-debt
-          reading.
-      - path: "src/lib/brf/sanity.ts"
-        issue: >
-          `BRF_SANITY_BANDS.skuldPerKvm.max = 15000` conflates "implausible
-          reading" (denominator/unit misextraction) with "alarming but
-          plausible reading" (a real förening carrying >15k kr/m² of debt) —
-          the two need materially different ceilings, since the former
-          should be untrusted and the latter is exactly the SPEC §2.2 signal
-          that must be surfaced.
-    missing:
-      - "Separate the implausibility ceiling (denominator/unit-confusion, e.g. ~60k+ per 14-REVIEW.md's suggested IMPLAUSIBLE_BRF_DEBT_PER_SQM) from the SPEC §2.2 alarm threshold (15k) so a genuinely high-but-real debt figure is trusted for arithmetic and named as brf_debt_high, while only a truly implausible reading is suppressed."
-      - "Add a test asserting brf_debt_high is reachable from a value the real scoreExtraction → applySanityChecks pipeline can actually produce (not a fixture that bypasses applySanityChecks)."
-      - "Re-verify buildBrfItem's debt sentence (confounder-guard.ts:474-481) displays a real 20-40k kr/m² debt figure as fact with the (högre än vanligt) flag, not as a suppressed 'outside a reasonable range' figure."
 deferred: []
 human_verification:
   - test: "Live end-to-end discovery run: real comps + BRF fetched and folded into a real multi-area job, within the CAP_VISION_SEK_MAX cost cap and inside the tick window."
@@ -95,17 +47,17 @@ human_verification:
   - test: "Capture real tenureForm values across a wide live result set to determine whether a tomträtt-shaped value ever appears at all."
     expected: "Either at least one tomträtt-bearing tenureForm is observed (confirming the confounder is live), or confirmation that it is currently inert in production (should be recorded, not silently assumed working)."
     why_human: "Every committed tenureForm fixture is 'Bostadsrätt' — no tomträtt sample exists in the test suite to verify against (14-RESEARCH.md OQ-2)."
-  - test: "Once the CR-02 (re-review) fix lands, re-run against a real Allabrf-extracted BRF document with a genuinely high debt/m² to confirm the rendered figure is displayed as fact with the (högre än vanligt) flag rather than suppressed as an out-of-range reading."
-    expected: "A real 20-40k kr/m² debt is shown, flagged, and included in effectivePricePerSqm — not hedged away as an untrusted figure."
-    why_human: "Requires a real Allabrf document with genuinely high debt; no such fixture exists, and the synthetic test fixture that reaches brf_debt_high bypasses the real sanity-check pipeline (confirmed above)."
+  - test: "Now that the CR-02 fix has landed (commit b841563), re-run against a real Allabrf-extracted BRF document with a genuinely high debt/m² to confirm the rendered figure is displayed as fact with the '(högre än vanligt)' flag and included in effectivePricePerSqm, exactly as the mocked brf-lookup.test.ts:334 test predicts."
+    expected: "A real 20-40k kr/m² debt is shown, flagged, folded into the debt-inclusive price basis, and named brf_debt_high — matching the mocked test's assertions against real production data, not just a fixture."
+    why_human: "Requires a real Allabrf document with genuinely high debt; the mocked pipeline test proves the code path is now reachable and correct, but a live document is needed to confirm Allabrf's real extraction quality at this debt level (OCR legibility, table layout variance) matches the fixture's assumed shape."
 ---
 
 # Phase 14: Holistic Analysis Brain — Verification Report
 
 **Phase Goal:** Every surfaced candidate is analyzed against holistic context — renovated-vs-unrenovated area comps and its BRF's finances — always leaves analysis with ≥1 actionable opportunity, and never mistakes a low kr/m² for a renovation signal.
-**Verified:** 2026-08-08T18:00:00Z
-**Status:** gaps_found
-**Re-verification:** Yes — after gap-closure plans 14-07..14-10
+**Verified:** 2026-08-10T14:10:00Z
+**Status:** human_needed
+**Re-verification:** Yes — third pass, after the `/gsd-code-review 14 --fix` pass (commits `b841563`..`7fa3c91`, 20 atomic fixes) that specifically targeted the ANL-04 gap this verifier identified in the previous pass.
 
 ## Goal Achievement
 
@@ -113,71 +65,99 @@ human_verification:
 
 | # | Truth (ROADMAP SC) | Status | Evidence |
 |---|---|---|---|
-| 1 | Ringvägen 122 scenario: a dated flat with zero surviving image claims now surfaces ≥1 actionable opportunity via a holistic-data-only brief instead of `claims: []` | ✓ VERIFIED | Unchanged from prior verification. `buildHolisticBrief` (`confounder-guard.ts:513-564`) has an explicit post-composition non-empty guarantee (`"insufficient-data"` fallback). Wired via `job.ts`, rendered in `gallery-condition-vision.tsx`. Confirmed still passing: `confounder-guard.test.ts` (46 tests) + `gallery-condition-vision.test.tsx` all green in this pass. |
-| 2 | Value case folds in R_med/U_med (`computeAreaComps`) via the re-resolved areaId; analysis references how kr/m² sits against renovated vs unrenovated comps | ✓ VERIFIED (unchanged warnings) | `resolveCompsForCandidates` resolves + attaches `AreaCompsSummary`. `buildCompsPositioningItem` states both medians and the 20% cap sentence on deep discount. Not in scope of this gap-closure round; unchanged from prior pass (WR-10/WR-13 area-cap and positioning-thinness warnings still open, not blocking). |
-| 3 | Top candidates' value case folds in the BRF summary — avgift, debt/m², stambyte funding state, tomträtt, soliditet | ✓ VERIFIED (override applied on soliditet; one cross-cutting warning) | Directly re-verified against current source: **avgift** now correctly states "kr/kvm och år" and derives a kr/mån figure from `livingArea` (`confounder-guard.ts:456-469`; `confounder-guard.test.ts:407-466` pins the unit invariant). **stambyte** is now mapped through `STAMBYTE_PROSE`, `ej_nämnt` correctly suppressed (`:332-336`, `:495-497`). **The sanity-band confidence downgrade is now carried through** — `BrfSummary.fieldConfidence` (`holistic-schema.ts:147-192`) + the single `brfFieldTrusted` gate (`:212-219`) is consumed by both `normalizeForConfounders` and `buildBrfItem`, closing the original "discard" defect. **debt/m²** is displayed for in-band, trusted readings — but see the cross-cutting warning below: a genuinely high (>15k, real) debt figure is now ALSO suppressed as "outside a reasonable range" (same root cause as the ANL-04 gap below), which is a display-honesty regression for exactly the candidates where the debt figure matters most, though not a fabricated/wrong figure as before. **tomträtt** unchanged, correctly implemented. **soliditet**: accepted deferral per human override (unchanged from prior verification, `accepted_at: 2026-08-08T14:51:40Z`) — carried forward, not re-raised. Cost-cap accounting (CR-04) is improved but not fully closed: the throw path now charges realistically (`brf-lookup.ts:69-73,197-201`), but a success-after-retry still under-reports cost by one billed call (`extract.ts:297-321`, WR-02 in 14-REVIEW.md) — bounded by `BRF_TOP_N=4`, treated as a WARNING not a blocker for this truth. |
-| 4 | Low kr/m² is normalized against confounders (incl. BRF debt) before any condition/reno attribution; UI never renders text implying "low kr/m² ⇒ renovation object" | ✗ FAILED | The UI-facing text guard remains solid (`BANNED_RENO_ATTRIBUTION_PATTERNS` + `applyBannedAttributionGuard`, unchanged, still tested green). **But** the debt-normalization half of this criterion has a confirmed, currently-live defect, independently re-derived from source (not just 14-REVIEW.md's claim): `HIGH_BRF_DEBT_PER_SQM = 15_000` (`confounder-guard.ts:45`) is numerically identical to `BRF_SANITY_BANDS.skuldPerKvm.max` (`sanity.ts:24-25`), and the discovery path's `scoreExtraction` call (`brf-lookup.ts:155`) never supplies `manualFields`, so every out-of-band `skuldPerKvm` — including a genuinely real 20-40k kr/m² debt, not just a denominator-confused misextraction — gets its confidence forced to `0.2` (`sanity.ts:56-74`), below `OSAKER_THRESHOLD = 0.5`. `brfFieldTrusted` is therefore structurally `false` for every real high-debt reading, so (a) the debt is EXCLUDED from `effectivePricePerSqm` rather than normalized in — making a dangerously indebted förening read as a BIGGER discount, the opposite of the safeguard's purpose; (b) `brf_debt_high` can never be pushed to `residualDrivers` (`debtUsable && skuldPerKvm > HIGH_BRF_DEBT_PER_SQM` is mutually exclusive by construction); and (c) the SPEC §2.2 ">15k red flag" is structurally unreachable through the real extraction pipeline. Verified this is not reachable via any test that mirrors production: the one test that reaches `brf_debt_high` (`confounder-guard.test.ts:346-349`) relies on `makeBrf()`'s hardcoded `fieldConfidence: 0.9` default, which bypasses `applySanityChecks` — a shape `scoreExtraction` can never produce for an out-of-band value. |
+| 1 | Ringvägen 122 scenario: a dated flat with zero surviving image claims now surfaces ≥1 actionable opportunity via a holistic-data-only brief instead of `claims: []` | ✓ VERIFIED | Unchanged mechanism (`buildHolisticBrief`'s non-empty post-composition guarantee, `confounder-guard.ts:701-709`). **Regression-checked**: WR-16 (commit `faba0b6`) fixed a genuine reachability bug in `gallery-condition-vision.tsx` where the state `vision === null && visionSkippedReason === null` got a brief attached by `job.ts` but rendered in neither of the two old cells — a real gap in this exact truth's UI wiring, now closed and covered by a new test. This *strengthens* truth 1 rather than regressing it. Full suite green (972/975, 3 pre-existing skips, 0 failures) including `gallery-condition-vision.test.tsx` and `confounder-guard.test.ts` (independently re-run: 89/89 pass in isolation). |
+| 2 | Value case folds in R_med/U_med (`computeAreaComps`) via the re-resolved areaId; analysis references how kr/m² sits against renovated vs unrenovated comps | ✓ VERIFIED | Unchanged core mechanism. **Regression-checked**: WR-10 (`8d81373`) made `buildCompsPositioningItem` actually state the candidate's own kr/m² and its distance from the renovated median (previously computed but unconsumed) — this is an improvement to this exact truth, not a regression, and it makes the ANL-04 debt-inclusive fix *visible* to the user (a debt-inclusive price reads correctly against the median instead of the raw asking price). WR-13 fixed a comps-starvation cap (`MAX_AREAS_PER_SEARCH` reuse bug) unrelated to this truth's correctness but improving its reach. All comps-path tests green. |
+| 3 | Top candidates' value case folds in the BRF summary — avgift, debt/m², stambyte funding state, tomträtt, soliditet | ✓ VERIFIED (override applied on soliditet) | Unchanged from prior pass on avgift/stambyte/tomträtt. **The cross-cutting warning from the previous pass — a genuinely high (>15k, real) debt figure being suppressed as "outside a reasonable range" — is now resolved as part of the ANL-04 fix** (see truth 4): `buildBrfItem` (`confounder-guard.ts:626-642`) now displays a real 20-60k debt as fact with the flag. `soliditet` deferral carried forward unchanged via the human-accepted override below. WR-02 (extraction retry cost undercounting) is now fixed too (commit `8107593`, new `extract.test.ts`), closing the previous pass's remaining cost-accounting warning for this truth. |
+| 4 | Low kr/m² is normalized against confounders (incl. BRF debt) before any condition/reno attribution; UI never renders text implying "low kr/m² ⇒ renovation object" | ✓ VERIFIED — previously confirmed BLOCKER now closed | The UI-facing text guard (`BANNED_RENO_ATTRIBUTION_PATTERNS`) remains solid, unchanged, still green. **The debt-normalization defect this verifier identified in the previous pass is independently confirmed fixed against current source** (not taken on the fix report's word): `HIGH_BRF_DEBT_PER_SQM = 15_000` (`confounder-guard.ts:47`, the SPEC §2.2 alarm) is now a materially distinct constant from the new `IMPLAUSIBLE_BRF_DEBT_PER_SQM = 60_000` (`:78`, the misextraction ceiling). `brfDebtPerSqmUsable()` (`:112-126`) branches on WHY `applySanityChecks` downgraded confidence: a value inside `BRF_SANITY_BANDS.skuldPerKvm` [2000,15000] still respects the ordinary `OSAKER_THRESHOLD` gate (a genuinely illegible in-band reading stays suppressed); a value outside the band but ≤60k is admitted, because the band-forced 0.2 confidence carries no legibility information for that case; a value >60k or negative is suppressed as a likely denominator/unit misextraction. `sanity.ts` was verified deliberately unmodified (confirmed still shared with the single-listing "Osäker" badge and `/sa-raknar-vi`, per its own doc comments — no scope creep). Traced the gate's three consumers: rule 1 (`:239-245`, debt now folds into `effectivePricePerSqm`), rule 5 (`:292-294`, `brf_debt_high` now reachable), and `buildBrfItem`'s display flag (`:633-635`, "(högre än vanligt)" now reachable). |
 
-**Score:** 3/4 truths verified (1 with override applied on a sub-item, 1 with a real cross-cutting warning); 1 truth (4) has a confirmed, unresolved, source-level correctness defect. All four requirement IDs (ANL-01..04) are present in PLAN frontmatter across all ten plans (14-01 through 14-10) with no orphans.
+**Score:** 4/4 truths verified. All four requirement IDs (ANL-01..04) remain present in PLAN frontmatter across all ten plans with no orphans (unchanged from prior pass; no PLAN/SUMMARY/REQUIREMENTS files were touched by the fix pass — confirmed via `git diff --stat` against `.planning/`).
+
+### Deep-Dive: the ANL-04 fix, verified against source (not the fix report's narrative)
+
+**Missing item 1 — separate the implausibility ceiling from the alarm threshold.** CONFIRMED. `confounder-guard.ts:46-78` defines both constants with an extensive doc comment explaining why they must never share a value, and a dedicated test (`confounder-guard.test.ts:445-451`) pins `IMPLAUSIBLE_BRF_DEBT_PER_SQM > HIGH_BRF_DEBT_PER_SQM > 0` and `HIGH_BRF_DEBT_PER_SQM === BRF_SANITY_BANDS.skuldPerKvm.max` (the alarm threshold intentionally still equals the shared band — the fix is that the band alone no longer decides usability).
+
+**Missing item 2 — a test reachable through the real `scoreExtraction` → `applySanityChecks` pipeline.** CONFIRMED. `brf-lookup.test.ts:334-406` ("CR-02 re-review — a REAL high-debt extraction reaches brf_debt_high...") mocks only `searchAllabrfByName`/`fetchAllabrfDocument`/`extractBrfFinancials` — the Allabrf/Claude I/O edges — and calls the real `lookupBrfSummary`, which calls the real `scoreExtraction(result.parsed)` (`brf-lookup.ts:174`, confirmed no `manualFields` override is ever supplied on this path, matching the original gap's root cause). The test asserts the real pipeline DOES band-downgrade `skuldPerKvm: 30_000`'s confidence below `OSAKER_THRESHOLD` (`fieldConfidence.skuldPerKvm < OSAKER_THRESHOLD`, `brfFieldTrusted(...) === false`) — i.e. it deliberately reproduces the exact shape that was previously unreachable in a non-bypassing test — and then asserts `brfDebtPerSqmUsable(...) === true`, that the debt folds into `effectivePricePerSqm`, that `brf_debt_high` fires, and that `buildHolisticBrief` renders the flagged sentence. Ran this test file directly (`npx vitest run src/lib/discovery/brf-lookup.test.ts`): passes.
+
+**Missing item 3 — `buildBrfItem` displays a real 20-40k debt as fact with the flag.** CONFIRMED by direct source read: `confounder-guard.ts:626-642` gates the debt sentence on `brfDebtPerSqmUsable(brf)` (not `brfFieldTrusted`), and on the true branch appends `" (högre än vanligt)"` when `skuldPerKvm > HIGH_BRF_DEBT_PER_SQM`. Two independent tests exercise this: `confounder-guard.test.ts:430-443` (unit-level, asserts the text contains the flag and neither hedge sentence) and `brf-lookup.test.ts:395-406` (end-to-end, same assertion against the real-pipeline-derived summary).
+
+**Scrutiny of the "plausible but out-of-band → trust it" branch (the requested adversarial check).** This is a genuine, deliberate risk tradeoff, not a new hidden defect of the same class as before. Reasoning independently verified: `applySanityChecks` (`sanity.ts:56-74`) pins confidence to exactly `0.2` for ANY out-of-band value regardless of how legibly the model actually read it — so once a value is out-of-band, the stored confidence carries zero information distinguishing "real high debt, clearly stated in the document" from "garbled OCR that happens to land outside the band." Given that ambiguity is structural (the confidence signal is destroyed by the band mechanism itself, not just noisy), the fix's choice to trust the entire 15k-60k window is a bounded, explicit, well-documented tradeoff — it converts a previous *guaranteed* false negative (every real high-debt reading was invisible) into a *bounded-probability* false positive (a misextraction that happens to land in a ~4x-the-sanity-ceiling window is now trusted). The 60k ceiling is reasoned from real Stockholm BRF debt distributions (doc comment `confounder-guard.ts:71-76`) and is deliberately not applied to `sanity.ts`'s shared band (verified unmodified), so the single-listing "Osäker" badge and the published methodology page are unaffected — the risk is scoped to the discovery/confounder-guard path only. Judged sound: this is the correct direction for SPEC §2.2's purpose (surfacing risk, not hiding it), it is the same shape of tradeoff 14-REVIEW.md itself suggested, and no test or code path was found where this branch produces the OPPOSITE of the SPEC's intent (a debt-light förening is helped, a genuinely indebted one is flagged; only a coincidental misextraction landing in-window is a possible mispricing, not a fabricated absence of risk). Not scored as a gap.
+
+**Scrutiny of the five changed test expectations.** Read the full diff of the six commits that changed pre-existing test assertions (`b841563`, `076dfb1`, `fb356e1`, `c6bbde3`, `d885a39`, `0c9cbf9`). Every change was independently re-derived, not taken on the commit message's word:
+- `confounder-guard.test.ts:336` (the exact assertion this verifier's previous report cited as proof of the gap, *"an untrusted skuldPerKvm > HIGH_BRF_DEBT_PER_SQM does NOT produce brf_debt_high"*) is inverted to a new test using `skuldPerKvm: 30_000` at the realistic band-downgraded confidence `0.2` → now asserts `brf_debt_high` IS produced. Confirmed via `git show b841563` diff: the OLD test used the identical fixture shape (`skuldPerKvm: 20_000` @ `0.2`) that encoded the defect; the new test is the direct correction, and the implausible-misextraction case (`480_000`) is RETAINED under a renamed test, so no coverage was dropped, only corrected.
+- `client.test.ts`'s two CR-01 assertions (partial-failure and fully-degraded render counts) were inverted from under-counting to correct accounting — confirmed via diff, mechanical `result` → `result.listings` changes plus new `rendersUsed` assertions that match the corrected accounting model exactly (`4 + AREA_RENDER_RUNGS` for a page that exhausts both fallback rungs before failing).
+- WR-01's budget fixture (`"budget for exactly 2 lookups"`) changed its divisor from the old single-call price to `MAX_BILLED_CALLS_PER_LOOKUP`-derived worst-case units — a correction, not a relaxation (a new test asserting a budget covering only one billed call authorises zero lookups was added alongside it).
+- WR-05's two `avgiftsniva: 900` assertions moved from "out of range" wording to "low confidence" wording because 900 is INSIDE the 300-1200 band — genuinely the correct reason for that fixture; new out-of-band (4200) and no-band (`kassaflode`) fixtures were added to keep all three branches covered.
+- WR-08's "capped at exactly 0.2" assertion moved from the persisted brief (`explainedPct`) to the guard result, because the persisted field is now correctly `null` when `canAttributeToCondition` is false — no information lost (the capped value is recoverable from `capped` + the exported `MAX_CONDITION_EXPLAINED_PCT`), and a new invariant test (`explainedPct === null` iff `canAttributeToCondition === false`) was added.
+
+None of the five were weakened to force a pass — each replaces an assertion that encoded either the defect itself or a stale accounting model with an assertion matching the corrected, documented behavior, and in every case new coverage was added alongside the change rather than removed.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `src/lib/discovery/holistic-schema.ts` | HolisticBrief/AreaCompsSummary/BrfSummary types + Zod read guards + `fieldConfidence`/`brfFieldTrusted` (new this round) | ✓ VERIFIED | 287 lines. `BrfSummary.fieldConfidence` + `brfFieldTrusted` (CR-02 fix) present and substantive; `.default(null)` on the nested schema key confirmed load-bearing for legacy-row backward compatibility. |
-| `src/lib/discovery/confounder-guard.ts` | SPEC §2.6 discount-attribution guard + brief builder, with CR-01/02/03 fixes | ⚠️ VERIFIED but with one confirmed live defect (CR-02 re-review) | 565 lines. avgift unit (CR-01) and stambyte enum (CR-03) fixes confirmed correct. The CR-02 confidence-gate fix is correctly WIRED but miscalibrated — see gap above. |
-| `src/lib/discovery/brf-lookup.ts` | Discovery-side BRF orchestrator, never-throws, cost-honest on failure | ⚠️ VERIFIED but with one open minor gap (WR-02) | 204 lines. `BILLED_CALLS_BY_EXTRACTION_CODE` throw-path charge confirmed correct and matches `extract.ts`'s coded throw points exactly. Success-after-retry cost undercounting (WR-02) confirmed still open by direct read of `extract.ts:297-321` — bounded, minor. |
-| `src/lib/brf/sanity.ts` | `applySanityChecks` + `BRF_SANITY_BANDS` + `OSAKER_THRESHOLD` | ✓ VERIFIED (root cause of the ANL-04 gap, not itself broken) | Unchanged, correctly implements "downgrade, never drop" per its own contract — the defect is the *consumer's* threshold collision (`confounder-guard.ts:45`), not this module. |
-| `src/lib/brf/run-extraction.ts` | `scoreExtraction` composing sanity + manual-confidence override | ✓ VERIFIED | `scoreExtraction(extraction, manualFields = [])` confirmed — discovery path (`brf-lookup.ts:155`) never supplies `manualFields`, confirming the gate is total for the discovery pipeline. |
-| `src/components/gallery-condition-vision.tsx` / `discovery-results.tsx` | Threads `holisticBrief` prop, renders data-only brief | ✓ VERIFIED | Unchanged, still wired (`holisticBrief={candidate.holisticBrief}` confirmed present). |
+| `src/lib/discovery/confounder-guard.ts` | SPEC §2.6 discount-attribution guard + brief builder | ✓ VERIFIED | 743 lines (was 565). `brfDebtPerSqmUsable()`, `IMPLAUSIBLE_BRF_DEBT_PER_SQM`, `brfFigureOutOfBand()`, and the WR-05/07/08/10 fixes all present and correctly wired. |
+| `src/lib/discovery/brf-lookup.ts` | Discovery-side BRF orchestrator, never-throws, cost-honest | ✓ VERIFIED | 239 lines. `scoreExtraction` call confirmed still supplies no `manualFields` — this is what makes the new reachability test's shape identical to production. WR-01/WR-02/WR-06 fixes present. |
+| `src/lib/brf/sanity.ts` | `applySanityChecks` + `BRF_SANITY_BANDS` + `OSAKER_THRESHOLD` | ✓ VERIFIED, deliberately unmodified | Confirmed byte-for-byte unchanged in this pass (`git diff` against the touched-files list shows no edits) — matches the fix report's stated intent to keep the shared single-listing/methodology-page module untouched. |
+| `src/lib/brf/extract.ts` / `src/lib/brf/cost.ts` | Honest cost accounting on retry | ✓ VERIFIED (WR-02, WR-03) | New `sumClaudeUsage()`; new `extract.test.ts` created (previously no test harness existed for this module at all). |
+| `src/lib/booli/client.ts` / `src/lib/discovery/cost.ts` / `src/lib/discovery/job.ts` | Render-count-honest area cost accounting (CR-01, out of ANL-0x scope) | ✓ VERIFIED, did not break the cost gate | `fetchAreaListings` now returns `{ listings, rendersUsed }`; `estimateAreaFetchSek()` added; four areas' worst case (~2.4 SEK) confirmed to still fit inside `CAP_SEK_MAX` via `cost.test.ts`. Confirmed via full suite run: no cost-gate test regressed. Continues to be treated as pre-existing/out-of-phase-scope for ANL-0x scoring per the previous verification's finding (predates Phase 14, commits `4562e21`/`c124856`). |
+| `src/components/gallery-condition-vision.tsx` | Renders holisticBrief in every state job.ts attaches one to | ✓ VERIFIED, one reachability bug fixed | WR-16: the previously-unreachable `vision === null && visionSkippedReason === null` cell now renders; new test added. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |---|---|---|---|---|
-| `brf-lookup.ts` | `run-extraction.ts` (`scoreExtraction`) | function call, default `manualFields=[]` | ✓ WIRED (confirms the gap) | `brf-lookup.ts:155` — no manual override ever supplied on the discovery path, making the sanity-band collision total for every automated extraction. |
-| `confounder-guard.ts` | `holistic-schema.ts` (`brfFieldTrusted`) | import + call in 3 sites (rule 1, rule 5, display) | ✓ WIRED | Lines 26, 146, 213, 455/475/483 — the gate is consistently applied everywhere it needs to be; the defect is in the threshold value shared with `sanity.ts`, not in the wiring. |
-| `discovery-results.tsx` | `gallery-condition-vision.tsx` | `holisticBrief` prop | ✓ WIRED | Unchanged from prior pass. |
-| `niche-score.test.ts` | structural-separation guard | multi-line-import-aware matcher (WR-01 fix, plan 14-08) | ✓ WIRED, FIXED | `niche-score.test.ts:337-354` now matches whole `import … from "…"` statements — closes the prior line-anchored blind spot. |
+| `brf-lookup.ts` | `run-extraction.ts` (`scoreExtraction`) | function call, default `manualFields=[]` | ✓ WIRED | `brf-lookup.ts:174` — unchanged, no manual override on the discovery path; this is what makes the new reachability test production-faithful. |
+| `normalizeForConfounders` / `buildBrfItem` | `brfDebtPerSqmUsable` | single shared gate | ✓ WIRED, corrected | `confounder-guard.ts:225` (rule 1+5 both read `debtUsable` computed once), `:633` (`buildBrfItem`'s display gate). All three consumers use the SAME function — math, naming, and display can no longer disagree about the same figure, closing the previous pass's display-honesty warning too. |
+| `job.ts` | `gallery-condition-vision.tsx` | `holisticBrief` prop, `hasHolisticBrief && !hasClaims` render gate | ✓ WIRED, fixed | WR-16 closed the previously-unreachable cell; `!hasClaims` deliberately retained per the component's own documented independent behavior. |
+| `niche-score.test.ts` | structural-separation guard | multi-line-import-aware matcher | ✓ WIRED | Unchanged from prior pass; re-confirmed green in full suite run. |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan(s) | Description | Status | Evidence |
 |---|---|---|---|---|
-| ANL-01 | 14-01, 14-02, 14-04, 14-06, 14-10 | Every candidate leaves analysis with ≥1 actionable opportunity | ✓ SATISFIED | Unchanged, non-empty guarantee holds; not touched by any open gap. |
-| ANL-02 | 14-01, 14-05 | Value case folds in R_med/U_med via re-resolved areaId | ✓ SATISFIED (warnings noted, unchanged) | Not in scope of this gap-closure round. |
-| ANL-03 | 14-01, 14-03, 14-06, 14-07, 14-09, 14-10 | Value case folds in BRF summary for top candidates, respecting cost caps (soliditet deferred by override) | ✓ SATISFIED (override + 1 warning) | avgift/stambyte/confidence-discard defects fixed; soliditet deferral formally accepted; WR-02 cost leak and the debt-suppression-for-real-high-debt cross-cutting issue are warnings, not blockers, for this specific requirement's literal text. |
-| ANL-04 | 14-02, 14-04, 14-07, 14-08, 14-10 | Normalize confounders before attribution; UI never implies low kr/m² ⇒ reno | ✗ BLOCKED | UI text guard solid and unchanged. Debt-inclusive normalization is fed a self-defeating trust gate (CR-02 re-review) — confirmed independently against source and the test suite's own fixture design — that excludes real high BRF debt from the math and makes the SPEC §2.2 red flag unreachable. |
+| ANL-01 | 14-01, 14-02, 14-04, 14-06, 14-10 | Every candidate leaves analysis with ≥1 actionable opportunity | ✓ SATISFIED | Non-empty guarantee holds; WR-16 fixed a genuine reachability regression risk in the render path, strengthening this requirement. |
+| ANL-02 | 14-01, 14-05 | Value case folds in R_med/U_med via re-resolved areaId | ✓ SATISFIED | WR-10 improved the positioning statement's usefulness; no regression. |
+| ANL-03 | 14-01, 14-03, 14-06, 14-07, 14-09, 14-10 | Value case folds in BRF summary for top candidates, respecting cost caps (soliditet deferred by override) | ✓ SATISFIED (override) | The previous pass's cross-cutting debt-display warning is resolved as part of the ANL-04 fix; WR-02's cost undercounting closed. |
+| ANL-04 | 14-02, 14-04, 14-07, 14-08, 14-10 | Normalize confounders before attribution; UI never implies low kr/m² ⇒ reno | ✓ SATISFIED | Previously BLOCKED. The threshold collision is resolved with a distinct, documented, tested implausibility ceiling; `brf_debt_high` is now reachable through the real pipeline; display and math are unified on one gate. |
 
-No orphaned requirements: all four ANL-0x IDs declared in PLAN frontmatter (across all 10 plans) are present in REQUIREMENTS.md and vice versa.
+No orphaned requirements: all four ANL-0x IDs declared in PLAN frontmatter are present in REQUIREMENTS.md (all marked `[x]` Complete) and vice versa. No REQUIREMENTS.md, PLAN.md, or SUMMARY.md files were modified by the code-review fix pass — confirmed via `git diff --stat` against `.planning/` for the fix commit range.
 
 ### Anti-Patterns Found
 
-No `TBD`/`FIXME`/`XXX` markers in any file touched by plans 14-07 through 14-10 (debt-marker gate: clean).
+No `TBD`/`FIXME`/`XXX` markers in any of the 24 source/test files touched by the fix pass (debt-marker gate: clean, independently grepped).
 
 | File | Line | Pattern | Severity | Impact |
 |---|---|---|---|---|
-| `src/lib/discovery/confounder-guard.ts` / `src/lib/brf/sanity.ts` | `confounder-guard.ts:45` / `sanity.ts:24-25` | Threshold collision: alarm threshold == sanity-band ceiling | 🛑 Blocker | Excludes real high BRF debt from the debt-inclusive price basis and makes the SPEC §2.2 red flag unreachable — inverts the intended safeguard for exactly the candidates it exists to protect against. |
-| `src/lib/brf/extract.ts` | 297-321 | Success-after-retry returns only the second message's usage | ⚠️ Warning (carried forward, partially fixed elsewhere) | Under-reports BRF-lookup spend by one billed call on the retry-then-succeed path; bounded by `BRF_TOP_N=4`, not a runaway. |
-| `src/lib/booli/client.ts` / `src/lib/discovery/job.ts` | `client.ts:790-825` / `job.ts:89-104,192,214-219,258-259` | `runSlice` counts one render per area while `fetchAreaListings` performs up to `MAX_AREA_PAGES=5` paginated renders | ℹ️ Info (out of phase-14 scope) | Confirmed real via `git log`: this pagination behavior predates phase 14 (commits `4562e21`/`c124856`, both authored before `184953b`/14-01). It concerns the general area-search `CAP_SEK_MAX` render cap, not the BRF/comps holistic-analysis feature this phase's ANL-0x requirements cover. Flagged for developer awareness, not scored against this phase's must-haves. |
+| `src/lib/booli/client.ts` / `src/lib/discovery/job.ts` | various | `runSlice`/`fetchAreaListings` render-count accounting (CR-01) | ℹ️ Info — now fixed, out of ANL-0x scope | Was flagged in the previous pass as pre-Phase-14, out-of-scope for ANL-0x scoring. The fix pass corrected it anyway (not required by ANL-0x, but does not conflict with or destabilize the ANL-0x-scoped fixes — confirmed via full suite pass and the dedicated cost-cap-still-fits assertion). |
+
+### Behavioral Spot-Checks / Test Execution (run directly by this verifier, not taken from the fix report)
+
+| Check | Command | Result | Status |
+|---|---|---|---|
+| Targeted ANL-04 test files | `npx vitest run src/lib/discovery/confounder-guard.test.ts src/lib/discovery/brf-lookup.test.ts src/lib/brf/sanity.test.ts` | 3 files, 89/89 tests passed | ✓ PASS |
+| Full test suite (regression check across all 20 fix commits) | `npx vitest run` | 64 files, 972/975 passed, 3 skipped, 0 failed | ✓ PASS — matches 14-REVIEW-FIX.md's claimed count exactly |
+| Type check | `npx tsc --noEmit` | exit 0, no output | ✓ PASS |
+| Lint | `npm run lint` | 0 errors, 0 warnings | ✓ PASS |
+
+The one pre-existing flaky test (`job.test.ts:562`, wall-clock concurrency assertion with ~10ms headroom) did not fail during this verifier's run — consistent with it being a known intermittent flake under parallel load, not a regression, per the explicit instruction not to score it.
 
 ### Human Verification Required
 
-See frontmatter `human_verification` — four items, three carried forward unchanged (live comps/BRF/vision run, genitive-kommun corroboration, tomträtt-shaped tenureForm sighting — all environment-blocked per 14-VALIDATION.md's deferred-live-gate precedent), plus one updated item asking for a live re-check of the debt-display behavior once the ANL-04 gap below is fixed.
+See frontmatter `human_verification` — four items, all environment-blocked (Supabase project paused, operator IP Booli/Cloudflare-blocked), carried forward from the prior pass per the established deferred-live-gate precedent (Phases 11-13). Item 4 is updated to reflect that the CR-02 mocked-pipeline fix has now landed and passed; it still requires a real Allabrf document with genuinely high debt to confirm real-world OCR/extraction quality matches the fixture's assumed shape — this is a live-data confirmation, not a code-correctness gap.
 
 ### Gaps Summary
 
-The prior verification's four concrete correctness bugs under ANL-03 (avgift unit mislabeling, discarded confidence downgrade, raw enum leak, zero-cost-on-billed-failure) are now genuinely fixed by plans 14-07/14-08/14-10 — independently confirmed by reading the current source, not by trusting SUMMARY.md or even 14-REVIEW.md's resolution table at face value. The `soliditet` deferral is now a properly recorded human-accepted override rather than a silent gap (plan 14-09), and REQUIREMENTS.md's ANL-03 wording has been correspondingly updated. That override is carried forward unchanged in this report's frontmatter, per instruction.
+None. The single BLOCKER this verifier identified in the previous pass — `HIGH_BRF_DEBT_PER_SQM` colliding numerically with `BRF_SANITY_BANDS.skuldPerKvm.max`, making the SPEC §2.2 red flag structurally unreachable and causing a dangerously indebted förening to read as a bigger bargain — is independently confirmed closed against current source, not merely accepted from the fix report's narrative. All three `missing` items from the previous gap are individually verified: the implausibility ceiling is now a distinct, documented constant; a test reaches `brf_debt_high` through the real `scoreExtraction` → `applySanityChecks` pipeline (not a bypassing fixture); and `buildBrfItem` displays a real high debt as fact with the flag.
 
-However, the fix that closed the prior ANL-04 gap (an untrusted debt figure entering the discount math unchecked) introduced a new, equally severe defect in the same code path, and this was independently re-derived from source during this verification, not merely accepted from 14-REVIEW.md's CR-02 finding:
+The "plausible but out-of-band → trust it" branch this task specifically asked to be scrutinized for a new hidden hole was examined and judged a sound, explicit, bounded, and well-documented risk tradeoff rather than a defect of the same class as the one it replaced — it trades a previously *guaranteed* false negative for a *bounded-probability* false positive in a narrow (15k-60k) window, in the direction SPEC §2.2 requires (surfacing risk rather than hiding it), and does not touch the shared `sanity.ts` module used elsewhere.
 
-`HIGH_BRF_DEBT_PER_SQM` (the SPEC §2.2 alarm threshold, "flag debt above 15k/m²") is numerically identical to `BRF_SANITY_BANDS.skuldPerKvm.max` (the sanity band's implausibility ceiling). Because the discovery pipeline's `scoreExtraction` call never supplies a manual-confidence override, every real, non-misextracted skuldPerKvm above 15 000 gets its confidence forced below the trust threshold by the SAME mechanism meant to catch garbage data (denominator confusion, e.g. total debt read as debt/m²). The practical effect: a genuinely, dangerously indebted förening (say, 30 000 kr/m²) has its debt entirely excluded from the debt-inclusive price basis — making the candidate look like a BIGGER bargain than it is — and the `brf_debt_high` confounder, the SPEC §2.2 named red flag this phase exists to surface, can never fire through the real extraction pipeline. Traced this to the test suite too: the only test asserting `brf_debt_high` fires uses a hand-constructed fixture with a hardcoded high confidence that bypasses `applySanityChecks` — a shape the real pipeline structurally cannot produce — and a sibling test in the same file explicitly documents the real-pipeline-reachable behavior as NOT producing `brf_debt_high`.
+The five changed pre-existing test expectations were each individually traced via `git show` diffs: all correct defect-encoding or stale-accounting assertions into assertions matching the corrected, documented behavior, with new coverage added alongside every change — none were weakened or had coverage silently dropped to force a pass.
 
-This directly contradicts ROADMAP SC4's literal wording ("the analysis normalizes against confounders... including... BRF debt... before any condition/reno attribution") for exactly the highest-debt, highest-risk candidates — the debt confounder is not normalized against, it is silently dropped. It is a BLOCKER, not a warning: it is a decision-correctness defect with a concrete, quantified, adverse-direction impact (makes risky candidates look safer), exactly the class of bug this phase exists to prevent.
+Full regression sweep (972/975 tests, tsc clean, lint clean) run directly by this verifier confirms no regression across the 20-commit fix pass, including in the comps (ANL-02) and BRF-summary (ANL-03) paths that were also touched. The `soliditet` deferral override is carried forward unchanged, per instruction, and is not re-raised as a gap.
 
-**Recommendation:** a further closure plan should separate the "implausible reading" ceiling (denominator/unit confusion — should stay well above 15k, e.g. 60k+) from the SPEC §2.2 alarm threshold (15k — should remain trusted for arithmetic and for naming `brf_debt_high`), per 14-REVIEW.md's suggested fix. This is a small, well-scoped change (new constant + one boolean split) but must not be waved through as an override — it is a confirmed correctness bug with a clear, safe fix, not an intentional scope trade like `soliditet`.
+Status is `human_needed`, not `passed`, solely because of pre-existing environment-blocked live-operator verification items (Supabase paused, IP-blocked scraping) that were already flagged in the prior two passes and are unrelated to this round's code changes.
 
 ---
 
-_Verified: 2026-08-08T18:00:00Z_
+_Verified: 2026-08-10T14:10:00Z_
 _Verifier: Claude (gsd-verifier)_
