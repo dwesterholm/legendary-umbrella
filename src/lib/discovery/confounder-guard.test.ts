@@ -9,10 +9,12 @@ import {
   MAX_CONDITION_EXPLAINED_PCT,
   DISCOUNT_ATTRIBUTION_TRIGGER_PCT,
   HIGH_BRF_DEBT_PER_SQM,
+  IMPLAUSIBLE_BRF_DEBT_PER_SQM,
   type ConfounderGuardInput,
   type BuildHolisticBriefInput,
 } from "@/lib/discovery/confounder-guard";
 import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
+import { BRF_SANITY_BANDS } from "@/lib/brf/sanity";
 import {
   HOLISTIC_DATA_ONLY_MARKER,
   type AreaCompsSummary,
@@ -118,13 +120,11 @@ describe("discount vs renovated median", () => {
 
 describe("the >25% guard caps condition-explained at 20% and routes the residual to the specific confounders present", () => {
   it("caps conditionExplainedPct and names bottenvaning + brf_debt_high in order", () => {
-    // NOTE (CR-02 design note): 20_000 sits outside BRF_SANITY_BANDS.skuldPerKvm
-    // (max 15_000), so a real extraction of this value would carry a
-    // downgraded confidence. `makeBrf`'s default `fieldConfidence` is
-    // trusted (0.9) — this fixture is therefore a SYNTHETIC "trusted
-    // out-of-band value" shape (a future confidence source, e.g. manual
-    // correction), not one the raw extraction pipeline can produce today. A
-    // future reader should not mistake it for that shape.
+    // NOTE (CR-02 re-review): 20_000 sits outside BRF_SANITY_BANDS.skuldPerKvm
+    // (max 15_000) but well inside IMPLAUSIBLE_BRF_DEBT_PER_SQM (60_000), so
+    // it is a real, usable high-debt reading whether its confidence arrives
+    // trusted (as makeBrf's 0.9 default) or band-downgraded to 0.2 — see the
+    // dedicated reachability test in the CR-02 block below.
     const r = normalizeForConfounders(
       makeInput({
         pricePerSqm: 50_000, // + 20_000 debt = 70_000 effective
@@ -213,9 +213,8 @@ describe("confidence is never high", () => {
         comps: makeComps({ sampleSize: 6, confident: true, renovatedMedianPerSqm: 100_000 }),
       }),
       makeInput({ comps: makeComps({ sampleSize: 4, confident: false }) }),
-      // Synthetic trusted-out-of-band shape (see CR-02 design note above) —
-      // 20_000 is outside BRF_SANITY_BANDS.skuldPerKvm but makeBrf's default
-      // fieldConfidence is trusted.
+      // Out-of-band but plausible (see the CR-02 note above) — a real
+      // high-debt reading, usable for arithmetic.
       makeInput({ pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() }),
       makeInput({ pricePerSqm: 120_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }),
     ];
@@ -264,7 +263,7 @@ describe("D-14-05 default posture", () => {
         brf: makeBrf({ skuldPerKvm: 2_000 }),
         comps: makeComps({ confident: true, renovatedMedianPerSqm: 100_000 }),
       }),
-      // Synthetic trusted-out-of-band shape (see CR-02 design note above).
+      // Out-of-band but plausible (see the CR-02 note above).
       makeInput({ pricePerSqm: 50_000, floor: 0, brf: makeBrf({ skuldPerKvm: 20_000 }), comps: makeComps() }),
       makeInput({ comps: makeComps({ sampleSize: 4, confident: false }) }),
       makeInput({ pricePerSqm: 120_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }),
@@ -333,19 +332,95 @@ describe("CR-02 — an untrusted BRF debt figure never reaches the discount math
     expect(r.effectivePricePerSqm).toBe(68_000);
   });
 
-  it("an untrusted skuldPerKvm > HIGH_BRF_DEBT_PER_SQM does NOT produce brf_debt_high but DOES produce brf_unknown", () => {
+  it("an IMPLAUSIBLE skuldPerKvm does NOT produce brf_debt_high but DOES produce brf_unknown", () => {
+    // 480_000 is the classic misextraction (total förening debt read as
+    // debt/m²) — above IMPLAUSIBLE_BRF_DEBT_PER_SQM, so it is suppressed from
+    // the math and routed to brf_unknown rather than asserted as an alarm.
     const r = normalizeForConfounders(
       makeInput({
-        brf: makeBrf({ skuldPerKvm: 20_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+        brf: makeBrf({ skuldPerKvm: 480_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
       }),
     );
     expect(r.residualDrivers).not.toContain("brf_debt_high");
     expect(r.unknownConfounders).toContain("brf_unknown");
   });
 
+  it("a sanity-band-downgraded but PLAUSIBLE skuldPerKvm produces brf_debt_high — the SPEC §2.2 flag is reachable from the real pipeline shape (CR-02 re-review)", () => {
+    // This is EXACTLY the shape `scoreExtraction` -> `applySanityChecks`
+    // produces for a genuinely high-debt förening: the value survives, and its
+    // confidence is pinned to 0.2 purely for sitting above the 15 000 band
+    // ceiling. Before the implausibility/alarm split this asserted the
+    // OPPOSITE, which is what made the ANL-04 red flag structurally dead.
+    const r = normalizeForConfounders(
+      makeInput({
+        pricePerSqm: 55_000,
+        brf: makeBrf({ skuldPerKvm: 30_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.residualDrivers).toContain("brf_debt_high");
+    expect(r.unknownConfounders).not.toContain("brf_unknown");
+    // And it is normalized INTO the price basis, never dropped from it: a
+    // dangerously indebted förening must not read as a bigger bargain.
+    expect(r.debtIncluded).toBe(true);
+    expect(r.effectivePricePerSqm).toBe(85_000);
+  });
+
   it("a trusted skuldPerKvm > HIGH_BRF_DEBT_PER_SQM still produces brf_debt_high (branch preserved)", () => {
     const r = normalizeForConfounders(makeInput({ brf: makeBrf({ skuldPerKvm: 20_000 }) }));
     expect(r.residualDrivers).toContain("brf_debt_high");
+  });
+
+  it("a debt-LIGHT förening below the band's 2 000 floor is used, not suppressed (the symmetric case)", () => {
+    // sanity.ts downgrades anything under 2 000 too, so before the split the
+    // most attractive possible signal — a near-debt-free förening — was
+    // hedged away as "outside a reasonable range".
+    const r = normalizeForConfounders(
+      makeInput({
+        pricePerSqm: 60_000,
+        brf: makeBrf({ skuldPerKvm: 0, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.debtIncluded).toBe(true);
+    expect(r.effectivePricePerSqm).toBe(60_000);
+    expect(r.residualDrivers).not.toContain("brf_debt_high");
+    expect(r.unknownConfounders).not.toContain("brf_unknown");
+  });
+
+  it("an IN-BAND figure the model itself could not read stays suppressed (the confidence gate is not abandoned)", () => {
+    // 8_000 is inside BRF_SANITY_BANDS, so a 0.2 here is the MODEL's own
+    // low confidence, not a band downgrade — that genuinely means "we can't
+    // read this" and must not enter the math.
+    const r = normalizeForConfounders(
+      makeInput({
+        pricePerSqm: 60_000,
+        brf: makeBrf({ skuldPerKvm: 8_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      }),
+    );
+    expect(r.debtIncluded).toBe(false);
+    expect(r.effectivePricePerSqm).toBe(60_000);
+    expect(r.unknownConfounders).toContain("brf_unknown");
+  });
+
+  it("buildBrfItem states a real high debt as FACT with the (högre än vanligt) flag, never as a withheld figure", () => {
+    const brf = makeBrf({
+      skuldPerKvm: 30_000,
+      avgiftsniva: null,
+      kassaflode: null,
+      fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 },
+    });
+    const brief = briefFrom({ brf });
+    const item = brief.items.find((i) => i.kind === "brf");
+    expect(item).toBeDefined();
+    expect(item!.text).toContain("30000 kr/kvm (högre än vanligt)");
+    expect(item!.text).not.toContain(BRF_UNTRUSTED_FIGURE_TEXT);
+  });
+
+  it("the implausibility ceiling sits well ABOVE the SPEC §2.2 alarm threshold and above the shared sanity band", () => {
+    expect(IMPLAUSIBLE_BRF_DEBT_PER_SQM).toBeGreaterThan(HIGH_BRF_DEBT_PER_SQM);
+    expect(IMPLAUSIBLE_BRF_DEBT_PER_SQM).toBeGreaterThan(BRF_SANITY_BANDS.skuldPerKvm.max);
+    // The alarm threshold intentionally still EQUALS the shared band ceiling —
+    // the fix is that the band no longer decides usability on its own.
+    expect(HIGH_BRF_DEBT_PER_SQM).toBe(BRF_SANITY_BANDS.skuldPerKvm.max);
   });
 
   it("brf === null pushes brf_unknown exactly once (no double push)", () => {

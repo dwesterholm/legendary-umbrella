@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { brfFieldTrusted } from "@/lib/discovery/holistic-schema";
 import { OSAKER_THRESHOLD } from "@/lib/brf/sanity";
 import { estimateBrfLookupSek } from "@/lib/discovery/cost";
+import {
+  brfDebtPerSqmUsable,
+  normalizeForConfounders,
+  buildHolisticBrief,
+} from "@/lib/discovery/confounder-guard";
 
 /**
  * brf-lookup.test.ts — mocks ONLY the network/LLM edges
@@ -324,6 +329,80 @@ describe("lookupBrfSummary", () => {
     expect(result.summary?.skuldPerKvm).toBe(480_000);
     expect(result.summary?.fieldConfidence?.skuldPerKvm).toBeLessThan(OSAKER_THRESHOLD);
     expect(brfFieldTrusted(result.summary, "skuldPerKvm")).toBe(false);
+  });
+
+  it("CR-02 re-review — a REAL high-debt extraction reaches brf_debt_high, the debt-inclusive basis, and the flagged prose", async () => {
+    // The point of this test is that NOTHING here is a synthetic confidence
+    // fixture: `scoreExtraction` -> `applySanityChecks` runs for real (only
+    // the Allabrf/Claude edges are mocked), so the `BrfSummary` fed into the
+    // confounder guard below is byte-for-byte what production produces for a
+    // genuinely, dangerously indebted förening. 14-VERIFICATION.md's ANL-04
+    // gap was precisely that the only test reaching `brf_debt_high` used a
+    // hand-set `fieldConfidence: 0.9` that bypassed this chain.
+    searchAllabrfByName.mockResolvedValue([
+      { orgNr: VALID_ORG_NR, name: "Brf Björken 3", kommun: "Stockholm" },
+    ]);
+    fetchAllabrfDocument.mockResolvedValue({
+      text: "DOC_TEXT_FIXTURE",
+      fiscalYear: 2024,
+      availableYears: [2024],
+    });
+    extractBrfFinancials.mockResolvedValue({
+      parsed: {
+        ...extractionFixture(),
+        skuldPerKvm: {
+          value: 30_000,
+          confidence: 0.95,
+          sourceQuote: "räntebärande skuld per kvm: 30 000",
+          pageRef: 7,
+        },
+      },
+      usage: { input_tokens: 1000, output_tokens: 500 },
+      citations: [],
+    });
+
+    const result = await lookupBrfSummary({
+      brfName: "Brf Björken 3",
+      kommun: "Stockholm",
+      tenureForm: null,
+    });
+
+    // The real pipeline DOES band-downgrade this value — that is the shape.
+    expect(result.outcome).toBe("ok");
+    expect(result.summary?.skuldPerKvm).toBe(30_000);
+    expect(result.summary?.fieldConfidence?.skuldPerKvm).toBeLessThan(OSAKER_THRESHOLD);
+    expect(brfFieldTrusted(result.summary, "skuldPerKvm")).toBe(false);
+    // ...and it is nonetheless plausible, so the discovery path uses it.
+    expect(brfDebtPerSqmUsable(result.summary)).toBe(true);
+
+    const guard = normalizeForConfounders({
+      pricePerSqm: 55_000,
+      livingArea: 62,
+      floor: 2,
+      balcony: true,
+      tenureForm: "Bostadsrätt",
+      comps: null,
+      brf: result.summary,
+    });
+
+    // (a) normalized INTO the price basis (SPEC §2.6 rule 1), not dropped.
+    expect(guard.debtIncluded).toBe(true);
+    expect(guard.effectivePricePerSqm).toBe(85_000);
+    // (b) named as the SPEC §2.2 red flag (rule 5).
+    expect(guard.residualDrivers).toContain("brf_debt_high");
+    expect(guard.unknownConfounders).not.toContain("brf_unknown");
+
+    // (c) rendered as FACT with the flag, not hedged as an unreadable figure.
+    const brief = buildHolisticBrief({
+      guard,
+      comps: null,
+      brf: result.summary,
+      pricePerSqm: 55_000,
+      livingArea: 62,
+    });
+    const brfItem = brief.items.find((i) => i.kind === "brf");
+    expect(brfItem).toBeDefined();
+    expect(brfItem!.text).toContain("30000 kr/kvm (högre än vanligt)");
   });
 
   it('"ok" — an out-of-band avgiftsniva keeps its value but arrives UNTRUSTED (CR-02)', async () => {

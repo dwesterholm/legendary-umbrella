@@ -21,6 +21,7 @@
  */
 
 import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
+import { BRF_SANITY_BANDS } from "@/lib/brf/sanity";
 import {
   tomtrattFromTenureForm,
   brfFieldTrusted,
@@ -43,6 +44,85 @@ export const MAX_CONDITION_EXPLAINED_PCT = 0.2;
 
 /** SPEC §2.2's ">15k red flag" for förening debt per kvm. */
 export const HIGH_BRF_DEBT_PER_SQM = 15_000;
+
+/**
+ * CR-02 (14-REVIEW.md re-review / 14-VERIFICATION.md ANL-04 gap): the
+ * IMPLAUSIBILITY ceiling for a `skuldPerKvm` reading, deliberately DISTINCT
+ * from — and far above — the SPEC §2.2 ALARM threshold above.
+ *
+ * The two answer different questions and must never share a value:
+ *  - `HIGH_BRF_DEBT_PER_SQM` (15 000) asks "is this förening dangerously
+ *    indebted?" A reading above it is a FACT to surface (`brf_debt_high`), and
+ *    it MUST enter the debt-inclusive kr/m² basis (SPEC §2.6 rule 1) — that is
+ *    precisely the candidate whose apparent discount is not real.
+ *  - this constant asks "is this number even a debt-per-m² figure?" Above it
+ *    the reading is a denominator/unit misextraction (total förening debt read
+ *    as debt/m², e.g. 480 000 instead of ~8 000) — a fact about the PDF, not
+ *    about the förening, so it is suppressed from both the math and the prose.
+ *
+ * Before this split the alarm threshold was numerically identical to
+ * `BRF_SANITY_BANDS.skuldPerKvm.max`, so `applySanityChecks` downgraded every
+ * genuinely high-but-real debt figure below `OSAKER_THRESHOLD`, which dropped
+ * it out of `effectivePricePerSqm` and made `brf_debt_high` unreachable — a
+ * dangerously indebted förening read as a BIGGER bargain than it is (the exact
+ * inversion 14-VERIFICATION.md records as the open ANL-04 gap).
+ *
+ * 60 000 kr/m²: roughly 4x the Stockholm sanity ceiling and several times the
+ * highest debt levels seen in real Stockholm föreningar, while still an order
+ * of magnitude below a six-figure total-debt misread. `sanity.ts`'s shared band
+ * is deliberately NOT widened — it also drives the single-listing "Osäker"
+ * badge and the published methodology page, where "outside the plausible
+ * Stockholm band" is the correct, narrower claim.
+ */
+export const IMPLAUSIBLE_BRF_DEBT_PER_SQM = 60_000;
+
+/**
+ * Whether a `BrfSummary`'s `skuldPerKvm` may be used as FACT — admitted into
+ * the debt-inclusive kr/m² basis (rule 1), named as `brf_debt_high` (rule 5),
+ * and stated in `buildBrfItem`'s prose.
+ *
+ * This is the CR-02 split of "implausible reading" from "alarming but plausible
+ * reading". `brfFieldTrusted` alone cannot make that distinction, because
+ * `applySanityChecks` collapses BOTH causes into the same
+ * `DOWNGRADED_CONFIDENCE` (0.2): a value is downgraded purely for being outside
+ * `BRF_SANITY_BANDS.skuldPerKvm`, regardless of how legibly it was read.
+ *
+ * The decision therefore branches on WHY the confidence is what it is:
+ *  1. Absent / non-finite value -> unusable (nothing to state).
+ *  2. Negative, or above `IMPLAUSIBLE_BRF_DEBT_PER_SQM` -> unusable. This is
+ *     the misextraction case the sanity band exists to catch.
+ *  3. No `fieldConfidence` map at all (a legacy persisted row) -> unusable.
+ *     Fails closed exactly as `brfFieldTrusted` does; an absent confidence is
+ *     an absence of evidence (D-14-05).
+ *  4. Value INSIDE the sanity band -> the stored confidence is the model's OWN
+ *     judgement of legibility (the band never touched it), so the ordinary
+ *     `OSAKER_THRESHOLD` gate applies: a smudged-scan 0.2 stays suppressed.
+ *  5. Value OUTSIDE the band but plausible (the 15k..60k alarm window, and the
+ *     symmetric debt-light case below the band's 2 000 floor) -> the stored
+ *     confidence was pinned by the band and carries no information about
+ *     legibility, so the figure is USED. A real 30 000 kr/m² debt is a fact to
+ *     surface, and a debt-free förening is the most attractive possible signal
+ *     — neither may be hedged away as unreadable.
+ *
+ * @param brf - the `BrfSummary` to check, or `null`
+ * @returns `true` only when the debt figure is present, plausible, and either
+ *   in-band-and-confident or out-of-band-for-band-reasons-only
+ */
+export function brfDebtPerSqmUsable(brf: BrfSummary | null): boolean {
+  if (brf === null) return false;
+  const value = brf.skuldPerKvm;
+  if (value === null || !Number.isFinite(value)) return false;
+  if (value < 0 || value > IMPLAUSIBLE_BRF_DEBT_PER_SQM) return false;
+  const band = BRF_SANITY_BANDS.skuldPerKvm;
+  const outOfBand = value < band.min || value > band.max;
+  if (outOfBand) {
+    // The sanity downgrade is fully explained by the band itself — see (5).
+    // A manual override (MANUAL_CONFIDENCE) lands here too and is equally
+    // usable, so no separate branch is needed.
+    return true;
+  }
+  return brfFieldTrusted(brf, "skuldPerKvm");
+}
 
 /** SPEC §2.6 "odd BOA" lower bound (m²). */
 export const ODD_BOA_MIN_SQM = 20;
@@ -132,18 +212,17 @@ export function normalizeForConfounders(
 ): ConfounderGuardResult {
   const { pricePerSqm, livingArea, floor, balcony, tenureForm, comps, brf } = input;
 
-  // CR-02 (14-REVIEW.md): the SINGLE trust decision for the BRF debt figure,
-  // computed once and reused by rules 1/5/6 below. `sanity.ts`'s
-  // `applySanityChecks` forces confidence below `OSAKER_THRESHOLD` for an
-  // out-of-band `skuldPerKvm` WITHOUT dropping the value — so `brfFieldTrusted`
-  // is the only legitimate admission gate for a BRF debt figure into
-  // user-facing math. Without this gate, a classic misextraction (total debt
-  // read as debt/m², e.g. 480 000 instead of ~8 000) would push
-  // `effectivePricePerSqm` far above `renovatedMedianPerSqm`, making
-  // `discountVsRenovatedPct` strongly negative -> `deepDiscount === false` ->
-  // the SPEC §2.6 20% cap never fires on a genuinely deeply-discounted
-  // candidate (ANL-04).
-  const debtUsable = brfFieldTrusted(brf, "skuldPerKvm");
+  // CR-02 (14-REVIEW.md): the SINGLE admission decision for the BRF debt
+  // figure, computed once and reused by rules 1/5/6 below. See
+  // `brfDebtPerSqmUsable` for the full reasoning — in short, it suppresses an
+  // IMPLAUSIBLE reading (a misextraction: total debt read as debt/m², e.g.
+  // 480 000 instead of ~8 000, which would push `effectivePricePerSqm` far
+  // above `renovatedMedianPerSqm` and silently disable the SPEC §2.6 20% cap)
+  // while ADMITTING a high-but-plausible one (a real 30 000 kr/m², which must
+  // enter the debt-inclusive basis and be named `brf_debt_high`, or the
+  // candidate reads as a bigger bargain than it is — ANL-04 in both
+  // directions).
+  const debtUsable = brfDebtPerSqmUsable(brf);
 
   // 1. Debt-inclusive kr/m² normalization (SPEC §2.6 "Normalize kr/m²
   // inclusive of förening debt/m²"). KNOWN ASYMMETRY: the comp side's debt is
@@ -199,17 +278,17 @@ export function normalizeForConfounders(
   const residualDrivers: ConfounderId[] = [];
   if (floor !== null && floor <= 0) residualDrivers.push("bottenvaning");
   if (balcony === false) residualDrivers.push("no_balcony");
-  // DESIGN NOTE (CR-02): HIGH_BRF_DEBT_PER_SQM (15 000) is numerically
-  // identical to BRF_SANITY_BANDS.skuldPerKvm.max, so an extraction-sourced
-  // value that trips this rule is exactly the set the sanity band downgrades
-  // — meaning `brf_debt_high` is now reachable only for a figure whose
-  // confidence came from somewhere other than the raw extraction (e.g.
-  // `applyManualConfidence`'s `MANUAL_CONFIDENCE`, or a future band
-  // widening). This is the INTENDED trade: naming "hög föreningsskuld per
-  // kvm" as a KNOWN confounder on the strength of a figure the sanity band
-  // just rejected would assert a fact from garbage, whereas routing it to
-  // `brf_unknown` (rule 6 below) is true either way and is strictly more
-  // conservative for attribution (D-14-05).
+  // DESIGN NOTE (CR-02): this rule is REACHABLE through the real extraction
+  // pipeline. `HIGH_BRF_DEBT_PER_SQM` (15 000) sits inside
+  // `brfDebtPerSqmUsable`'s plausible range (ceiling
+  // `IMPLAUSIBLE_BRF_DEBT_PER_SQM` = 60 000), so an extraction-sourced
+  // 15k..60k reading — whose confidence `applySanityChecks` pins to 0.2
+  // purely for being outside the narrower Stockholm band — is admitted here
+  // and named. Only a misextraction above the implausibility ceiling routes
+  // to `brf_unknown` (rule 6) instead. Naming "hög föreningsskuld per kvm"
+  // for a real high reading is what SPEC §2.2 exists to do; suppressing it
+  // was NOT the conservative direction, it made the risky candidate look
+  // safer (14-VERIFICATION.md's ANL-04 gap).
   if (debtUsable && brf!.skuldPerKvm! > HIGH_BRF_DEBT_PER_SQM) {
     residualDrivers.push("brf_debt_high");
   }
@@ -472,7 +551,13 @@ function buildBrfItem(brf: BrfSummary | null, livingArea: number | null): Holist
     }
   }
   if (brf.skuldPerKvm !== null) {
-    if (brfFieldTrusted(brf, "skuldPerKvm")) {
+    // CR-02: gated on `brfDebtPerSqmUsable`, NOT `brfFieldTrusted` — the same
+    // gate rules 1/5 use, so display and math can never disagree about the
+    // same figure. A real 20-40k kr/m² debt renders as FACT carrying the
+    // "(högre än vanligt)" flag (SPEC §2.2's red flag, which is the whole
+    // point of surfacing it); only a misextraction above
+    // `IMPLAUSIBLE_BRF_DEBT_PER_SQM` is withheld and hedged.
+    if (brfDebtPerSqmUsable(brf)) {
       const flag = brf.skuldPerKvm > HIGH_BRF_DEBT_PER_SQM ? " (högre än vanligt)" : "";
       parts.push(`Föreningens skuld per kvm verkar ligga kring ${Math.round(brf.skuldPerKvm)} kr/kvm${flag}.`);
     } else {
