@@ -525,9 +525,15 @@ function buildCompsPositioningItem(input: BuildHolisticBriefInput): HolisticBrie
   }
 
   if (guard.canAttributeToCondition === false) {
-    const named = [...guard.residualDrivers, ...guard.unknownConfounders].map(confounderLabel).join(", ");
+    // WR-07 (14-REVIEW.md): state the POSITION here and defer the naming to
+    // `buildConfounderItems`, which emits the same two lists as its own items.
+    // Naming them in both places repeated "hiss (okänt), mikroläge (okänt),
+    // delområde (okänt), …" verbatim in adjacent bullets of every brief with
+    // comps — and since `canAttributeToCondition` is always false this phase,
+    // that duplication was unconditional. ANL-01's criterion is >=1 ACTIONABLE
+    // item; a verbatim duplicate degrades exactly that.
     parts.push(
-      `Skillnaden kan bero på skick, men kan lika gärna bero på faktorer som priset ensamt inte kan skilja ut: ${named}.`,
+      "Skillnaden kan bero på skick, men kan lika gärna bero på faktorer som priset ensamt inte kan skilja ut (se nedan).",
     );
   }
 

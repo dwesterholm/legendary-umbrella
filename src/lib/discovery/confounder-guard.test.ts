@@ -626,6 +626,28 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
     expect(item!.text).toContain(String(comps.sampleSize));
   });
 
+  it("WR-07 — the unknown-confounder labels are named ONCE, in the confounder item, never duplicated into the comps item", () => {
+    const brief = briefFrom({
+      pricePerSqm: 50_000,
+      floor: 0,
+      brf: makeBrf({ skuldPerKvm: 20_000 }),
+      comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+    });
+    const compsItem = brief.items.find((i) => i.kind === "comps-positioning");
+    const confounderItems = brief.items.filter((i) => i.kind === "confounder");
+    expect(compsItem).toBeDefined();
+    expect(confounderItems.length).toBeGreaterThan(0);
+
+    // Every label appears exactly once across the whole brief.
+    const allText = brief.items.map((i) => i.text).join(" ");
+    for (const label of ["hiss (okänt)", "mikroläge (okänt)", "delområde (okänt)", "bottenvåning"]) {
+      expect(allText.split(label).length - 1).toBe(1);
+      expect(compsItem!.text).not.toContain(label);
+    }
+    // The comps item still tells the reader where to look.
+    expect(compsItem!.text).toContain("(se nedan)");
+  });
+
   it("a brf-present input produces a brf item mentioning the avgift figure and the fiscalYear", () => {
     const brf = makeBrf({ avgiftsniva: 650, fiscalYear: 2024, stambytePlanerat: null });
     const brief = briefFrom({ brf });
