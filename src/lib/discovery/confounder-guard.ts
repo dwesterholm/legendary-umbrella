@@ -20,7 +20,6 @@
  * apply to this module.
  */
 
-import { MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
 import { BRF_SANITY_BANDS } from "@/lib/brf/sanity";
 import {
   tomtrattFromTenureForm,
@@ -192,7 +191,6 @@ export interface ConfounderGuardResult {
    * phase that supplies those inputs flips it with no shape change.
    */
   readonly canAttributeToCondition: boolean;
-  readonly compsThin: boolean;
   readonly confidence: "low" | "medium";
 }
 
@@ -319,11 +317,17 @@ export function normalizeForConfounders(
   // other than a positive match is unknown, including "Bostadsrätt".
   if (tomtrattFromTenureForm(tenureForm) !== true) unknownConfounders.push("tomtratt_unknown");
 
-  // 7. compsThin / confidence. Never "high" (D-14-04). This expression
-  // already requires `debtIncluded === true` for `"medium"`, so an untrusted
-  // debt figure automatically keeps the brief at `"low"` — this now follows
-  // from the CR-02 gate above rather than by accident.
-  const compsThin = comps === null || comps.sampleSize < MIN_COMPS_FOR_CONFIDENCE;
+  // 7. confidence. Never "high" (D-14-04). This expression already requires
+  // `debtIncluded === true` for `"medium"`, so an unusable debt figure
+  // automatically keeps the brief at `"low"` — this follows from the CR-02
+  // gate above rather than by accident.
+  //
+  // WR-11 (14-REVIEW.md): the former `compsThin` field lived here and was
+  // consumed NOWHERE outside this module and its test, while duplicating
+  // `comps.confident` / `comps.sampleSize` on the persisted
+  // `AreaCompsSummary` — a second, drift-prone copy of a fact the reader
+  // already has. `MIN_COMPS_FOR_CONFIDENCE` remains the single threshold, read
+  // straight off the summary by any consumer that needs it.
   const confidence: "low" | "medium" =
     comps !== null &&
     comps.confident === true &&
@@ -352,7 +356,6 @@ export function normalizeForConfounders(
     residualDrivers,
     unknownConfounders,
     canAttributeToCondition,
-    compsThin,
     confidence,
   };
 }
@@ -729,6 +732,10 @@ export function buildHolisticBrief(input: BuildHolisticBriefInput): HolisticBrie
       capped: guard.conditionCapApplied,
       residualDrivers: guard.residualDrivers,
       canAttributeToCondition: guard.canAttributeToCondition,
+      // WR-11: persist the BASIS the verdict was computed from, so a
+      // deepDiscount / explainedPct decision stays auditable after the fact.
+      effectivePricePerSqm: guard.effectivePricePerSqm,
+      debtIncluded: guard.debtIncluded,
     },
   };
 }

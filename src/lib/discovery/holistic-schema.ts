@@ -258,6 +258,18 @@ export interface HolisticBrief {
     readonly capped: boolean;
     readonly residualDrivers: string[];
     readonly canAttributeToCondition: boolean;
+    /**
+     * WR-11 (14-REVIEW.md): the kr/m² BASIS the verdict was actually computed
+     * from — `pricePerSqm` plus the förening's debt/m² when that figure was
+     * usable (SPEC §2.6 rule 1). Previously computed and thrown away, which
+     * left a `deepDiscount`/`explainedPct` verdict un-auditable after the fact:
+     * the single most decision-relevant number in the module (and the one the
+     * CR-02 ANL-04 defect turned on) was invisible in the persisted record.
+     * `null` when no price was available.
+     */
+    readonly effectivePricePerSqm: number | null;
+    /** Whether BRF debt/m² is INCLUDED in `effectivePricePerSqm` (WR-11). */
+    readonly debtIncluded: boolean;
   };
 }
 
@@ -282,5 +294,12 @@ export const holisticBriefSchema = z.object({
     capped: z.boolean(),
     residualDrivers: z.array(z.string()),
     canAttributeToCondition: z.boolean(),
+    // WR-11 additions — `.default(...)` (never a bare required key) for the
+    // same load-bearing reason `fieldConfidence.default(null)` above has one:
+    // this schema is nested inside `discoveryCandidateSchema`, so a required
+    // key here would have degraded every pre-existing persisted brief the
+    // moment this field shipped.
+    effectivePricePerSqm: z.number().nullable().default(null),
+    debtIncluded: z.boolean().default(false),
   }),
 });

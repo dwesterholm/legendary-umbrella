@@ -170,36 +170,60 @@ describe("a shallow discount is NOT capped", () => {
 });
 
 describe("fewer than 5 comps in the window downgrades confidence", () => {
-  it("sampleSize 4 + not-confident is thin and low-confidence", () => {
-    const r = normalizeForConfounders(
-      makeInput({ pricePerSqm: 90_000, comps: makeComps({ sampleSize: 4, confident: false }) }),
-    );
-    expect(r.compsThin).toBe(true);
+  // WR-11 (14-REVIEW.md): the former `compsThin` result field was consumed
+  // nowhere outside this module and duplicated `comps.confident` /
+  // `comps.sampleSize` on the persisted AreaCompsSummary. These tests now
+  // assert the same facts through the fields a real consumer actually reads —
+  // the thinness THRESHOLD itself is still pinned below.
+  it("sampleSize 4 + not-confident is thin (per the summary) and low-confidence", () => {
+    const comps = makeComps({ sampleSize: 4, confident: false });
+    const r = normalizeForConfounders(makeInput({ pricePerSqm: 90_000, comps }));
+    expect(comps.sampleSize).toBeLessThan(MIN_COMPS_FOR_CONFIDENCE);
     expect(r.confidence).toBe("low");
   });
 
   it("sampleSize 6 + confident + BRF present + shallow discount is medium confidence", () => {
+    const comps = makeComps({ sampleSize: 6, confident: true, renovatedMedianPerSqm: 100_000 });
     const r = normalizeForConfounders(
-      makeInput({
-        pricePerSqm: 85_000,
-        brf: makeBrf({ skuldPerKvm: 5_000 }),
-        comps: makeComps({ sampleSize: 6, confident: true, renovatedMedianPerSqm: 100_000 }),
-      }),
+      makeInput({ pricePerSqm: 85_000, brf: makeBrf({ skuldPerKvm: 5_000 }), comps }),
     );
-    expect(r.compsThin).toBe(false);
+    expect(comps.sampleSize).toBeGreaterThanOrEqual(MIN_COMPS_FOR_CONFIDENCE);
     expect(r.confidence).toBe("medium");
   });
 
-  it("MIN_COMPS_FOR_CONFIDENCE (5) is the exact threshold driving compsThin", () => {
+  it("MIN_COMPS_FOR_CONFIDENCE (5) is the single thinness threshold, readable straight off the summary", () => {
     expect(MIN_COMPS_FOR_CONFIDENCE).toBe(5);
-    const atThreshold = normalizeForConfounders(
-      makeInput({ comps: makeComps({ sampleSize: MIN_COMPS_FOR_CONFIDENCE }) }),
+    // A consumer needing "is this sample thin?" reads it from the persisted
+    // AreaCompsSummary against this one constant — no second, drift-prone copy
+    // on the guard result.
+    expect(makeComps({ sampleSize: MIN_COMPS_FOR_CONFIDENCE }).sampleSize).toBeGreaterThanOrEqual(
+      MIN_COMPS_FOR_CONFIDENCE,
     );
-    const belowThreshold = normalizeForConfounders(
-      makeInput({ comps: makeComps({ sampleSize: MIN_COMPS_FOR_CONFIDENCE - 1 }) }),
-    );
-    expect(atThreshold.compsThin).toBe(false);
-    expect(belowThreshold.compsThin).toBe(true);
+    expect(
+      makeComps({ sampleSize: MIN_COMPS_FOR_CONFIDENCE - 1 }).sampleSize,
+    ).toBeLessThan(MIN_COMPS_FOR_CONFIDENCE);
+  });
+
+  it("WR-11 — the persisted brief records the kr/m² BASIS the verdict was computed from", () => {
+    const brief = briefFrom({
+      pricePerSqm: 55_000,
+      brf: makeBrf({ skuldPerKvm: 30_000, fieldConfidence: { skuldPerKvm: 0.2, avgiftsniva: 0.9, kassaflode: 0.8 } }),
+      comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+    });
+    // 55 000 + 30 000 debt — the number the deepDiscount verdict turned on,
+    // previously discarded so the verdict was un-auditable after the fact.
+    expect(brief.conditionAttribution.effectivePricePerSqm).toBe(85_000);
+    expect(brief.conditionAttribution.debtIncluded).toBe(true);
+  });
+
+  it("WR-11 — with no usable debt the basis is the plain kr/m² and debtIncluded is false", () => {
+    const brief = briefFrom({
+      pricePerSqm: 55_000,
+      brf: null,
+      comps: makeComps({ renovatedMedianPerSqm: 100_000 }),
+    });
+    expect(brief.conditionAttribution.effectivePricePerSqm).toBe(55_000);
+    expect(brief.conditionAttribution.debtIncluded).toBe(false);
   });
 });
 

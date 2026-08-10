@@ -53,9 +53,11 @@ function makeHolisticBrief(overrides: Partial<HolisticBrief> = {}): HolisticBrie
     dataSources: ["comps", "hedonic"],
     conditionAttribution: {
       capped: true,
-      explainedPct: 0.2,
+      explainedPct: null,
       residualDrivers: ["läge", "våningsplan"],
       canAttributeToCondition: false,
+      effectivePricePerSqm: 85_000,
+      debtIncluded: true,
     },
     ...overrides,
   };

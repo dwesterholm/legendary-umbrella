@@ -26,10 +26,12 @@ function makeHolisticBrief(overrides: Partial<HolisticBrief> = {}): HolisticBrie
     ],
     dataSources: ["comps"],
     conditionAttribution: {
-      explainedPct: 0.2,
+      explainedPct: null,
       capped: true,
       residualDrivers: ["läge"],
       canAttributeToCondition: false,
+      effectivePricePerSqm: 85_000,
+      debtIncluded: true,
     },
     ...overrides,
   };

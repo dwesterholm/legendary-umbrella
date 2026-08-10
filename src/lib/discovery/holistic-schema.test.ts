@@ -171,6 +171,8 @@ describe("holisticBriefSchema — read guard", () => {
       capped: false,
       residualDrivers: [],
       canAttributeToCondition: false,
+      effectivePricePerSqm: 72_000,
+      debtIncluded: false,
     },
   };
 
@@ -191,6 +193,28 @@ describe("holisticBriefSchema — read guard", () => {
   it("rejects confidence: 'high' — a data-only brief can never claim high confidence", () => {
     const result = holisticBriefSchema.safeParse({ ...valid, confidence: "high" });
     expect(result.success).toBe(false);
+  });
+
+  it("WR-11 — a brief persisted BEFORE effectivePricePerSqm/debtIncluded existed still parses, defaulting both", () => {
+    const legacy = {
+      ...valid,
+      conditionAttribution: {
+        explainedPct: null,
+        capped: false,
+        residualDrivers: [],
+        canAttributeToCondition: false,
+        // effectivePricePerSqm / debtIncluded absent entirely
+      },
+    };
+
+    const result = holisticBriefSchema.safeParse(legacy);
+
+    // A required key here would have degraded every pre-existing persisted
+    // brief the moment the field shipped (the same reason
+    // fieldConfidence.default(null) is load-bearing).
+    expect(result.success).toBe(true);
+    expect(result.data?.conditionAttribution.effectivePricePerSqm).toBeNull();
+    expect(result.data?.conditionAttribution.debtIncluded).toBe(false);
   });
 
   it("HOLISTIC_BRIEF_ITEM_KINDS lists exactly the four expected kinds", () => {
