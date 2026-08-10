@@ -328,7 +328,9 @@ export async function runVisionForCandidate(
       throw new Error("CLAUDE_PARSE_EMPTY");
     }
 
-    const haikuUsage = toClaudeUsage(preFilterMessage.usage);
+    // (WR-03: the pre-filter's usage is already folded into `billedSek` above,
+    // at the point each call COMPLETED — there is no separate `haikuUsage`
+    // local any more, because the last-message-only read was exactly the leak.)
 
     if (!preFilterMessage.parsed_output.worthDeepPass) {
       return {
