@@ -72,6 +72,38 @@ export function costSek(usage: ClaudeUsage): number {
 }
 
 /**
+ * Sums several calls' token usage into ONE `ClaudeUsage`, so a caller that
+ * made more than one billed request (e.g. `extract.ts`'s truncation retry) can
+ * report what it actually spent instead of only the last message's usage —
+ * WR-02 (14-REVIEW.md). Absent cache fields count as 0. Pure function.
+ *
+ * `costSek(sumClaudeUsage(parts))` is exactly `sum(costSek(part))`: every rate
+ * is applied per-token and linearly, so summing tokens first cannot drift from
+ * summing costs.
+ *
+ * @param parts - each billed call's usage, in any order
+ * @returns one usage object whose four token counts are the element-wise sums
+ */
+export function sumClaudeUsage(parts: readonly ClaudeUsage[]): ClaudeUsage {
+  return parts.reduce<ClaudeUsage>(
+    (acc, part) => ({
+      input_tokens: acc.input_tokens + part.input_tokens,
+      output_tokens: acc.output_tokens + part.output_tokens,
+      cache_creation_input_tokens:
+        (acc.cache_creation_input_tokens ?? 0) + (part.cache_creation_input_tokens ?? 0),
+      cache_read_input_tokens:
+        (acc.cache_read_input_tokens ?? 0) + (part.cache_read_input_tokens ?? 0),
+    }),
+    {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    },
+  );
+}
+
+/**
  * Computes the SEK cost of a single Claude SONNET call from its token usage.
  *
  * Identical arithmetic and `USD_SEK_RATE` to `costSek`, but billed at the

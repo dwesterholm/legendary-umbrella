@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 // RED: implemented in Plan 03 (src/lib/brf/cost.ts).
-import { costSek, USD_PER_MTOK, USD_SEK_RATE } from "@/lib/brf/cost";
+import { costSek, sumClaudeUsage, USD_PER_MTOK, USD_SEK_RATE } from "@/lib/brf/cost";
 
 // Haiku 4.5 rates verified 2026-06-07 (RESEARCH §Cost & Limits):
 // input $1/MTok, output $5/MTok, 5-min cache-write $1.25/MTok, cache-read $0.10/MTok.
@@ -63,5 +63,35 @@ describe("costSek — cache accounting (§4b.5)", () => {
       cache_read_input_tokens: 80_000,
     });
     expect(cachedRetry).toBeLessThan(coldRun);
+  });
+});
+
+describe("sumClaudeUsage — multi-attempt billing (WR-02)", () => {
+  it("sums every token field element-wise, treating absent cache fields as 0", () => {
+    const summed = sumClaudeUsage([
+      { input_tokens: 50_000, output_tokens: 2048 },
+      {
+        input_tokens: 50_000,
+        output_tokens: 900,
+        cache_read_input_tokens: 10_000,
+      },
+    ]);
+
+    expect(summed).toEqual({
+      input_tokens: 100_000,
+      output_tokens: 2_948,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 10_000,
+    });
+  });
+
+  it("costSek(sum) equals the sum of the per-call costs (rates are per-token and linear)", () => {
+    const a = { input_tokens: 40_000, output_tokens: 1_500, cache_creation_input_tokens: 5_000 };
+    const b = { input_tokens: 60_000, output_tokens: 300, cache_read_input_tokens: 7_000 };
+    expect(costSek(sumClaudeUsage([a, b]))).toBeCloseTo(costSek(a) + costSek(b), 10);
+  });
+
+  it("an empty list is a zero-cost usage, never NaN", () => {
+    expect(costSek(sumClaudeUsage([]))).toBe(0);
   });
 });

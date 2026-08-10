@@ -206,6 +206,11 @@ export async function lookupBrfSummary(input: BrfLookupInput): Promise<BrfLookup
     // the org.nr, financials, or quotes.
     const code = error instanceof Error ? error.message : "UNKNOWN";
     console.error("[discovery-brf-lookup]", { code });
+    // WR-02 (14-REVIEW.md) closed the matching SUCCESS-path leak: a success
+    // after a truncation retry now returns the SUMMED usage of both billed
+    // calls (`extract.ts`'s `sumClaudeUsage`), so `costSek(result.usage)`
+    // above is honest too — not just this failure branch.
+    //
     // CR-04 (14-REVIEW.md): a code in BILLED_CALLS_BY_EXTRACTION_CODE means
     // Anthropic already billed 1 or 2 calls before extract.ts threw — charge
     // that real estimated spend against the shared CAP_VISION_SEK_MAX pool

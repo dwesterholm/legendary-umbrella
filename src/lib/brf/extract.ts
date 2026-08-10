@@ -4,7 +4,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod/v4";
 import { type BrfExtraction } from "@/lib/schemas/brf";
 import { BRF_EXTRACTION_SYSTEM_PROMPT } from "@/lib/brf/prompt";
-import type { ClaudeUsage } from "@/lib/brf/cost";
+import { sumClaudeUsage, type ClaudeUsage } from "@/lib/brf/cost";
 
 /**
  * The single Claude extraction call (AI-SPEC §3/§4). Mirrors the
@@ -295,6 +295,13 @@ export async function extractBrfFinancials(
       });
 
     let message = await runOnce();
+    // WR-02 (14-REVIEW.md): every COMPLETED call is billed by Anthropic, so
+    // the returned `usage` must be the SUM across attempts — returning only
+    // the last message's usage under-reported a retry-then-succeed extraction
+    // by a full call, which is real money against the discovery path's shared
+    // CAP_VISION_SEK_MAX pool (D-14-08) and the single-listing COST_CAP_SEK
+    // persistence gate.
+    const usageParts: ClaudeUsage[] = [toClaudeUsage(message.usage)];
 
     // Refusal: a guardrail trip — surface to manual entry, do NOT retry.
     if (message.stop_reason === "refusal") {
@@ -304,6 +311,7 @@ export async function extractBrfFinancials(
     // Truncation: retry exactly once, then give up.
     if (message.stop_reason === "max_tokens") {
       message = await runOnce();
+      usageParts.push(toClaudeUsage(message.usage));
       if (message.stop_reason === "max_tokens") {
         throw new Error("CLAUDE_MAX_TOKENS");
       }
@@ -318,7 +326,7 @@ export async function extractBrfFinancials(
       // → null, confidence clamped). analyze-brf.ts re-validates this against
       // brfExtractionSchema before persisting.
       parsed: toCanonicalExtraction(message.parsed_output),
-      usage: toClaudeUsage(message.usage),
+      usage: sumClaudeUsage(usageParts),
       citations: collectCitations(
         message.content as Array<{ type: string; citations?: unknown }>,
       ),
