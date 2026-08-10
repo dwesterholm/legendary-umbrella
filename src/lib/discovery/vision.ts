@@ -60,6 +60,46 @@ const KNOWN_VISION_CODES = new Set([
 ]);
 
 /**
+ * WR-03 (14-REVIEW.md): the coded vision failure, carrying the spend ALREADY
+ * BILLED before the throw.
+ *
+ * `runVisionForCandidate` can fail at four points, and three of them happen
+ * AFTER Anthropic has completed (and charged for) at least one call: a
+ * pre-filter refusal/truncation/parse-empty, and any deep-pass failure — which
+ * by construction follows a fully billed Haiku pre-filter. `runVisionPass`
+ * previously recorded nothing for those ("no cost was returned" is not "no cost
+ * was incurred"), so with D-14-08 routing comps + BRF + vision through ONE
+ * `CAP_VISION_SEK_MAX` pool, the largest spender was the one leaking.
+ *
+ * `billedSek` is the EXACT accumulated spend from every completed call, not an
+ * estimate — a transport failure before the model ever answers still reports
+ * `0`, which stays honest in the other direction.
+ */
+export class VisionCallError extends Error {
+  readonly billedSek: number;
+
+  constructor(code: string, billedSek: number, options?: ErrorOptions) {
+    super(code, options);
+    this.name = "VisionCallError";
+    this.billedSek = billedSek;
+  }
+}
+
+/**
+ * The spend to charge the shared pool for a failed candidate. Reads the exact
+ * billed figure off a `VisionCallError`; anything else is an UNEXPECTED shape,
+ * so it falls back to the worst-case per-call estimate the pre-gate already
+ * reserved — never 0, because under-counting a spend cap is the dangerous
+ * direction (WR-03).
+ */
+export function billedVisionSekOf(error: unknown): number {
+  if (error instanceof VisionCallError && Number.isFinite(error.billedSek)) {
+    return Math.max(0, error.billedSek);
+  }
+  return estimateVisionCallSek();
+}
+
+/**
  * CR-01/CR-02 (12-REVIEW.md): the actual banned-word ENFORCEMENT for
  * `remodelPotential` claims — belt-and-suspenders means code must inspect
  * and reject a banned-verdict claim, not merely append a disclaimer after
@@ -249,6 +289,11 @@ export async function runVisionForCandidate(
     return { result: null, skippedReason: "no_images" };
   }
 
+  // WR-03: accumulated as each call COMPLETES, so the catch below can report
+  // what Anthropic already charged even though no VisionResult is returned.
+  // Declared outside the try for exactly that reason.
+  let billedSek = 0;
+
   try {
     const runPreFilterOnce = () =>
       client.beta.messages.parse({
@@ -266,12 +311,15 @@ export async function runVisionForCandidate(
       });
 
     let preFilterMessage = await runPreFilterOnce();
+    // The call completed — it is billed whatever its stop_reason turns out to be.
+    billedSek += visionCostSek(toClaudeUsage(preFilterMessage.usage), null);
 
     if (preFilterMessage.stop_reason === "refusal") {
       throw new Error("CLAUDE_REFUSAL");
     }
     if (preFilterMessage.stop_reason === "max_tokens") {
       preFilterMessage = await runPreFilterOnce();
+      billedSek += visionCostSek(toClaudeUsage(preFilterMessage.usage), null);
       if (preFilterMessage.stop_reason === "max_tokens") {
         throw new Error("CLAUDE_MAX_TOKENS");
       }
@@ -288,7 +336,11 @@ export async function runVisionForCandidate(
           claims: [],
           imageUrlsUsed: capped,
           model: HAIKU_MODEL,
-          costSek: visionCostSek(haikuUsage, null),
+          // WR-03: the ACCUMULATED billed spend, so a pre-filter that needed a
+          // truncation retry reports both calls rather than only the last one
+          // (the same class of leak WR-02 fixed in extract.ts). Identical to
+          // `visionCostSek(haikuUsage, null)` whenever no retry happened.
+          costSek: billedSek,
           ranAt: new Date().toISOString(),
         },
         skippedReason: null,
@@ -312,12 +364,14 @@ export async function runVisionForCandidate(
       });
 
     let deepPassMessage = await runDeepPassOnce();
+    billedSek += visionCostSek({ input_tokens: 0, output_tokens: 0 }, toClaudeUsage(deepPassMessage.usage));
 
     if (deepPassMessage.stop_reason === "refusal") {
       throw new Error("CLAUDE_REFUSAL");
     }
     if (deepPassMessage.stop_reason === "max_tokens") {
       deepPassMessage = await runDeepPassOnce();
+      billedSek += visionCostSek({ input_tokens: 0, output_tokens: 0 }, toClaudeUsage(deepPassMessage.usage));
       if (deepPassMessage.stop_reason === "max_tokens") {
         throw new Error("CLAUDE_MAX_TOKENS");
       }
@@ -326,7 +380,6 @@ export async function runVisionForCandidate(
       throw new Error("CLAUDE_PARSE_EMPTY");
     }
 
-    const sonnetUsage = toClaudeUsage(deepPassMessage.usage);
     const parsed = deepPassMessage.parsed_output;
 
     const claims: VisionConditionClaim[] = (
@@ -393,7 +446,9 @@ export async function runVisionForCandidate(
         claims,
         imageUrlsUsed: capped,
         model: SONNET_MODEL,
-        costSek: visionCostSek(haikuUsage, sonnetUsage),
+        // WR-03: the accumulated billed spend across every completed call
+        // (pre-filter + deep pass, including any truncation retry).
+        costSek: billedSek,
         ranAt: new Date().toISOString(),
       },
       skippedReason: null,
@@ -403,7 +458,11 @@ export async function runVisionForCandidate(
     // URLs, claim text, or model output.
     const code = isKnownVisionCode(error) ? (error as Error).message : "CLAUDE_CALL_FAILED";
     console.error("[discovery-vision]", { booliId, code });
-    throw new Error(code, { cause: error });
+    // WR-03: carry the already-billed spend to the pass-level handler. A
+    // plain `new Error(code)` discarded it, which is how a refused/truncated
+    // candidate's real Haiku (and possibly Sonnet) charge vanished from the
+    // shared CAP_VISION_SEK_MAX pool.
+    throw new VisionCallError(code, billedSek, { cause: error });
   }
 }
 
@@ -552,11 +611,18 @@ export async function runVisionPass(
       }
 
       out.push({ ...candidate, vision: result, visionSkippedReason: skippedReason });
-    } catch {
+    } catch (error) {
       // The error itself was already logged (GDPR-safe { booliId, code })
       // inside runVisionForCandidate's own catch block — logging it again
-      // here would be redundant. Degrade this candidate and continue; the
-      // running cost total is untouched since no cost was returned.
+      // here would be redundant. Degrade this candidate and continue.
+      //
+      // WR-03 (14-REVIEW.md): charge what was ALREADY BILLED before the throw.
+      // "No cost was returned" is not "no cost was incurred": a refusal /
+      // truncation / parse-empty happens after a completed, charged call, and
+      // any deep-pass failure follows a fully billed Haiku pre-filter. With
+      // D-14-08 sharing ONE pool across comps + BRF + vision, silently
+      // recording 0 here let the biggest spender overrun the cap.
+      runningVisionSek += billedVisionSekOf(error);
       out.push({ ...candidate, vision: null, visionSkippedReason: "vision_error" });
     }
   }

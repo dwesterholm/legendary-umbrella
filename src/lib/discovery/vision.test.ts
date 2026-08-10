@@ -25,8 +25,14 @@ vi.mock("@anthropic-ai/sdk/helpers/zod", () => ({
   zodOutputFormat: (schema: unknown) => ({ __mockFormat: true, schema }),
 }));
 
-import { runVisionForCandidate, runVisionPass } from "@/lib/discovery/vision";
+import {
+  runVisionForCandidate,
+  runVisionPass,
+  VisionCallError,
+  billedVisionSekOf,
+} from "@/lib/discovery/vision";
 import { CAP_VISION_SEK_MAX, estimateVisionCallSek } from "@/lib/discovery/cost";
+import { costSek } from "@/lib/brf/cost";
 import { VISION_CONFIDENCE_THRESHOLD } from "@/lib/discovery/vision-schema";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 
@@ -634,6 +640,49 @@ describe("runVisionPass", () => {
     expect(parse).toHaveBeenCalledTimes(2);
 
     errorSpy.mockRestore();
+  });
+
+  it("WR-03: a REFUSED candidate's already-billed pre-filter spend is charged to the shared pool, not written off as free", async () => {
+    // The refusal arrives AFTER a completed, charged Haiku call. Before this
+    // fix runVisionPass recorded 0 for it, so the pool never advanced and a
+    // job of refusals could bill indefinitely against a cap that never moved.
+    const REFUSAL_USAGE = {
+      input_tokens: 400_000,
+      output_tokens: 100,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    };
+    parse.mockResolvedValue({
+      parsed_output: null,
+      usage: REFUSAL_USAGE,
+      stop_reason: "refusal",
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Enough refusals that the accumulated real spend must trip the cap; if
+    // the spend were written off as 0 the pass would keep calling forever.
+    const candidates = Array.from({ length: 4 }, (_, i) =>
+      makeCandidate({ sourceListingUrl: `https://www.booli.se/annons/refuse-${i}` }),
+    );
+
+    const result = await runVisionPass(candidates, {
+      initialSpentSek: CAP_VISION_SEK_MAX - 3 * costSek(REFUSAL_USAGE),
+    });
+
+    expect(result[0].visionSkippedReason).toBe("vision_error");
+    // The charged refusals pushed the pool over the cap, so a later candidate
+    // is cost_cap-skipped WITHOUT another Anthropic call.
+    expect(result.some((c) => c.visionSkippedReason === "cost_cap")).toBe(true);
+    expect(parse.mock.calls.length).toBeLessThan(candidates.length);
+
+    errorSpy.mockRestore();
+  });
+
+  it("WR-03: a transport failure BEFORE any model answer charges 0 (billedVisionSekOf stays honest downward too)", () => {
+    expect(billedVisionSekOf(new VisionCallError("CLAUDE_CALL_FAILED", 0))).toBe(0);
+    expect(billedVisionSekOf(new VisionCallError("CLAUDE_REFUSAL", 0.42))).toBeCloseTo(0.42, 10);
+    // An unexpected error shape falls back to the worst case, never 0.
+    expect(billedVisionSekOf(new Error("something else"))).toBe(estimateVisionCallSek());
   });
 
   it("produces DISTINCT visionSkippedReason values for cost_cap vs no_images (never collapsed)", async () => {
