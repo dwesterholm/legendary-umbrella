@@ -694,7 +694,15 @@ export function buildHolisticBrief(input: BuildHolisticBriefInput): HolisticBrie
     items: guardedItems,
     dataSources,
     conditionAttribution: {
-      explainedPct: guard.conditionExplainedPct,
+      // WR-08 (14-REVIEW.md): a persisted record must not simultaneously say
+      // "cannot attribute to condition" and "here is the fraction attributable
+      // to condition". `canAttributeToCondition` is unconditionally false this
+      // phase (rule 6 always records three unknowns), so a positive
+      // `explainedPct` alongside it was self-contradicting, and a Phase 15/16
+      // consumer reading `explainedPct` has no reason to also check the flag.
+      // No information is lost: `capped` plus the exported
+      // `MAX_CONDITION_EXPLAINED_PCT` fully determine the capped value.
+      explainedPct: guard.canAttributeToCondition ? guard.conditionExplainedPct : null,
       capped: guard.conditionCapApplied,
       residualDrivers: guard.residualDrivers,
       canAttributeToCondition: guard.canAttributeToCondition,

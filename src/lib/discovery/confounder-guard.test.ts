@@ -657,10 +657,34 @@ describe("buildHolisticBrief — ANL-01 non-empty guarantee + the LOW kr/m² ≠
     expect(item!.text).toContain("2024");
   });
 
-  it("a deep-discount input's conditionAttribution is capped at exactly 0.2", () => {
+  it("a deep-discount input records capped: true, and (WR-08) explainedPct null while attribution is impossible", () => {
     const brief = briefFrom({ pricePerSqm: 70_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) });
     expect(brief.conditionAttribution.capped).toBe(true);
-    expect(brief.conditionAttribution.explainedPct).toBe(0.2);
+    // The guard still COMPUTES the capped fraction...
+    const guard = normalizeForConfounders(
+      makeInput({ pricePerSqm: 70_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) }),
+    );
+    expect(guard.conditionExplainedPct).toBe(MAX_CONDITION_EXPLAINED_PCT);
+    // ...but the PERSISTED record must not assert a condition-attributable
+    // fraction while canAttributeToCondition is false (WR-08). `capped` +
+    // MAX_CONDITION_EXPLAINED_PCT still recover the value losslessly.
+    expect(brief.conditionAttribution.canAttributeToCondition).toBe(false);
+    expect(brief.conditionAttribution.explainedPct).toBeNull();
+  });
+
+  it("WR-08 — explainedPct is non-null exactly when canAttributeToCondition is true", () => {
+    const shapes: Partial<ConfounderGuardInput>[] = [
+      {},
+      { pricePerSqm: 90_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) },
+      { pricePerSqm: 40_000, comps: makeComps({ renovatedMedianPerSqm: 100_000 }) },
+      { pricePerSqm: 85_000, brf: makeBrf({ skuldPerKvm: 5_000 }), comps: makeComps() },
+      { floor: 3, balcony: true, tenureForm: "Tomträtt" },
+    ];
+    for (const overrides of shapes) {
+      const brief = briefFrom(overrides);
+      const { canAttributeToCondition, explainedPct } = brief.conditionAttribution;
+      expect(explainedPct === null).toBe(canAttributeToCondition === false);
+    }
   });
 
   it("no item text — across a table of at least eight varied inputs — ever implies low kr/m² means a renovation object", () => {
