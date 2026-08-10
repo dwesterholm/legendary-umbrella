@@ -727,8 +727,14 @@ export async function resolveCompsForCandidates(
     }
     const allLabels = [...labelToIndices.keys()].slice(0, MAX_AREAS_PER_SEARCH);
 
-    // (b) Budget pre-gate BEFORE any network work.
-    const allowedAreas = Math.max(0, Math.floor(opts.budgetSek / estimateCompsFetchSek()));
+    // (b) Budget pre-gate BEFORE any network work. WR-12 (14-REVIEW.md): one
+    // allowed area can cost the comps fetch PLUS a live `resolveArea` probe
+    // render on a cache/seed miss — which step (c) below charges AFTER the
+    // fact (`spentSek += renderSek(1)`), violating this function's own stated
+    // check-before-spend discipline. Small in SEK, material in latency (a full
+    // headless render inside an already-loaded vision tick), so price it here.
+    const perAreaWorstCase = estimateCompsFetchSek() + renderSek(1);
+    const allowedAreas = Math.max(0, Math.floor(opts.budgetSek / perAreaWorstCase));
     const labels = allLabels.slice(0, allowedAreas);
     areasSkippedForBudget = allLabels.length - labels.length;
 

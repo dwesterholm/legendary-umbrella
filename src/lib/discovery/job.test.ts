@@ -104,6 +104,7 @@ import {
   discoveryCostSek,
   renderSek,
   estimateBrfLookupSek,
+  estimateCompsFetchSek,
   AREA_RENDER_RUNGS_PER_PAGE,
 } from "@/lib/discovery/cost";
 import {
@@ -1068,6 +1069,43 @@ describe("resolveCompsForCandidates — ANL-02 amortized per-area comps", () => 
     expect(fetchSoldComps).not.toHaveBeenCalled();
     expect(result.areasSkippedForBudget).toBeGreaterThan(0);
     expect(result.spentSek).toBe(0);
+  });
+
+  it("WR-12 — a budget covering only the comps fetch (not the probe render it authorises) allows ZERO areas", async () => {
+    const candidates = [makeCandidate({ areaLabel: "Södermalm" })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      // Exactly the comps fetch — but resolveArea may ALSO burn a probe render,
+      // which the old gate charged only after the fact.
+      budgetSek: estimateCompsFetchSek(),
+    });
+
+    expect(resolveArea).not.toHaveBeenCalled();
+    expect(fetchSoldComps).not.toHaveBeenCalled();
+    expect(result.areasSkippedForBudget).toBe(1);
+    expect(result.spentSek).toBe(0);
+  });
+
+  it("WR-12 — a budget covering the comps fetch PLUS one probe render allows exactly one area", async () => {
+    resolveArea.mockResolvedValue({ areaId: "AREA-1", source: "probe" as const });
+    fetchSoldComps.mockResolvedValue({
+      data: apolloCompsPayload([50000, 55000, 60000, 65000, 70000]),
+      rendersUsed: 1,
+    });
+    const candidates = [makeCandidate({ areaLabel: "Södermalm" })];
+    const supabase = makeSupabase();
+
+    const result = await resolveCompsForCandidates(supabase, candidates, {
+      jobId: "job-1",
+      budgetSek: estimateCompsFetchSek() + renderSek(1),
+    });
+
+    expect(resolveArea).toHaveBeenCalledTimes(1);
+    expect(result.areasSkippedForBudget).toBe(0);
+    // The probe render it authorised is inside what the gate priced.
+    expect(result.spentSek).toBeLessThanOrEqual(estimateCompsFetchSek() + renderSek(1));
   });
 
   it("(h) spentSek equals renderSek(sum of rendersUsed) plus renderSek(1) per source:'probe' resolution", async () => {
