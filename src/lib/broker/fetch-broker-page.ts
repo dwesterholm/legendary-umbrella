@@ -45,7 +45,7 @@ type GetOutcome =
  * redirect signal (with the raw Location), or a generic fail — never throws.
  * Owns its Agent's full lifecycle (destroyed in `finally`).
  */
-async function guardedGet(url: string): Promise<GetOutcome> {
+async function guardedGet(url: string, timeoutMs?: number): Promise<GetOutcome> {
   let pinnedAgent: Agent | null = null;
   try {
     const resolved = await resolveSafeExternalUrl(url);
@@ -73,6 +73,9 @@ async function guardedGet(url: string): Promise<GetOutcome> {
       redirect: "manual",
       dispatcher: pinnedAgent,
       headers: BROWSER_HEADERS,
+      // WR-02: abort also covers the res.text() body read below. Omitted when
+      // no timeout is supplied so the default request shape is unchanged.
+      ...(timeoutMs !== undefined ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     } as RequestInit);
 
     if (res.type === "opaqueredirect") return { kind: "redirect", location: null };
@@ -102,8 +105,8 @@ async function guardedGet(url: string): Promise<GetOutcome> {
  * empty-ish `BrokerFields` (or null) for client-rendered SPAs whose static HTML
  * is just an app shell.
  */
-async function fetchViaDirect(url: string): Promise<BrokerFields | null> {
-  let outcome = await guardedGet(url);
+async function fetchViaDirect(url: string, timeoutMs?: number): Promise<BrokerFields | null> {
+  let outcome = await guardedGet(url, timeoutMs);
 
   // One safe redirect hop — the target is re-validated by guardedGet's own
   // resolve-then-pin guard, so SSRF/rebinding protection is preserved.
@@ -147,7 +150,10 @@ const BROKER_RENDER_PAGE_FUNCTION = `async function pageFunction(context){
  * refuse internal/bogus hosts before spending a render) and parse the rendered
  * HTML with the SAME extractor. Never throws.
  */
-async function fetchViaHeadless(url: string): Promise<BrokerFields | null> {
+async function fetchViaHeadless(
+  url: string,
+  render?: { waitSecs?: number; maxRequestRetries?: number },
+): Promise<BrokerFields | null> {
   try {
     // Gate: only spend a render on an https URL that resolves to a safe public
     // address (rejects internal/unresolvable hosts even though Apify, not us,
@@ -158,7 +164,11 @@ async function fetchViaHeadless(url: string): Promise<BrokerFields | null> {
       console.error("[broker]", `headless render refused unsafe URL: ${safeUrlForLog(url)}`);
       return null;
     }
-    const items = await runPlaywrightRender(url, BROKER_RENDER_PAGE_FUNCTION);
+    // WR-02: previously called with NO opts, silently inheriting
+    // runPlaywrightRender's 240s-wait x 3-retry default — the single largest
+    // unbounded leg inside the discovery enrichment loop. Passing `undefined`
+    // preserves that default for callers that do not opt in (analyze.ts).
+    const items = await runPlaywrightRender(url, BROKER_RENDER_PAGE_FUNCTION, render);
     const html = (items[0] as { html?: unknown } | undefined)?.html;
     if (typeof html !== "string" || html.length === 0) return null;
     return parseBrokerPage(html);
@@ -183,11 +193,19 @@ function isEmptyShell(fields: BrokerFields | null): boolean {
  * render. Returns whichever produced usable data, or the direct result (may be
  * null) if the headless render also came back empty. Never throws.
  */
-export async function fetchBrokerListingPage(url: string): Promise<BrokerFields | null> {
-  const direct = await fetchViaDirect(url);
+export async function fetchBrokerListingPage(
+  url: string,
+  opts?: {
+    /** Abort the direct GET (and its body read) after this many ms. */
+    directTimeoutMs?: number;
+    /** Bound the headless-render escalation. Omit to keep the 240s x 3 default. */
+    render?: { waitSecs?: number; maxRequestRetries?: number };
+  },
+): Promise<BrokerFields | null> {
+  const direct = await fetchViaDirect(url, opts?.directTimeoutMs);
   if (!isEmptyShell(direct)) return direct;
 
-  const rendered = await fetchViaHeadless(url);
+  const rendered = await fetchViaHeadless(url, opts?.render);
   if (!isEmptyShell(rendered)) return rendered;
 
   // Both empty — prefer a non-null (even if empty) fields object over null so

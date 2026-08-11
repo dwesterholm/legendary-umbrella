@@ -529,6 +529,47 @@ export function enrichmentVisitOrder(candidates: DiscoveryCandidate[]): number[]
 /** Max broker-gallery images fetched (as bytes) per candidate — bounds bandwidth. */
 const BROKER_IMAGES_PER_CANDIDATE = 4;
 
+/**
+ * WR-02 — wall-clock budget for the whole enrichment stage.
+ *
+ * `enrichCandidateImages` is the FIRST of four sequential stages inside
+ * `runVisionForJob` (enrich → comps → BRF → vision), all of which share the
+ * single ~300s `TICK_DISCOVERY_MAX_DURATION_SEC` Server Action ceiling. Before
+ * this bound, enrichment alone could exceed that ceiling many times over, and a
+ * Server Action that times out mid-write leaves the job row stuck FOREVER at
+ * `"vision_processing"` (see `runVisionForJob`'s own doc comment) — unrecoverable
+ * by the sweep. 120s leaves ~180s for comps + BRF + vision.
+ *
+ * This is the load-bearing guarantee, NOT the concurrency below: batching lowers
+ * the expected time but cannot bound it (at `ENRICH_CONCURRENCY = 3` the
+ * per-candidate worst case still multiplies out past 300s). Only the deadline
+ * makes the invariant hold.
+ */
+export const ENRICH_DEADLINE_MS = 120_000;
+
+/**
+ * How many candidates are detail-fetched concurrently. Mirrors `runSlice`'s and
+ * `lookupBrfForTopCandidates`'s `Promise.allSettled` batching shape. Kept modest
+ * deliberately: each task is a paid Apify render, and running all
+ * `VISION_ENRICH_LIMIT` at once would burst 8 simultaneous actor runs through
+ * the same RESIDENTIAL/SE proxy pool, raising both Apify concurrency pressure
+ * and simultaneous Cloudflare-challenge exposure.
+ */
+export const ENRICH_CONCURRENCY = 3;
+
+/**
+ * WR-02 bounds for the per-candidate BROKER legs, which had NO upper bound at
+ * all before this change: the direct GET and each image fetch had no
+ * `AbortSignal`, and `fetchViaHeadless` inherited `runPlaywrightRender`'s
+ * 240s-wait x 3-retry default. Together those dwarfed the detail render the
+ * 13-04 fix had already bounded. Broker enrichment is a pure bonus — cutting it
+ * short only ever costs image coverage, never correctness.
+ */
+const BROKER_DIRECT_TIMEOUT_MS = 15_000;
+const BROKER_IMAGE_TIMEOUT_MS = 10_000;
+const BROKER_RENDER_WAIT_SECS = 45;
+const BROKER_RENDER_MAX_RETRIES = 1;
+
 /** Result of enrichment: the (image-populated) candidates + per-index broker bytes. */
 export interface EnrichmentResult {
   candidates: DiscoveryCandidate[];
@@ -551,21 +592,48 @@ export interface EnrichmentResult {
 export async function enrichCandidateImages(
   candidates: DiscoveryCandidate[],
   limit: number,
+  opts?: {
+    /** Wall-clock budget for the whole stage (WR-02). */
+    deadlineMs?: number;
+    /** Candidates detail-fetched per batch (WR-02). */
+    concurrency?: number;
+    /** Injectable clock — tests drive the deadline without real waiting. */
+    now?: () => number;
+  },
 ): Promise<EnrichmentResult> {
   const out = [...candidates];
   const brokerImages = new Map<number, BrokerImageBytes[]>();
-  let fetched = 0;
+  const deadlineMs = opts?.deadlineMs ?? ENRICH_DEADLINE_MS;
+  const concurrency = Math.max(1, opts?.concurrency ?? ENRICH_CONCURRENCY);
+  const now = opts?.now ?? (() => Date.now());
+  const startedAt = now();
+
   // Visit in reno-potential order (below-market + aged first), NOT Booli's
   // relevance order, so the limited enrichment budget lands on the actual
   // renovation targets rather than getting truncated away (SPEC §2.1, D1).
   // `out` stays in input order — only the visit sequence changes — so `out[i]`
   // and the broker-image map indices remain aligned with the caller's array.
-  for (const i of enrichmentVisitOrder(out)) {
-    if (fetched >= limit) break;
+  //
+  // Eligibility is resolved UP FRONT so `limit` keeps its exact prior meaning:
+  // at most `limit` candidates are ever detail-fetched, counting only those that
+  // actually lack images and carry a source URL. The old loop's `fetched += 1`
+  // (incremented before the try, so a failure still consumed budget) is
+  // equivalent to taking the first `limit` eligible indices in visit order.
+  const eligible = enrichmentVisitOrder(out)
+    .filter((i) => {
+      const c = out[i];
+      if (c.imageUrls && c.imageUrls.length > 0) return false; // already has images
+      if (!c.sourceListingUrl) return false; // nothing to fetch
+      return true;
+    })
+    .slice(0, limit);
+
+  /** One candidate's enrichment. Never throws — mirrors the prior contract. */
+  const enrichOne = async (i: number): Promise<void> => {
     const c = out[i];
-    if (c.imageUrls && c.imageUrls.length > 0) continue; // already has images
-    if (!c.sourceListingUrl) continue; // nothing to fetch
-    fetched += 1;
+    // Re-assert what the eligibility filter already guaranteed; the filter runs
+    // in a separate closure so TS cannot narrow `sourceListingUrl` across it.
+    if (!c.sourceListingUrl) return;
     try {
       // 13-04 Task 3 (GAP-2): bounded opts — a blocked/slow detail page
       // cannot burn the unbounded 240s/3-retry x 2-rung default here. Never
@@ -590,7 +658,13 @@ export async function enrichCandidateImages(
       const brokerUrl = typeof raw.agencyListingUrl === "string" ? raw.agencyListingUrl : null;
       if (brokerUrl) {
         try {
-          const broker = await fetchBrokerListingPage(brokerUrl);
+          const broker = await fetchBrokerListingPage(brokerUrl, {
+            directTimeoutMs: BROKER_DIRECT_TIMEOUT_MS,
+            render: {
+              waitSecs: BROKER_RENDER_WAIT_SECS,
+              maxRequestRetries: BROKER_RENDER_MAX_RETRIES,
+            },
+          });
           if (broker) {
             // Orientation v2: the broker description is often richer than
             // Booli's ("vardagsrum i söderläge med kvällssol"). If we still
@@ -602,7 +676,11 @@ export async function enrichCandidateImages(
               if (derived) out[i] = { ...out[i], orientation: derived };
             }
             if (broker.images.length > 0) {
-              const bytes = await fetchBrokerImageBytes(broker.images, BROKER_IMAGES_PER_CANDIDATE);
+              const bytes = await fetchBrokerImageBytes(
+                broker.images,
+                BROKER_IMAGES_PER_CANDIDATE,
+                { timeoutMs: BROKER_IMAGE_TIMEOUT_MS },
+              );
               if (bytes.length > 0) brokerImages.set(i, bytes);
             }
           }
@@ -615,7 +693,33 @@ export async function enrichCandidateImages(
         code: error instanceof Error ? error.name : "UNKNOWN",
       });
     }
+  };
+
+  // Bounded concurrent batches, deadline-checked at each batch boundary. The
+  // boundary is the right granularity: an in-flight task is already bounded by
+  // its own per-leg timeouts, so the worst overshoot past the deadline is one
+  // batch, and no task is ever abandoned mid-write (every one mutates `out[i]`
+  // and `brokerImages` only after its awaits resolve).
+  for (let start = 0; start < eligible.length; start += concurrency) {
+    const elapsed = now() - startedAt;
+    if (elapsed >= deadlineMs) {
+      // Degrade, never fail: enrichment can only ADD coverage, and ANL-01
+      // guarantees >=1 actionable item from holistic data even with zero vision
+      // coverage. Log so the live smoke can see the budget actually binding.
+      console.error("[discovery-job] enrichment deadline reached — skipping remainder (WR-02)", {
+        enriched: start,
+        skipped: eligible.length - start,
+        elapsedMs: elapsed,
+        deadlineMs,
+      });
+      break;
+    }
+    const batch = eligible.slice(start, start + concurrency);
+    // allSettled, not all: enrichOne already swallows its own failures, so this
+    // is belt-and-braces against an unexpected throw taking down the stage.
+    await Promise.allSettled(batch.map((i) => enrichOne(i)));
   }
+
   return { candidates: out, brokerImages };
 }
 

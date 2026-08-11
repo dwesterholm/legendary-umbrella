@@ -98,8 +98,11 @@ import {
   resolveCompsForCandidates,
   lookupBrfForTopCandidates,
   MAX_COMPS_AREAS_PER_PASS,
+  ENRICH_DEADLINE_MS,
+  ENRICH_CONCURRENCY,
   type ClaimedDiscoveryJob,
 } from "@/lib/discovery/job";
+import { TICK_DISCOVERY_MAX_DURATION_SEC } from "@/lib/discovery/tick-config";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 import {
   discoveryCostSek,
@@ -1857,6 +1860,144 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     expect(fetchListing).toHaveBeenCalledTimes(8);
   });
 
+  // WR-02 regressions — the enrichment stage is the first of four sharing the
+  // ~300s TICK_DISCOVERY_MAX_DURATION_SEC ceiling, and a Server Action that
+  // times out mid-write wedges the job row at "vision_processing" forever.
+  describe("WR-02 — bounded against the tick ceiling", () => {
+    it("stops enriching once the wall-clock deadline is reached, keeping what it already got", async () => {
+      // Each detail fetch burns 45s of the budget, so the clock advances the way
+      // it would in a real slow run rather than on an artificial read schedule.
+      let clock = 0;
+      fetchListing.mockImplementation(async () => {
+        clock += 45_000;
+        return rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"]);
+      });
+      const input = Array.from({ length: 8 }, (_, i) =>
+        makeCandidate({ sourceListingUrl: `https://www.booli.se/bostad/${i}`, imageUrls: null }),
+      );
+
+      const { candidates: out } = await enrichCandidateImages(input, 8, {
+        deadlineMs: 150_000,
+        concurrency: 2,
+        now: () => clock,
+      });
+
+      // Batch 1 at elapsed 0 -> 90s. Batch 2 at elapsed 90s (< 150s) -> 180s.
+      // Batch 3 sees elapsed 180s >= 150s and stops. 4 of 8 enriched — the
+      // budget bound, and crucially NOT zero and NOT all 8.
+      expect(fetchListing).toHaveBeenCalledTimes(4);
+      expect(out.filter((c) => c.imageUrls !== null)).toHaveLength(4);
+    });
+
+    it("never abandons the stage: a deadline trip degrades coverage, it does not throw", async () => {
+      fetchListing.mockResolvedValue(rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"]));
+      const input = Array.from({ length: 4 }, (_, i) =>
+        makeCandidate({ sourceListingUrl: `https://www.booli.se/bostad/${i}`, imageUrls: null }),
+      );
+
+      // Budget already exhausted at entry — zero enrichment, no throw.
+      const result = await enrichCandidateImages(input, 4, {
+        deadlineMs: 0,
+        now: () => 10_000,
+      });
+
+      expect(fetchListing).not.toHaveBeenCalled();
+      expect(result.candidates).toHaveLength(4);
+      expect(result.brokerImages.size).toBe(0);
+    });
+
+    it("detail-fetches concurrently in batches rather than one at a time", async () => {
+      let inFlight = 0;
+      let peakInFlight = 0;
+      fetchListing.mockImplementation(async () => {
+        inFlight += 1;
+        peakInFlight = Math.max(peakInFlight, inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return rawDetail(["https://bcdn.se/images/cache/1_1440x0.webp"]);
+      });
+      const input = Array.from({ length: 6 }, (_, i) =>
+        makeCandidate({ sourceListingUrl: `https://www.booli.se/bostad/${i}`, imageUrls: null }),
+      );
+
+      await enrichCandidateImages(input, 6, { concurrency: 3 });
+
+      expect(peakInFlight).toBeGreaterThan(1);
+      expect(peakInFlight).toBeLessThanOrEqual(3);
+      expect(fetchListing).toHaveBeenCalledTimes(6);
+    });
+
+    it("keeps out[i] and the broker-image map aligned with the input order under concurrency", async () => {
+      // Distinct per-URL results: any index drift shows up as a mismatch.
+      fetchListing.mockImplementation(async (url: string) => {
+        const n = url.split("/").pop();
+        return {
+          imageUrls: [`https://bcdn.se/images/cache/${n}_1440x0.webp`],
+          agencyListingUrl: `https://maklare.example/objekt/${n}`,
+        };
+      });
+      fetchBrokerListingPage.mockImplementation(async (url: string) => ({
+        renovationStatus: null,
+        description: null,
+        images: [`https://cdn.maklare.example/${url.split("/").pop()}.jpg`],
+      }));
+      fetchBrokerImageBytes.mockImplementation(async (urls: string[]) => [
+        { mediaType: "image/jpeg", data: urls[0] },
+      ]);
+
+      const input = Array.from({ length: 5 }, (_, i) =>
+        makeCandidate({ sourceListingUrl: `https://www.booli.se/bostad/${i}`, imageUrls: null }),
+      );
+
+      const { candidates: out, brokerImages } = await enrichCandidateImages(input, 5, {
+        concurrency: 3,
+      });
+
+      for (let i = 0; i < 5; i++) {
+        expect(out[i].sourceListingUrl).toBe(`https://www.booli.se/bostad/${i}`);
+        expect(out[i].imageUrls).toEqual([`https://bcdn.se/images/cache/${i}_1440x0.webp`]);
+        expect(brokerImages.get(i)).toEqual([
+          { mediaType: "image/jpeg", data: `https://cdn.maklare.example/${i}.jpg` },
+        ]);
+      }
+    });
+
+    it("bounds every broker leg — direct GET timeout, render ceiling, and per-image timeout", async () => {
+      fetchListing.mockResolvedValue({
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+        agencyListingUrl: "https://maklare.example/objekt/1",
+      });
+      fetchBrokerListingPage.mockResolvedValue({
+        renovationStatus: null,
+        description: null,
+        images: ["https://cdn.maklare.example/bath.jpg"],
+      });
+      fetchBrokerImageBytes.mockResolvedValue([{ mediaType: "image/jpeg", data: "QkFTRTY0" }]);
+
+      await enrichCandidateImages(
+        [makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null })],
+        1,
+      );
+
+      const pageOpts = fetchBrokerListingPage.mock.calls[0][1];
+      expect(pageOpts.directTimeoutMs).toBeGreaterThan(0);
+      // Must be strictly below runPlaywrightRender's 240s default — inheriting
+      // that default was the largest unbounded leg in this loop.
+      expect(pageOpts.render.waitSecs).toBeLessThan(240);
+      expect(pageOpts.render.maxRequestRetries).toBeLessThan(3);
+      expect(fetchBrokerImageBytes.mock.calls[0][2].timeoutMs).toBeGreaterThan(0);
+    });
+
+    it("keeps the enrichment budget within the tick ceiling by construction", async () => {
+      // The guarantee is the deadline, not the concurrency: assert the shipped
+      // default leaves real headroom for the comps/BRF/vision stages that follow.
+      expect(ENRICH_DEADLINE_MS).toBeLessThan(TICK_DISCOVERY_MAX_DURATION_SEC * 1000);
+      expect(ENRICH_DEADLINE_MS).toBeLessThanOrEqual(150_000);
+      expect(ENRICH_CONCURRENCY).toBeGreaterThan(1);
+      expect(ENRICH_CONCURRENCY).toBeLessThanOrEqual(8); // VISION_ENRICH_LIMIT (module-private)
+    });
+  });
+
   it("is non-fatal: a failed detail fetch leaves that candidate unchanged (vision later skips it)", async () => {
     fetchListing.mockRejectedValue(new Error("render blocked"));
     const input = [
@@ -1894,7 +2035,13 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     const { candidates, brokerImages } = await enrichCandidateImages(input, 8);
 
     expect(candidates[0].imageUrls).toEqual(["https://bcdn.se/images/cache/1_1440x0.webp"]);
-    expect(fetchBrokerListingPage).toHaveBeenCalledWith("https://maklare.example/objekt/1");
+    // WR-02: the broker legs are now explicitly bounded. This previously
+    // asserted a bare single-arg call, which is exactly what left the direct GET
+    // and the headless-render escalation unbounded inside the ~300s tick.
+    expect(fetchBrokerListingPage).toHaveBeenCalledWith("https://maklare.example/objekt/1", {
+      directTimeoutMs: expect.any(Number),
+      render: { waitSecs: expect.any(Number), maxRequestRetries: expect.any(Number) },
+    });
     // Broker bytes are returned in the per-index map (transient, never persisted).
     expect(brokerImages.get(0)).toEqual([{ mediaType: "image/jpeg", data: "QkFTRTY0" }]);
   });

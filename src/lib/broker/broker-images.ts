@@ -45,7 +45,14 @@ function isSupportedMediaType(m: string): m is SupportedImageMediaType {
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 /** Fetches ONE image URL through the SSRF guard → base64, or null on any failure. */
-async function fetchOne(url: string): Promise<BrokerImageBytes | null> {
+/**
+ * Per-image request bound (WR-02). Optional and default-off so every existing
+ * caller keeps byte-for-byte current behavior; the discovery enrichment loop
+ * (`enrichCandidateImages`) passes an explicit value because it runs inside the
+ * ~300s `TICK_DISCOVERY_MAX_DURATION_SEC` Server Action ceiling, where one hung
+ * image socket previously had no upper bound at all.
+ */
+async function fetchOne(url: string, timeoutMs?: number): Promise<BrokerImageBytes | null> {
   const resolved = await resolveSafeExternalUrl(url);
   if (!resolved) return null;
 
@@ -72,6 +79,10 @@ async function fetchOne(url: string): Promise<BrokerImageBytes | null> {
           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Accept: "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.8",
       },
+      // WR-02: abort covers the body read below too, so a stalled
+      // arrayBuffer() cannot park the caller either. Omitted entirely when no
+      // timeout is supplied, so the default request shape is unchanged.
+      ...(timeoutMs !== undefined ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     } as RequestInit);
 
     if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) return null;
@@ -102,11 +113,12 @@ async function fetchOne(url: string): Promise<BrokerImageBytes | null> {
 export async function fetchBrokerImageBytes(
   urls: string[],
   limit: number,
+  opts?: { timeoutMs?: number },
 ): Promise<BrokerImageBytes[]> {
   const out: BrokerImageBytes[] = [];
   for (const url of urls) {
     if (out.length >= limit) break;
-    const img = await fetchOne(url);
+    const img = await fetchOne(url, opts?.timeoutMs);
     if (img) out.push(img);
   }
   return out;
