@@ -29,7 +29,7 @@ Phase: 15
 Plan: Not started
 Status: Ready to execute
 Last activity: 2026-08-10
-Next step: `/gsd-discuss-phase 15`. Outstanding: Phase 13 operator live-smoke re-run (13-03), and Phase 14's four deferred live-operator items in 14-UAT.md (blocked on the paused Supabase project + a non-blocked IP).
+Next step: `/gsd-discuss-phase 15`. Outstanding and RUNNABLE NOW (2026-08-11): Phase 13's operator live-smoke re-run (13-03) and Phase 14's four live-operator items in 14-UAT.md. Both were previously filed as environment-blocked on a paused Supabase project + a Booli-blocked operator IP; both blockers were wrong (Supabase verified live; Booli traffic egresses from the Apify RESIDENTIAL/SE proxy, never the operator IP). One real multi-area run covers 13-03 and 14-UAT item 1 together. area_cache is empty, so expect live area probes on the first run.
 
 ## Roadmap Summary (v1.2 — CURRENT)
 

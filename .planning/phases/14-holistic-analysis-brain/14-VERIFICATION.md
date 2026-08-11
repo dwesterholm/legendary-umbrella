@@ -14,17 +14,23 @@ overrides:
       All 4/4 automated must-haves verified against source, and the verifier found
       no regressions across the 20 fix(14) commits. The verifier returned
       human_needed solely because of the four live-operator items in
-      human_verification, every one of which is blocked by environment rather than
-      by code: the Supabase project (nsheegvczxjeeayngqrv) is paused so resolveArea
-      cannot read area_cache, and the operator IP is Booli/Cloudflare-blocked (403
-      on detail pages). None are new — all four are carried forward unchanged from
-      prior passes. Deferred as a live-operator gate per 14-VALIDATION.md,
-      consistent with the Phases 11-13 precedent. Items persisted to 14-UAT.md
-      (status deferred_live) so they remain discoverable via /gsd-progress and
-      /gsd-audit-uat; work them with /gsd-verify-work 14 once Supabase is restored
-      and the run originates from a non-blocked IP.
+      human_verification, none of which a mocked test can substitute for (real
+      Apify/Allabrf latency, real spend accounting, real Allabrf extraction
+      quality). None are new — all four are carried forward unchanged from prior
+      passes. Items persisted to 14-UAT.md so they remain discoverable via
+      /gsd-progress and /gsd-audit-uat; work them with /gsd-verify-work 14.
+      CORRECTED 2026-08-11 — this override originally justified the deferral with
+      two environment blockers, BOTH incorrect: (1) the Supabase project was
+      already restored (verified live 2026-08-11, area_cache HTTP 200 in 0.14s,
+      table empty so resolveArea does live probes on a first run); (2) "operator IP
+      is Booli/Cloudflare-blocked" is structurally incoherent here — no
+      direct-fetch rung to Booli exists, every rung runs through
+      apify/playwright-scraper on an Apify RESIDENTIAL/SE proxy
+      (src/lib/booli/transport.ts:75), so the operator's IP never contacts Booli.
+      The items are UNRUN, not blocked, and are runnable today.
     accepted_by: "Daniel Westerholm"
     accepted_at: "2026-08-10T14:20:00Z"
+    corrected_at: "2026-08-11T00:00:00Z"
     tracked_in: ".planning/phases/14-holistic-analysis-brain/14-UAT.md"
 overrides_applied: 2
 re_verification:
@@ -40,7 +46,7 @@ deferred: []
 human_verification:
   - test: "Live end-to-end discovery run: real comps + BRF fetched and folded into a real multi-area job, within the CAP_VISION_SEK_MAX cost cap and inside the tick window."
     expected: "Comps fetched once per distinct area, BRF attempted only for top-N, cost_sek_total stays within cap, no tick timeout, every candidate shows ≥1 actionable item."
-    why_human: "Supabase project is paused (resolveArea reads area_cache) and the operator IP is Booli/Cloudflare-blocked (403 on detail pages) — no mocked test can observe real Apify/Allabrf latency or real spend. Recorded as a deferred-live operator gate per 14-VALIDATION.md, consistent with Phases 11-13 precedent."
+    why_human: "No mocked test can observe real Apify/Allabrf latency, real spend accounting, or true end-to-end wall-clock inside the ~300s ceiling. CORRECTED 2026-08-11: previously cited a paused Supabase project and a Booli-blocked operator IP — both incorrect (Supabase is live; all Booli traffic goes via the Apify RESIDENTIAL/SE proxy, never the operator IP). Runnable now; see 14-UAT.md."
   - test: "Confirm genitive kommun corroboration reaches resolveOrgNr confidence 'high' against the live Allabrf registry for unambiguous single-name matches."
     expected: "'high' confidence reached for real BRF names, unblocking the BRF top-N lookup in production (today gated to 'high' only, per D-14-09's explicit rejection of relaxing to 'low')."
     why_human: "Only fixture-level genitive forms have been tested; real registry spelling variance can only be confirmed live."
@@ -143,7 +149,7 @@ The one pre-existing flaky test (`job.test.ts:562`, wall-clock concurrency asser
 
 ### Human Verification Required
 
-See frontmatter `human_verification` — four items, all environment-blocked (Supabase project paused, operator IP Booli/Cloudflare-blocked), carried forward from the prior pass per the established deferred-live-gate precedent (Phases 11-13). Item 4 is updated to reflect that the CR-02 mocked-pipeline fix has now landed and passed; it still requires a real Allabrf document with genuinely high debt to confirm real-world OCR/extraction quality matches the fixture's assumed shape — this is a live-data confirmation, not a code-correctness gap.
+See frontmatter `human_verification` — four items, all requiring a live run (no mocked test can observe real Apify/Allabrf latency, spend, or extraction quality), carried forward from the prior pass. **Corrected 2026-08-11:** these were previously recorded as environment-blocked (Supabase paused, operator IP Booli-blocked); both blockers were incorrect — Supabase is live, and all Booli traffic goes via the Apify RESIDENTIAL/SE proxy rather than the operator's IP. The items are unrun, not blocked. Item 4 is updated to reflect that the CR-02 mocked-pipeline fix has now landed and passed; it still requires a real Allabrf document with genuinely high debt to confirm real-world OCR/extraction quality matches the fixture's assumed shape — this is a live-data confirmation, not a code-correctness gap.
 
 ### Gaps Summary
 
@@ -155,7 +161,7 @@ The five changed pre-existing test expectations were each individually traced vi
 
 Full regression sweep (972/975 tests, tsc clean, lint clean) run directly by this verifier confirms no regression across the 20-commit fix pass, including in the comps (ANL-02) and BRF-summary (ANL-03) paths that were also touched. The `soliditet` deferral override is carried forward unchanged, per instruction, and is not re-raised as a gap.
 
-Status is `human_needed`, not `passed`, solely because of pre-existing environment-blocked live-operator verification items (Supabase paused, IP-blocked scraping) that were already flagged in the prior two passes and are unrelated to this round's code changes.
+Status is `human_needed`, not `passed`, solely because of pre-existing live-operator verification items that were already flagged in the prior two passes and are unrelated to this round's code changes. (Corrected 2026-08-11: these are unrun, not environment-blocked — see the frontmatter override.)
 
 ---
 
