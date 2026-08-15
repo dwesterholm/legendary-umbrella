@@ -84,6 +84,78 @@ describe("DiscoveryProgress", () => {
     tickDiscoveryMock.mockResolvedValue(undefined);
   });
 
+  // todo 008 — a correct multi-minute run still read as hung. The stepper shows
+  // the shape of the pipeline and where it is, alongside (not instead of) the
+  // existing single counter axis.
+  it("renders every pipeline stage, not just the current one", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "processing",
+        processed_count: 0,
+        candidate_count: 12,
+        cap_candidates: 25,
+        cost_sek_total: 0.4,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="processing" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Söker igenom områdena")).toBeInTheDocument();
+    });
+    // Upcoming stages are visible too — that is the whole point.
+    expect(screen.getByText("Analyserar bilder och förening")).toBeInTheDocument();
+    expect(screen.getByText("Sammanställer analysen")).toBeInTheDocument();
+    expect(screen.getByText("Tolkar din sökning")).toBeInTheDocument();
+  });
+
+  it("names the candidate count on the vision stage, and NOT a fake per-item counter", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 7,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.5,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="vision_processing" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("(20 kandidater)")).toBeInTheDocument();
+    });
+    // The LOCKED 13-05 semantics keep `analyzed` at 0 until the terminal
+    // write, so any per-stage "(i/N)" would render a permanent "(0/20)".
+    expect(screen.queryByText("(0/20)")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("(20 kandidater)")).toBeInTheDocument();
+    });
+  });
+
+  it("keeps the existing single counter axis alongside the stages, with its LOCKED 0-until-done semantics", async () => {
+    singleMock.mockResolvedValue({
+      data: {
+        status: "vision_processing",
+        processed_count: 7,
+        candidate_count: 20,
+        cap_candidates: 25,
+        cost_sek_total: 1.5,
+        cap_reached: false,
+      },
+    });
+
+    render(<DiscoveryProgress jobId="job-1" initialStatus="vision_processing" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("0 av 20 annonser analyserade"),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("invokes tickDiscovery(jobId) on each poll round-trip", async () => {
     singleMock.mockResolvedValue({
       data: {

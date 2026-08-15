@@ -77,6 +77,123 @@ function statusLabel(status: string | null): string {
 }
 
 /**
+ * The pipeline stages, in the order `runSlice` → `runVisionForJob` actually
+ * execute them (todo 008).
+ *
+ * SUPERSEDES an earlier decision. 09-UI-SPEC.md line 132 deliberately chose
+ * "one meaningful progress axis, not discrete phases" and this component's own
+ * doc comment records rejecting BrfProgress's step-dot list. The operator
+ * overrode that after the first live run: a correct multi-minute job still read
+ * as hung, verbatim "otherwise nobody will think it's working in the
+ * background". The single axis stays — the counter line below is unchanged, and
+ * the LOCKED 2026-07-22 counter semantics are untouched — the stages are added
+ * ALONGSIDE it, not in place of it.
+ *
+ * Derived purely from the existing persisted `status` + counters, so this needs
+ * no migration and no new writes. Finer per-stage reporting (per-area, per
+ * candidate enrichment) would need extra persisted state and is left for a
+ * planned phase; see todo 008 for the fuller stage list.
+ */
+const STAGES: { key: string; label: string }[] = [
+  { key: "queued", label: "Tolkar din sökning" },
+  { key: "scraping", label: "Söker igenom områdena" },
+  { key: "vision", label: "Analyserar bilder och förening" },
+  { key: "done", label: "Sammanställer analysen" },
+];
+
+/** Which stage index a given job status is currently working on. */
+function activeStageIndex(status: string | null): number {
+  switch (status) {
+    case null:
+    case "pending":
+      return 0;
+    case "processing":
+      return 1;
+    case "vision_processing":
+      return 2;
+    case "done":
+      return STAGES.length;
+    default:
+      // failed / degraded — hold at whatever was last plausibly running so the
+      // stepper shows WHERE it stopped rather than silently resetting.
+      return 1;
+  }
+}
+
+/**
+ * Renders every stage with its state, so the user can see the shape of the work
+ * and where it currently is — rather than a single badge that looks identical
+ * at second 5 and second 200.
+ */
+function DiscoveryStepper({
+  status,
+  candidateCount,
+  halted,
+}: {
+  status: string | null;
+  candidateCount: number;
+  halted: boolean;
+}) {
+  const active = activeStageIndex(status);
+
+  return (
+    <ol className="space-y-2">
+      {STAGES.map((stage, i) => {
+        const done = i < active;
+        const current = i === active && !halted;
+        const stalled = i === active && halted;
+        return (
+          <li key={stage.key} className="flex items-center gap-3">
+            <span
+              aria-hidden
+              className={
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] " +
+                (done
+                  ? "border-sage-500 bg-sage-500 text-white"
+                  : stalled
+                    ? "border-terracotta-500 text-terracotta-600"
+                    : current
+                      ? "border-sage-500 text-sage-700"
+                      : "border-warm-gray-200 text-warm-gray-300")
+              }
+            >
+              {done ? "✓" : stalled ? "!" : i + 1}
+            </span>
+            <span
+              className={
+                "text-sm " +
+                (done
+                  ? "text-warm-gray-500"
+                  : current
+                    ? "font-medium text-warm-gray-900"
+                    : stalled
+                      ? "font-medium text-terracotta-600"
+                      : "text-warm-gray-400")
+              }
+            >
+              {stage.label}
+              {/*
+                Deliberately NO per-item "(i/N)" here. The LOCKED 13-05 counter
+                semantics commit nothing as "analyzed" until the terminal write,
+                so `analyzed` is 0 for the entire run — a per-stage counter
+                would render a permanent "(0/N)", which is worse than none.
+                Real per-candidate progress needs incrementally-persisted state
+                (todo 008), not a different way of reading the same field.
+              */}
+              {current && candidateCount > 0 && stage.key === "vision" && (
+                <span className="ml-1 font-normal text-warm-gray-500">
+                  ({candidateCount} kandidater)
+                </span>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
  * `DiscoveryProgress` — the client-tick-drives-the-queue driver
  * (09-PATTERNS.md Pattern 1). Directly modeled on `BrfProgress`'s
  * polling skeleton, but each `poll()` round-trip ALSO invokes
@@ -296,6 +413,22 @@ export function DiscoveryProgress({
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {!isFailed && !isDegraded && (
+          <DiscoveryStepper
+            status={status}
+            candidateCount={candidateCount}
+            halted={false}
+          />
+        )}
+
+        {(isFailed || isDegraded) && (
+          <DiscoveryStepper
+            status={status}
+            candidateCount={candidateCount}
+            halted
+          />
+        )}
+
         {slow && !isFailed && !isDegraded && status !== "done" && (
           <div className="rounded-lg bg-warm-gray-50 px-4 py-3">
             <p className="text-sm text-warm-gray-600">
