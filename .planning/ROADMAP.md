@@ -178,7 +178,16 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 Items captured for future planning. Promote via `/gsd-review-backlog` when ready. Four former backlog items (999.6, 999.2, 999.3, 999.7) were promoted into v1.1 Phases 5–12.
 
-**Open UX/auth defects captured 2026-08-11** (full write-ups in `.planning/todos/pending/`, both P1, both found while setting up the Phase 14 live smoke):
+**First live discovery run, 2026-08-11 — findings** (full write-ups in `.planning/todos/pending/`). The run completed and produced good results, but surfaced one cost-critical defect and a cluster of discovery-UX gaps:
+
+- **`005` — P0, COST.** A query scoped to "innerstan (innanför tullarna)" silently returned listings from **all over Sweden** and spent real money analyzing them. `parse-intent.ts:47` explicitly tells Haiku to guess an area or return an empty string when it cannot map one, and `resolve-area.ts` has no fail-fast when resolution misses. **An unscoped job must never be allowed to spend** — the guard matters more than better resolution. Fix before any further live runs.
+- **`006` — P1.** `areaQuery` is a single string and the filter UI allows one area at a time, even though `runSlice` already scrapes plural `areaIds` concurrently. The constraint is purely at input. Free text should compose WITH structured filters (filters own hard constraints: area, size, price), not be overridden by them.
+- **`007` — P1.** Discovery candidates have no detail page: clicking a card lands on the paste-a-Booli-link screen (`discovery-candidate-card.tsx:52`), and AI insights render as an unattached list below the grid (`discovery-results.tsx:219`) with no visual binding to any object. Phases 15–17 all emit per-object output and need this page to exist.
+- **`008` — P1.** Discovery needs a real progress stepper naming each pipeline stage. Phase 13 fixed the acute no-reload/label problems; it did not make the multi-minute run legible as work-in-progress.
+
+**Suggested sequencing:** `005` is the only one blocking further live testing. `002`, `007` and `008` form one coherent discovery-UX phase and would slot naturally before Phase 15 — otherwise the ROI brief lands on a surface that is unreachable, unattributable, and opaque while it runs.
+
+**Open UX/auth defects captured 2026-08-11** (both P1, found while setting up the Phase 14 live smoke):
 
 - **Feature picker / landing page** (`002`) — after login you land on the paste-a-Booli-link surface and **nothing in the UI links to `/discover`**; the operator had to paste the URL by hand. Every v1.1/v1.2 discovery investment is currently unreachable to a real user. Likely wants `/gsd-ui-phase` (navigation/IA decision, not a mechanical change) and should land before or alongside Phase 15, which otherwise adds more capability to an unreachable surface.
 - **Signup confirmation silently fails** (`003`) — `signup/page.tsx` shows "Kolla din e-post" unconditionally without inspecting `signUp`'s response (Supabase returns success with `identities: []` for an already-registered email), and sends no `emailRedirectTo` despite `/auth/confirm` existing. Also needs custom SMTP; the built-in sender is rate-limited (~2/hr) and not production-grade.
