@@ -34,6 +34,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { startDiscovery } from "@/actions/start-discovery";
+import { splitAreaQuery } from "@/lib/discovery/resolve-area";
 
 function formData(freeText: string, extra?: Record<string, string>): FormData {
   const fd = new FormData();
@@ -191,6 +192,50 @@ describe("startDiscovery — flag on", () => {
     expect(rpcCalls).toHaveLength(1);
     const filters = rpcCalls[0].args.p_filters as Record<string, unknown>;
     expect(filters.areaQuery).toBe("nacka");
+  });
+
+  it("carries a MULTI-AREA override through as an 'och'-joined query (todo 006)", async () => {
+    // The UI now joins its multi-select with " och ", which splitAreaQuery
+    // already splits server-side — so multi-area needs no schema change.
+    const result = await startDiscovery(
+      formData("renoveringsobjekt max 4 miljoner", {
+        areaQuery: "södermalm och vasastan och östermalm",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    const filters = rpcCalls[0].args.p_filters as Record<string, unknown>;
+    expect(filters.areaQuery).toBe("södermalm och vasastan och östermalm");
+    expect(splitAreaQuery(filters.areaQuery as string)).toEqual([
+      "södermalm",
+      "vasastan",
+      "östermalm",
+    ]);
+  });
+
+  // todo 005 — an unscoped search must not be able to create a job at all.
+  it("refuses BEFORE creating a job when the area is empty (no spend on an unscoped search)", async () => {
+    parseIntent.mockResolvedValue({
+      ok: true,
+      filter: {
+        areaQuery: "", // what the intent parser now returns when unsure
+        priceMax: 4_000_000,
+        roomsMin: null,
+        sizeMin: null,
+        objectType: "Lägenhet",
+        confidence: 0.9,
+      },
+    });
+
+    const result = await startDiscovery(formData("renoveringsobjekt max 4 miljoner"));
+
+    expect(result.ok).toBe(false);
+    // The load-bearing assertion: no job row, so no tick, so no spend.
+    expect(rpcCalls).toHaveLength(0);
+    if (!result.ok) {
+      expect(result.needsConfirmation).toBe(true);
+      expect(result.error).toMatch(/område/i);
+    }
   });
 
   it("falls back to the Haiku-inferred area when no areaQuery override is provided", async () => {

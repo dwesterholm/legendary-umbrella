@@ -17,6 +17,7 @@ import {
 import { startDiscovery } from "@/actions/start-discovery";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
 import { AREA_SEED } from "@/lib/discovery/area-seed";
+import { MAX_AREAS_PER_SEARCH } from "@/lib/discovery/resolve-area";
 
 interface DiscoveryInputProps {
   /** Globally-tripped kill switch signal (from a server-resolved check). */
@@ -38,7 +39,13 @@ const ROOM_OPTIONS = [1, 2, 3, 4, 5];
  */
 export function DiscoveryInput({ killSwitchTripped = false }: DiscoveryInputProps) {
   const [freeText, setFreeText] = useState("");
-  const [area, setArea] = useState("");
+  // todo 006 — multi-area. `runSlice` has scraped a plural `areaIds` since
+  // Phase 13's D-01 parallelization; the single-area limit was purely this
+  // input. Selections are joined with " och " below, which `splitAreaQuery`
+  // already splits — so multi-area needs NO change to the Claude-facing Zod
+  // schema, and therefore carries none of the documented Anthropic
+  // strict-output risk that widening `areaQuery` to an array would.
+  const [areas, setAreas] = useState<string[]>([]);
   const [priceMax, setPriceMax] = useState("");
   const [roomsMin, setRoomsMin] = useState("");
   const [sizeMin, setSizeMin] = useState("");
@@ -49,10 +56,23 @@ export function DiscoveryInput({ killSwitchTripped = false }: DiscoveryInputProp
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  /**
+   * Toggles one area, bounded by `MAX_AREAS_PER_SEARCH` — the same cap
+   * `splitAreaQuery` enforces server-side, so the UI can never offer a
+   * selection the resolver would silently truncate.
+   */
+  function toggleArea(option: string) {
+    setAreas((prev) => {
+      if (prev.includes(option)) return prev.filter((a) => a !== option);
+      if (prev.length >= MAX_AREAS_PER_SEARCH) return prev;
+      return [...prev, option];
+    });
+  }
+
   function buildFormData(): FormData {
     const formData = new FormData();
     formData.set("free_text", freeText);
-    if (area) formData.set("areaQuery", area);
+    if (areas.length > 0) formData.set("areaQuery", areas.join(" och "));
     if (priceMax) formData.set("priceMax", priceMax);
     if (roomsMin) formData.set("roomsMin", roomsMin);
     if (sizeMin) formData.set("sizeMin", sizeMin);
@@ -119,22 +139,42 @@ export function DiscoveryInput({ killSwitchTripped = false }: DiscoveryInputProp
           </div>
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div className="space-y-2">
+            <div className="col-span-2 space-y-2 md:col-span-4">
               <Label className="text-xs font-medium uppercase tracking-wider text-warm-gray-500">
-                Område
+                Områden{" "}
+                <span className="font-normal normal-case tracking-normal text-warm-gray-400">
+                  — välj ett eller flera (max {MAX_AREAS_PER_SEARCH})
+                </span>
               </Label>
-              <Select value={area} onValueChange={setArea} disabled={isPending || killSwitchTripped}>
-                <SelectTrigger className="w-full border-warm-gray-200">
-                  <SelectValue placeholder="Valfritt" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AREA_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
+              <div className="flex flex-wrap gap-2">
+                {AREA_OPTIONS.map((option) => {
+                  const selected = areas.includes(option);
+                  const atCap = !selected && areas.length >= MAX_AREAS_PER_SEARCH;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={selected}
+                      disabled={isPending || killSwitchTripped || atCap}
+                      onClick={() => toggleArea(option)}
+                      className={
+                        "rounded-full border px-3 py-1 text-sm capitalize transition-colors " +
+                        (selected
+                          ? "border-sage-500 bg-sage-50 text-sage-700"
+                          : "border-warm-gray-200 text-warm-gray-600 hover:border-sage-200") +
+                        (atCap ? " cursor-not-allowed opacity-40" : "")
+                      }
+                    >
                       {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-warm-gray-400">
+                {areas.length === 0
+                  ? "Inget område valt — då tolkas området från din beskrivning ovan."
+                  : `Söker i: ${areas.join(", ")}`}
+              </p>
             </div>
 
             <div className="space-y-2">
