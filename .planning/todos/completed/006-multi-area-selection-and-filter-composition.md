@@ -1,6 +1,7 @@
 ---
 title: "Search scoping — allow multiple areas, and compose free text WITH the filters instead of letting Haiku own the scope"
-status: pending
+status: done
+completed: 2026-08-11
 priority: P1
 source: "captured 2026-08-11 — operator: 'I couldn't choose multiple areas in Stockholm, only one at a time in the filters'"
 created: 2026-08-11

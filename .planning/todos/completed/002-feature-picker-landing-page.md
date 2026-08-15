@@ -1,6 +1,7 @@
 ---
 title: "No way to reach /discover from the UI — add a feature picker / landing page as the post-login entry point"
-status: pending
+status: done
+completed: 2026-08-11
 priority: P1
 source: "captured 2026-08-11 by operator during the Phase 14 live-smoke setup — logged in and had to be given the URL by hand"
 created: 2026-08-11

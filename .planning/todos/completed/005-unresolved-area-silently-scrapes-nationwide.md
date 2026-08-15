@@ -1,6 +1,7 @@
 ---
 title: "P0 COST BUG — an unresolvable area silently returns listings from all over Sweden instead of failing fast"
-status: pending
+status: done
+completed: 2026-08-11
 priority: P0
 source: "captured 2026-08-11 — live smoke, real spend wasted. Query: 'Renoveringsobjekt i innerstan (innanför tullarna) på 30-45 kvm med ett maxpris på 4M kronor.'"
 created: 2026-08-11

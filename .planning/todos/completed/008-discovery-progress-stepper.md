@@ -1,6 +1,7 @@
 ---
 title: "Discovery needs a real progress stepper — a status badge is not enough confirmation that anything is happening"
-status: pending
+status: done
+completed: 2026-08-11
 priority: P1
 source: "captured 2026-08-11 — operator, after the first successful live discovery run"
 created: 2026-08-11

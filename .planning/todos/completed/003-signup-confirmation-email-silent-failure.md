@@ -1,6 +1,7 @@
 ---
 title: "Signup shows 'Kolla din e-post' unconditionally and sends no emailRedirectTo — confirmation failures are invisible"
-status: pending
+status: done
+completed: 2026-08-11
 priority: P1
 source: "captured 2026-08-11 — operator signed up a fresh address (a Gmail plus-alias) and never received a confirmation mail; the UI still showed the success screen"
 created: 2026-08-11

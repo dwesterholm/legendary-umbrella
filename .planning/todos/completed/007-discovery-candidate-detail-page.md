@@ -1,6 +1,7 @@
 ---
 title: "Discovery results IA — clicking a candidate dumps you on the paste-a-URL page, and AI insights pile up below the grid unattached to any object"
-status: pending
+status: done
+completed: 2026-08-11
 priority: P1
 source: "captured 2026-08-11 — operator, after the first successful live discovery run"
 created: 2026-08-11

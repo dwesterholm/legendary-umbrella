@@ -178,14 +178,18 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 Items captured for future planning. Promote via `/gsd-review-backlog` when ready. Four former backlog items (999.6, 999.2, 999.3, 999.7) were promoted into v1.1 Phases 5–12.
 
-**First live discovery run, 2026-08-11 — findings** (full write-ups in `.planning/todos/pending/`). The run completed and produced good results, but surfaced one cost-critical defect and a cluster of discovery-UX gaps:
+**First live discovery run, 2026-08-11 — ALL FIXED** (write-ups now in `.planning/todos/completed/`). The run completed and produced good results, but surfaced one cost-critical defect and a cluster of discovery-UX gaps. All six were fixed the same day:
 
-- **`005` — P0, COST.** A query scoped to "innerstan (innanför tullarna)" silently returned listings from **all over Sweden** and spent real money analyzing them. `parse-intent.ts:47` explicitly tells Haiku to guess an area or return an empty string when it cannot map one, and `resolve-area.ts` has no fail-fast when resolution misses. **An unscoped job must never be allowed to spend** — the guard matters more than better resolution. Fix before any further live runs.
-- **`006` — P1.** `areaQuery` is a single string and the filter UI allows one area at a time, even though `runSlice` already scrapes plural `areaIds` concurrently. The constraint is purely at input. Free text should compose WITH structured filters (filters own hard constraints: area, size, price), not be overridden by them.
-- **`007` — P1.** Discovery candidates have no detail page: clicking a card lands on the paste-a-Booli-link screen (`discovery-candidate-card.tsx:52`), and AI insights render as an unattached list below the grid (`discovery-results.tsx:219`) with no visual binding to any object. Phases 15–17 all emit per-object output and need this page to exist.
-- **`008` — P1.** Discovery needs a real progress stepper naming each pipeline stage. Phase 13 fixed the acute no-reload/label problems; it did not make the multi-minute run legible as work-in-progress.
+- **`005` — P0, COST — FIXED** (`bcaee7b`). A query scoped to "innerstan (innanför tullarna)" silently returned listings from all over Sweden. Root cause was NOT a missing fail-fast (`runSlice` already fails when all areas miss) — resolution was *succeeding* with something far too wide: `pickBestSuggestion` fell back to ranking EVERY suggestion, where any tier that is not Stadsdel/Område/Gata scores 2, so a Kommun/Län suggestion outranked a street. Fixed with a specificity guard (a non-exact match may only resolve to a neighborhood tier; unknown tiers fail closed), umbrella-term expansion to constituent district names, parenthetical stripping, a `parse-intent` prompt that no longer licenses guessing, and a `startDiscovery` gate that refuses an empty area *before* the job row exists.
+- **`006` — FIXED** (`5861eb7`). Bounded multi-select of areas, joined into the existing `areaQuery` string — no schema change, so none of the documented Anthropic strict-output risk. Scope is shown before spending.
+- **`007` — FIXED** (`b3fd99d`). New `/discover/[jobId]/[candidateIndex]` detail page; cards link there by *original* index (not rank); the unattached insight list below the grid is gone.
+- **`008` — FIXED** (`5261392`). Pipeline stepper alongside the existing counter axis. Supersedes 09-UI-SPEC.md line 132's "one axis, not discrete phases" at operator instruction.
+- **`002` — FIXED** (`ccdcd90`). Two-card picker with equal billing plus a permanent "Sok omrade" nav entry. Note the discovery link *was* rendering — the defect was discoverability, not a missing link.
+- **`003` — FIXED** (`7c18445`). Signup no longer claims success unconditionally, detects Supabase's already-registered anti-enumeration response, and sends `emailRedirectTo`.
 
-**Suggested sequencing:** `005` is the only one blocking further live testing. `002`, `007` and `008` form one coherent discovery-UX phase and would slot naturally before Phase 15 — otherwise the ROI brief lands on a surface that is unreachable, unattributable, and opaque while it runs.
+**Still open:** `001` (keepalive write — the Supabase *restore* is done, the fix that stops it re-pausing is not) and `004` (the two dashboard checks that settle whether the signup mail was ever sent). Both need operator/dashboard access.
+
+**Deferred deliberately:** moving the paste-a-link flow off `/dashboard` to a dedicated route, and incrementally-persisted per-candidate progress (which is what a true "analyzed 7/25" counter needs — the LOCKED 13-05 semantics keep `analyzed` at 0 until the terminal write). Both are better decided in a UI phase than bolted on.
 
 **Open UX/auth defects captured 2026-08-11** (both P1, found while setting up the Phase 14 live smoke):
 
