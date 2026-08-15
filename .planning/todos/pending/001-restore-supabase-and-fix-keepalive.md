@@ -1,6 +1,8 @@
 ---
-title: "Restore the paused Supabase project and replace the keepalive ping with a service-role write"
-status: pending
+title: "Replace the keepalive ping with a service-role write (restore itself is DONE)"
+status: partially_done
+updated: 2026-08-11
+progress: "Part 1 (restore) DONE — operator restored the project; verified live 2026-08-11, area_cache HTTP 200 in 0.14s. Part 2 (keepalive fix) still OUTSTANDING, so it can pause again."
 priority: P1
 source: "captured 2026-07-27 during Phase 14 planning (Supabase pause email)"
 created: 2026-07-27

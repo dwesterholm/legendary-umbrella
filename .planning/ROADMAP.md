@@ -178,6 +178,11 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 Items captured for future planning. Promote via `/gsd-review-backlog` when ready. Four former backlog items (999.6, 999.2, 999.3, 999.7) were promoted into v1.1 Phases 5–12.
 
+**Open UX/auth defects captured 2026-08-11** (full write-ups in `.planning/todos/pending/`, both P1, both found while setting up the Phase 14 live smoke):
+
+- **Feature picker / landing page** (`002`) — after login you land on the paste-a-Booli-link surface and **nothing in the UI links to `/discover`**; the operator had to paste the URL by hand. Every v1.1/v1.2 discovery investment is currently unreachable to a real user. Likely wants `/gsd-ui-phase` (navigation/IA decision, not a mechanical change) and should land before or alongside Phase 15, which otherwise adds more capability to an unreachable surface.
+- **Signup confirmation silently fails** (`003`) — `signup/page.tsx` shows "Kolla din e-post" unconditionally without inspecting `signUp`'s response (Supabase returns success with `identities: []` for an already-registered email), and sends no `emailRedirectTo` despite `/auth/confirm` existing. Also needs custom SMTP; the built-in sender is rate-limited (~2/hr) and not production-grade.
+
 - **999.6 → promoted to Phase 5** (Owned Booli Acquisition)
 - **999.2 → promoted to Phase 6** (Deeper Listing Extraction)
 - **999.3 → promoted to Phase 7** (Macro Price Context)
