@@ -95,6 +95,85 @@ describe("pickBestSuggestion", () => {
     expect(pickBestSuggestion("Vasastan", null)).toBeNull();
     expect(pickBestSuggestion("Vasastan", undefined)).toBeNull();
   });
+
+  // todo 005 — the live incident: a Stockholm-scoped search returned listings
+  // from all over Sweden and spent real money analyzing them.
+  describe("specificity guard — a GUESS must never widen the search", () => {
+    it("refuses a non-exact match that would resolve to a Kommun tier", () => {
+      // Exactly the shape that caused the incident: nothing matches the typed
+      // name, and the only survivors are wider-than-neighborhood tiers. Old
+      // behavior ranked Kommun (default rank 2) above Gata (3) and returned it.
+      const wideOnly: AreaSuggestion[] = [
+        sug({ typeDisplayName: "Kommun", id: "1", displayName: "Stockholms kommun" }),
+        sug({ typeDisplayName: "Gata", id: "90988", displayName: "Sankt Eriksgatan" }),
+      ];
+      expect(pickBestSuggestion("innerstan", wideOnly)).toBeNull();
+    });
+
+    it("refuses a non-exact match on an unknown tier (fails closed)", () => {
+      const unknownTier: AreaSuggestion[] = [
+        sug({ typeDisplayName: "Län", id: "26", displayName: "Stockholms län" }),
+        sug({ typeDisplayName: "NyTypFranBooli", id: "999", displayName: "Något helt annat" }),
+      ];
+      expect(pickBestSuggestion("innerstan", unknownTier)).toBeNull();
+    });
+
+    it("still allows an EXACT match to resolve to a wide tier (user asked for the kommun)", () => {
+      const kommun: AreaSuggestion[] = [
+        sug({ typeDisplayName: "Kommun", id: "2", displayName: "Nacka" }),
+      ];
+      expect(pickBestSuggestion("Nacka", kommun)?.id).toBe("2");
+    });
+
+    it("still accepts a non-exact match at a neighborhood tier (the useful fuzzy case)", () => {
+      const partialOnly: AreaSuggestion[] = [
+        sug({ typeDisplayName: "Gata", id: "90988", displayName: "Sankt Eriksgatan" }),
+        sug({
+          typeDisplayName: "Område",
+          id: "1015394",
+          displayName: "Östermalm/Vasastan/Norra Djurgården",
+        }),
+      ];
+      expect(pickBestSuggestion("Vasastan", partialOnly)?.id).toBe("1015394");
+    });
+
+    it("matches exactly after stripping a parenthetical aside", () => {
+      expect(pickBestSuggestion("Vasastan (nära Odenplan)", VASASTAN)?.id).toBe("115349");
+    });
+  });
+});
+
+describe("splitAreaQuery — umbrella terms and parentheticals (todo 005)", () => {
+  it("expands 'innerstan' to its constituent districts instead of guessing one area", () => {
+    const out = splitAreaQuery("innerstan");
+    expect(out.length).toBeGreaterThan(1);
+    expect(out).toContain("Södermalm");
+    expect(out).not.toContain("innerstan");
+  });
+
+  it("expands the exact query from the live incident", () => {
+    const out = splitAreaQuery("innerstan (innanför tullarna)");
+    expect(out).toContain("Södermalm");
+    expect(out).toContain("Östermalm");
+    // Never leaves the unresolvable umbrella string in place.
+    expect(out.some((s) => s.toLowerCase().includes("tullarna"))).toBe(false);
+  });
+
+  it("expands when the umbrella term is the parenthetical itself", () => {
+    expect(splitAreaQuery("Stockholm (innanför tullarna)")).toContain("Södermalm");
+  });
+
+  it("strips a parenthetical aside from an ordinary area name", () => {
+    expect(splitAreaQuery("Södermalm (gärna nära vattnet)")).toEqual(["Södermalm"]);
+  });
+
+  it("stays bounded by MAX_AREAS_PER_SEARCH so an umbrella cannot widen spend", () => {
+    expect(splitAreaQuery("innerstan").length).toBeLessThanOrEqual(MAX_AREAS_PER_SEARCH);
+  });
+
+  it("leaves an ordinary multi-area query working as before", () => {
+    expect(splitAreaQuery("Södermalm och Vasastan")).toEqual(["Södermalm", "Vasastan"]);
+  });
 });
 
 describe("resolveArea", () => {

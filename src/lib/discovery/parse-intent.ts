@@ -44,7 +44,7 @@ const CONFIDENCE_THRESHOLD = 0.6;
 const INTENT_PARSE_SYSTEM_PROMPT = `Du extraherar en strukturerad sökfilter fran en svensk fritextbeskrivning av en bostad en anvandare letar efter.
 
 Fyll i:
-- areaQuery: fritextnamnet pa omradet/stadsdelen anvandaren namner (t.ex. "Sodermalm"). Om inget omrade namns, gor en rimlig bedomning eller lamna en tom strang.
+- areaQuery: fritextnamnet pa omradet/stadsdelen anvandaren namner (t.ex. "Sodermalm"). GISSA ALDRIG. Om anvandaren inte namner ett omrade, eller om du ar osaker pa vilket omrade som avses, lamna en TOM STRANG ("") - hitta aldrig pa ett omrade och bredda aldrig till en kommun eller ett lan for att fa fram nagot. En tom strang ar ett korrekt svar; en gissning kostar riktiga pengar.
 - priceMax: hogsta pris i SEK om ett anges (t.ex. "under 4 miljoner" -> 4000000), annars null.
 - roomsMin: minsta antal rum om det anges (t.ex. "3:a" -> 3), annars null.
 - sizeMin: minsta boarea i kvm om den anges, annars null.

@@ -48,6 +48,56 @@ export interface AreaResolution {
 export const MAX_AREAS_PER_SEARCH = 4;
 
 /**
+ * Colloquial Swedish umbrella terms that name a GROUP of districts rather than
+ * a single Booli area (todo 005). "Innerstan" / "innanför tullarna" is the
+ * canonical example: it covers ~8 stadsdelar, matches no Booli area, and used
+ * to fall through to a fuzzy wide-tier match — which is how a Stockholm-scoped
+ * search came back with listings from all over Sweden and spent real money
+ * analyzing them.
+ *
+ * Expansion is to NAMES, never to hardcoded areaIds: each expanded name goes
+ * through the normal probe → seed ladder, so a name Booli does not know simply
+ * drops out. This deliberately does not invent ids — `area-seed.ts`'s rule is
+ * that every id there is live-observed, never a guess.
+ *
+ * Capped by `MAX_AREAS_PER_SEARCH` downstream, so an umbrella resolves to the
+ * first few districts rather than an unbounded scrape.
+ */
+const UMBRELLA_AREAS: Record<string, string[]> = {
+  innerstan: ["Södermalm", "Östermalm", "Vasastan", "Kungsholmen"],
+  innerstaden: ["Södermalm", "Östermalm", "Vasastan", "Kungsholmen"],
+  "innanför tullarna": ["Södermalm", "Östermalm", "Vasastan", "Kungsholmen"],
+  "stockholms innerstad": ["Södermalm", "Östermalm", "Vasastan", "Kungsholmen"],
+};
+
+/**
+ * Drops a trailing parenthetical aside so "innerstan (innanför tullarna)"
+ * resolves as "innerstan" instead of guaranteeing a fuzzy miss on the whole
+ * string. Also collapses whitespace.
+ */
+function stripParenthetical(s: string): string {
+  return s.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Rewrites any umbrella term found in the query into its constituent district
+ * names. Matches on the whole normalized query AND on the parenthetical form,
+ * so both "innerstan" and "innerstan (innanför tullarna)" expand.
+ */
+function expandUmbrellaAreas(areaQuery: string): string[] {
+  const whole = stripParenthetical(areaQuery).toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(UMBRELLA_AREAS, whole)) {
+    return UMBRELLA_AREAS[whole];
+  }
+  // "innerstan (innanför tullarna)" — the aside itself may be the known key.
+  const inner = areaQuery.match(/\(([^)]*)\)/)?.[1]?.trim().toLowerCase();
+  if (inner && Object.prototype.hasOwnProperty.call(UMBRELLA_AREAS, inner)) {
+    return UMBRELLA_AREAS[inner];
+  }
+  return [areaQuery];
+}
+
+/**
  * Splits a free-text area query into individual area names so a multi-area
  * search ("Södermalm och Vasastan", "Södermalm, Vasastan") resolves + scrapes
  * each area rather than failing to resolve one impossible combined name.
@@ -59,9 +109,9 @@ export const MAX_AREAS_PER_SEARCH = 4;
  */
 export function splitAreaQuery(areaQuery: string): string[] {
   if (!areaQuery) return [];
-  const parts = areaQuery
-    .split(/\s+och\s+|\s*[,&/+]\s*/i)
-    .map((s) => s.trim())
+  const parts = expandUmbrellaAreas(areaQuery)
+    .flatMap((seg) => seg.split(/\s+och\s+|\s*[,&/+]\s*/i))
+    .map((s) => stripParenthetical(s))
     .filter(Boolean);
   const seen = new Set<string>();
   const out: string[] = [];
@@ -108,13 +158,39 @@ export function pickBestSuggestion(
   suggestions: AreaSuggestion[] | undefined | null,
 ): AreaSuggestion | null {
   if (!suggestions || suggestions.length === 0) return null;
-  const q = query.trim().toLowerCase();
+  const q = stripParenthetical(query).toLowerCase();
   const exact = suggestions.filter((s) => (s.displayName || "").trim().toLowerCase() === q);
-  const pool = exact.length > 0 ? exact : suggestions;
+
+  // todo 005 — SPECIFICITY GUARD. When nothing exact-matches we are guessing,
+  // and a guess must never be allowed to widen the search. Previously the
+  // fallback pool was EVERY suggestion ranked by `typeRank`, where any tier
+  // that is not Stadsdel/Område/Gata scores 2 — so a Kommun- or Län-tier
+  // suggestion outranked a street and was silently accepted as "the area".
+  // That is how "innerstan (innanför tullarna)" became a nationwide scrape.
+  //
+  // An exact name match may resolve to ANY tier (a user typing "Nacka" or
+  // "Stockholm" means the kommun and should get it). A non-exact match may
+  // only resolve to a genuinely neighborhood-sized tier. Anything else returns
+  // null, which falls through to the seed list and then to runSlice's existing
+  // fail-fast — an honest "we don't cover that area" instead of a silent,
+  // expensive widening.
+  const pool = exact.length > 0 ? exact : suggestions.filter(isNeighborhoodTier);
+  if (pool.length === 0) return null;
+
   const ranked = pool
     .map((s, i) => ({ s, i }))
     .sort((a, b) => typeRank(a.s) - typeRank(b.s) || a.i - b.i);
   return ranked[0]?.s ?? null;
+}
+
+/**
+ * True for tiers that describe a neighborhood-sized area — the only tiers a
+ * NON-EXACT (guessed) match is allowed to resolve to. Deliberately excludes
+ * Kommun/Län/Gata and any unknown tier: an unrecognised `typeDisplayName` is
+ * treated as too-wide rather than assumed safe (fail closed).
+ */
+function isNeighborhoodTier(s: AreaSuggestion): boolean {
+  return s.typeDisplayName === "Stadsdel" || s.typeDisplayName === "Område";
 }
 
 /**

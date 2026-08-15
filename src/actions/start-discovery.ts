@@ -127,6 +127,25 @@ export async function startDiscovery(
     }
   }
 
+  // todo 005 — SPEND GATE: refuse an unscoped job BEFORE it is created.
+  //
+  // `runSlice` already fails a job whose areas all miss, but only AFTER the row
+  // exists and the tick has started, which reads to the user as "it ran and
+  // found nothing". Worse, an empty `areaQuery` is exactly the state the intent
+  // prompt used to be allowed to produce. An area is the one filter that bounds
+  // how much of Sweden we pay to scrape, so a missing one is a hard stop here —
+  // no job, no spend, and an error that tells the user what to do instead.
+  if (!mergedFilter.areaQuery || mergedFilter.areaQuery.trim() === "") {
+    return {
+      ok: false,
+      error:
+        "Vi kunde inte tolka vilket område du menar. Välj ett område i filtren, " +
+        "eller skriv ut stadsdelen (t.ex. \"Södermalm\").",
+      needsConfirmation: true,
+      filter: mergedFilter,
+    };
+  }
+
   // Per-user-per-day job cap (T-09-09) + the insert itself, folded into ONE
   // atomic RPC (WR-01) — replaces the old count-then-insert, which raced
   // under concurrent calls (two tabs / a double-click / a scripted burst
