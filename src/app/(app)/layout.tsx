@@ -28,12 +28,28 @@ export default async function AppLayout({
             Bostad AI
           </Link>
           <div className="flex items-center gap-4">
+            {/*
+              todo 002 — both products need a permanent way across. The area
+              search previously had NO nav entry at all: it was reachable only
+              from a small link on the dashboard, so once a user was inside
+              either flow there was no visible route to the other. The discover
+              link is omitted entirely when the kill switch is off, matching the
+              picker's own feature-flag contract.
+            */}
             <Link
               href="/dashboard"
               className="text-sm text-warm-gray-500 hover:text-sage-600 transition-colors"
             >
-              Oversikt
+              Hem
             </Link>
+            {process.env.DISCOVERY_ENABLED === "true" && (
+              <Link
+                href="/discover"
+                className="text-sm text-warm-gray-500 hover:text-sage-600 transition-colors"
+              >
+                Sok omrade
+              </Link>
+            )}
             <span className="text-sm text-warm-gray-500">{user.email}</span>
             <form action="/api/auth/signout" method="POST">
               <button

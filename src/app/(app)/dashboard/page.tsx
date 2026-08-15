@@ -5,28 +5,57 @@ import { AnalysisCard } from "@/components/analysis-card";
 import { listingDataSchema } from "@/lib/schemas/listing";
 
 /**
- * The discovery entry-point section, styled identically to "Ny analys"
- * (same heading treatment). Renders `null` — full absence, no disabled
- * button, no "coming soon" — when the flag is off (09-UI-SPEC.md Feature
- * Flag Contract). This is a UX nicety only; `startDiscovery`'s own
- * literal-first-line flag check (Plan 03) is the real security boundary.
+ * The two-product picker (todo 002).
+ *
+ * This app has grown two distinct products behind one login — analyse ONE
+ * pasted listing, and SEARCH an area for candidates — and until now the
+ * second was effectively invisible: it sat below the URL input under a small
+ * uppercase heading, with no nav entry and no visual parity. The operator
+ * could not find `/discover` at all and had to be handed the URL, despite the
+ * link technically rendering. Discoverability, not a missing link, was the
+ * defect.
+ *
+ * Both options now get equal billing as cards, so the choice is explicit
+ * rather than a default into whichever flow happens to be on top.
+ *
+ * The discovery card renders `null` — full absence, no disabled state, no
+ * "coming soon" — when the flag is off (09-UI-SPEC.md Feature Flag Contract).
+ * That is a UX nicety only; `startDiscovery`'s literal-first-line flag check
+ * remains the real security boundary.
  */
-function DiscoveryEntryPoint() {
-  if (process.env.DISCOVERY_ENABLED !== "true") {
-    return null;
-  }
+function ProductPicker() {
+  const discoveryEnabled = process.env.DISCOVERY_ENABLED === "true";
 
   return (
-    <div>
-      <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-warm-gray-500">
-        Sök efter drömbostad
-      </h2>
-      <Link
-        href="/discover"
-        className="inline-flex h-11 items-center rounded-md bg-sage-600 px-6 text-sm font-medium text-white hover:bg-sage-700"
-      >
-        Starta ny sökning
-      </Link>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="flex flex-col rounded-xl border border-warm-gray-200 bg-white p-6">
+        <h2 className="text-base font-semibold text-warm-gray-900">
+          Analysera en annons
+        </h2>
+        <p className="mt-1 mb-4 flex-1 text-sm text-warm-gray-500">
+          Klistra in en Booli-lank sa far du en oberoende analys av just den
+          bostaden — BRF-ekonomi, prisjamforelse och riskflaggor.
+        </p>
+        <UrlInput />
+      </div>
+
+      {discoveryEnabled && (
+        <div className="flex flex-col rounded-xl border border-warm-gray-200 bg-white p-6">
+          <h2 className="text-base font-semibold text-warm-gray-900">
+            Sok efter bostader
+          </h2>
+          <p className="mt-1 mb-4 flex-1 text-sm text-warm-gray-500">
+            Beskriv vad du letar efter, valj ett eller flera omraden, och lat
+            AI:n ga igenom aktuella annonser och rangordna kandidaterna at dig.
+          </p>
+          <Link
+            href="/discover"
+            className="inline-flex h-11 w-fit items-center rounded-md bg-sage-600 px-6 text-sm font-medium text-white hover:bg-sage-700"
+          >
+            Starta ny sokning
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -49,23 +78,15 @@ export default async function DashboardPage() {
       {/* Page heading */}
       <div>
         <h1 className="text-2xl font-semibold text-warm-gray-900">
-          Oversikt
+          Vad vill du gora?
         </h1>
         <p className="mt-1 text-warm-gray-500">
-          Dina sparade bostadsanalyser
+          Analysera en enskild annons, eller sok igenom ett helt omrade.
         </p>
       </div>
 
-      {/* URL input for new analysis */}
-      <div>
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-warm-gray-500">
-          Ny analys
-        </h2>
-        <UrlInput />
-      </div>
-
-      {/* Discovery entry point — fully absent when DISCOVERY_ENABLED is off. */}
-      <DiscoveryEntryPoint />
+      {/* Two-product picker — equal billing for both flows (todo 002). */}
+      <ProductPicker />
 
       {/* Analysis card grid or empty state */}
       {analyses && analyses.length > 0 ? (
