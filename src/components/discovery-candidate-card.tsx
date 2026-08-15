@@ -24,6 +24,16 @@ interface DiscoveryCandidateCardProps {
    * renders identically to before (additive extension).
    */
   nicheSignals?: SignalContribution[];
+  /**
+   * Job id + this candidate's position in the job's persisted `results` array
+   * (todo 007). Together they address the candidate's own detail page — the
+   * array index is the only stable identifier a candidate has, since they
+   * carry no id of their own. Optional so existing call sites that render a
+   * card outside a job context still compile; without them the card falls
+   * back to linking at `/discover`.
+   */
+  jobId?: string;
+  candidateIndex?: number;
 }
 
 /**
@@ -48,10 +58,17 @@ export function DiscoveryCandidateCard({
   candidate,
   rankPosition,
   nicheSignals,
+  jobId,
+  candidateIndex,
 }: DiscoveryCandidateCardProps) {
-  const href = candidate.sourceListingUrl
-    ? `/dashboard?url=${encodeURIComponent(candidate.sourceListingUrl)}`
-    : "/dashboard";
+  // todo 007 — the card used to link to `/dashboard?url=…`, dumping the user
+  // back on the paste-a-link input they had just waited minutes to avoid. It
+  // now opens the candidate's own detail page, which carries the AI read for
+  // THIS object; "gör en full analys" still hands off to /dashboard from there.
+  const href =
+    jobId !== undefined && candidateIndex !== undefined
+      ? `/discover/${jobId}/${candidateIndex}`
+      : "/discover";
 
   const hasRank = typeof rankPosition === "number";
   const nicheActive = nicheSignals !== undefined;

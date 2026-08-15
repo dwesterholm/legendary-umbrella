@@ -214,19 +214,57 @@ describe("DiscoveryResults", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("11-REVIEW.md WR-01: the vision section wrapper carries mt-6 so the grid<->vision gap is the required minimum 24px, not the outer container's 16px space-y-4", () => {
-    render(<DiscoveryResults candidates={variedCandidates} />);
+  // todo 007 — the vision/brief section used to render as a list BELOW this
+  // grid (with an `mt-6` wrapper this test used to pin). It moved to each
+  // candidate's own detail page because, keyed only by array position, it gave
+  // the user no way to tell which object an insight belonged to. What matters
+  // now is the inverse invariant: the grid renders NO per-candidate AI read.
+  it("todo 007: the ranking grid renders no per-candidate AI insight section", () => {
+    const candidatesWithBrief = variedCandidates.map((candidate, i) =>
+      i === 0
+        ? {
+            ...candidate,
+            visionSkippedReason: "no_images" as const,
+            holisticBrief: makeHolisticBrief(),
+          }
+        : candidate,
+    );
+
+    render(<DiscoveryResults candidates={candidatesWithBrief} jobId="job-1" />);
+
+    // The brief text is threaded on the DETAIL page now, never in the grid.
+    expect(
+      screen.queryByText("Distinctive holistic brief item text for threading test"),
+    ).not.toBeInTheDocument();
 
     const grid = document.querySelector(".grid.grid-cols-1") as HTMLElement;
     expect(grid).toBeTruthy();
-    // The vision wrapper is the grid's very next sibling — both are direct
-    // children of the outer space-y-4 container. Without mt-6, the gap
-    // between them would silently fall back to that outer 16px space-y-4
-    // instead of the UI-SPEC's required minimum 24px visual break.
-    const visionWrapper = grid.nextElementSibling as HTMLElement;
-    expect(visionWrapper).toBeTruthy();
-    expect(visionWrapper.className).toContain("mt-6");
-    expect(visionWrapper.className).toContain("space-y-6");
+    expect(grid.nextElementSibling).toBeNull();
+  });
+
+  it("todo 007: each card links to its candidate's detail page by ORIGINAL index, not rank", async () => {
+    render(<DiscoveryResults candidates={variedCandidates} jobId="job-1" />);
+
+    const hrefsBefore = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('a[href^="/discover/job-1/"]'),
+    ).map((a) => a.getAttribute("href"));
+    expect(hrefsBefore).toHaveLength(variedCandidates.length);
+    // Unranked: display order == source order.
+    expect(hrefsBefore).toEqual(
+      variedCandidates.map((_, i) => `/discover/job-1/${i}`),
+    );
+
+    // After re-ranking, the DISPLAY order changes but each card must still
+    // address its own source index — conflating rank with index here would
+    // silently link every card to the wrong object.
+    await selectNiche("Renoveringspotential");
+
+    const hrefsAfter = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('a[href^="/discover/job-1/"]'),
+    ).map((a) => a.getAttribute("href"));
+    expect(hrefsAfter).toHaveLength(variedCandidates.length);
+    expect([...hrefsAfter].sort()).toEqual([...hrefsBefore].sort());
+    expect(hrefsAfter).not.toEqual(hrefsBefore);
   });
 
   it("degrades to the unranked grid with an error banner when scoring throws", async () => {
@@ -265,12 +303,10 @@ describe("DiscoveryResults", () => {
     vi.resetModules();
   });
 
-  it("Phase 14 (ANL-01): threads holisticBrief from the candidate into GalleryConditionVision for display", () => {
-    // Give the candidate a `visionSkippedReason` (no gallery existed) so the
-    // brief actually renders — `makeCandidate`'s default `vision: null` /
-    // `visionSkippedReason: null` is the pre-vision "not yet run" state,
-    // distinct from every one of GalleryConditionVision's six content
-    // states, and correctly renders nothing new either way.
+  // Phase 14 (ANL-01) — the brief still rides on the candidate; only WHERE it
+  // renders changed (todo 007). The candidate reaching the card with its brief
+  // intact is what the detail page depends on.
+  it("Phase 14 (ANL-01): a candidate carrying a holisticBrief still reaches the grid addressable by index", () => {
     const candidatesWithBrief = variedCandidates.map((candidate, i) =>
       i === 0
         ? {
@@ -281,12 +317,10 @@ describe("DiscoveryResults", () => {
         : candidate,
     );
 
-    render(<DiscoveryResults candidates={candidatesWithBrief} />);
+    render(<DiscoveryResults candidates={candidatesWithBrief} jobId="job-1" />);
 
     expect(
-      screen.getByText(
-        "Distinctive holistic brief item text for threading test",
-      ),
+      document.querySelector('a[href="/discover/job-1/0"]'),
     ).toBeInTheDocument();
   });
 

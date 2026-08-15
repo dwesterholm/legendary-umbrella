@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { DiscoveryNicheSelector } from "@/components/discovery-niche-selector";
 import { DiscoveryCandidateCard } from "@/components/discovery-candidate-card";
-import { GalleryConditionVision } from "@/components/gallery-condition-vision";
 import { pricePerSqm, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { conditionScore } from "@/lib/discovery/condition-score";
 import {
@@ -14,6 +13,13 @@ import { NICHE_IDS, type NicheId } from "@/lib/discovery/niches";
 
 interface DiscoveryResultsProps {
   candidates: DiscoveryCandidate[];
+  /**
+   * The job these candidates belong to. Used only to address each candidate's
+   * detail page (todo 007) — optional so existing tests/call sites that render
+   * a bare candidate list keep working, in which case cards fall back to
+   * linking at `/discover`.
+   */
+  jobId?: string;
 }
 
 /** Minimum candidate-set size for a ranking to be considered meaningful. */
@@ -30,6 +36,13 @@ const NICHE_LABELS: Record<NicheId, string> = {
 interface RankedEntry {
   candidate: DiscoveryCandidate;
   result: NicheScoreResult | null;
+  /**
+   * Position in the ORIGINAL `candidates` array — i.e. the index into the
+   * job's persisted `results` JSONB, which is what addresses the detail page
+   * (todo 007). `ranked` is re-sorted, so the map index is the RANK, not this;
+   * conflating them would link every card to the wrong object.
+   */
+  sourceIndex: number;
 }
 
 /**
@@ -81,7 +94,7 @@ function computeAreaBaseline(candidates: DiscoveryCandidate[]): {
  * array index) so React actually re-orders the visible DOM (UI-SPEC
  * "visible reorder requirement").
  */
-export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
+export function DiscoveryResults({ candidates, jobId }: DiscoveryResultsProps) {
   const [niche, setNiche] = useState<NicheId | "none">("none");
 
   const areaBaseline = useMemo(() => computeAreaBaseline(candidates), [candidates]);
@@ -94,15 +107,20 @@ export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
   } => {
     if (niche === "none" || isDegenerate) {
       return {
-        ranked: candidates.map((candidate) => ({ candidate, result: null })),
+        ranked: candidates.map((candidate, sourceIndex) => ({
+          candidate,
+          result: null,
+          sourceIndex,
+        })),
         hasError: false,
       };
     }
 
     try {
-      const scored = candidates.map((candidate) => ({
+      const scored = candidates.map((candidate, sourceIndex) => ({
         candidate,
         result: computeNicheScore(candidate, niche, areaBaseline),
+        sourceIndex,
       }));
       // Primary: the deterministic niche score. Secondary (TIEBREAKER ONLY):
       // the vision-derived conditionScore, so genuine renovation objects rise
@@ -117,7 +135,11 @@ export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
       return { ranked: scored, hasError: false };
     } catch {
       return {
-        ranked: candidates.map((candidate) => ({ candidate, result: null })),
+        ranked: candidates.map((candidate, sourceIndex) => ({
+          candidate,
+          result: null,
+          sourceIndex,
+        })),
         hasError: true,
       };
     }
@@ -176,58 +198,36 @@ export function DiscoveryResults({ candidates }: DiscoveryResultsProps) {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {ranked.map(({ candidate, result }, i) => (
+        {ranked.map(({ candidate, result, sourceIndex }, i) => (
           <DiscoveryCandidateCard
             key={candidate.sourceListingUrl ?? i}
             candidate={candidate}
             rankPosition={rankable ? i + 1 : null}
             nicheSignals={rankable ? (result?.breakdown ?? []) : undefined}
+            jobId={jobId}
+            candidateIndex={sourceIndex}
           />
         ))}
       </div>
 
       {/*
-        WR-01 (11-REVIEW.md) fix: the grid (line 168) and this vision wrapper
-        are both direct children of the OUTER `space-y-4` container (the top
-        of this component) — `space-y-6` alone only governs spacing BETWEEN
-        each GalleryConditionVision card inside THIS div, not the gap ABOVE
-        it. `mt-6` is the required minimum 24px visual break BETWEEN the
-        ranking grid and the vision section itself (11-UI-SPEC.md Component
-        Inventory §1 — "verified/ranked facts first, then hedged image
-        interpretation," explicitly a REQUIRED minimum reinforcing the
-        structural-separation constraint, not merely aesthetic). `vision`/
-        `visionSkippedReason` are read directly off each candidate; NEITHER
-        value is threaded into `computeNicheScore`/`rankPosition`/
-        `nicheSignals` above (structural-separation invariant, T-11-11).
+        todo 007 — the per-candidate AI read (vision + sun path + holistic
+        brief) used to render HERE, as one long list below the grid keyed by
+        array position, with no visual binding to the object it described. At
+        25 results the operator's reaction was, verbatim, "for which object?".
 
-        Phase 12 (DISC-06) additionally threads `latitude`/`longitude`/
-        `floor`/`orientation` from each candidate into `GalleryConditionVision`
-        for its embedded `SunPathExposure` sub-block ONLY — these four values
-        are likewise NEVER fed into `computeNicheScore`/`rankPosition`/
-        `nicheSignals` above (T-12-09, the structural-separation invariant
-        extended in niche-score.test.ts to also forbid a `sun-path` import).
+        It now lives on each candidate's own detail page
+        (`/discover/[jobId]/[candidateIndex]`), which the cards above link to.
+        The 11-UI-SPEC.md §1 ordering rule — verified/ranked facts first, then
+        hedged image interpretation — is preserved there rather than dropped:
+        the detail page renders the fact table before the vision block.
 
-        Phase 14 (ANL-01/ANL-04, T-14-17) additionally threads
-        `holisticBrief` from each candidate into `GalleryConditionVision` for
-        display ONLY, subject to the SAME structural-separation rule: it is
-        read directly off the candidate and is NEVER fed into
-        `computeNicheScore`/`rankPosition`/`nicheSignals` above — the numeric
-        `valueGap()` ranking wiring is Phase 16.
+        The structural-separation invariant is unaffected and still statically
+        enforced: `vision`/`visionSkippedReason`/`latitude`/`longitude`/
+        `floor`/`orientation`/`holisticBrief` are read off the candidate for
+        DISPLAY only and never feed `computeNicheScore`/`rankPosition`/
+        `nicheSignals` (T-11-11, T-12-09, T-14-17).
       */}
-      <div className="mt-6 space-y-6">
-        {ranked.map(({ candidate }, i) => (
-          <GalleryConditionVision
-            key={candidate.sourceListingUrl ?? `vision-${i}`}
-            vision={candidate.vision}
-            visionSkippedReason={candidate.visionSkippedReason}
-            latitude={candidate.latitude}
-            longitude={candidate.longitude}
-            floor={candidate.floor}
-            orientation={candidate.orientation}
-            holisticBrief={candidate.holisticBrief}
-          />
-        ))}
-      </div>
     </div>
   );
 }

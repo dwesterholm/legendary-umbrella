@@ -92,7 +92,7 @@ export default async function DiscoverJobPage({ params }: DiscoverJobPageProps) 
       )}
 
       {isTerminal && job.status === "done" && candidates.length > 0 && (
-        <DiscoveryResults candidates={candidates} />
+        <DiscoveryResults candidates={candidates} jobId={job.id} />
       )}
 
       {isTerminal && job.status === "done" && candidates.length === 0 && (
