@@ -28,13 +28,43 @@ export default function SignupPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        // todo 003 — without this, the confirmation link falls back to the
+        // project's configured Site URL, so a signup started on localhost can
+        // land on a deployed host (or vice versa) and fail to confirm the
+        // session the user is actually waiting in. `/auth/confirm` is the
+        // handler that already exists for it.
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      },
     });
 
     if (signUpError) {
-      setError("Nagot gick fel. Forsok igen.");
+      // Keep the copy calm, but stop discarding the cause — an undiagnosable
+      // "something went wrong" was hiding rate limits and invalid addresses
+      // from both the user and anyone debugging.
+      console.error("[signup] signUp failed", { code: signUpError.code ?? signUpError.name });
+      setError(
+        signUpError.message?.toLowerCase().includes("rate")
+          ? "For manga forsok just nu. Vanta en stund och forsok igen."
+          : "Nagot gick fel. Forsok igen.",
+      );
+      setLoading(false);
+      return;
+    }
+
+    // todo 003 — Supabase returns SUCCESS for an already-registered address
+    // (an anti-enumeration behavior), with an empty `identities` array and no
+    // mail sent. Showing "check your email" there points the user at an inbox
+    // that will never receive anything, with no way forward. Detect it and say
+    // something true instead.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      setError(
+        "Det finns redan ett konto med den har e-postadressen. Logga in istallet, " +
+          "eller aterstall losenordet om du har glomt det.",
+      );
       setLoading(false);
       return;
     }
