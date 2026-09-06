@@ -6,7 +6,86 @@
 
 ---
 
-## ⏸️ PICK UP HERE (updated 2026-07-23 — Phase 13 SHIPPED as PR #9)
+## ⏸️ PICK UP HERE (updated 2026-09-06 — paused mid-task on usage credits)
+
+**Daniel's actual goal right now:** see a list of renovation-object apartments in central
+Stockholm ("innerstan / innanför tullarna"). He does not care about the app UI for this.
+The very first thing the next session should do is deliver that list. Everything else waits.
+
+### State of the repo
+- `main` = `origin/main`, tree clean, 995 tests green, tsc/lint/build clean. Nothing unpushed.
+- Phase 14 complete (4/4). Phase 13 open only on `13-03` (a live smoke). Phases 15–17 not started.
+- Supabase project `nsheegvczxjeeayngqrv` is **live** (checked 2026-09-06: all tables HTTP 200).
+  Keepalive Action tightened to daily in `31eda84`. Do not re-diagnose "is it paused" — curl it.
+- Dev server is NOT running when you start (it dies with the session). Start with
+  `npm run dev -- -p 3001` or the `bostad-ai-dev` entry in `.claude/launch.json`.
+- Login: the account + password live in `.env.local` as `TEST_EMAIL` / `TEST_PASSWORD`.
+  Daniel signed in with them on 2026-09-06. The app has no password-reset flow; the Supabase
+  default mailer never delivers, so if the password is ever lost, set a new one in the Supabase
+  SQL Editor (`update auth.users set encrypted_password = crypt('…', gen_salt('bf')) where email = '…'`).
+
+### What happened in the last session (2026-09-06)
+1. Confirmed WR-03 was already fixed (`076dfb1`, Phase 14 fix pass); marked resolved in
+   `13-VERIFICATION.md`. Closed todo 001 on evidence (4 weeks live with the anon-read ping →
+   no service-role write needed; cadence → daily instead).
+2. Daniel logged into the app and ran a search from `/discover`. **It refused to start a job.**
+   Server log: `POST /discover 200 in 4.5s`, then no `/discover/[jobId]` navigation — i.e. the
+   server action returned `ok:false`. See "BUG TO FIX" below.
+3. Pivoted to a **headless run using the app's own pipeline code**, no login, no vision/BRF:
+   `scripts/find-reno.ts` (committed). It resolved all four areas — Södermalm 115341,
+   Östermalm 115348, Vasastan 115349 (seed), **Kungsholmen 115353 (live probe, 1 Apify render)**
+   — then kicked off the four area scrapes in parallel and the process was **killed (exit 137)**
+   before printing anything. Cause: `apify-client` streams every actor's log to stdout and the
+   flood tripped the tool. The four Apify actor runs were already started, so ~1–5 SEK was spent
+   and the listings were fetched but lost in memory. No Anthropic spend.
+
+### NEXT STEP 1 — deliver the apartment list (do this first)
+Run the headless script again, with the actor log silenced and output going to a FILE, never
+through `head`/a pipe that can close early:
+```bash
+set -a; source .env.local; set +a
+npx tsx --tsconfig ./tsconfig.json scripts/find-reno.ts > /tmp/find-reno.out 2>&1; echo "exit $?"
+grep -v "playwright-scraper runId" /tmp/find-reno.out
+```
+If it is still killed by the log flood, the fix is in `src/lib/booli/transport.ts`: the
+`client.actor(...).call(...)` streams logs by default — pass the option that disables log
+streaming (check the `apify-client` `ActorClient.call` docs for the current name, it has been
+`waitSecs` + a log/`silent`-style flag) or set `APIFY_LOG_LEVEL=OFF` in the env before running.
+The script itself is sound: it expands "innerstan" → 4 districts, resolves them (seed first, probe
+only for what the seed lacks), scrapes with `fetchAreaListings(areaId, "Lägenhet")`, dedupes,
+applies `filterCandidates` (≤4 000 000 kr, ≥30 kvm, lägenhet), ranks with the app's own
+`computeNicheScore(…, "renovation-upside", …)`, prints top 30 with Booli links, ★ = ≤45 kvm.
+Hand Daniel that table. That is the deliverable.
+
+Quick win while there: add `kungsholmen: "115353"` to `AREA_SEED` in
+`src/lib/discovery/area-seed.ts` (live-observed 2026-09-06, satisfies the file's "never a guess"
+rule) so future runs skip the probe render. Run `resolve-area.test.ts` + `area-seed` tests after.
+
+### BUG TO FIX (I introduced it) — the in-app search refuses Daniel's exact query
+In `bcaee7b` (todo 005) I (a) told the intent parser (`parse-intent.ts:47`) to NEVER guess an
+area and return `""` when unsure, and (b) added a gate in `start-discovery.ts` that refuses an
+empty `areaQuery` before creating a job. Both correct in spirit. But the umbrella expansion
+("innerstan" → 4 districts) lives in `splitAreaQuery`, which runs in `runSlice` — AFTER that gate.
+So for free text like "innanför tullarna", Haiku now returns `""` (as instructed), the gate fires,
+and the user sees "Vi kunde inte tolka vilket område du menar" with no job. That is almost
+certainly what Daniel hit. Verify by reading the action's return in the browser (it is not in
+the server log). Fix: before the gate in `start-discovery.ts`, try the umbrella expansion /
+`splitAreaQuery` on the FREE TEXT (or on Haiku's raw guess) and accept if it yields resolvable
+names; also consider having the parser return the umbrella term itself rather than `""`.
+Selecting the area CHIPS in the UI bypasses this and works.
+
+### Then, in order
+- `todo 004` (pending): the two Supabase dashboard checks on whether the signup mail ever sent.
+- `13-03` live smoke → closes Phase 13. The WR-02 enrichment deadline (`ENRICH_DEADLINE_MS`) has
+  still never executed against real latency; watch the server log for its trip message.
+- `/gsd-discuss-phase 15`.
+
+### Memory files (local `~/.claude/projects/…/memory/`) hold the same facts; if the new account
+cannot see them, this section is the source of truth.
+
+---
+
+## (older) PICK UP HERE (updated 2026-07-23 — Phase 13 SHIPPED as PR #9)
 
 ### Pacing decision: RESOLVED → "Ship Phase 13 first"
 You chose option 3 (ship Phase 13 independently). Done:
