@@ -1,6 +1,7 @@
 ---
-title: "Replace the keepalive ping with a service-role write (restore itself is DONE)"
-status: partially_done
+title: "Supabase keepalive — restore DONE; cadence tightened to daily; service-role write NOT needed (evidence)"
+status: done
+completed: 2026-09-06
 updated: 2026-08-11
 progress: "Part 1 (restore) DONE — operator restored the project; verified live 2026-08-11, area_cache HTTP 200 in 0.14s. Part 2 (keepalive fix) still OUTSTANDING, so it can pause again."
 priority: P1
@@ -51,3 +52,17 @@ Confirmed paused 2026-07-27 (by then possibly fully shut down — free-tier proj
 - **Blocks** Phase 14 live verification (ANL-02/ANL-03): `resolveArea` reads the `area_cache` table, so the comps/BRF end-to-end smoke cannot run until the DB is back. Unit/mocked tests are unaffected — Phase 14 can be built and merged without this.
 - **Blocks** Phase 13's still-open **DXUX-01** live gate. Both live gates want one combined session **from a non-Booli/Cloudflare-blocked IP** (the operator's local IP 403s on Booli detail pages), so pair this restore with that run.
 - Memory: `supabase-project-paused`, `supabase-migration-already-applied`.
+
+
+## Resolution (2026-09-06)
+
+**Not fixed the way this todo proposed, deliberately.** The proposal was to replace the anon read with a service-role write, on the hypothesis that an RLS-empty read does not register as pause-timer activity. Four weeks of evidence contradict that:
+
+- The keepalive Action has been green every run since 2026-08-07 (`gh run list --workflow=supabase-keepalive.yml`).
+- The project stayed live the entire time (re-verified 2026-09-06: `analyses`, `discovery_jobs`, `area_cache` all HTTP 200 in <0.8s) with that read as effectively its only activity.
+
+Building a service-role write would also have meant putting a high-privilege secret into GitHub Actions for no demonstrated benefit — a real security cost against an unproven problem.
+
+**What was done instead:** cron tightened from every 3 days to daily. The genuine weakness was margin, not mechanism — GitHub cron is best-effort, and two missed 3-day runs inside a 7-day window pauses the project. Daily requires six consecutive misses.
+
+**Still unexplained:** why the project paused on 2026-07-27 when the Action was green on 07-25. The most likely readings are that the 07-27 email was a *pending-pause warning* rather than a pause, or that the 07-25 run's 200 came from an already-paused project's edge layer. If it pauses again despite daily green runs, THAT is the signal to revisit the write-based approach — and the cheap diagnostic is the Action run log immediately preceding the pause.

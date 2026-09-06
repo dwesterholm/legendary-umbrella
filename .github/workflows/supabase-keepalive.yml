@@ -16,9 +16,17 @@ name: Supabase keepalive
 
 on:
   schedule:
-    # Every 3 days at 06:00 UTC — well inside the 7-day pause window even if a
-    # run is delayed (GitHub cron is best-effort, not guaranteed to the minute).
-    - cron: "0 6 */3 * *"
+    # Daily at 06:00 UTC. Was every 3 days; tightened 2026-09-06 (todo 001).
+    # GitHub cron is best-effort and can be delayed or skipped, so a 3-day
+    # cadence against a 7-day pause window left less margin than it looked —
+    # two missed runs and the project pauses. Daily makes a pause require SIX
+    # consecutive misses. Cost is one trivial request a day.
+    #
+    # Evidence this ping is sufficient: after the 2026-07-27 pause and restore,
+    # the project stayed live for 4+ weeks (08-07 → 09-06) with this anon read
+    # as effectively its only activity, green every run. The earlier hypothesis
+    # that an RLS-empty read "may not count" as activity is not supported.
+    - cron: "0 6 * * *"
   workflow_dispatch: {} # allow manual runs from the Actions tab to test
 
 jobs:
