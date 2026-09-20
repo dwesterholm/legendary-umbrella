@@ -86,7 +86,10 @@ export async function runPlaywrightRender(
       },
       // cold-start headroom, proven necessary in booli-scraper.ts and
       // sold-source.ts — a warm run returns as soon as it finishes.
-      { waitSecs },
+      // `log: null` turns off apify-client's default streaming of the actor's
+      // run log to our stdout. Nothing reads that stream, and its volume killed
+      // the headless search (exit 137) when four area scrapes ran in parallel.
+      { waitSecs, log: null },
     );
 
     // A non-SUCCEEDED run (still RUNNING at the wait ceiling, TIMED-OUT,

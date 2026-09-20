@@ -98,6 +98,26 @@ function expandUmbrellaAreas(areaQuery: string): string[] {
 }
 
 /**
+ * Finds a known umbrella term ("innerstan", "innanför tullarna", …) anywhere in
+ * a user's FREE TEXT and returns it, or `null`.
+ *
+ * Why this exists: the intent parser is told to return an empty area when it is
+ * unsure (it must never guess), and `startDiscovery` refuses an empty area
+ * before creating a job. The umbrella expansion above only runs later, inside
+ * the job. So "renoveringsobjekt innanför tullarna" was refused even though we
+ * know exactly which districts it means. This lookup is a fixed vocabulary
+ * match, so it keeps the "never guess an area" rule intact.
+ *
+ * Longest key first, so a more specific phrase wins over a shorter one.
+ */
+export function findUmbrellaTerm(freeText: string): string | null {
+  if (!freeText) return null;
+  const haystack = freeText.toLowerCase();
+  const keys = Object.keys(UMBRELLA_AREAS).sort((a, b) => b.length - a.length);
+  return keys.find((k) => haystack.includes(k)) ?? null;
+}
+
+/**
  * Splits a free-text area query into individual area names so a multi-area
  * search ("Södermalm och Vasastan", "Södermalm, Vasastan") resolves + scrapes
  * each area rather than failing to resolve one impossible combined name.

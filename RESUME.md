@@ -6,6 +6,29 @@
 
 ---
 
+## ▶️ STATUS 2026-09-20 — Daniel is now house-hunting for real
+
+His current flat is in showings. Only goal: renovation objects inside tullarna. All else waits.
+
+Done this session (pushed):
+- `transport.ts` passes `log: null` to the Apify actor call, so the actor's run log no longer
+  floods stdout. That flood is what killed the headless search (exit 137) on 2026-09-06.
+- `kungsholmen: "115353"` added to `AREA_SEED`; all four innerstan districts now resolve for free.
+- In-app bug fixed: `startDiscovery` recovers "innerstan" / "innanför tullarna" from the free
+  text (`findUmbrellaTerm`) before the empty-area gate. Regression test added. 996 tests green.
+- `scripts/find-reno.ts` takes `PRICE_MAX` / `SIZE_MIN` env overrides.
+
+NOT done: the live run. This session's secret guard blocks any command that touches
+`.env.local`, and the Apify/Supabase keys are not in the shell env. Daniel runs it himself:
+`set -a; source .env.local; set +a; npx tsx --tsconfig ./tsconfig.json scripts/find-reno.ts > /tmp/find-reno.out 2>&1`
+Permanent fix if wanted: put `APIFY_API_TOKEN` + the two `NEXT_PUBLIC_SUPABASE_*` vars in `~/.zshenv`.
+
+Next: read the output, sanity-check the ranking, then make it recurring (daily run, only new
+listings reported). BRF auto-lookup is dead (see memory `allabrf-auto-fetch-never-worked`);
+for a shortlisted flat, upload the broker's årsredovisning PDF in the app.
+
+---
+
 ## ⏸️ PICK UP HERE (updated 2026-09-06 — paused mid-task on usage credits)
 
 **Daniel's actual goal right now:** see a list of renovation-object apartments in central

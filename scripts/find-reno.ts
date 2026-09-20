@@ -10,8 +10,9 @@ import { toCandidate, filterCandidates, type DiscoveryCandidate } from "@/lib/di
 import { computeNicheScore } from "@/lib/discovery/niche-score";
 import type { DiscoveryFilter } from "@/lib/discovery/filter-schema";
 
-const PRICE_MAX = 4_000_000;
-const SIZE_MIN = 30;
+// Override per run: PRICE_MAX=6000000 SIZE_MIN=40 npx tsx …
+const PRICE_MAX = Number(process.env.PRICE_MAX ?? 4_000_000);
+const SIZE_MIN = Number(process.env.SIZE_MIN ?? 30);
 const SIZE_HIGHLIGHT_MAX = 45;
 
 function median(xs: number[]): number | null {

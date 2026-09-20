@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { parseIntent } from "@/lib/discovery/parse-intent";
+import { findUmbrellaTerm } from "@/lib/discovery/resolve-area";
 import {
   CAP_CANDIDATES_MAX,
   CAP_SEK_MAX,
@@ -125,6 +126,16 @@ export async function startDiscovery(
     if (parsed.success) {
       mergedFilter.objectType = parsed.data;
     }
+  }
+
+  // The parser returns "" for an area it cannot name with confidence, and
+  // colloquial group terms ("innanför tullarna") match no single Booli area, so
+  // they arrive here empty. Recover them from the free text with the fixed
+  // umbrella vocabulary BEFORE the gate below; the job later expands the term
+  // into its districts via `splitAreaQuery`.
+  if (!mergedFilter.areaQuery || mergedFilter.areaQuery.trim() === "") {
+    const umbrella = findUmbrellaTerm(freeText);
+    if (umbrella) mergedFilter.areaQuery = umbrella;
   }
 
   // todo 005 — SPEND GATE: refuse an unscoped job BEFORE it is created.

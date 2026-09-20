@@ -238,6 +238,37 @@ describe("startDiscovery — flag on", () => {
     }
   });
 
+  // The exact query that was refused on 2026-09-06: the parser (correctly)
+  // returns "" for a group term, and the gate fired before the job's own
+  // umbrella expansion could run.
+  it("recovers an umbrella term from the free text when the parser returns an empty area", async () => {
+    parseIntent.mockResolvedValue({
+      ok: true,
+      filter: {
+        areaQuery: "",
+        priceMax: 4_000_000,
+        roomsMin: null,
+        sizeMin: null,
+        objectType: "Lägenhet",
+        confidence: 0.9,
+      },
+    });
+
+    const result = await startDiscovery(
+      formData("Renoveringsobjekt innanför tullarna, max 4 miljoner"),
+    );
+
+    expect(result.ok).toBe(true);
+    const filters = rpcCalls[0].args.p_filters as Record<string, unknown>;
+    expect(filters.areaQuery).toBe("innanför tullarna");
+    expect(splitAreaQuery(filters.areaQuery as string)).toEqual([
+      "Södermalm",
+      "Östermalm",
+      "Vasastan",
+      "Kungsholmen",
+    ]);
+  });
+
   it("falls back to the Haiku-inferred area when no areaQuery override is provided", async () => {
     const result = await startDiscovery(formData("3:a på Södermalm under 4 miljoner"));
 

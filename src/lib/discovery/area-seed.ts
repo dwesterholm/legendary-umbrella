@@ -24,6 +24,8 @@ export const AREA_SEED: Record<string, string> = {
   södermalm: "115341",
   östermalm: "115348",
   vasastan: "115349",
+  // Live-observed 2026-09-06 (one Apify render via resolveArea), not a guess.
+  kungsholmen: "115353",
   // Stockholm-region kommuner (widest-tier ids commonly seen in the same
   // breadcrumb ladder as Södermalm, per client.ts's wide→narrow ladder note).
   stockholm: "1", // kommun-level id, mirrors resolveAreaId's short-ladder fallback shape
