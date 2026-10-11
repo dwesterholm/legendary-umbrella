@@ -33,11 +33,17 @@ export type DiscoveryFilter = z.infer<typeof intentFilterSchema>;
 
 /**
  * Hard cap on the number of candidates a single discovery job may return.
- * Locked to the 20-30 band (roadmap D decision): large enough to be useful,
- * small enough to keep per-search render/token spend bounded under the
- * <$100/mo budget posture (09-RESEARCH.md cost math).
+ *
+ * Was 25 (roadmap D's 20-30 band). Raised 2026-10-11: a four-district
+ * "innerstan" search filled all 25 slots from the first district alone and
+ * the other three never appeared. The scrape cost does not scale with this
+ * number (every district's pages are fetched regardless), and the paid
+ * per-candidate stages are bounded separately (`VISION_ENRICH_LIMIT`,
+ * `BRF_TOP_N`, `CAP_VISION_SEK_MAX`), so a larger list costs only the
+ * deterministic filter. `runSlice` interleaves districts before cutting at
+ * this cap so each one gets a fair share.
  */
-export const CAP_CANDIDATES_MAX = 25 as const;
+export const CAP_CANDIDATES_MAX = 60 as const;
 
 /**
  * Hard per-search SEK spend ceiling. RESEARCH's cost math (Haiku intent

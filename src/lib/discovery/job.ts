@@ -14,8 +14,7 @@ import {
   toCandidate,
   filterCandidates,
   pricePerSqm,
-  type DiscoveryCandidate,
-} from "@/lib/discovery/candidate";
+  type DiscoveryCandidate, interleaveGroups } from "@/lib/discovery/candidate";
 import {
   discoveryCostSek,
   renderSek,
@@ -218,6 +217,8 @@ export async function runSlice(
     areaIds.map((areaId) => fetchAreaListings(areaId, filters.objectType)),
   );
   const raw: Record<string, unknown>[] = [];
+  // Per-district lists, kept apart so the cap below can be shared fairly.
+  const rawByArea: Record<string, unknown>[][] = [];
   let anyThrew = false;
   let rendersUsed = 0;
   for (let i = 0; i < settled.length; i++) {
@@ -227,6 +228,7 @@ export async function runSlice(
       // AREA_RENDER_RUNGS), never a hardcoded 1.
       rendersUsed += outcome.value.rendersUsed;
       raw.push(...outcome.value.listings);
+      rawByArea.push(outcome.value.listings);
     } else {
       // A thrown area means page 1 exhausted EVERY rung — those renders were
       // paid for and must be recorded, not written off as free.
@@ -255,9 +257,18 @@ export async function runSlice(
   // an area border can surface in two area searches), then deterministically
   // filter — NEVER Claude-driven, and capped to the remaining candidate budget
   // so a single slice cannot blow past cap_candidates.
-  const candidates = dedupeCandidates(raw.map(toCandidate));
+  // Filter each district on its own, then interleave them (first of each,
+  // second of each, ...) BEFORE cutting at the remaining budget. Cutting the
+  // concatenated list used to hand every slot to the first district scraped:
+  // an "innerstan" search returned 25 Södermalm flats and nothing from the
+  // other three districts (observed 2026-10-06).
   const remaining = Math.max(0, cap_candidates - candidate_count);
-  const { shown, scanned } = filterCandidates(candidates, filters, remaining);
+  const perArea = rawByArea.map(
+    (listings) =>
+      filterCandidates(listings.map(toCandidate), filters, Number.POSITIVE_INFINITY).shown,
+  );
+  const shown = dedupeCandidates(interleaveGroups(perArea)).slice(0, remaining);
+  const scanned = dedupeCandidates(raw.map(toCandidate)).length;
 
   // (6) PERSIST — a single UPDATE computed entirely from claimedRow's values
   // (Pitfall 4), never a fresh SELECT of the same job.

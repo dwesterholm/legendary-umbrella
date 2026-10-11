@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   toCandidate,
   filterCandidates,
+  interleaveGroups,
   discoveryCandidateSchema,
   type DiscoveryCandidate,
 } from "@/lib/discovery/candidate";
@@ -903,5 +904,18 @@ describe("discoveryCandidateSchema — WR-09: a drifted NESTED field degrades to
     expect(result.data?.areaComps).toBeNull();
     expect(result.data?.brfSummary).toBeNull();
     expect(result.data?.holisticBrief).toBeNull();
+  });
+});
+
+describe("interleaveGroups — fair share across districts before the cap", () => {
+  it("takes one from each group in turn and preserves order within a group", () => {
+    expect(interleaveGroups([["a1", "a2", "a3"], ["b1"], ["c1", "c2"]])).toEqual([
+      "a1", "b1", "c1", "a2", "c2", "a3",
+    ]);
+  });
+
+  it("handles empty input and empty groups", () => {
+    expect(interleaveGroups([])).toEqual([]);
+    expect(interleaveGroups([[], ["x"]])).toEqual(["x"]);
   });
 });

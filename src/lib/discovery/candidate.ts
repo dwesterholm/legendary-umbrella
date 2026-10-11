@@ -442,3 +442,22 @@ export function filterCandidates(
     scanned: candidates.length,
   };
 }
+
+/**
+ * Round-robin merge: the first element of every group, then the second of
+ * every group, and so on, skipping groups that have run out. Used by
+ * `runSlice` so a multi-district search cut at `cap_candidates` keeps a fair
+ * share of each district instead of filling the cap from whichever district
+ * happened to be scraped first. Order within a group is preserved (each
+ * district's list is already in Booli's cheapest-kr/m²-first order).
+ */
+export function interleaveGroups<T>(groups: readonly (readonly T[])[]): T[] {
+  const out: T[] = [];
+  const longest = groups.reduce((max, g) => Math.max(max, g.length), 0);
+  for (let i = 0; i < longest; i++) {
+    for (const group of groups) {
+      if (i < group.length) out.push(group[i]);
+    }
+  }
+  return out;
+}

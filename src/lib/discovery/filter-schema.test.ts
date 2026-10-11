@@ -57,9 +57,12 @@ describe("intentFilterSchema — slim Claude-facing structured filter", () => {
 });
 
 describe("hard-cap constants", () => {
-  it("CAP_CANDIDATES_MAX is within the locked 20-30 band", () => {
+  // Raised from the original 20-30 band on 2026-10-11 so a four-district
+  // search keeps a share of every district (see filter-schema.ts). The upper
+  // bound guards against a cap large enough to make the results page unusable.
+  it("CAP_CANDIDATES_MAX is within the 20-100 band", () => {
     expect(CAP_CANDIDATES_MAX).toBeGreaterThanOrEqual(20);
-    expect(CAP_CANDIDATES_MAX).toBeLessThanOrEqual(30);
+    expect(CAP_CANDIDATES_MAX).toBeLessThanOrEqual(100);
   });
 
   it("CAP_SEK_MAX is a positive number", () => {
