@@ -6,6 +6,21 @@
 
 ---
 
+## ▶️ STATUS 2026-10-11 — pushed, cap fixed, key rotated
+
+- Push block resolved: the three commits were squashed into `cdab732` with no key in history
+  (Daniel chose "rewrite").
+- `b0a6167`: candidate cap 25 → 60 and districts interleaved before the cut, so an innerstan
+  search keeps a share of all four districts.
+- The Anthropic key had been rotated; the old one returned 401. Daniel put the new key in
+  `.env.local` + `~/.zshenv`. `APIFY_API_TOKEN` + `ANTHROPIC_API_KEY` now reach Claude's shell.
+- `b7ec27b`: the browser-pane dev server is launched through `zsh -c` so it inherits
+  `~/.zshenv` (it used to read only `.env.local`); parse-intent logs API status/type.
+- `ps eww` on macOS shows NO environment for other processes — do not use it to check what
+  the dev server sees; run the flow and read the parse-intent log line instead.
+
+---
+
 ## ▶️ STATUS 2026-10-06 — scraper works again, app runs on local Supabase
 
 Rules Daniel set today (also in memory): Claude verifies by clicking through the real app in
