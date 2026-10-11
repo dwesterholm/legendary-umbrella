@@ -5,7 +5,8 @@ import { z } from "zod/v4";
  * for the sold-price (slutpriser) panel (PRICE-01).
  *
  * Source shape (03-SPIKE.md §1.3): Booli server-renders every comp into the page
- * HTML as `__NEXT_DATA__ → props.pageProps.__APOLLO_STATE__ → SoldProperty:<id>`.
+ * HTML; since Booli's 2026-10 rebuild `page-functions.ts` rebuilds the same
+ * `SoldProperty:<id>` map from the Apollo SSR transport (see its doc comment).
  * We read that SSR Apollo blob — NOT the Cloudflare-walled `/graphql` API. The
  * committed fixture `__fixtures__/sold-comps.json` is a real redacted payload
  * stored in the TRUE live shape `{ items: [{ hasApollo, __APOLLO_STATE__ }] }`

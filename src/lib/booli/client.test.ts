@@ -880,3 +880,49 @@ describe("reshapeListingEntity imageUrls extractor (via fetchListing) — Phase 
     }
   });
 });
+
+describe("reshapeListingEntity — Booli's 2026-10 denormalized packaging (inline objects, no __ref)", () => {
+  const INLINE_ENTITY: Record<string, unknown> = {
+    __typename: "Listing",
+    id: "6257338",
+    booliId: "6257338",
+    url: "/bostad/662772",
+    streetAddress: "Ludvigsbergsgatan 33",
+    listPrice: { __typename: "FormattedValue", raw: 10495000 },
+    livingArea: { __typename: "FormattedValue", raw: 81 },
+    rooms: { __typename: "FormattedValue", raw: 3 },
+    objectType: "Lägenhet",
+    images: [
+      { __typename: "Image", id: "55983400", primaryLabel: "interior" },
+      { __typename: "Image", id: "55983401", primaryLabel: "floorplan" },
+    ],
+    amenities: [
+      { __typename: "Amenity", key: "elevator" },
+      { __typename: "Amenity", key: "balcony" },
+    ],
+    agency: { __typename: "Agency", name: "BOSTHLM" },
+    kommun: "Stockholm",
+  };
+
+  it("resolves inline Image objects, inline Amenity keys, plain agency and plain kommun", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({ items: [apolloItem({ "Listing:6257338": INLINE_ENTITY })] });
+
+    const result = await fetchListing(DETAIL_URL);
+
+    // Floor plan first (extractImageUrls ordering), both on the allowed host.
+    expect(result.imageUrls).toHaveLength(2);
+    expect((result.imageUrls as string[])[0]).toContain("55983401");
+    expect(result.balcony).toBe(true);
+    expect(result.agencyName).toBe("BOSTHLM");
+    expect(result.kommun).toBe("Stockholm");
+    expect(scraperOutputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("still resolves the legacy __ref packaging through the state map (fixture unchanged)", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({ items: [apolloItem({ "Listing:4463691": listingDetailFixture })] });
+    const result = await fetchListing(DETAIL_URL);
+    expect(result.streetAddress).toBe("Testgatan 1");
+  });
+});

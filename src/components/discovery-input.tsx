@@ -79,9 +79,19 @@ export function DiscoveryInput({ killSwitchTripped = false }: DiscoveryInputProp
     return formData;
   }
 
-  function submit() {
+  function submit(confirmed = false) {
     startTransition(async () => {
-      const result = await startDiscovery(buildFormData());
+      const formData = buildFormData();
+      if (confirmed) {
+        // The user accepted the parsed filter on the "Stämmer detta?" card:
+        // tell the action to skip its confidence check, and carry the area the
+        // server recovered (e.g. "innanför tullarna") when no chip is chosen.
+        formData.set("confirmed", "1");
+        if (areas.length === 0 && pendingConfirmation?.areaQuery) {
+          formData.set("areaQuery", pendingConfirmation.areaQuery);
+        }
+      }
+      const result = await startDiscovery(formData);
       if (!result.ok) {
         if (result.needsConfirmation && result.filter) {
           setPendingConfirmation(result.filter);
@@ -104,7 +114,7 @@ export function DiscoveryInput({ killSwitchTripped = false }: DiscoveryInputProp
       return;
     }
 
-    submit();
+    submit(false);
   }
 
   return (
@@ -243,7 +253,7 @@ export function DiscoveryInput({ killSwitchTripped = false }: DiscoveryInputProp
               </p>
               <Button
                 type="button"
-                onClick={submit}
+                onClick={() => submit(true)}
                 disabled={isPending}
                 className="bg-sage-600 text-white hover:bg-sage-700 h-11 px-6"
               >

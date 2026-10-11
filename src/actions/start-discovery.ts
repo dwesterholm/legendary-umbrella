@@ -73,20 +73,40 @@ export async function startDiscovery(
     return { ok: false, error: "Vi kunde inte tolka din sökning. Försök igen." };
   }
 
-  if (!parseResult.ok) {
+  const parsedFilter: DiscoveryFilter = { ...parseResult.filter };
+
+  // The parser returns "" for an area it cannot name with confidence, and
+  // colloquial group terms ("innanför tullarna") match no single Booli area, so
+  // they arrive here empty — and usually drag the parse below the confidence
+  // threshold too. Recover the term from the free text with the fixed umbrella
+  // vocabulary BEFORE the confirmation card and the spend gate below, so the
+  // card can show the area and the job later expands it via `splitAreaQuery`.
+  if (!parsedFilter.areaQuery || parsedFilter.areaQuery.trim() === "") {
+    const umbrella = findUmbrellaTerm(freeText);
+    if (umbrella) parsedFilter.areaQuery = umbrella;
+  }
+
+  // "Ja, stämmer" on the confirmation card resubmits with `confirmed=1`. The
+  // parse is re-run (it is the only way to get a filter) but its confidence
+  // score is no longer a reason to stop: the user has already said the parse
+  // is right. Without this the card re-appeared on every click — an infinite
+  // confirm loop, observed live 2026-10-06.
+  const confirmed = formData.get("confirmed") === "1";
+
+  if (!parseResult.ok && !confirmed) {
     // Low-confidence fail-safe: surface the parse for a "stämmer detta?"
     // confirmation — NO job is created yet.
     return {
       ok: false,
       error: "Vi är inte säkra på att vi tolkade sökningen rätt.",
       needsConfirmation: true,
-      filter: parseResult.filter,
+      filter: parsedFilter,
     };
   }
 
   // Merge explicit hard-filter FormData overrides on top of the parsed
   // filter — explicit user filters win over the Haiku-inferred defaults.
-  const mergedFilter: DiscoveryFilter = { ...parseResult.filter };
+  const mergedFilter: DiscoveryFilter = { ...parsedFilter };
   const areaQueryOverride = formData.get("areaQuery");
   if (typeof areaQueryOverride === "string" && areaQueryOverride.trim() !== "") {
     // The UI's "Område" <Select> is seeded exactly from AREA_SEED's keys —
@@ -126,16 +146,6 @@ export async function startDiscovery(
     if (parsed.success) {
       mergedFilter.objectType = parsed.data;
     }
-  }
-
-  // The parser returns "" for an area it cannot name with confidence, and
-  // colloquial group terms ("innanför tullarna") match no single Booli area, so
-  // they arrive here empty. Recover them from the free text with the fixed
-  // umbrella vocabulary BEFORE the gate below; the job later expands the term
-  // into its districts via `splitAreaQuery`.
-  if (!mergedFilter.areaQuery || mergedFilter.areaQuery.trim() === "") {
-    const umbrella = findUmbrellaTerm(freeText);
-    if (umbrella) mergedFilter.areaQuery = umbrella;
   }
 
   // todo 005 — SPEND GATE: refuse an unscoped job BEFORE it is created.

@@ -141,9 +141,15 @@ const LISTING_ENTITY_PREFIX = "Listing:";
 export function amenityKeys(refs: unknown): string[] {
   if (!Array.isArray(refs)) return [];
   return refs
-    .map((r) => (r && typeof r === "object" && "__ref" in r ? (r as { __ref: string }).__ref : null))
-    .filter((ref): ref is string => typeof ref === "string" && ref.startsWith("Amenity:"))
-    .map((ref) => {
+    .map((r) => {
+      if (!r || typeof r !== "object") return "";
+      // Inline Amenity object (Booli's 2026-10 denormalized payloads).
+      if (!("__ref" in r)) {
+        const key = (r as { key?: unknown }).key;
+        return typeof key === "string" ? key : "";
+      }
+      const ref = (r as { __ref: unknown }).__ref;
+      if (typeof ref !== "string" || !ref.startsWith("Amenity:")) return "";
       try {
         return (JSON.parse(ref.slice("Amenity:".length)) as { key?: string }).key ?? "";
       } catch {
@@ -266,11 +272,19 @@ function resolveImageRefs(
   if (!Array.isArray(refs)) return [];
   const out: ApolloImageRef[] = [];
   for (const r of refs) {
-    const ref =
-      r && typeof r === "object" && "__ref" in r ? (r as { __ref: unknown }).__ref : null;
-    if (typeof ref !== "string" || !ref.startsWith("Image:")) continue;
-    const img = state[ref] as { id?: unknown; primaryLabel?: unknown } | undefined;
-    const id = img && typeof img.id === "string" ? img.id : null;
+    if (!r || typeof r !== "object") continue;
+    // Two packagings (page-functions.ts): a normalized-cache `{__ref:
+    // "Image:<id>"}` link resolved through `state`, or — since Booli's
+    // 2026-10 rebuild — the Image object inline `{id, primaryLabel}`.
+    let img: { id?: unknown; primaryLabel?: unknown } | undefined;
+    if ("__ref" in r) {
+      const ref = (r as { __ref: unknown }).__ref;
+      if (typeof ref !== "string" || !ref.startsWith("Image:")) continue;
+      img = state[ref] as typeof img;
+    } else {
+      img = r as typeof img;
+    }
+    const id = img && (typeof img.id === "string" ? img.id : typeof img.id === "number" ? String(img.id) : null);
     if (!id) continue;
     out.push({
       url: bcdnImageUrl(id),
@@ -383,8 +397,11 @@ function extractImageUrls(entry: Record<string, unknown>): string[] | undefined 
  * malformed/partial entity yields undefined/null fields, never a throw.
  */
 function reshapeListingEntity(entry: Record<string, unknown>): Record<string, unknown> {
-  const agency = argKeyedFieldOf(entry, "agency(") as
+  // Arg-keyed `agency(...)` in the legacy normalized cache; plain `agency`
+  // in the denormalized payloads page-functions.ts emits since 2026-10.
+  const agency = (argKeyedFieldOf(entry, "agency(") ?? entry.agency) as
     | { name?: string; thumbnail?: string }
+    | null
     | undefined;
 
   return {
@@ -455,7 +472,9 @@ function reshapeListingEntity(entry: Record<string, unknown>): Record<string, un
     brfName: brfNameFromBreadcrumbs(entry.breadcrumbs) ?? undefined,
     // Phase 14 (D-14-09): reads the SAME entry.breadcrumbs value already
     // passed to brfNameFromBreadcrumbs above — zero extra network cost.
-    kommun: kommunFromBreadcrumbs(entry.breadcrumbs) ?? undefined,
+    // Search-page cards (2026-10 shape) carry no breadcrumbs; page-functions.ts
+    // sets a plain `kommun` from the card's tracking data instead.
+    kommun: kommunFromBreadcrumbs(entry.breadcrumbs) ?? str(entry.kommun) ?? undefined,
   };
 }
 

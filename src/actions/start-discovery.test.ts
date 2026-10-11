@@ -269,6 +269,59 @@ describe("startDiscovery — flag on", () => {
     ]);
   });
 
+  it("shows the recovered umbrella area on the confirmation card for a low-confidence parse", async () => {
+    parseIntent.mockResolvedValue({
+      ok: false,
+      filter: {
+        areaQuery: "",
+        priceMax: 4_000_000,
+        roomsMin: null,
+        sizeMin: null,
+        objectType: "Lägenhet",
+        confidence: 0.4,
+      },
+    });
+
+    const result = await startDiscovery(
+      formData("Renoveringsobjekt innanför tullarna, max 4 miljoner"),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(rpcCalls).toHaveLength(0);
+    if (!result.ok) {
+      expect(result.needsConfirmation).toBe(true);
+      expect(result.filter?.areaQuery).toBe("innanför tullarna");
+    }
+  });
+
+  // Observed live 2026-10-06: "Ja, stämmer" resubmitted the same form, the
+  // parse came back low-confidence again, and the card reappeared forever.
+  it("creates the job when the user confirms a low-confidence parse (confirmed=1)", async () => {
+    parseIntent.mockResolvedValue({
+      ok: false,
+      filter: {
+        areaQuery: "",
+        priceMax: 4_000_000,
+        roomsMin: null,
+        sizeMin: null,
+        objectType: "Lägenhet",
+        confidence: 0.4,
+      },
+    });
+
+    const result = await startDiscovery(
+      formData("Renoveringsobjekt innanför tullarna, max 4 miljoner", {
+        confirmed: "1",
+        areaQuery: "innanför tullarna",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(rpcCalls).toHaveLength(1);
+    const filters = rpcCalls[0].args.p_filters as Record<string, unknown>;
+    expect(filters.areaQuery).toBe("innanför tullarna");
+  });
+
   it("falls back to the Haiku-inferred area when no areaQuery override is provided", async () => {
     const result = await startDiscovery(formData("3:a på Södermalm under 4 miljoner"));
 

@@ -33,9 +33,11 @@ function dedupe(cs: DiscoveryCandidate[]): DiscoveryCandidate[] {
 const sek = (n: number) => Math.round(n).toLocaleString("sv-SE");
 
 async function main() {
+  // tsx loads no .env files. Default to the local Supabase stack (its keys are
+  // the CLI's fixed public defaults); set the two vars to target anything else.
   const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321",
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
   );
 
   // 1. Expand the umbrella term exactly as the app does now.

@@ -6,6 +6,39 @@
 
 ---
 
+## ▶️ STATUS 2026-10-06 — scraper works again, app runs on local Supabase
+
+Rules Daniel set today (also in memory): Claude verifies by clicking through the real app in
+the browser pane, never hands Daniel a manual checklist; max 5 questions per phase, then
+`/gsd-autonomous`; the app runs on a LOCAL Supabase stack (`supabase start`, Colima), cloud
+project dormant; API tokens should be in `~/.zshenv` so Claude can run scripts.
+
+What was broken and is now fixed (commits f020122, c007410):
+- Booli rebuilt their site; the old `__NEXT_DATA__` block is gone, so every scrape failed with
+  "ingen Apollo-data". `src/lib/booli/page-functions.ts` now reads the search/slutpriser
+  pages (Apollo SSR transport, `ListableProperty` cards) and detail pages (App Router flight
+  payload). Verified live in the browser pane AND through Apify (3 districts × 5 pages ≈ 175
+  listings each). Search cards lack build year + BRF; detail enrichment backfills the top 8.
+- "Ja, stämmer" on the confirmation card looped forever (identical resubmit). Fixed with
+  `confirmed=1`; umbrella terms are recovered before the card.
+- Local stack: `supabase/config.toml` (analytics off — Colima lacks the docker.sock path),
+  `.env.development.local` (gitignored) points `next dev` at 127.0.0.1:54321,
+  `scripts/seed-local-user.sh` creates the dev login (credentials in the script).
+
+Open:
+- `git push` is BLOCKED: commit f020122 contained the local Supabase default key in
+  `scripts/seed-local-user.sh` and GitHub push protection rejects it. c007410 removes it from
+  the tree, but the key is still in f020122's history. Daniel decides: allow via the GitHub
+  unblock link in the push error (it is the CLI's public default, not a credential) OR let
+  Claude rewrite the two unpushed commits.
+- Ranking without build year on first pass: search cards carry no constructionYear, so the
+  renovation-upside score leans on kr/m² until the detail enrichment (top 8) backfills.
+  Consider raising `VISION_ENRICH_LIMIT` or a cheap detail pass for the top 30.
+- Apify wait ceiling: one Kungsholmen page render hit `AREA_PAGE_WAIT_SECS` (RUNNING) and
+  needed the retry rung. Watch cost/latency on 4-district searches.
+
+---
+
 ## ▶️ STATUS 2026-09-20 — Daniel is now house-hunting for real
 
 His current flat is in showings. Only goal: renovation objects inside tullarna. All else waits.
