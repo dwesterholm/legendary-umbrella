@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "bostad-ai-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3001"],
+      "runtimeExecutable": "zsh",
+      "runtimeArgs": [
+        "-c",
+        "npm run dev -- -p 3001"
+      ],
       "port": 3001
     }
   ]

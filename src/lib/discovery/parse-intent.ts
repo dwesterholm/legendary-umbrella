@@ -145,7 +145,16 @@ export async function parseIntent(freeText: string): Promise<ParseIntentResult> 
     // GDPR / T-02-12: log ONLY a stable code, never the free text (which may
     // contain user-supplied PII like a specific address or personal detail).
     const code = isKnownParseCode(error) ? (error as Error).message : "INTENT_CALL_FAILED";
-    console.error("[parse-intent]", { code });
+    // The SDK's APIError carries an HTTP status and an error type
+    // ("authentication_error", "rate_limit_error", ...). Both are safe to log
+    // and turn a blind INTENT_CALL_FAILED into something diagnosable — an
+    // invalid key and an outage looked identical until 2026-10-11.
+    const api = error as { status?: unknown; error?: { error?: { type?: unknown } } };
+    console.error("[parse-intent]", {
+      code,
+      status: typeof api?.status === "number" ? api.status : undefined,
+      type: typeof api?.error?.error?.type === "string" ? api.error.error.type : undefined,
+    });
     throw new Error(code, { cause: error });
   }
 }
