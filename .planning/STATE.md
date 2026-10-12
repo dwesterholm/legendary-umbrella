@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.1"
 current_phase_name: Personal Fit Score
 status: executing
-stopped_at: Completed 14.1-05-PLAN.md
-last_updated: "2026-10-12T23:03:44.786Z"
+stopped_at: Completed 14.1-06-PLAN.md
+last_updated: "2026-10-12T23:09:02.094Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 14.1 execution started
-state_head: 6d8717bb7a074ea147039da97fe7209fe8a9a3f3
+state_head: ef8fa6f9c20593af93b483dbed65934444d59d98
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 25
-  completed_plans: 19
+  completed_plans: 20
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.1 (Personal Fit Score) — EXECUTING
-Plan: 6 of 10
+Plan: 7 of 10
 Status: Ready to execute
 Last activity: 2026-10-12 — Phase 14.1 execution started
 Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-12 around Daniel's own hunt: 14.1 fit score → 14.2 daily email watch → 14.3 orientation spike; 15–17 deferred. Calibration listing: .planning/calibration/folkungagatan-61-5tr.md
@@ -83,6 +83,7 @@ Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-1
 | Phase 14.1 P03 | 7 min | 2 tasks | 10 files |
 | Phase 14.1 P04 | 3h | 2 tasks | 3 files |
 | Phase 14.1 P05 | 12 min | 2 tasks | 2 files |
+| Phase 14.1 P06 | 10 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -216,6 +217,7 @@ Recent decisions affecting current work:
 - [Phase 14.1]: 14.1-04: Apify monthly headroom is 11.73 USD after the 18.43 USD slutpris pull; size the 14.1-08 sold-detail enrichment from real headroom — Plan 14.1-08 estimates 6-13 USD, which may not fit
 - [Phase 14.1]: 14.1-05: sign guard replaces the worst coefficient first and refits the rest; slope bid premium uses median intercepts so flat is the b = 0 case — Overruling floor must re-estimate ground floor against the value actually used; mean-vs-median would favour slope for the wrong reason
 - [Phase 14.1]: 14.1-05: real-cache smoke fit zeroes the size coefficient (wrong sign, size and recency tangled in upper bands); decide in 14.1-08 whether to pull more months for 60-120 m2 — Not a bug; guard rule from D-18 applied, no study value exists for size
+- [Phase 14.1]: 14.1-06: vision claims classified by negation-first regexes, worst state wins, priced from RENO_COST_MATRIX; vision cap 25 SEK; taste bonus table-driven (3 % sun + 2 % hubs)
 
 ### Pending Todos
 
@@ -247,8 +249,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-12T23:03:44.681Z
-Stopped at: Completed 14.1-05-PLAN.md
+Last session: 2026-10-12T23:09:01.990Z
+Stopped at: Completed 14.1-06-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
