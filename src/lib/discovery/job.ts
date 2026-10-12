@@ -312,6 +312,15 @@ export async function runSlice(
 }
 
 /**
+ * How long a "vision_processing" claim may go without finishing before a
+ * later tick may take it over. The analysis stage itself runs ~5–10 min on a
+ * 60-candidate job (detail renders + comps + vision), so 20 minutes leaves
+ * headroom for a slow Apify day while still recovering a dead process within
+ * one coffee break.
+ */
+export const VISION_STALE_MS = 20 * 60 * 1000;
+
+/**
  * `claimVisionSlice` — CR-04 (11-REVIEW.md) — the atomic single-row CAS
  * status transition (`"done"` → `"vision_processing"`) that gates
  * `runVisionForJob`. Mirrors `generate-report.ts`'s conditional-update
@@ -349,12 +358,22 @@ export async function runSlice(
 export async function claimVisionSlice(
   supabase: DiscoveryJobsWriter,
   jobId: string,
+  now: () => number = Date.now,
 ): Promise<DiscoveryCandidate[] | null> {
+  // Stale-reclaim (2026-10-12): a process that dies mid-analysis (app quit,
+  // dev server restart, deploy) used to leave the row at "vision_processing"
+  // for good — this CAS only moved FROM "done", so no later tick could ever
+  // pick the job up, and the page showed "Analyserar bilder" forever. A row
+  // still "vision_processing" whose claim is older than
+  // VISION_STALE_MS is treated as abandoned and re-claimed, mirroring
+  // claim_discovery_slice's own stale window for the scrape phase. The
+  // claim stamps `claimed_at` so the window counts from THIS attempt.
+  const staleCutoffIso = new Date(now() - VISION_STALE_MS).toISOString();
   const { data: claimed, error } = await supabase
     .from("discovery_jobs")
-    .update({ status: "vision_processing" })
+    .update({ status: "vision_processing", claimed_at: new Date(now()).toISOString() })
     .eq("id", jobId)
-    .eq("status", "done")
+    .or(`status.eq.done,and(status.eq.vision_processing,claimed_at.lt.${staleCutoffIso})`)
     .select("results")
     .maybeSingle();
 

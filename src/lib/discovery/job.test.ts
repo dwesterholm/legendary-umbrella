@@ -89,6 +89,7 @@ import {
   runSlice,
   runVisionForJob,
   claimVisionSlice,
+  VISION_STALE_MS,
   claimAndRunVisionForJob,
   enrichCandidateImages,
   enrichmentVisitOrder,
@@ -698,7 +699,7 @@ describe("runVisionForJob — no processed_count write during vision (13-05 reve
  * `"vision_processing"` so a second concurrent chain targeting the SAME row
  * observes the mutated status and loses.
  */
-function makeCasSupabase(row: { id: string; status: string; results: unknown[] }) {
+function makeCasSupabase(row: { id: string; status: string; results: unknown[]; claimed_at?: string | null }) {
   return {
     from: (table: string) => {
       if (table !== "discovery_jobs") throw new Error(`unexpected table ${table}`);
@@ -717,11 +718,28 @@ function makeCasSupabase(row: { id: string; status: string; results: unknown[] }
               predicates[col] = val;
               return chain;
             },
+            // claimVisionSlice's `.or("status.eq.done,and(status.eq.vision_processing,claimed_at.lt.<iso>)")`
+            or: (expr: string) => {
+              predicates.__or = expr;
+              return chain;
+            },
             select: () => ({
               maybeSingle: async () => {
+                const orExpr = typeof predicates.__or === "string" ? predicates.__or : null;
+                const staleIso = orExpr?.match(/claimed_at\.lt\.([^)]+)\)/)?.[1] ?? null;
+                const typed = row as { status: string; claimed_at?: string | null };
+                const orMatches =
+                  orExpr === null
+                    ? true
+                    : typed.status === "done" ||
+                      (typed.status === "vision_processing" &&
+                        staleIso !== null &&
+                        typeof typed.claimed_at === "string" &&
+                        typed.claimed_at < staleIso);
                 const matches =
                   predicates.id === row.id &&
-                  (predicates.status === undefined || predicates.status === row.status);
+                  (predicates.status === undefined || predicates.status === row.status) &&
+                  orMatches;
                 if (!matches) {
                   return { data: null, error: null };
                 }
@@ -753,6 +771,40 @@ function makeCasSupabase(row: { id: string; status: string; results: unknown[] }
 }
 
 describe("claimVisionSlice — CR-04 (11-REVIEW.md) atomic done -> vision_processing CAS", () => {
+  it("re-claims a 'vision_processing' row whose claim is older than VISION_STALE_MS (abandoned by a dead process)", async () => {
+    const t0 = Date.parse("2026-10-12T12:00:00Z");
+    const row = {
+      id: "job-1",
+      status: "vision_processing",
+      claimed_at: new Date(t0 - VISION_STALE_MS - 60_000).toISOString(),
+      results: [{ address: "Testgatan 1" }],
+    };
+    const supabase = makeCasSupabase(row);
+
+    const result = await claimVisionSlice(supabase, "job-1", () => t0);
+
+    expect(result).toEqual([{ address: "Testgatan 1" }]);
+    expect(row.status).toBe("vision_processing");
+    // The claim restarts the stale window from this attempt.
+    expect(row.claimed_at).toBe(new Date(t0).toISOString());
+  });
+
+  it("does NOT re-claim a 'vision_processing' row whose claim is still fresh (another process is working)", async () => {
+    const t0 = Date.parse("2026-10-12T12:00:00Z");
+    const row = {
+      id: "job-1",
+      status: "vision_processing",
+      claimed_at: new Date(t0 - 60_000).toISOString(),
+      results: [{ address: "Testgatan 1" }],
+    };
+    const supabase = makeCasSupabase(row);
+
+    const result = await claimVisionSlice(supabase, "job-1", () => t0);
+
+    expect(result).toBeNull();
+    expect(row.claimed_at).toBe(new Date(t0 - 60_000).toISOString());
+  });
+
   it("wins the claim when the row is 'done', returns its results, and flips status to 'vision_processing'", async () => {
     const row = { id: "job-1", status: "done", results: [{ address: "Testgatan 1" }] };
     const supabase = makeCasSupabase(row);
