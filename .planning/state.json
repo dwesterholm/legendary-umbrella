@@ -1,0 +1,98 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v1.2 — Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Foundation + Core Pipeline",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "BRF Financial Analysis",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Market Context",
+      "status": "complete"
+    },
+    {
+      "number": "4",
+      "name": "AI Report + Delivery",
+      "status": "complete"
+    },
+    {
+      "number": "5",
+      "name": "Owned Booli Acquisition",
+      "status": "complete"
+    },
+    {
+      "number": "6",
+      "name": "Deeper Listing Extraction",
+      "status": "complete"
+    },
+    {
+      "number": "7",
+      "name": "Macro Price Context",
+      "status": "complete"
+    },
+    {
+      "number": "8",
+      "name": "BRF Auto-Fetch",
+      "status": "complete"
+    },
+    {
+      "number": "9",
+      "name": "Discovery Foundation",
+      "status": "complete"
+    },
+    {
+      "number": "10",
+      "name": "Niche Ranking",
+      "status": "complete"
+    },
+    {
+      "number": "11",
+      "name": "Gallery Condition Vision",
+      "status": "complete"
+    },
+    {
+      "number": "12",
+      "name": "Floor-Plan & Sun-Path",
+      "status": "complete"
+    },
+    {
+      "number": "13",
+      "name": "Discovery UX / Poll-Timeout Fix",
+      "status": "in_progress"
+    },
+    {
+      "number": "14",
+      "name": "Holistic Analysis Brain",
+      "status": "complete"
+    },
+    {
+      "number": "15",
+      "name": "ROI-Aware Opportunity Brief",
+      "status": "pending"
+    },
+    {
+      "number": "16",
+      "name": "Value-Gap Scoring & Ranking",
+      "status": "pending"
+    },
+    {
+      "number": "17",
+      "name": "Proposed Planritning Generation",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
+  },
+  "updated_at": "2026-10-12T17:13:50.917Z"
+}

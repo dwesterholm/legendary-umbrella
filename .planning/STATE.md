@@ -1,17 +1,19 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.2
-milestone_name: Renovator-Grade Discovery Analysis
-status: ready
+milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
+current_phase: "14.1"
+status: planning
 stopped_at: Phase 14 complete — verification 4/4, four live-operator items deferred to 14-UAT.md
-last_updated: "2026-08-10T12:07:41.556Z"
+last_updated: "2026-10-12T17:14:37.570Z"
 last_activity: 2026-08-10
+state_head: 55b78d0666e3d075a9cd6befacc5a2e4853415dd
 progress:
-  total_phases: 9
+  total_phases: 8
   completed_phases: 1
-  total_plans: 16
+  total_plans: 15
   completed_plans: 14
-  percent: 11
+  percent: 13
 ---
 
 # Project State
@@ -25,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 ## Current Position
 
-Phase: 15
+Phase: 14.1
 Plan: Not started
-Status: Ready to execute
+Status: Ready to plan
 Last activity: 2026-08-10
-Next step: `/gsd-discuss-phase 15`. Outstanding and RUNNABLE NOW (2026-08-11): Phase 13's operator live-smoke re-run (13-03) and Phase 14's four live-operator items in 14-UAT.md. Both were previously filed as environment-blocked on a paused Supabase project + a Booli-blocked operator IP; both blockers were wrong (Supabase verified live; Booli traffic egresses from the Apify RESIDENTIAL/SE proxy, never the operator IP). One real multi-area run covers 13-03 and 14-UAT item 1 together. area_cache is empty, so expect live area probes on the first run.
+Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-12 around Daniel's own hunt: 14.1 fit score → 14.2 daily email watch → 14.3 orientation spike; 15–17 deferred. Calibration listing: .planning/calibration/folkungagatan-61-5tr.md
 
 ## Roadmap Summary (v1.2 — CURRENT)
 
@@ -216,6 +218,12 @@ Recent decisions affecting current work:
 
 - ~~[Phase 5/9 BLOCKING spikes]~~ Resolved during v1.1 build (owned acquisition + discovery foundation shipped code-complete).
 - ~~[Phase 9 legal gate]~~ **RESOLVED — GO (operator, 2026-07-08).** `DISCOVERY_ENABLED` set ON in the operator env; per-query/per-day caps enforced in code; flag retained as the runtime kill switch. (v1.1 live validation gates below still stand as separate operator checks.)
+
+### Roadmap Evolution
+
+- Phase 14.1 inserted after Phase 14: Reshaped around Daniel's apartment hunt (buy by mid-April 2027); 15–17 deferred (URGENT)
+- Phase 14.2 inserted after Phase 14: Reshaped around Daniel's apartment hunt (buy by mid-April 2027); 15–17 deferred (URGENT)
+- Phase 14.3 inserted after Phase 14: Reshaped around Daniel's apartment hunt (buy by mid-April 2027); 15–17 deferred (URGENT)
 
 ## Session Continuity
 

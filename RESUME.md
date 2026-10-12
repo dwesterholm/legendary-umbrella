@@ -6,6 +6,25 @@
 
 ---
 
+## ▶️ STATUS 2026-10-12 — roadmap reshaped around Daniel's own hunt
+
+Daniel sells his flat this week, moves out mid-April 2027. The roadmap now serves that hunt:
+Phases 14.1–14.3 inserted, 15–17 deferred. Decisions in memory `daniel-fit-score-decisions`.
+
+- 14.1 Personal Fit Score — floor (score only), balcony, morning-leaning sun where orientation
+  is stated, loved-hub location bonus (innerstan is the net, hubs score up), reno-upside strong
+  but not required. Hard filters ≥35 kvm, ≤4 M. Calibration: Folkungagatan 61 5tr,
+  Booli /bostad/150148 — NOT a reno object, must still rank top. Facts:
+  `.planning/calibration/folkungagatan-61-5tr.md`. Viewings 18–19 Oct (live candidate!).
+- 14.2 Daily Watch by Email — scheduled run, seen-listing memory, mail only new/changed.
+- 14.3 Orientation Inference Spike — OSM footprint bearing or floor-plan compass via vision.
+- Today's fixes 3408871 + 55b78d0 (stale vision claim, Apify memory, failed_areas) are pushed
+  but NOT yet confirmed by a live run; the next innerstan run doubles as 13-03 + 14-UAT item 1.
+
+Next: `/gsd-plan-phase 14.1`. Questions used this phase: 3 of 5.
+
+---
+
 ## ▶️ STATUS 2026-10-11 — pushed, cap fixed, key rotated
 
 - Push block resolved: the three commits were squashed into `cdab732` with no key in history
