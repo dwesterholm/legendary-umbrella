@@ -600,3 +600,298 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
   }
   return { cache, rendersUsed, stoppedBy };
 }
+
+// ---------------------------------------------------------------------------
+// Sold-detail enrichment (14.1-08, R-05 Path A)
+// ---------------------------------------------------------------------------
+//
+// The slutpriser CARD has no build year and no balcony. The sold DETAIL page
+// has both (14.1-PROBES.md: SOLD_DETAIL_BUILD_YEAR present, SOLD_DETAIL_BALCONY
+// present, SOLD_DETAIL_LIST_PRICE present), so a sample of sold flats is
+// rendered once more and the three facts are read from the page's flight text.
+// Each render is a paid Apify run; the script sizes the sample from the USD cap.
+
+/**
+ * Browser-side function for a sold detail page (runs inside the Apify actor's
+ * Chromium: ES2019 only, no closures over Node scope). Returns the page's
+ * Next.js flight text, which holds the SoldProperty object. The Apollo
+ * transport is not returned (the detail facts are not in it, and leaving it out
+ * halves the dataset item). `hasApollo` is false on a blank page, which the
+ * transport treats as a failed render.
+ */
+export const SOLD_DETAIL_PAGE_FUNCTION = `async function pageFunction(context) {
+  const { page } = context;
+  const dump = await page.evaluate(() => {
+    const MAX = 3000000;
+    const scripts = Array.from(document.scripts)
+      .filter((s) => !s.src)
+      .map((s) => s.textContent || "");
+    const flight = scripts
+      .filter((t) => t.startsWith("self.__next_f.push("))
+      .map((t) => {
+        try {
+          const arr = JSON.parse(t.slice("self.__next_f.push(".length, t.lastIndexOf(")")));
+          return typeof arr[1] === "string" ? arr[1] : "";
+        } catch (_) { return ""; }
+      })
+      .join("");
+    return { flight: flight.slice(0, MAX) };
+  });
+  return {
+    hasApollo: dump.flight.length > 0,
+    flight: dump.flight,
+  };
+}`;
+
+/** What a sold detail page tells us that the card does not. */
+export interface SoldDetailFacts {
+  buildYear: number | null;
+  balcony: boolean | null;
+  listPrice: number | null;
+}
+
+/** Build years outside this range are read as junk, not as a year. */
+const BUILD_YEAR_MIN = 1700;
+const BUILD_YEAR_MAX = 2030;
+
+/** The JSON object literal that starts at the "{" at `start`, or null (string-aware bracket match). */
+function objectLiteralFrom(text: string, start: number): string | null {
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{") depth += 1;
+    else if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * The fullest SoldProperty object in the flight text. A page holds the real
+ * object and, further down, a reference stub `{"__typename":"SoldProperty",
+ * "id":..,"booliId":..}` inside salesOfResidence; the one with the most keys is
+ * the real one. Never evaluates the text, only JSON.parse on a bracket-matched slice.
+ */
+function soldObjectFromFlight(flight: string): Record<string, unknown> | null {
+  const marker = '"__typename":"SoldProperty"';
+  let best: Record<string, unknown> | null = null;
+  let bestKeys = -1;
+  let from = 0;
+  for (let n = 0; n < 12; n++) {
+    const at = flight.indexOf(marker, from);
+    if (at < 0) break;
+    from = at + marker.length;
+    const start = flight.lastIndexOf("{", at);
+    if (start < 0) continue;
+    const literal = objectLiteralFrom(flight, start);
+    if (literal === null) continue;
+    try {
+      const parsed: unknown = JSON.parse(literal);
+      if (isRecord(parsed) && Object.keys(parsed).length > bestKeys) {
+        best = parsed;
+        bestKeys = Object.keys(parsed).length;
+      }
+    } catch {
+      // not a JSON object after all; try the next occurrence
+    }
+  }
+  return best;
+}
+
+function dataPointsOf(obj: Record<string, unknown>): Array<{ key: string; label: string; text: string }> {
+  const attr = obj.displayAttributes;
+  if (!isRecord(attr) || !Array.isArray(attr.dataPoints)) return [];
+  const out: Array<{ key: string; label: string; text: string }> = [];
+  for (const p of attr.dataPoints) {
+    if (!isRecord(p)) continue;
+    const plain = isRecord(p.value) && typeof p.value.plainText === "string" ? p.value.plainText : "";
+    out.push({ key: typeof p.key === "string" ? p.key : "", label: typeof p.label === "string" ? p.label : "", text: plain.trim() });
+  }
+  return out;
+}
+
+const BALCONY_WORD = /balcon|balkong/i;
+
+/**
+ * Build year, balcony and list price from a sold detail page's flight text.
+ *
+ * - Build year: `constructionYear` (a number, 1700-2030), else the "Byggår"
+ *   data point. About a third of sold flats have none (PROBES: 2 of 3 pages).
+ * - Balcony: a balcony data point with a plain yes/no wins ("Nej" is false).
+ *   Otherwise the `amenities` list: balcony listed is true, a list without one
+ *   (including an empty list) is false, and no list at all is null. An empty
+ *   list cannot tell "no balcony" from "not listed" (PROBES), but a for-sale
+ *   card carries exactly the same list, so the model learns what the card can show.
+ * - List price: `listPrice.raw` when a positive number, else null.
+ *
+ * A page with no readable SoldProperty object returns all null.
+ */
+export function parseSoldDetailFacts(flightText: string): SoldDetailFacts {
+  const none: SoldDetailFacts = { buildYear: null, balcony: null, listPrice: null };
+  if (typeof flightText !== "string" || flightText === "") return none;
+  const obj = soldObjectFromFlight(flightText);
+  if (!obj) return none;
+  const points = dataPointsOf(obj);
+
+  const validYear = (v: unknown): number | null =>
+    typeof v === "number" && Number.isInteger(v) && v >= BUILD_YEAR_MIN && v <= BUILD_YEAR_MAX ? v : null;
+  let buildYear = validYear(obj.constructionYear);
+  if (buildYear === null) {
+    const dp = points.find((p) => p.key === "constructionYear" || /^byggår$/i.test(p.label));
+    const m = dp ? dp.text.match(/^\d{4}$/) : null;
+    buildYear = m ? validYear(Number(m[0])) : null;
+  }
+
+  let balcony: boolean | null = null;
+  const balconyPoint = points.find((p) => BALCONY_WORD.test(p.key) || BALCONY_WORD.test(p.label));
+  if (balconyPoint) {
+    if (/^(nej|no|ingen|saknas)\b/i.test(balconyPoint.text)) balcony = false;
+    else if (/^(ja|yes)\b/i.test(balconyPoint.text)) balcony = true;
+  }
+  if (balcony === null && Array.isArray(obj.amenities)) {
+    balcony = obj.amenities.some(
+      (a) => isRecord(a) && ((typeof a.key === "string" && BALCONY_WORD.test(a.key)) || (typeof a.label === "string" && BALCONY_WORD.test(a.label))),
+    );
+  }
+
+  const raw = rawOf(obj.listPrice);
+  const listPrice = raw !== null && raw > 0 ? raw : null;
+  return { buildYear, balcony, listPrice };
+}
+
+/** The sold detail URL for a Booli id: fixed origin, digits only (T-14.1-08). */
+export function soldDetailUrl(booliId: string): string {
+  if (typeof booliId !== "string" || !/^\d+$/.test(booliId)) throw new Error(`Ogiltigt Booli-id: ${JSON.stringify(booliId)}`);
+  return `https://www.booli.se/annons/${booliId}`;
+}
+
+/** FNV-1a, 32 bit. No randomness anywhere: the same seed always picks the same rows. */
+function fnv1a(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/**
+ * A deterministic sample of `n` rows that are not enriched yet: order by the
+ * hash of (seed + booliId), ties by id, take the first n. Independent of input
+ * order and of earlier calls, so a re-run after a partial failure picks the
+ * unfinished rows first (finished ones are skipped, not re-drawn). Allocates a
+ * new array; the input is untouched.
+ */
+export function selectEnrichmentSample(rows: readonly SoldRow[], n: number, seed: string): SoldRow[] {
+  const count = Math.floor(n);
+  if (!(count > 0)) return [];
+  return rows
+    .filter((r) => !r.enriched)
+    .map((r) => ({ r, h: fnv1a(`${seed}:${r.booliId}`) }))
+    .sort((a, b) => a.h - b.h || (a.r.booliId < b.r.booliId ? -1 : a.r.booliId > b.r.booliId ? 1 : 0))
+    .slice(0, count)
+    .map((x) => x.r);
+}
+
+export interface EnrichOptions {
+  /** The full dataset; enrichment is written into these row objects. */
+  rows: SoldRow[];
+  sample: SoldRow[];
+  /** The paid render: one URL in, the dataset items out. Throws on a failed render. */
+  render: (url: string) => Promise<unknown[]>;
+  concurrency: number;
+  /** Hard cap on render attempts (T-14.1-03). */
+  maxRenders: number;
+  /** Persist the cache; called after every enriched row. */
+  persist: () => void;
+  /** Checked before every render; true stops scheduling (the script's USD guard). */
+  budgetExceeded?: () => boolean;
+  onProgress?: (msg: string) => void;
+}
+
+export interface EnrichResult {
+  enriched: number;
+  failed: number;
+  rendersUsed: number;
+}
+
+/** The flight text out of the dataset items `SOLD_DETAIL_PAGE_FUNCTION` returns. */
+function flightTextOf(items: unknown[]): string {
+  const parts: string[] = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    if (isRecord(it) && typeof it.flight === "string") parts.push(it.flight);
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Renders each sample row's sold detail page (one render per row, at most
+ * min(concurrency, SLUTPRIS_CONCURRENCY) in flight) and stores
+ * `{ buildYear, balcony, listPrice }` on the row.
+ *
+ * - A row that is already enriched, or is not in `rows`, is skipped without a
+ *   render.
+ * - A render that throws, or a page with no readable sold object (all three
+ *   facts null: an empty amenities list reads as balcony false, so a real page
+ *   is never all null), counts as failed and leaves `enriched` unset.
+ * - Stops scheduling at `maxRenders` attempts or when `budgetExceeded()` is true.
+ */
+export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult> {
+  const concurrency = Math.max(1, Math.min(Math.floor(opts.concurrency), SLUTPRIS_CONCURRENCY));
+  const byId = new Map(opts.rows.map((r) => [r.booliId, r] as const));
+  let rendersUsed = 0;
+  let enriched = 0;
+  let failed = 0;
+  let stopped = false;
+
+  const one = async (s: SoldRow): Promise<void> => {
+    const row = byId.get(s.booliId);
+    if (!row || row.enriched) return;
+    if (stopped) return;
+    if (rendersUsed >= opts.maxRenders || opts.budgetExceeded?.()) {
+      stopped = true;
+      return;
+    }
+    const url = soldDetailUrl(row.booliId);
+    rendersUsed += 1;
+    let facts: SoldDetailFacts;
+    try {
+      facts = parseSoldDetailFacts(flightTextOf(await opts.render(url)));
+    } catch (e) {
+      failed += 1;
+      opts.onProgress?.(`${row.booliId}: MISSLYCKADES (${e instanceof Error ? e.message : String(e)})`);
+      return;
+    }
+    if (facts.buildYear === null && facts.balcony === null && facts.listPrice === null) {
+      failed += 1;
+      opts.onProgress?.(`${row.booliId}: sidan hade inget läsbart säljobjekt`);
+      return;
+    }
+    row.enriched = facts;
+    enriched += 1;
+    opts.persist();
+  };
+
+  const results = await runPool(
+    opts.sample.map((s) => () => one(s)),
+    concurrency,
+  );
+  const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (rejected.length > 0) {
+    opts.persist();
+    const first = rejected[0].reason;
+    throw new Error(`${rejected.length} berikning(ar) avbröts oväntat: ${first instanceof Error ? first.message : String(first)}`);
+  }
+  return { enriched, failed, rendersUsed };
+}

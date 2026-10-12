@@ -8,6 +8,9 @@
  *       [--budget-usd 25] [--cache .planning/calibration/data/slutpriser-cache.json]
  *   npx tsx scripts/pull-slutpriser.ts --dry-run       # prints the plan, spends nothing
  *   npx tsx scripts/pull-slutpriser.ts --report-only   # summarises the cache, spends nothing
+ *   npx tsx scripts/pull-slutpriser.ts --enrich-sample 110 --budget-usd 4.2 --max-renders 110
+ *       # 14.1-08: renders the sold DETAIL page of up to 110 not-yet-enriched rows (one paid render each)
+ *       # and stores build year, balcony and list price on them; re-run to continue, spends nothing when 0 are left
  *
  * What it pulls: the four innerstan districts x the six R-12 size bands
  * (35-120 m2), lagenhet only, sold within the last --months months. The two
@@ -27,6 +30,7 @@ import {
   apifySpendSince,
 } from "@/lib/booli/transport";
 import { APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
+import { isBooliUrl } from "@/lib/booli/client";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { INNERSTAN_DISTRICTS, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import { observedApifyUsdEstimate } from "@/lib/discovery/cost";
@@ -40,8 +44,11 @@ import {
   SLUTPRIS_UPPER_BAND_MAX_PAGES,
   SLUTPRIS_UPPER_BAND_MIN_M2,
   SLUTPRIS_WAIT_SECS,
+  SOLD_DETAIL_PAGE_FUNCTION,
+  enrichSoldRows,
   newSlutprisCache,
   pullSlutpriser,
+  selectEnrichmentSample,
   slutprisCacheSchema,
   subtractMonthsIso,
   type Slice,
@@ -57,6 +64,8 @@ const NEWEST_FIRST = true;
 const LEDGER_SETTLE_MS = 10_000;
 /** Re-read the real bill from the runs API after this many finished renders. */
 const SPEND_REFRESH_EVERY = 15;
+/** Fixed seed for the enrichment sample, so the same rows are drawn on every run (14.1-08). */
+const ENRICH_SEED = "14.1";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -250,6 +259,135 @@ function printSummary(cache: SlutprisCache): void {
 }
 
 // ---------------------------------------------------------------------------
+// Sold-detail enrichment (14.1-08, R-05 Path A)
+// ---------------------------------------------------------------------------
+async function runEnrichment(opts: {
+  cachePath: string;
+  cache: SlutprisCache | null;
+  sampleSize: number;
+  maxRenders: number;
+  budgetUsd: number;
+  concurrency: number;
+  dryRun: boolean;
+}): Promise<void> {
+  const { cache, cachePath } = opts;
+  if (!cache) throw new Error(`Ingen cache att berika på ${cachePath} (kör själva hämtningen först)`);
+  const sample = selectEnrichmentSample(cache.rows, opts.sampleSize, ENRICH_SEED);
+  const already = cache.rows.filter((r) => r.enriched).length;
+  console.log(
+    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}", ${already} redan berikade), ` +
+      `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}`,
+  );
+  if (opts.dryRun) {
+    console.log(`--dry-run: inga renders körda. Uppskattad kostnad ${(Math.min(sample.length, opts.maxRenders) * 0.036).toFixed(2)} till ${(Math.min(sample.length, opts.maxRenders) * 0.059).toFixed(2)} USD (observerade kostnader per render).`);
+    return;
+  }
+  if (sample.length === 0) {
+    console.log("Inget att berika.");
+    return;
+  }
+
+  const tokenState = process.env[TOKEN_ENV_NAME] ? "satt" : "saknas";
+  console.log(`${TOKEN_ENV_NAME}: ${tokenState}`);
+  if (tokenState === "saknas") process.exit(1);
+  if (RENDER_MEMORY_MB !== 2048) {
+    console.error(`FEL: RENDER_MEMORY_MB är ${RENDER_MEMORY_MB}, förväntade 2048 (D-17). Ingen körning startad.`);
+    process.exit(1);
+  }
+  // R-13: the headroom check runs before the first paid render.
+  const headroom = await apifyMonthlyHeadroomUsd();
+  console.log(`Apify månadsutrymme: ${headroom === null ? "okänt" : `${headroom.toFixed(2)} USD`}, budget ${opts.budgetUsd.toFixed(2)} USD`);
+  if (headroom !== null && headroom < opts.budgetUsd) {
+    console.error(`FEL: månadsutrymmet (${headroom.toFixed(2)} USD) är mindre än --budget-usd (${opts.budgetUsd.toFixed(2)} USD). Ingen körning startad.`);
+    process.exit(1);
+  }
+
+  const persist = persistTo(cachePath);
+  const t0 = new Date();
+  console.log(`Start: ${t0.toISOString()}`);
+  let succeeded = 0;
+  let failedRenders = 0;
+  let lastRealUsd = 0;
+  let refreshing = false;
+  const spentUsd = (): number => Math.max(lastRealUsd, observedApifyUsdEstimate({ succeeded, timedOut: failedRenders }));
+  const refreshReal = (): void => {
+    if (refreshing) return;
+    refreshing = true;
+    void apifySpendSince(t0)
+      .then((s) => {
+        if (s) lastRealUsd = s.usd;
+      })
+      .finally(() => {
+        refreshing = false;
+      });
+  };
+  const render = async (url: string): Promise<unknown[]> => {
+    if (!isBooliUrl(url)) throw new Error(`Inte en Booli-url: ${url}`);
+    try {
+      const items = await runPlaywrightRender(url, SOLD_DETAIL_PAGE_FUNCTION, {
+        waitSecs: SLUTPRIS_WAIT_SECS,
+        maxRequestRetries: SLUTPRIS_MAX_RETRIES,
+      });
+      succeeded += 1;
+      return items;
+    } catch (e) {
+      failedRenders += 1;
+      throw e;
+    } finally {
+      if ((succeeded + failedRenders) % SPEND_REFRESH_EVERY === 0) refreshReal();
+    }
+  };
+
+  let done = 0;
+  const result = await enrichSoldRows({
+    rows: cache.rows,
+    sample,
+    render,
+    concurrency: opts.concurrency,
+    maxRenders: opts.maxRenders,
+    persist: () => {
+      persist(cache);
+      done += 1;
+      if (done % 10 === 0) console.log(`  ${done} berikade (render ${succeeded + failedRenders}, uppskattat ${spentUsd().toFixed(2)} USD)`);
+    },
+    budgetExceeded: () => spentUsd() >= opts.budgetUsd,
+    onProgress: (msg) => console.log(`  ${msg}`),
+  });
+  persist(cache);
+
+  console.log(`\nBerikning klar. Renders: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}). Berikade rader: ${result.enriched}, misslyckade: ${result.failed}.`);
+  const enrichedRows = cache.rows.filter((r) => r.enriched);
+  const withYear = enrichedRows.filter((r) => r.enriched?.buildYear != null).length;
+  const withBalcony = enrichedRows.filter((r) => r.enriched?.balcony === true).length;
+  const withoutBalcony = enrichedRows.filter((r) => r.enriched?.balcony === false).length;
+  const withList = enrichedRows.filter((r) => r.enriched?.listPrice != null).length;
+  console.log(
+    `Rader med berikning i cachen: ${enrichedRows.length}. Byggår ${withYear} (${pct(withYear, enrichedRows.length)}), ` +
+      `balkong angiven ${withBalcony}, ingen balkong angiven ${withoutBalcony}, utgångspris ${withList} (${pct(withList, enrichedRows.length)}).`,
+  );
+
+  console.log("\n=== KOSTNAD ===");
+  await new Promise((r) => setTimeout(r, LEDGER_SETTLE_MS));
+  const spend = await apifySpendSince(t0);
+  if (spend) {
+    console.log(
+      `Apify-kostnad: ${spend.usd.toFixed(4)} USD (runs-api) = ${(spend.usd * USD_SEK_RATE).toFixed(2)} SEK` +
+        ` | körningar ${spend.runs} (ok ${spend.succeeded}, timeout ${spend.timedOut}, fel ${spend.failed}, övrigt ${spend.other}, saknar kostnad ${spend.missingUsage})` +
+        ` | per render ${spend.runs > 0 ? (spend.usd / spend.runs).toFixed(4) : "-"} USD`,
+    );
+    console.log("Obs: huvudboken är kontoomfattande - en samtidig körning från annat verktyg i samma fönster räknas också.");
+  } else {
+    const est = observedApifyUsdEstimate({ succeeded, timedOut: failedRenders });
+    console.log(`Apify-kostnad: ${est.toFixed(4)} USD (estimate) - uppskattning (runs-API:t svarade inte), ${(est * USD_SEK_RATE).toFixed(2)} SEK`);
+  }
+  const after = await apifyMonthlyHeadroomUsd();
+  console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
+  if (result.failed > 0 || result.rendersUsed < sample.length) {
+    console.log("Kör samma kommando igen för att fortsätta (redan berikade rader renderas inte om).");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
@@ -267,6 +405,20 @@ async function main(): Promise<void> {
   }
 
   const existing = loadCache(cachePath);
+
+  const enrichSample = intArg("--enrich-sample", 0, 0, 300);
+  if (enrichSample > 0) {
+    await runEnrichment({
+      cachePath,
+      cache: existing,
+      sampleSize: enrichSample,
+      maxRenders: Math.min(maxRenders, enrichSample),
+      budgetUsd,
+      concurrency,
+      dryRun: hasFlag("--dry-run"),
+    });
+    return;
+  }
 
   if (hasFlag("--report-only")) {
     if (!existing) throw new Error(`Ingen cache att sammanfatta på ${cachePath}`);

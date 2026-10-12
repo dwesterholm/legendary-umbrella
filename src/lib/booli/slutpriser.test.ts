@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import {
   SLUTPRIS_CONCURRENCY,
@@ -7,17 +9,23 @@ import {
   SLUTPRIS_UPPER_BAND_MAX_PAGES,
   SLUTPRIS_UPPER_BAND_MIN_M2,
   buildSlutprisSearchUrl,
+  enrichSoldRows,
   newSlutprisCache,
   parseFloorLabel,
   parsePremiumLabel,
   pullSlutpriser,
+  parseSoldDetailFacts,
   runPool,
+  selectEnrichmentSample,
   slutprisCacheSchema,
+  SOLD_DETAIL_PAGE_FUNCTION,
+  soldDetailUrl,
   soldRowSchema,
   soldRowsFromItems,
   subtractMonthsIso,
   type Slice,
   type SlutprisCache,
+  type SoldRow,
 } from "./slutpriser";
 
 // ---------------------------------------------------------------------------
@@ -701,5 +709,290 @@ describe("slutprisCacheSchema / soldRowSchema (T-14.1-02)", () => {
     expect(
       slutprisCacheSchema.safeParse({ ...empty, pages: { k: { status: "maybe", attempts: 1, rowCount: 0, newestSoldDate: null, oldestSoldDate: null } } }).success,
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sold-detail enrichment (14.1-08, R-05 Path A: PROBES SOLD_DETAIL_BUILD_YEAR /
+// SOLD_DETAIL_BALCONY / SOLD_DETAIL_LIST_PRICE are all `present`).
+// ---------------------------------------------------------------------------
+const FIXTURE = readFileSync(join(__dirname, "__fixtures__", "sold-detail-flight.fixture.txt"), "utf8");
+
+/** A minimal flight line carrying one SoldProperty object, for the cases the fixture does not cover. */
+function flightWith(object: Record<string, unknown>): string {
+  return `19:${JSON.stringify([["$", "$L4a", null, { id: 1, object: { __typename: "SoldProperty", id: "1", ...object } }]])}\n`;
+}
+
+describe("parseSoldDetailFacts", () => {
+  it("reads build year, balcony and list price from the committed fixture", () => {
+    // Values recorded in 14.1-PROBES.md for this page: constructionYear 1933, amenities elevator + balcony, listPrice.raw 3195000.
+    expect(parseSoldDetailFacts(FIXTURE)).toEqual({ buildYear: 1933, balcony: true, listPrice: 3_195_000 });
+  });
+
+  it("returns all null for an empty string and for text with no sold object", () => {
+    expect(parseSoldDetailFacts("")).toEqual({ buildYear: null, balcony: null, listPrice: null });
+    expect(parseSoldDetailFacts('1:"$Sreact.fragment"\n')).toEqual({ buildYear: null, balcony: null, listPrice: null });
+    expect(parseSoldDetailFacts("19:[[{not json")).toEqual({ buildYear: null, balcony: null, listPrice: null });
+  });
+
+  it("reads an empty amenities list as 'balcony not listed' (false), the same way a for-sale card reads it", () => {
+    const facts = parseSoldDetailFacts(flightWith({ constructionYear: 1908, amenities: [], listPrice: null }));
+    expect(facts).toEqual({ buildYear: 1908, balcony: false, listPrice: null });
+  });
+
+  it("leaves balcony null when the page has no amenities field at all", () => {
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 1950 })).balcony).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 1950, amenities: null })).balcony).toBeNull();
+  });
+
+  it("a balcony label with a negative value is false, not true", () => {
+    const dp = (value: string) => ({
+      displayAttributes: { dataPoints: [{ key: "balcony", label: "Balkong", value: { plainText: value } }] },
+    });
+    expect(parseSoldDetailFacts(flightWith(dp("Nej"))).balcony).toBe(false);
+    expect(parseSoldDetailFacts(flightWith(dp("Ja"))).balcony).toBe(true);
+  });
+
+  it("an amenity whose key or label mentions balcony/balkong counts, others do not", () => {
+    const amen = (key: string, label: string) => ({ __typename: "Amenity", key, label });
+    expect(parseSoldDetailFacts(flightWith({ amenities: [amen("elevator", "Hiss"), amen("balcony", "Balkong")] })).balcony).toBe(true);
+    expect(parseSoldDetailFacts(flightWith({ amenities: [amen("x", "Balkong")] })).balcony).toBe(true);
+    expect(parseSoldDetailFacts(flightWith({ amenities: [amen("elevator", "Hiss"), amen("fireplace", "Öppen spis")] })).balcony).toBe(false);
+  });
+
+  it("takes the build year from the 'Byggår' data point when the field is missing, and rejects implausible years", () => {
+    const dp = (year: string) => ({
+      displayAttributes: { dataPoints: [{ key: "constructionYear", label: "Byggår", value: { plainText: year } }] },
+    });
+    expect(parseSoldDetailFacts(flightWith(dp("1962"))).buildYear).toBe(1962);
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 1500 })).buildYear).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 2031 })).buildYear).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: null })).buildYear).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: "1933" })).buildYear).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 1700 })).buildYear).toBe(1700);
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 2030 })).buildYear).toBe(2030);
+  });
+
+  it("list price must be a positive number", () => {
+    const lp = (raw: unknown) => flightWith({ listPrice: { __typename: "FormattedValue", raw } });
+    expect(parseSoldDetailFacts(lp(2_950_000)).listPrice).toBe(2_950_000);
+    expect(parseSoldDetailFacts(lp(0)).listPrice).toBeNull();
+    expect(parseSoldDetailFacts(lp(-5)).listPrice).toBeNull();
+    expect(parseSoldDetailFacts(lp("3 000 000")).listPrice).toBeNull();
+  });
+
+  it("reads the sold object, not the one-line reference stub that follows it", () => {
+    // The fixture ends with a stub: {"__typename":"SoldProperty","id":..,"booliId":..}. Reversing the order must not change the answer.
+    const lines = FIXTURE.trim().split("\n");
+    expect(parseSoldDetailFacts([...lines].reverse().join("\n"))).toEqual({ buildYear: 1933, balcony: true, listPrice: 3_195_000 });
+  });
+
+  it("is not fooled by braces and quotes inside strings", () => {
+    const facts = parseSoldDetailFacts(flightWith({ note: 'a "quoted } brace {', constructionYear: 1975, amenities: [] }));
+    expect(facts.buildYear).toBe(1975);
+  });
+});
+
+describe("SOLD_DETAIL_PAGE_FUNCTION", () => {
+  it("is a self-contained page function that returns the flight text and flags a blank page", () => {
+    expect(SOLD_DETAIL_PAGE_FUNCTION.startsWith("async function pageFunction(context)")).toBe(true);
+    expect(SOLD_DETAIL_PAGE_FUNCTION).toContain("hasApollo");
+    expect(SOLD_DETAIL_PAGE_FUNCTION).toContain("flight");
+  });
+});
+
+describe("soldDetailUrl (T-14.1-08)", () => {
+  it("builds the URL from the digits of the Booli id on the fixed origin", () => {
+    expect(soldDetailUrl("6241048")).toBe("https://www.booli.se/annons/6241048");
+  });
+  it("rejects anything that is not all digits", () => {
+    for (const bad of ["", "12a", "../x", "1/2", "1?x=2", " 1", "https://evil.example/1"]) {
+      expect(() => soldDetailUrl(bad)).toThrow();
+    }
+  });
+});
+
+function soldRow(id: number, over: Partial<SoldRow> = {}): SoldRow {
+  return {
+    booliId: String(id),
+    url: `/annons/${id}`,
+    address: null,
+    district: "Södermalm",
+    soldDate: "2026-05-01",
+    soldPrice: 3_700_000,
+    soldVsAskPct: null,
+    askingPrice: null,
+    livingArea: 37,
+    rooms: 2,
+    floor: 2,
+    krPerSqm: 100_000,
+    lat: 59.31,
+    lng: 18.07,
+    sliceKey: "Södermalm|35-40",
+    ...over,
+  };
+}
+
+describe("selectEnrichmentSample", () => {
+  const rows = Array.from({ length: 1000 }, (_, i) => soldRow(6_000_000 + i));
+
+  it("returns n distinct rows, the same ones on a second call, different ones for another seed", () => {
+    const a = selectEnrichmentSample(rows, 200, "14.1");
+    const b = selectEnrichmentSample(rows, 200, "14.1");
+    const c = selectEnrichmentSample(rows, 200, "other");
+    expect(a).toHaveLength(200);
+    expect(new Set(a.map((r) => r.booliId)).size).toBe(200);
+    expect(a.map((r) => r.booliId)).toEqual(b.map((r) => r.booliId));
+    expect(a.map((r) => r.booliId)).not.toEqual(c.map((r) => r.booliId));
+  });
+
+  it("returns all rows when fewer than n exist, and nothing for n <= 0", () => {
+    expect(selectEnrichmentSample(rows.slice(0, 7), 200, "14.1")).toHaveLength(7);
+    expect(selectEnrichmentSample(rows, 0, "14.1")).toEqual([]);
+    expect(selectEnrichmentSample(rows, -3, "14.1")).toEqual([]);
+  });
+
+  it("does not depend on the order the rows arrive in", () => {
+    const fwd = selectEnrichmentSample(rows, 50, "14.1").map((r) => r.booliId).sort();
+    const rev = selectEnrichmentSample([...rows].reverse(), 50, "14.1").map((r) => r.booliId).sort();
+    expect(fwd).toEqual(rev);
+  });
+
+  it("does not modify the input array", () => {
+    const copy = rows.map((r) => r.booliId);
+    selectEnrichmentSample(rows, 100, "14.1");
+    expect(rows.map((r) => r.booliId)).toEqual(copy);
+  });
+
+  it("skips rows already enriched so that a re-run does not pay twice", () => {
+    const mixed = rows.slice(0, 20).map((r, i) => (i < 5 ? { ...r, enriched: { buildYear: 1900, balcony: false, listPrice: null } } : r));
+    const s = selectEnrichmentSample(mixed, 20, "14.1");
+    expect(s).toHaveLength(15);
+    expect(s.every((r) => !r.enriched)).toBe(true);
+  });
+});
+
+describe("enrichSoldRows", () => {
+  const flight = (year: number, balcony: boolean) =>
+    flightWith({ constructionYear: year, amenities: balcony ? [{ key: "balcony", label: "Balkong" }] : [], listPrice: { raw: 3_000_000 } });
+  const okItems = (year = 1950, balcony = true) => [{ hasApollo: true, flight: flight(year, balcony) }];
+
+  it("never has more than `concurrency` renders in flight and enriches every row", async () => {
+    const rows = Array.from({ length: 40 }, (_, i) => soldRow(100 + i));
+    let inFlight = 0;
+    let peak = 0;
+    const render = vi.fn(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 2));
+      inFlight -= 1;
+      return okItems();
+    });
+    const persist = vi.fn();
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 5, maxRenders: 1000, persist });
+    expect(peak).toBe(5);
+    expect(res).toEqual({ enriched: 40, failed: 0, rendersUsed: 40 });
+    expect(rows.every((r) => r.enriched?.buildYear === 1950 && r.enriched.balcony === true && r.enriched.listPrice === 3_000_000)).toBe(true);
+    expect(persist).toHaveBeenCalledTimes(40);
+  });
+
+  it("clamps a request for more than SLUTPRIS_CONCURRENCY to 8", async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => soldRow(200 + i));
+    let inFlight = 0;
+    let peak = 0;
+    const render = async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 2));
+      inFlight -= 1;
+      return okItems();
+    };
+    await enrichSoldRows({ rows, sample: rows, render, concurrency: 50, maxRenders: 1000, persist: () => {} });
+    expect(peak).toBe(SLUTPRIS_CONCURRENCY);
+  });
+
+  it("stops at maxRenders and leaves the rest unenriched", async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => soldRow(300 + i));
+    const render = vi.fn(async () => okItems());
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 4, maxRenders: 12, persist: () => {} });
+    expect(render).toHaveBeenCalledTimes(12);
+    expect(res.rendersUsed).toBe(12);
+    expect(res.enriched).toBe(12);
+    expect(rows.filter((r) => r.enriched).length).toBe(12);
+  });
+
+  it("stops when the budget check trips", async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => soldRow(350 + i));
+    let calls = 0;
+    const render = async () => {
+      calls += 1;
+      return okItems();
+    };
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 1000, budgetExceeded: () => calls >= 5, persist: () => {} });
+    expect(res.rendersUsed).toBe(5);
+  });
+
+  it("leaves `enriched` unset on a failed render, counts it, and carries on", async () => {
+    const rows = Array.from({ length: 6 }, (_, i) => soldRow(400 + i));
+    const render = async (url: string) => {
+      if (url.endsWith("/401") || url.endsWith("/403")) throw new Error("Kunde inte hämta");
+      return okItems();
+    };
+    const persist = vi.fn();
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 3, maxRenders: 100, persist });
+    expect(res).toEqual({ enriched: 4, failed: 2, rendersUsed: 6 });
+    expect(rows[1].enriched).toBeUndefined();
+    expect(rows[3].enriched).toBeUndefined();
+    expect(rows[0].enriched).toBeTruthy();
+    expect(persist).toHaveBeenCalledTimes(4);
+  });
+
+  it("counts a page that came back with no readable sold object as failed, not as 'no balcony'", async () => {
+    const rows = [soldRow(500)];
+    const render = async () => [{ hasApollo: true, flight: '1:"$Sreact.fragment"\n' }];
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 10, persist: () => {} });
+    expect(res).toEqual({ enriched: 0, failed: 1, rendersUsed: 1 });
+    expect(rows[0].enriched).toBeUndefined();
+  });
+
+  it("renders the /annons/<booliId> page on the fixed origin, even when the row's own url is a /bostad/ page", async () => {
+    const rows = [soldRow(600, { url: "/bostad/782543" })];
+    const urls: string[] = [];
+    await enrichSoldRows({
+      rows,
+      sample: rows,
+      render: async (u) => {
+        urls.push(u);
+        return okItems();
+      },
+      concurrency: 1,
+      maxRenders: 10,
+      persist: () => {},
+    });
+    expect(urls).toEqual(["https://www.booli.se/annons/600"]);
+  });
+
+  it("does not render a row that is already enriched", async () => {
+    const rows = [soldRow(700, { enriched: { buildYear: 1900, balcony: false, listPrice: null } }), soldRow(701)];
+    const render = vi.fn(async () => okItems());
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 2, maxRenders: 10, persist: () => {} });
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(res.enriched).toBe(1);
+    expect(rows[0].enriched).toEqual({ buildYear: 1900, balcony: false, listPrice: null });
+  });
+
+  it("writes into the canonical row when the sample holds a copy", async () => {
+    const rows = [soldRow(800)];
+    const copy = { ...rows[0] };
+    await enrichSoldRows({ rows, sample: [copy], render: async () => okItems(1999, false), concurrency: 1, maxRenders: 10, persist: () => {} });
+    expect(rows[0].enriched).toEqual({ buildYear: 1999, balcony: false, listPrice: 3_000_000 });
+  });
+
+  it("a sample row that is not in `rows` is skipped without a render", async () => {
+    const rows = [soldRow(900)];
+    const render = vi.fn(async () => okItems());
+    const res = await enrichSoldRows({ rows, sample: [soldRow(901)], render, concurrency: 1, maxRenders: 10, persist: () => {} });
+    expect(render).not.toHaveBeenCalled();
+    expect(res).toEqual({ enriched: 0, failed: 0, rendersUsed: 0 });
   });
 });
