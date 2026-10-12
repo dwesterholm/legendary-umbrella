@@ -35,14 +35,22 @@ export const actorCall = vi.fn();
 /** Spy standing in for `client.dataset(datasetId).listItems()`. */
 export const listItems = vi.fn();
 
+/** Spy standing in for `client.runs().list({ desc, limit, offset })` (spend ledger). */
+export const runsList = vi.fn();
+
+/** Spy standing in for `client.user().limits()` (monthly headroom). */
+export const userLimits = vi.fn();
+
 /**
- * Resets both spies (call history AND any configured mock implementation /
+ * Resets all spies (call history AND any configured mock implementation /
  * resolved value). Call from `beforeEach` so tests don't leak state into
  * each other.
  */
 export function resetApifyMock(): void {
   actorCall.mockReset();
   listItems.mockReset();
+  runsList.mockReset();
+  userLimits.mockReset();
 }
 
 /**
@@ -69,6 +77,9 @@ export function apifyClientMockFactory() {
         // (mockResolvedValueOnce) race. Back-compat: `.listItems()` in prod
         // takes no args, and `listItems.mockResolvedValue(...)` ignores args.
         dataset: (id: string) => ({ listItems: (...args: unknown[]) => listItems(id, ...args) }),
+        // Spend ledger (transport.ts apifySpendSince / apifyMonthlyHeadroomUsd).
+        runs: () => ({ list: runsList }),
+        user: () => ({ limits: userLimits }),
       };
     }),
   };

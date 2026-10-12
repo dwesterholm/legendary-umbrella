@@ -16,6 +16,9 @@ import {
   estimateAreaFetchSek,
   estimateVisionCallSek,
   VISION_MAX_IMAGES_PER_CALL,
+  OBSERVED_USD_PER_RENDER_2048MB,
+  OBSERVED_USD_PER_TIMED_OUT_RENDER,
+  observedApifyUsdEstimate,
 } from "@/lib/discovery/cost";
 import { costSek, costSekSonnet, USD_SEK_RATE } from "@/lib/brf/cost";
 import { CAP_SEK_MAX, CAP_IMAGES_PER_LISTING } from "@/lib/discovery/filter-schema";
@@ -182,5 +185,26 @@ describe("D-14-08 headroom check — worst-case comps + BRF batch leaves budget 
   it("2 areas' comps + a full BRF_TOP_N(4)-sized BRF batch stays inside CAP_VISION_SEK_MAX", () => {
     const worstCase = 2 * estimateCompsFetchSek() + 4 * estimateBrfLookupSek();
     expect(worstCase).toBeLessThan(CAP_VISION_SEK_MAX);
+  });
+});
+
+describe("observed Apify cost constants (headless scripts only, R-10)", () => {
+  it("leaves the in-app USD_PER_RENDER and renderSek untouched", () => {
+    expect(USD_PER_RENDER).toBe(0.0055);
+    expect(renderSek(1)).toBeCloseTo(0.0055 * USD_SEK_RATE, 12);
+  });
+
+  it("exposes the observed per-render costs", () => {
+    expect(OBSERVED_USD_PER_RENDER_2048MB).toBe(0.036);
+    expect(OBSERVED_USD_PER_TIMED_OUT_RENDER).toBe(0.059);
+  });
+
+  it("observedApifyUsdEstimate prices succeeded and timed-out renders separately", () => {
+    expect(observedApifyUsdEstimate({ succeeded: 10, timedOut: 2 })).toBeCloseTo(0.478, 9);
+    expect(observedApifyUsdEstimate({ succeeded: 0, timedOut: 0 })).toBe(0);
+  });
+
+  it("treats negative or non-finite counts as 0", () => {
+    expect(observedApifyUsdEstimate({ succeeded: -3, timedOut: Number.NaN })).toBe(0);
   });
 });

@@ -142,3 +142,106 @@ export async function runPlaywrightRender(
     );
   }
 }
+
+/** What Apify's runs API says a window of runs cost. */
+export interface ApifySpend {
+  /** Sum of `usageTotalUsd` over every run started at or after `since`. */
+  usd: number;
+  /** Number of runs counted (all statuses). */
+  runs: number;
+  succeeded: number;
+  timedOut: number;
+  /** FAILED and ABORTED. */
+  failed: number;
+  /** Any other status (RUNNING, READY, ...). */
+  other: number;
+  /** Runs that reported no `usageTotalUsd` (counted as 0 USD). */
+  missingUsage: number;
+}
+
+const SPEND_PAGE_LIMIT = 100;
+const SPEND_MAX_PAGES = 20;
+
+/**
+ * Real Apify spend for runs started at or after `since`, read from the runs
+ * API (R-06, R-10: the real bill always wins over an estimate). Pages
+ * newest-first and stops at the first run older than `since` or after 20
+ * pages. Resolves to `null` — never throws — when the API call fails, so a
+ * caller can fall back to a LABELLED estimate.
+ *
+ * The ledger is ACCOUNT-WIDE: a concurrent run from another tool in the same
+ * window is counted too. Scripts must print that caveat next to the number.
+ *
+ * Secret posture: logs only the error object, never the token or the client.
+ */
+export async function apifySpendSince(since: Date): Promise<ApifySpend | null> {
+  const sinceMs = since.getTime();
+  const spend: ApifySpend = {
+    usd: 0,
+    runs: 0,
+    succeeded: 0,
+    timedOut: 0,
+    failed: 0,
+    other: 0,
+    missingUsage: 0,
+  };
+  try {
+    for (let page = 0; page < SPEND_MAX_PAGES; page++) {
+      const { items } = await client
+        .runs()
+        .list({ desc: true, limit: SPEND_PAGE_LIMIT, offset: page * SPEND_PAGE_LIMIT });
+      let reachedOlder = false;
+      for (const item of items) {
+        const startedMs = new Date(item.startedAt as Date | string).getTime();
+        if (!Number.isFinite(startedMs) || startedMs < sinceMs) {
+          reachedOlder = true;
+          break;
+        }
+        spend.runs += 1;
+        if (typeof item.usageTotalUsd === "number" && Number.isFinite(item.usageTotalUsd)) {
+          spend.usd += item.usageTotalUsd;
+        } else {
+          spend.missingUsage += 1;
+        }
+        switch (item.status) {
+          case "SUCCEEDED":
+            spend.succeeded += 1;
+            break;
+          case "TIMED-OUT":
+            spend.timedOut += 1;
+            break;
+          case "FAILED":
+          case "ABORTED":
+            spend.failed += 1;
+            break;
+          default:
+            spend.other += 1;
+        }
+      }
+      if (reachedOlder || items.length < SPEND_PAGE_LIMIT) break;
+    }
+    return spend;
+  } catch (error) {
+    console.error("[booli-transport] runs list", error);
+    return null;
+  }
+}
+
+/**
+ * Apify monthly usage headroom in USD (limit minus used so far this cycle), or
+ * `null` when it cannot be determined. Lets a paid script refuse to start when
+ * its own budget exceeds what is left.
+ */
+export async function apifyMonthlyHeadroomUsd(): Promise<number | null> {
+  try {
+    const limits = await client.user().limits();
+    const max = limits?.limits?.maxMonthlyUsageUsd;
+    const used = limits?.current?.monthlyUsageUsd;
+    if (typeof max !== "number" || typeof used !== "number") return null;
+    if (!Number.isFinite(max) || !Number.isFinite(used)) return null;
+    return max - used;
+  } catch (error) {
+    console.error("[booli-transport] user limits", error);
+    return null;
+  }
+}

@@ -8,6 +8,34 @@ import { CAP_SEK_MAX, CAP_IMAGES_PER_LISTING } from "@/lib/discovery/filter-sche
 export const USD_PER_RENDER = 0.0055 as const;
 
 /**
+ * OBSERVED Apify cost per 2048 MB `apify/playwright-scraper` render (USD),
+ * from the 157-run Apify history in 14.1-RESEARCH.md (2026-10-06..12): about
+ * 0.036 USD for a SUCCEEDED run. That is roughly 6x `USD_PER_RENDER`.
+ *
+ * HEADLESS SPEND ESTIMATES ONLY. These two constants (and
+ * `observedApifyUsdEstimate`) serve the scripts' spend ledger as a labelled
+ * fallback; scripts must prefer `apifySpendSince` (the real bill from the
+ * runs API) over them. The in-app `USD_PER_RENDER` and every cap built on it
+ * stay unchanged in Phase 14.1 (R-10, D-13). Re-basing `USD_PER_RENDER`
+ * together with its caps is a follow-up todo for a later phase.
+ */
+export const OBSERVED_USD_PER_RENDER_2048MB = 0.036 as const;
+
+/** OBSERVED Apify cost of a TIMED-OUT render (USD); same source and limits as above. */
+export const OBSERVED_USD_PER_TIMED_OUT_RENDER = 0.059 as const;
+
+/**
+ * Labelled fallback estimate of a headless run's Apify bill from observed
+ * per-render costs. Negative or non-finite counts are treated as 0. Use only
+ * when `apifySpendSince` returned null, and label the number "uppskattning".
+ */
+export function observedApifyUsdEstimate(counts: { succeeded: number; timedOut: number }): number {
+  const ok = Number.isFinite(counts.succeeded) ? Math.max(0, counts.succeeded) : 0;
+  const to = Number.isFinite(counts.timedOut) ? Math.max(0, counts.timedOut) : 0;
+  return ok * OBSERVED_USD_PER_RENDER_2048MB + to * OBSERVED_USD_PER_TIMED_OUT_RENDER;
+}
+
+/**
  * The per-discovery-job SEK spend cap, re-exported from `filter-schema.ts`'s
  * `CAP_SEK_MAX` so `job.ts`'s incremental per-slice cost gate reads a single
  * named constant colocated with the other discovery cost primitives.
