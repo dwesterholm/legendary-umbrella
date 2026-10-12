@@ -14,16 +14,18 @@ import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
  * ONLY as a tiebreaker for display ordering in `discovery-results.tsx`, never
  * fed into `computeNicheScore`/`ReportFlags`. Any place a resulting
  * vision-influenced value is shown must carry the "från bildtolkning" marker
- * (11-UI-SPEC.md).
+ * (11-UI-SPEC.md). Since Phase 14.1 (2026-10-12, D-10/D-11) vision may
+ * influence ranking order, but only through fit-score.ts via reno-tier.ts, which
+ * imports the DATED / RENOVATED vocabulary exported below.
  *
  * Higher score = MORE renovation opportunity (better for a value-add hunt).
  */
 
 /** Dated / renovation-needed language in a kitchen/bathroom/overall claim. */
-const DATED =
+export const DATED =
   /daterat|daterad|gammalt|gammal|ursprunglig|omodern|slitet|sliten|renoveringsbehov|behöver\s+renover|ej\s+renover|äldre\s+standard|nött|nedgång/i;
 /** Turnkey / already-renovated language — LESS upside for a renovation hunt. */
-const RENOVATED =
+export const RENOVATED =
   /nyrenoverat|nyrenoverad|helrenoverat|totalrenoverat|renoverat|renoverad|modernt|fräscht|fräsch|toppskick|påkostad/i;
 
 /**

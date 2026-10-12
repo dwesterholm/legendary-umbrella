@@ -9,7 +9,9 @@
  * `niche-score.ts` or `report/flags.ts` — value-gap must not silently become a
  * deterministic scored signal without the visible "från bildtolkning" marker
  * (UI-SPEC §4). The static-grep invariant in `niche-score.test.ts` forbids
- * that import; this module's specifier is added to that list.
+ * that import; this module's specifier is added to that list. Since Phase 14.1
+ * (2026-10-12, D-10/D-11) vision may influence ranking order, but only through
+ * fit-score.ts via reno-tier.ts.
  *
  * All SEK figures are Stockholm 2025–2026 anchors from the research synthesis
  * §8.3 (pre-ROT) and are deliberately encoded as BANDS — they are estimates to

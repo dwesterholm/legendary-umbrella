@@ -16,12 +16,18 @@
  * (105 000 kr) and flagged by the caller, so a missing image read cannot make a
  * flat look like a free bargain or a money pit.
  *
- * In this plan the classifier is a stub: {@link renoEstimateFromVision} returns
- * the unknown bundle for every input. 14.1-06 adds claim classification behind
- * the same signature.
+ * CLASSIFICATION (14.1-06, FIT-04): {@link renoEstimateFromVision} reads the
+ * free-text vision claims the Anthropic pass already persists and sorts each of
+ * kitchen / bathroom / overall into fresh / ok / dated with a handful of
+ * regexes. No model output is trusted as a number: the cost always comes from
+ * `RENO_COST_MATRIX`. The vocabulary is shared with `condition-score.ts` (its
+ * DATED / RENOVATED regexes are imported, not copied). No schema change to the
+ * Anthropic output was made (RESEARCH Pattern 3 option B rejected; revisit only
+ * if the live run shows more than 20 % of claims misclassified).
  */
 
-import type { VisionResult } from "@/lib/discovery/vision-schema";
+import { DATED, RENOVATED } from "@/lib/discovery/condition-score";
+import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 import {
   RENO_COST_MATRIX,
   type CostTier,
@@ -105,17 +111,23 @@ function usableTier(item: RenoOpportunity, requested: CostTier): CostTier {
   return tier;
 }
 
-/** Prices one set of per-attribute states into a {@link RenoEstimate}. */
+/**
+ * Prices one set of per-attribute states into a {@link RenoEstimate}. `band`
+ * defaults to {@link RENO_BAND}; an item that lists the band as invalid steps
+ * up to the next tier. `source` is set by the caller that knows where the
+ * states came from.
+ */
 export function renoBundle(
   states: Readonly<Record<RenoAttribute, RenoState>>,
+  band: CostTier = RENO_BAND,
   source: "vision" | "none" = "none",
 ): RenoEstimate {
   let lowSek = 0;
   let highSek = 0;
   const attributes: readonly RenoAttribute[] = ["kitchen", "bathroom", "overall"];
   for (const attribute of attributes) {
-    for (const { item, band } of RENO_BUNDLE_ITEMS[attribute][states[attribute]]) {
-      const [lo, hi] = RENO_COST_MATRIX[item][usableTier(item, band ?? RENO_BAND)];
+    for (const { item, band: itemBand } of RENO_BUNDLE_ITEMS[attribute][states[attribute]]) {
+      const [lo, hi] = RENO_COST_MATRIX[item][usableTier(item, itemBand ?? band)];
       lowSek += lo;
       highSek += hi;
     }
@@ -140,11 +152,75 @@ export function renoBundle(
 }
 
 /**
- * Reno estimate from a vision read. Stub in 14.1-03: every input, including
- * null, yields the unknown bundle with source "none". 14.1-06 classifies the
- * claims behind this same signature.
+ * Negated renovation: "orenoverat", "ej renoverat", "inte renoverat", "verkar
+ * inte renoverat", "inte ut att vara renoverat". Up to three words may sit
+ * between the negation and the verb, but never a sentence boundary, so
+ * "Ej synliga skador. Nyrenoverat kök" is not negated. Checked BEFORE the
+ * shared RENOVATED regex, which would read the "renoverat" inside as fresh.
+ */
+export const NEGATED_RENOVATION: RegExp =
+  /\borenover(?:at|ad|ade)|\b(?:ej|inte|icke|aldrig)\s+(?:[^\s.,;:!?]+\s+){0,3}\S*?renover(?:at|ad|ade|ats)/i;
+
+/**
+ * "No renovation need": "inget (uppenbart) renoveringsbehov", "utan
+ * renoveringsbehov", "ej något renoveringsbehov". Checked first because the
+ * shared DATED regex treats the bare word "renoveringsbehov" as dated.
+ */
+export const NO_RENOVATION_NEED: RegExp =
+  /\b(?:inget|ingen|inga|utan|(?:inte|ej)(?:\s+(?:något|några))?)\s+(?:[^\s.,;:!?]+\s+)?renoveringsbehov/i;
+
+/**
+ * Inflected forms of the dated vocabulary that the shared DATED regex (written
+ * for a display tiebreaker) does not match. Kept here, not added to DATED, so
+ * `conditionScore` behaves exactly as before.
+ */
+const DATED_EXTRA = /slitna|nedslitna|utslitna|daterade|omoderna|ursprungliga/i;
+
+/** One claim's text as fresh / ok / dated. Order: no-need, negation, dated, renovated, else ok. */
+export function classifyClaimText(text: string): Exclude<RenoState, "unknown"> {
+  if (NO_RENOVATION_NEED.test(text)) return "ok";
+  if (NEGATED_RENOVATION.test(text)) return "dated";
+  if (DATED.test(text) || DATED_EXTRA.test(text)) return "dated";
+  if (RENOVATED.test(text)) return "fresh";
+  return "ok";
+}
+
+const STATE_SEVERITY: Readonly<Record<Exclude<RenoState, "unknown">, number>> = {
+  fresh: 0,
+  ok: 1,
+  dated: 2,
+};
+
+/**
+ * The state of one attribute from all claims about it. Worst state wins
+ * (dated > ok > fresh) so a cost is never understated. No claim about the
+ * attribute is "unknown", never "fresh". `remodelPotential` claims are not an
+ * attribute here and add no cost (D-04).
+ */
+export function classifyAttribute(
+  claims: readonly VisionConditionClaim[],
+  attribute: RenoAttribute,
+): RenoState {
+  let worst: Exclude<RenoState, "unknown"> | null = null;
+  for (const c of claims) {
+    if (c.attribute !== attribute) continue;
+    const state = classifyClaimText(`${c.claim} ${c.whatWasSeen}`);
+    if (worst === null || STATE_SEVERITY[state] > STATE_SEVERITY[worst]) worst = state;
+  }
+  return worst ?? "unknown";
+}
+
+/**
+ * Reno estimate from a vision read. Null vision, or a read with no claims,
+ * gives the unknown bundle with source "none". Claims under the persisted 0.6
+ * confidence bar never reach here, so no confidence filter is added.
  */
 export function renoEstimateFromVision(vision: VisionResult | null): RenoEstimate {
-  void vision; // not read until 14.1-06 classifies the claims
-  return renoBundle(UNKNOWN_RENO_STATES, "none");
+  if (!vision || vision.claims.length === 0) return renoBundle(UNKNOWN_RENO_STATES, RENO_BAND, "none");
+  const states: Record<RenoAttribute, RenoState> = {
+    kitchen: classifyAttribute(vision.claims, "kitchen"),
+    bathroom: classifyAttribute(vision.claims, "bathroom"),
+    overall: classifyAttribute(vision.claims, "overall"),
+  };
+  return renoBundle(states, RENO_BAND, "vision");
 }
