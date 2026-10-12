@@ -123,12 +123,12 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 **Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
 **Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
 **Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
-**Plans:** 10 plans
+**Plans:** 1/10 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 14.1-01-PLAN.md — Wave 0 data fixes (en-dash premium sign, balcony merge, orientation keywords + sun phrases), prototype copy, replay snapshot fixture, separation-test registration
+- [x] 14.1-01-PLAN.md — Wave 0 data fixes (en-dash premium sign, balcony merge, orientation keywords + sun phrases), prototype copy, replay snapshot fixture, separation-test registration
 - [ ] 14.1-02-PLAN.md — Wave 0 Booli probes (≤7 renders) + real Apify spend ledger and monthly headroom
 
 **Wave 2** *(blocked on Wave 1 completion)*
