@@ -123,7 +123,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 **Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
 **Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
 **Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
-**Plans:** 3/10 plans executed
+**Plans:** 4/10 plans executed
 
 Plans:
 **Wave 1**
@@ -137,7 +137,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 14.1-04-PLAN.md — Slutpris dataset: tested library + resumable puller + live pull of four districts
+- [x] 14.1-04-PLAN.md — Slutpris dataset: tested library + resumable puller + live pull of four districts
 - [ ] 14.1-05-PLAN.md — Hedonic fit library: Cholesky ridge, LOO neighbour level, CV, sign guard with priors, bid premium
 - [ ] 14.1-06-PLAN.md — Vision claims → reno cost, taste bonus module, vision cap 25 SEK
 
