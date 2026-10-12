@@ -18,7 +18,7 @@
     "ui_phase": true,
     "ui_safety_gate": false,
     "auto_advance": true,
-    "use_worktrees": true,
+    "use_worktrees": false,
     "skip_discuss": false,
     "research_before_questions": true
   },

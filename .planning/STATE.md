@@ -3,13 +3,13 @@ gsd_state_version: "1.0"
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 current_phase: "14.1"
-current_phase_name: personal-fit-score
+current_phase_name: Personal Fit Score
 status: executing
 stopped_at: Phase 14 complete — verification 4/4, four live-operator items deferred to 14-UAT.md
-last_updated: "2026-10-12T19:19:26.254Z"
+last_updated: "2026-10-12T19:21:06.097Z"
 last_activity: 2026-10-12
-last_activity_desc: Phase 14.1 planning complete
-state_head: 5921c8b5358f1bacb0c66ecb9fb4a300e8c61c29
+last_activity_desc: Phase 14.1 execution started
+state_head: a432c2fd100be343fb4667efecabec2e8304c6a3
 progress:
   total_phases: 8
   completed_phases: 1
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-17)
 
 **Core value:** Give Swedish home buyers an independent, data-driven analysis of any listing -- the one thing their maklare won't provide.
-**Current focus:** Phase 15 — roi-aware-opportunity-brief
+**Current focus:** Phase 14.1 — Personal Fit Score
 
 ## Current Position
 
-Phase: 14.1 (personal-fit-score) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-12 — Phase 14.1 planning complete
+Phase: 14.1 (Personal Fit Score) — EXECUTING
+Plan: 1 of 10
+Status: Executing Phase 14.1
+Last activity: 2026-10-12 — Phase 14.1 execution started
 Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-12 around Daniel's own hunt: 14.1 fit score → 14.2 daily email watch → 14.3 orientation spike; 15–17 deferred. Calibration listing: .planning/calibration/folkungagatan-61-5tr.md
 
 ## Roadmap Summary (v1.2 — CURRENT)
