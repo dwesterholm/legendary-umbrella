@@ -1,0 +1,112 @@
+{
+  "items": [
+    {
+      "requirement_id": "FIT-01",
+      "category": "boundary",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/booli/slutpriser.test.ts",
+      "resolution": "14.1-04 must_haves.truths: cutoff inclusive, missing soldDate excluded+counted, max 8 in flight never 9",
+      "reason": "planner 2026-10-12",
+      "probe": "What happens exactly at each min/max/threshold — and one step either side?"
+    },
+    {
+      "requirement_id": "FIT-01",
+      "category": "precision",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/booli/page-functions.test.ts src/lib/booli/slutpriser.test.ts",
+      "resolution": "14.1-01 + 14.1-04 must_haves.truths: +12,5 %, –1,5 % (U+2013), −0,4 % (U+2212), +0 %, null label, 3 695 000 kr with NBSP; kr/m² kept as float",
+      "reason": "planner 2026-10-12",
+      "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
+    },
+    {
+      "requirement_id": "FIT-02",
+      "category": "unclassified",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/hedonic-model.test.ts",
+      "resolution": "14.1-05 must_haves.truths: collinear/zero column never NaN; n<30 district fallback; wrong-sign/unstable -> documented prior (D-18) else zero, recorded",
+      "reason": "planner 2026-10-12",
+      "probe": "unclassified — review manually"
+    },
+    {
+      "requirement_id": "FIT-03",
+      "category": "boundary",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/fit-score.test.ts",
+      "resolution": "14.1-07 must_haves.truths: taste exactly 5 % cap and clamp; 4 000 000 not flagged, 4 000 001 flagged; negative profit kept",
+      "reason": "planner 2026-10-12",
+      "probe": "What happens exactly at each min/max/threshold — and one step either side?"
+    },
+    {
+      "requirement_id": "FIT-03",
+      "category": "precision",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/fit-score.test.ts src/lib/discovery/fit-pipeline.test.ts",
+      "resolution": "14.1-03 purity truth (floats, no fixed-decimal formatting in fit-score.ts) + 14.1-09 integer kronor at the table boundary (Math.round)",
+      "reason": "planner 2026-10-12",
+      "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
+    },
+    {
+      "requirement_id": "FIT-04",
+      "category": "boundary",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/reno-tier.test.ts",
+      "resolution": "14.1-06 must_haves.truths: kitchen-only -> bathroom/overall unknown; negation-first (orenoverat, ej/inte renoverat) -> dated",
+      "reason": "planner 2026-10-12",
+      "probe": "What happens exactly at each min/max/threshold — and one step either side?"
+    },
+    {
+      "requirement_id": "FIT-04",
+      "category": "precision",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/reno-tier.test.ts",
+      "resolution": "14.1-06 must_haves.truths: bundles 10 000 / 105 000 / 427 500 derived from RENO_COST_MATRIX in tests",
+      "reason": "planner 2026-10-12",
+      "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
+    },
+    {
+      "requirement_id": "FIT-05",
+      "category": "adjacency",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/fit-score.test.ts",
+      "resolution": "14.1-07 must_haves.truths: identical profit -> Booli id ascending",
+      "reason": "planner 2026-10-12",
+      "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
+    },
+    {
+      "requirement_id": "FIT-05",
+      "category": "empty",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/fit-pipeline.test.ts",
+      "resolution": "14.1-07 (pure empty inputs) + 14.1-09 must_haves.truths: 0 candidates -> header + 0 kandidater, exit 0, no enrich/vision call",
+      "reason": "planner 2026-10-12",
+      "probe": "What is the result for empty, single-element, or null input?"
+    },
+    {
+      "requirement_id": "FIT-05",
+      "category": "ordering",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/fit-score.test.ts src/lib/discovery/fit-pipeline.test.ts",
+      "resolution": "14.1-07 must_haves.truths: window = exactly top FIT_VISION_WINDOW; edge ties by the pre-rank comparator ending in Booli id; outside rows flagged ejBildtolkad",
+      "reason": "planner 2026-10-12",
+      "probe": "When elements compare equal, is output order specified and stable?"
+    },
+    {
+      "requirement_id": "FIT-06",
+      "category": "unclassified",
+      "status": "resolved",
+      "verification": "npx vitest run src/lib/discovery/fit-score.test.ts",
+      "resolution": "14.1-03 must_haves.truths (replay offline, fetch never called, no static network import) + 14.1-10 (live rank recorded even if outside top quarter; measured, not tuned)",
+      "reason": "planner 2026-10-12",
+      "probe": "unclassified — review manually"
+    }
+  ],
+  "coverage": {
+    "applicable": 11,
+    "resolved": 0,
+    "unresolved": 11,
+    "byVerification": {
+      "explicit": 0,
+      "backstop": 0
+    }
+  }
+}
