@@ -60,9 +60,13 @@ describe("DISCOVERY_COST_CAP_SEK", () => {
 });
 
 describe("CAP_VISION_SEK_MAX — Phase 11 (DISC-04) separate vision cost cap", () => {
-  it("is 10 and is NOT the same reference/value as CAP_SEK_MAX (5)", () => {
-    expect(CAP_VISION_SEK_MAX).toBe(10);
+  it("is 25 and is NOT the same reference/value as CAP_SEK_MAX (5)", () => {
+    expect(CAP_VISION_SEK_MAX).toBe(25);
     expect(CAP_VISION_SEK_MAX).not.toBe(CAP_SEK_MAX);
+  });
+
+  it("fits 20 worst-case vision calls (the headless FIT_VISION_WINDOW) with room to spare (Phase 14.1 D-10, R-03)", () => {
+    expect(20 * estimateVisionCallSek()).toBeLessThan(CAP_VISION_SEK_MAX);
   });
 });
 

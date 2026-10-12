@@ -49,7 +49,7 @@ import { tomtrattFromTenureForm, type BrfSummary } from "@/lib/discovery/holisti
  * allows 3–5; 4 is the midpoint, giving two-deep coverage on both the
  * below-market and aged-stock halves of the `enrichmentPriority` ranking
  * while keeping the worst-case added spend at 4 x one Haiku extraction
- * (~0.8 SEK each) inside `CAP_VISION_SEK_MAX = 10`. Revisit after the
+ * (~0.8 SEK each) inside the `CAP_VISION_SEK_MAX` pool (25 SEK since Phase 14.1). Revisit after the
  * deferred live smoke measures real latency and cost. Exported so tests
  * assert against this constant instead of a literal.
  */

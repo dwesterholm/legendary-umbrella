@@ -176,11 +176,16 @@ export function estimateBrfLookupSek(): number {
  * incrementally BEFORE each Sonnet call (mirrors `runSlice`'s
  * check-before-spend discipline), never only after a call completes.
  *
- * Value (10 SEK) is ~1 SEK above the worst-case-all-25-candidates figure
- * (9.25 SEK, 11-RESEARCH.md Cost Math), giving a small safety margin while
- * remaining a real, enforceable ceiling.
+ * Value (25 SEK, Phase 14.1 D-10/R-03; was 10): the worst-case
+ * `estimateVisionCallSek()` is about 0.74 SEK, so the headless
+ * `FIT_VISION_WINDOW = 20` costs at most about 14.7 SEK for vision alone, and
+ * 25 leaves room for the BRF top-N and for retries without becoming
+ * unbounded. The in-app job still enriches at most `VISION_ENRICH_LIMIT = 8`
+ * candidates (job.ts), so its practical spend is unchanged (D-13). The old
+ * 10 SEK was ~1 SEK above the worst-case-all-25-candidates figure of the
+ * Phase 11 design (9.25 SEK, 11-RESEARCH.md Cost Math).
  */
-export const CAP_VISION_SEK_MAX = 10 as const;
+export const CAP_VISION_SEK_MAX = 25 as const;
 
 /**
  * Composes ONE candidate's vision spend from its Haiku pre-filter usage
