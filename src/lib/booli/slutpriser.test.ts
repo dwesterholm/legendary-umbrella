@@ -864,6 +864,17 @@ describe("selectEnrichmentSample", () => {
     expect(rows.map((r) => r.booliId)).toEqual(copy);
   });
 
+  it("keeps only rows sold on or after soldSince (boundary day included)", () => {
+    const dated = [
+      soldRow(1, { soldDate: "2025-09-30" }),
+      soldRow(2, { soldDate: "2025-10-01" }),
+      soldRow(3, { soldDate: "2026-01-15" }),
+    ];
+    const s = selectEnrichmentSample(dated, 10, "14.1", { soldSince: "2025-10-01" });
+    expect(s.map((r) => r.booliId).sort()).toEqual(["2", "3"]);
+    expect(selectEnrichmentSample(dated, 10, "14.1")).toHaveLength(3);
+  });
+
   it("skips rows already enriched so that a re-run does not pay twice", () => {
     const mixed = rows.slice(0, 20).map((r, i) => (i < 5 ? { ...r, enriched: { buildYear: 1900, balcony: false, listPrice: null } } : r));
     const s = selectEnrichmentSample(mixed, 20, "14.1");

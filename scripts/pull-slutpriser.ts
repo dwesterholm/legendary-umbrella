@@ -11,6 +11,7 @@
  *   npx tsx scripts/pull-slutpriser.ts --enrich-sample 110 --budget-usd 4.2 --max-renders 110
  *       # 14.1-08: renders the sold DETAIL page of up to 110 not-yet-enriched rows (one paid render each)
  *       # and stores build year, balcony and list price on them; re-run to continue, spends nothing when 0 are left
+ *       # --enrich-since 2025-10-01 limits it to sales on or after that day (older sold pages no longer carry the data)
  *
  * What it pulls: the four innerstan districts x the six R-12 size bands
  * (35-120 m2), lagenhet only, sold within the last --months months. The two
@@ -265,6 +266,7 @@ async function runEnrichment(opts: {
   cachePath: string;
   cache: SlutprisCache | null;
   sampleSize: number;
+  soldSince?: string;
   maxRenders: number;
   budgetUsd: number;
   concurrency: number;
@@ -272,10 +274,10 @@ async function runEnrichment(opts: {
 }): Promise<void> {
   const { cache, cachePath } = opts;
   if (!cache) throw new Error(`Ingen cache att berika på ${cachePath} (kör själva hämtningen först)`);
-  const sample = selectEnrichmentSample(cache.rows, opts.sampleSize, ENRICH_SEED);
+  const sample = selectEnrichmentSample(cache.rows, opts.sampleSize, ENRICH_SEED, opts.soldSince ? { soldSince: opts.soldSince } : {});
   const already = cache.rows.filter((r) => r.enriched).length;
   console.log(
-    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}", ${already} redan berikade), ` +
+    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}"${opts.soldSince ? `, sålda från ${opts.soldSince}` : ""}, ${already} redan berikade), ` +
       `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}`,
   );
   if (opts.dryRun) {
@@ -408,10 +410,13 @@ async function main(): Promise<void> {
 
   const enrichSample = intArg("--enrich-sample", 0, 0, 300);
   if (enrichSample > 0) {
+    const since = argValue("--enrich-since");
+    if (since !== null && !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error("--enrich-since måste vara YYYY-MM-DD");
     await runEnrichment({
       cachePath,
       cache: existing,
       sampleSize: enrichSample,
+      ...(since !== null ? { soldSince: since } : {}),
       maxRenders: Math.min(maxRenders, enrichSample),
       budgetUsd,
       concurrency,

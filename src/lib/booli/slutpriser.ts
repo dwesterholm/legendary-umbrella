@@ -792,12 +792,26 @@ function fnv1a(text: string): number {
  * order and of earlier calls, so a re-run after a partial failure picks the
  * unfinished rows first (finished ones are skipped, not re-drawn). Allocates a
  * new array; the input is untouched.
+ *
+ * `soldSince` (ISO date) keeps only rows sold on or after it. Found live in
+ * 14.1-08: Booli's detail page for a sale older than about a year no longer
+ * carries the sold object (12 of 12 sales from before October 2025 came back
+ * empty, 13 of 22 later ones worked), so older rows would be paid for and wasted.
+ * Choosing rows by sale date selects on a model feature (months since sale), which
+ * does not bias the balcony and build-year effects: those are fitted on the
+ * residual after the time trend is already out.
  */
-export function selectEnrichmentSample(rows: readonly SoldRow[], n: number, seed: string): SoldRow[] {
+export function selectEnrichmentSample(
+  rows: readonly SoldRow[],
+  n: number,
+  seed: string,
+  opts: { soldSince?: string } = {},
+): SoldRow[] {
   const count = Math.floor(n);
   if (!(count > 0)) return [];
+  const since = opts.soldSince;
   return rows
-    .filter((r) => !r.enriched)
+    .filter((r) => !r.enriched && (since === undefined || r.soldDate >= since))
     .map((r) => ({ r, h: fnv1a(`${seed}:${r.booliId}`) }))
     .sort((a, b) => a.h - b.h || (a.r.booliId < b.r.booliId ? -1 : a.r.booliId > b.r.booliId ? 1 : 0))
     .slice(0, count)
