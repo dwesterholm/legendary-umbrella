@@ -500,6 +500,9 @@ describe("runSlice — multi-area search ('Södermalm och Vasastan')", () => {
     const payload = updateCalls[0];
     expect(payload.status).not.toBe("degraded");
     expect((payload.results as unknown[]).length).toBe(1);
+    // The failed district is persisted by its user-facing name so the
+    // results page can say which area is missing (013_failed_areas).
+    expect(payload.failed_areas).toEqual(["Vasastan"]);
     // CR-01: the surviving area's 1 render PLUS the failed area's exhausted
     // rungs. A thrown area still paid for every rung it attempted, so billing
     // it as free (the old `RENDER_SEK` expectation) under-counted real spend.

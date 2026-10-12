@@ -42,6 +42,11 @@ const client = new ApifyClient({
 /** The Apify browser actor that clears Cloudflare on Booli's HTML pages. */
 const PLAYWRIGHT_SCRAPER_ACTOR = "apify/playwright-scraper";
 
+/** Memory requested per actor run, in MB (see the call site for why not the 4096 default). */
+export const RENDER_MEMORY_MB = 2048;
+/** Seconds past `waitSecs` after which Apify itself aborts the run. */
+export const RENDER_TIMEOUT_GRACE_SECS = 60;
+
 /**
  * Renders `url` through the owned Playwright transport and returns the usable
  * dataset items (each `{ hasApollo, __APOLLO_STATE__ }`, per `pageFunction`'s
@@ -86,10 +91,23 @@ export async function runPlaywrightRender(
       },
       // cold-start headroom, proven necessary in booli-scraper.ts and
       // sold-source.ts — a warm run returns as soon as it finishes.
-      // `log: null` turns off apify-client's default streaming of the actor's
-      // run log to our stdout. Nothing reads that stream, and its volume killed
-      // the headless search (exit 137) when four area scrapes ran in parallel.
-      { waitSecs, log: null },
+      {
+        waitSecs,
+        // `log: null` turns off apify-client's default streaming of the actor's
+        // run log to our stdout. Nothing reads that stream, and its volume killed
+        // the headless search (exit 137) when four area scrapes ran in parallel.
+        log: null,
+        // The actor's default is 4096 MB per run. A four-district search fans
+        // out to ~20 parallel page renders, which at 4 GB each exceeds the
+        // account's 64 GB ceiling — Apify then refuses the extra runs ("exceed
+        // the memory limit") and whole districts drop out of the results
+        // (observed 2026-10-11/12). A Booli page renders fine in 2 GB.
+        memory: RENDER_MEMORY_MB,
+        // Apify's own run timeout. Without it a run we stopped waiting for
+        // (`waitSecs` elapsed) keeps running up to the actor's 3600 s default,
+        // holding memory and billing compute for nothing.
+        timeout: waitSecs + RENDER_TIMEOUT_GRACE_SECS,
+      },
     );
 
     // A non-SUCCEEDED run (still RUNNING at the wait ceiling, TIMED-OUT,

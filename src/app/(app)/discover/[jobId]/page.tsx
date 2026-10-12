@@ -51,7 +51,7 @@ export default async function DiscoverJobPage({ params }: DiscoverJobPageProps) 
   const { data: job, error } = await supabase
     .from("discovery_jobs")
     .select(
-      "id, user_id, status, free_text, filters, processed_count, candidate_count, cap_candidates, cost_sek_total, cap_reached, results",
+      "id, user_id, status, free_text, filters, processed_count, candidate_count, cap_candidates, cost_sek_total, cap_reached, results, failed_areas",
     )
     .eq("id", jobId)
     .single();
@@ -60,6 +60,10 @@ export default async function DiscoverJobPage({ params }: DiscoverJobPageProps) 
     notFound();
   }
 
+  // Districts whose scrape failed inside an otherwise successful run (013).
+  const failedAreas: string[] = Array.isArray(job.failed_areas)
+    ? (job.failed_areas as unknown[]).filter((a): a is string => typeof a === "string")
+    : [];
   const isTerminal = TERMINAL_STATUSES.has(job.status);
   const filters = (job.filters ?? null) as DiscoveryFilter | null;
   const querySummary = describeFilters(job.free_text, filters);
@@ -104,6 +108,16 @@ export default async function DiscoverJobPage({ params }: DiscoverJobPageProps) 
           <p className="mt-2 max-w-sm text-sm text-warm-gray-500">
             Vi hittade inga annonser som matchade din beskrivning och dina
             filter. Prova att bredda sökningen eller ta bort ett filter.
+          </p>
+        </div>
+      )}
+
+      {isTerminal && job.status === "done" && failedAreas.length > 0 && (
+        <div className="w-full max-w-2xl rounded-lg bg-terracotta-50 px-4 py-3">
+          <p className="text-sm text-terracotta-600">
+            Kunde inte hämta annonser från {failedAreas.join(", ")} den här gången.
+            Resultatet täcker bara de övriga områdena — sök igen om en stund för att
+            få med {failedAreas.length === 1 ? "det området" : "de områdena"}.
           </p>
         </div>
       )}

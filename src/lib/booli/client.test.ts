@@ -7,6 +7,7 @@ import {
 } from "@/lib/booli/__mocks__/apify-client";
 import listingDetailFixture from "@/lib/booli/__fixtures__/listing-detail.json";
 import { scraperOutputSchema } from "@/lib/schemas/listing";
+import { RENDER_MEMORY_MB, RENDER_TIMEOUT_GRACE_SECS } from "@/lib/booli/transport";
 import { toCandidate, discoveryCandidateSchema } from "@/lib/discovery/candidate";
 
 vi.mock("apify-client", () => apifyClientMockFactory());
@@ -154,7 +155,7 @@ describe("fetchListing", () => {
 
     await fetchListing(DETAIL_URL);
 
-    expect(actorCall).toHaveBeenCalledWith(expect.anything(), { waitSecs: 240, log: null });
+    expect(actorCall).toHaveBeenCalledWith(expect.anything(), { waitSecs: 240, log: null, memory: RENDER_MEMORY_MB, timeout: 240 + RENDER_TIMEOUT_GRACE_SECS });
   });
 
   it("13-04 Task 3 (GAP-2): a no-opts call also keeps the proven maxRequestRetries: 3 default on both rungs' actor config — the /analyze path stays byte-for-byte", async () => {
@@ -182,7 +183,7 @@ describe("fetchListing", () => {
 
     expect(actorCall).toHaveBeenCalledTimes(2);
     for (const call of actorCall.mock.calls) {
-      expect(call[1]).toEqual({ waitSecs: 90, log: null });
+      expect(call[1]).toEqual({ waitSecs: 90, log: null, memory: RENDER_MEMORY_MB, timeout: 90 + RENDER_TIMEOUT_GRACE_SECS });
       expect((call[0] as Record<string, unknown>).maxRequestRetries).toBe(2);
     }
   });
@@ -242,10 +243,10 @@ describe("fetchAreaListings", () => {
     expect(AREA_PAGE_WAIT_SECS).toBeLessThan(240);
     expect(actorCall).toHaveBeenCalledWith(
       expect.anything(),
-      { waitSecs: AREA_PAGE_WAIT_SECS, log: null },
+      { waitSecs: AREA_PAGE_WAIT_SECS, log: null, memory: RENDER_MEMORY_MB, timeout: AREA_PAGE_WAIT_SECS + RENDER_TIMEOUT_GRACE_SECS },
     );
     // Never regresses to the detail-page default on this path.
-    expect(actorCall).not.toHaveBeenCalledWith(expect.anything(), { waitSecs: 240, log: null });
+    expect(actorCall).not.toHaveBeenCalledWith(expect.anything(), { waitSecs: 240, log: null, memory: RENDER_MEMORY_MB, timeout: 240 + RENDER_TIMEOUT_GRACE_SECS });
   });
 
   it("appends &objectType=Lägenhet, URL-encoded via URLSearchParams", async () => {

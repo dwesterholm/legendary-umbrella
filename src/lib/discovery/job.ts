@@ -174,9 +174,14 @@ export async function runSlice(
   // "we don't cover that area yet" failure, never a fabricated areaId.
   const areaNames = splitAreaQuery(filters.areaQuery);
   const resolutions: AreaResolution[] = [];
+  // The user-facing name each areaId came from, for the failed-district note.
+  const nameByAreaId = new Map<string, string>();
   for (const name of areaNames) {
     const r = await resolveArea(name, supabase);
-    if (r) resolutions.push(r);
+    if (r) {
+      resolutions.push(r);
+      if (!nameByAreaId.has(r.areaId)) nameByAreaId.set(r.areaId, name);
+    }
   }
   // De-dupe by areaId (two names could resolve to the same area).
   const areaIds = [...new Set(resolutions.map((r) => r.areaId))];
@@ -219,6 +224,9 @@ export async function runSlice(
   const raw: Record<string, unknown>[] = [];
   // Per-district lists, kept apart so the cap below can be shared fairly.
   const rawByArea: Record<string, unknown>[][] = [];
+  // Districts whose scrape threw — persisted so the results page can say
+  // "Kungsholmen kunde inte hämtas" instead of looking complete.
+  const failedAreas: string[] = [];
   let anyThrew = false;
   let rendersUsed = 0;
   for (let i = 0; i < settled.length; i++) {
@@ -234,6 +242,7 @@ export async function runSlice(
       // paid for and must be recorded, not written off as free.
       rendersUsed += AREA_RENDER_RUNGS_PER_PAGE;
       anyThrew = true;
+      failedAreas.push(nameByAreaId.get(areaIds[i]) ?? areaIds[i]);
       console.error("[discovery-job] kill-switch degraded", {
         jobId,
         areaId: areaIds[i],
@@ -249,6 +258,7 @@ export async function runSlice(
     await updateJob(supabase, jobId, {
       status: anyThrew ? "degraded" : "done",
       cost_sek_total: cost_sek_total + estimatedSliceCostSek(rendersUsed),
+      failed_areas: failedAreas,
     });
     return;
   }
@@ -308,6 +318,7 @@ export async function runSlice(
     cost_sek_total: newCostSekTotal,
     status: "done",
     cap_reached: capReached,
+    failed_areas: failedAreas,
   });
 }
 
