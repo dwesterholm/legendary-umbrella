@@ -2124,6 +2124,88 @@ describe("enrichCandidateImages — detail-fetch the shortlist for images before
     expect(candidates[0].orientation?.facades).toContain("south");
   });
 
+  // R-04b (Phase 14.1): a search card's `balcony: false` means "amenity not
+  // listed on the card", NOT "no balcony". `c.balcony ?? detail.balcony` kept
+  // the false forever, so a detail page that DID show a balcony never won.
+  describe("R-04b — balcony merge: a detail-page true overrides a card's false", () => {
+    const merged = async (card: boolean | null, detail: boolean | null) => {
+      fetchListing.mockResolvedValue({
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+        balcony: detail,
+      });
+      const { candidates } = await enrichCandidateImages(
+        [makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null, balcony: card })],
+        8,
+      );
+      return candidates[0].balcony;
+    };
+
+    it("card false + detail true -> true", async () => {
+      expect(await merged(false, true)).toBe(true);
+    });
+    it("card true + detail false -> true", async () => {
+      expect(await merged(true, false)).toBe(true);
+    });
+    it("card null + detail false -> false", async () => {
+      expect(await merged(null, false)).toBe(false);
+    });
+    it("card false + detail null -> false", async () => {
+      expect(await merged(false, null)).toBe(false);
+    });
+  });
+
+  describe("R-04c — sun phrases reach the caller without touching the persisted candidate shape", () => {
+    it("broker description 'sol hela dagen' -> sunPhrases.get(0)", async () => {
+      fetchListing.mockResolvedValue({
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+        agencyListingUrl: "https://maklare.example/objekt/1",
+      });
+      fetchBrokerListingPage.mockResolvedValue({
+        renovationStatus: null,
+        description: "Balkong med sol hela dagen",
+        images: [],
+      });
+      const input = [makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null })];
+
+      const { sunPhrases } = await enrichCandidateImages(input, 8);
+
+      expect(sunPhrases.get(0)).toEqual({ allDaySun: true, throughFlat: false });
+    });
+
+    it("falls back to the Booli detail description when there is no broker page", async () => {
+      fetchListing.mockResolvedValue({
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+        description: "Genomgående planlösning",
+      });
+      const input = [makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null })];
+
+      const { sunPhrases } = await enrichCandidateImages(input, 8);
+
+      expect(sunPhrases.get(0)).toEqual({ allDaySun: false, throughFlat: true });
+    });
+
+    it("a candidate with no broker page and no detail description has no map entry", async () => {
+      fetchListing.mockResolvedValue({ imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"] });
+      const input = [makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null })];
+
+      const { sunPhrases } = await enrichCandidateImages(input, 8);
+
+      expect(sunPhrases.size).toBe(0);
+    });
+
+    it("returned candidates carry exactly the same keys as the input (no new DiscoveryCandidate field)", async () => {
+      fetchListing.mockResolvedValue({
+        imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"],
+        description: "Balkong med sol hela dagen, genomgående",
+      });
+      const input = [makeCandidate({ sourceListingUrl: "https://www.booli.se/bostad/1", imageUrls: null })];
+
+      const { candidates } = await enrichCandidateImages(input, 8);
+
+      expect(Object.keys(candidates[0]).sort()).toEqual(Object.keys(input[0]).sort());
+    });
+  });
+
   it("does NOT fetch a broker gallery when the detail entity has no agencyListingUrl", async () => {
     fetchListing.mockResolvedValue({ imageUrls: ["https://bcdn.se/images/cache/1_1440x0.webp"] });
     const input = [

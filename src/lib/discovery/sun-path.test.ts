@@ -3,6 +3,7 @@ import * as SunCalc from "suncalc";
 import {
   computeSunExposure,
   extractOrientationFromDescription,
+  extractSunPhrases,
   type Facade,
 } from "@/lib/discovery/sun-path";
 
@@ -217,5 +218,106 @@ describe("extractOrientationFromDescription — never a guess (Pattern 3)", () =
       expect(result).not.toBeNull();
       expect(result!.facades).toContain(expectedFacade);
     });
+  });
+});
+
+describe("extractOrientationFromDescription — stated-direction forms (R-04c, Phase 14.1)", () => {
+  // Calibration listing wording: Folkungagatan 61 says "Södervända fönster"
+  // and "sol hela dagen". These were invisible to the extractor.
+  it("recognises 'Södervända fönster' as south (the calibration listing's wording)", () => {
+    const result = extractOrientationFromDescription(
+      "Balkong med sol hela dagen. Södervända fönster med originalfönster.",
+    );
+    expect(result).not.toBeNull();
+    expect(result!.facades).toContain("south");
+  });
+
+  it.each([
+    ["Sydvänd balkong", ["south"]],
+    ["Fin sydvänd lägenhet", ["south"]],
+    ["Ljust sydläge", ["south"]],
+    ["Östvänd balkong med morgonsol", ["east"]],
+    ["Västvänd balkong", ["west"]],
+    ["Södervänd balkong", ["south"]],
+  ] as const)("%s -> %j", (description, expected) => {
+    const result = extractOrientationFromDescription(description);
+    expect(result).not.toBeNull();
+    expect(result!.facades).toEqual([...expected]);
+  });
+
+  it("'Sydöstläge med morgonsol' yields BOTH south and east", () => {
+    const result = extractOrientationFromDescription("Sydöstläge med morgonsol");
+    expect(result).not.toBeNull();
+    expect(result!.facades).toContain("south");
+    expect(result!.facades).toContain("east");
+  });
+
+  // JS \b is ASCII-only: a word starting with ö never has a \b before it after
+  // a space, so the pre-existing 'österläge' / 'österut' alternatives were
+  // dead too. Real-string tests, not assumptions.
+  it.each([
+    ["Fin balkong i österläge", "east"],
+    ["Balkongen vetter österut", "east"],
+    ["Österbalkong med morgonsol", "east"],
+  ] as const)("non-ASCII word start: %s -> %s", (description, facade) => {
+    const result = extractOrientationFromDescription(description);
+    expect(result).not.toBeNull();
+    expect(result!.facades).toContain(facade);
+  });
+
+  it.each([
+    "Lägenhet i Söderort",
+    "Pendeltåg till Södertälje",
+    "Flyttar från Norrköping",
+    "Sommarhus i Söderhamn",
+    "Nära Östermalm och Österåker, med balkong",
+    "Sydöstra Sverige är fint",
+  ])("still null for place name / non-direction text: %s", (description) => {
+    expect(extractOrientationFromDescription(description)).toBeNull();
+  });
+
+  it("'Genomgående lägenhet med fönster åt två håll' states no facade -> null", () => {
+    expect(
+      extractOrientationFromDescription("Genomgående lägenhet med fönster åt två håll"),
+    ).toBeNull();
+  });
+});
+
+describe("extractSunPhrases (R-04c, Phase 14.1)", () => {
+  it("'sol hela dagen' -> allDaySun", () => {
+    expect(extractSunPhrases("Balkong med sol hela dagen")).toEqual({
+      allDaySun: true,
+      throughFlat: false,
+    });
+  });
+
+  it("'sol större delen av dagen' -> allDaySun, case-insensitive", () => {
+    expect(extractSunPhrases("Lägenheten har Sol större delen av dagen")).toEqual({
+      allDaySun: true,
+      throughFlat: false,
+    });
+  });
+
+  it("'Genomgående planlösning' -> throughFlat", () => {
+    expect(extractSunPhrases("Genomgående planlösning")).toEqual({
+      allDaySun: false,
+      throughFlat: true,
+    });
+  });
+
+  it("both phrases can be found together", () => {
+    expect(extractSunPhrases("Genomgående med sol hela dagen")).toEqual({
+      allDaySun: true,
+      throughFlat: true,
+    });
+  });
+
+  it("a description with neither phrase yields two false flags (not null)", () => {
+    expect(extractSunPhrases("Ljus trea")).toEqual({ allDaySun: false, throughFlat: false });
+  });
+
+  it("returns null for null and empty input", () => {
+    expect(extractSunPhrases(null)).toBeNull();
+    expect(extractSunPhrases("")).toBeNull();
   });
 });

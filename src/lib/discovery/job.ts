@@ -25,7 +25,11 @@ import {
   CAP_VISION_SEK_MAX,
 } from "@/lib/discovery/cost";
 import { runVisionPass } from "@/lib/discovery/vision";
-import { extractOrientationFromDescription } from "@/lib/discovery/sun-path";
+import {
+  extractOrientationFromDescription,
+  extractSunPhrases,
+  type SunPhrases,
+} from "@/lib/discovery/sun-path";
 import { normalizeSoldOutput, type SoldComp } from "@/lib/market/sold-schema";
 import { computeAreaComps, MIN_COMPS_FOR_CONFIDENCE } from "@/lib/discovery/area-comps";
 import {
@@ -616,6 +620,14 @@ export interface EnrichmentResult {
   candidates: DiscoveryCandidate[];
   /** candidate array index → broker-gallery bytes (analyze-only, transient — never persisted). */
   brokerImages: Map<number, BrokerImageBytes[]>;
+  /**
+   * candidate array index → "sol hela dagen" / "genomgående" phrases found in the
+   * broker (or, failing that, the Booli detail) description. Transient and
+   * in-memory only — NEVER persisted and NOT a `DiscoveryCandidate` field (Phase
+   * 14.1 R-04c / D-13: no schema push). Only two booleans per entry; the
+   * description text itself is never kept. Set only when a description existed.
+   */
+  sunPhrases: Map<number, SunPhrases>;
 }
 
 /**
@@ -644,6 +656,7 @@ export async function enrichCandidateImages(
 ): Promise<EnrichmentResult> {
   const out = [...candidates];
   const brokerImages = new Map<number, BrokerImageBytes[]>();
+  const sunPhrases = new Map<number, SunPhrases>();
   const deadlineMs = opts?.deadlineMs ?? ENRICH_DEADLINE_MS;
   const concurrency = Math.max(1, opts?.concurrency ?? ENRICH_CONCURRENCY);
   const now = opts?.now ?? (() => Date.now());
@@ -690,8 +703,17 @@ export async function enrichCandidateImages(
         floor: c.floor ?? detail.floor,
         constructionYear: c.constructionYear ?? detail.constructionYear,
         orientation: c.orientation ?? detail.orientation,
-        balcony: c.balcony ?? detail.balcony,
+        // R-04b: a search card's `false` means "amenity not listed on the
+        // card", NOT "no balcony" — so a detail-page `true` must win over it.
+        // (`false ?? x` kept the card's false forever.) Every other pairing
+        // keeps the old precedence: card value first, detail fills a null.
+        balcony: detail.balcony === true ? true : (c.balcony ?? detail.balcony),
       };
+
+      // Sun phrases (R-04c): broker description first, Booli detail
+      // description as the fallback. Resolved after the broker leg below.
+      let sunDescription: string | null =
+        typeof raw.description === "string" && raw.description ? raw.description : null;
 
       // Broker gallery (analyze-only): the detail entity carries the broker
       // listing URL; fetch its gallery through the SSRF guard as bytes so
@@ -707,6 +729,7 @@ export async function enrichCandidateImages(
             },
           });
           if (broker) {
+            if (broker.description) sunDescription = broker.description;
             // Orientation v2: the broker description is often richer than
             // Booli's ("vardagsrum i söderläge med kvällssol"). If we still
             // have no orientation (Booli's description/detail yielded no
@@ -729,6 +752,9 @@ export async function enrichCandidateImages(
           // Broker enrichment is a pure bonus — never let it affect the job.
         }
       }
+
+      const phrases = extractSunPhrases(sunDescription);
+      if (phrases) sunPhrases.set(i, phrases);
     } catch (error) {
       console.error("[discovery-job] detail enrichment failed (non-fatal)", {
         code: error instanceof Error ? error.name : "UNKNOWN",
@@ -761,7 +787,7 @@ export async function enrichCandidateImages(
     await Promise.allSettled(batch.map((i) => enrichOne(i)));
   }
 
-  return { candidates: out, brokerImages };
+  return { candidates: out, brokerImages, sunPhrases };
 }
 
 /**

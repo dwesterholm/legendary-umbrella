@@ -250,16 +250,25 @@ export function computeSunExposure(
  * anchoring alone already excludes them, and the bounded gap additionally
  * stops "balkong ... (unrelated clause) ... Norrköping" from being
  * misread as a stated orientation for "balkong".
+ *
+ * Non-ASCII word start (Phase 14.1, R-04c): JavaScript's `\b` only counts
+ * ASCII letters as word characters, so `\b` placed before a word that STARTS
+ * with ö/ä/å never fires after a space ("balkong i österläge" never matched
+ * `\bösterläge`). Those tokens use `(?<!\p{L})` (needs the `u` flag, hence
+ * `iu` on every pattern) instead. Stated-direction forms added: södervänd*,
+ * sydvänd*, sydläge, västvänd*, östvänd*, and sydöst{läge,vänd,orienterad,
+ * balkong} which states BOTH south and east. Bare "sydöstra" (a region word)
+ * is deliberately not matched.
  */
 const ORIENTATION_KEYWORDS: Record<Facade, RegExp> = {
   south:
-    /\bsöderläge\b|\bsöderut\b|\bmot\s+söder\b|\bi\s+söder\b|\bsöderorienterad\b|\bsöderbalkong\b|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+söder\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+söder\b/i,
+    /\bsöderläge\b|\bsöderut\b|\bmot\s+söder\b|\bi\s+söder\b|\bsöderorienterad\b|\bsöderbalkong\b|\bsödervänd\w*|\bsydvänd\w*|\bsydläge\b|\bsyd[öo]st(?:läge|vänd|orienterad|balkong)\w*|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+söder\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+söder\b/iu,
   west:
-    /\bvästerläge\b|\bvästerut\b|\bmot\s+väster\b|\bi\s+väster\b|\bvästerorienterad\b|\bvästerbalkong\b|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+väster\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+väster\b/i,
+    /\bvästerläge\b|\bvästerut\b|\bmot\s+väster\b|\bi\s+väster\b|\bvästerorienterad\b|\bvästerbalkong\b|\bvästvänd\w*|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+väster\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+väster\b/iu,
   north:
-    /\bnorrläge\b|\bnorrut\b|\bmot\s+norr\b|\bi\s+norr\b|\bnorrorienterad\b|\bnorrbalkong\b|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+norr\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+norr\b/i,
+    /\bnorrläge\b|\bnorrut\b|\bmot\s+norr\b|\bi\s+norr\b|\bnorrorienterad\b|\bnorrbalkong\b|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+norr\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+norr\b/iu,
   east:
-    /\bösterläge\b|\bösterut\b|\bmot\s+öster\b|\bi\s+öster\b|\bösterorienterad\b|\bösterbalkong\b|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+öster\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+öster\b/i,
+    /(?<!\p{L})österläge\b|(?<!\p{L})österut\b|\bmot\s+öster\b|\bi\s+öster\b|(?<!\p{L})österorienterad\b|(?<!\p{L})österbalkong\b|(?<!\p{L})östvänd\w*|\bsyd[öo]st(?:läge|vänd|orienterad|balkong)\w*|\bbalkong\w*[^.,;!?]{0,20}\bmot\s+öster\b|\bfönster\w*[^.,;!?]{0,20}\bmot\s+öster\b/iu,
 };
 
 /**
@@ -287,4 +296,38 @@ export function extractOrientationFromDescription(
   // written by a broker, not a structured field; the UI must label it
   // accordingly (e.g. "enligt annonstext, låg konfidens").
   return { facades, confidence: 0.5 };
+}
+
+/**
+ * Two stated-in-the-listing sun/layout phrases that are NOT a facade, so they
+ * cannot live in the persisted `orientation` shape (Phase 14.1, R-04c / D-13:
+ * no schema push). They reach the headless fit pipeline through
+ * `EnrichmentResult.sunPhrases` (job.ts), in memory only.
+ *
+ *  - `allDaySun`: the broker wrote "sol hela dagen" or "sol större delen av
+ *    dagen".
+ *  - `throughFlat`: the broker wrote "genomgående" (windows on two sides).
+ */
+export interface SunPhrases {
+  readonly allDaySun: boolean;
+  readonly throughFlat: boolean;
+}
+
+const ALL_DAY_SUN_RE = /\bsol\s+(?:hela\s+dagen|större\s+delen\s+av\s+dagen)\b/iu;
+const THROUGH_FLAT_RE = /\bgenomgående\b/iu;
+
+/**
+ * Pure keyword scan for {@link SunPhrases}. Returns `null` ONLY when there is
+ * no description to read (null or empty); a description that mentions neither
+ * phrase yields two `false` flags, so the caller can tell "read it, nothing
+ * stated" apart from "nothing to read". Only two booleans leave this function:
+ * the description text itself is never stored or returned (it may contain
+ * seller names or phone numbers).
+ */
+export function extractSunPhrases(description: string | null): SunPhrases | null {
+  if (!description) return null;
+  return {
+    allDaySun: ALL_DAY_SUN_RE.test(description),
+    throughFlat: THROUGH_FLAT_RE.test(description),
+  };
 }
