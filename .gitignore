@@ -56,3 +56,6 @@ next-env.d.ts
 # Supabase CLI local state
 supabase/.temp/
 src/lib/booli/__fixtures__/listing-detail.raw.json
+
+# Phase 14.1 raw slutpris dataset + snapshots (large, re-pullable)
+.planning/calibration/data/

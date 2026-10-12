@@ -119,7 +119,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 3. *Renovation cost* by tier from the existing `RENO_COST_MATRIX` / `flip-economics.ts`, driven by the VISION condition verdict. This lifts the v1.1 rule that vision never re-orders: deterministic pre-rank over all 60 candidates, vision on the top ~20 (`VISION_ENRICH_LIMIT` 8 → 20, cost cap raised accordingly), then the profit estimate re-sorts. The static-grep separation test is amended, not deleted: `niche-score.ts` stays pure; a NEW module composes profit from niche + vision + comps.
 4. *Headless first.* Output is a ranked table (script / later the 14.2 email), no UI work — Daniel will not use the UI until the model is tuned.
 **Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
-**Requirements**: TBD (derive from memory `daniel-fit-score-decisions`, `daniel-apartment-hunt-2027`)
+**Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
 **Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
 **Plans:** 0 plans
 
