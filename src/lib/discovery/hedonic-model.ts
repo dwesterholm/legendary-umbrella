@@ -382,3 +382,191 @@ export function expectedOverbid(
   }
   return Math.exp(a) - 1;
 }
+
+// ---------------------------------------------------------------------------
+// Fitting: constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Ridge penalty on STANDARDISED features (each column centred and divided by its
+ * own standard deviation), so one number means the same for every feature. The
+ * intercept is never penalised. In plain words: a small leash that stops two
+ * features which move together (for example "floor" and "ground floor") from
+ * taking huge opposite values to explain the same thing.
+ */
+export const HEDONIC_RIDGE_LAMBDA = 1;
+
+/**
+ * Floor under the penalty. It is always added to the diagonal, so a duplicated
+ * or all-zero column leaves a matrix the Cholesky routine can still factor
+ * instead of a division by zero (FIT-02 singular-matrix probe).
+ */
+export const HEDONIC_MIN_LAMBDA = 1e-8;
+
+/** |beta / se| below this means the coefficient is not distinguishable from noise. */
+export const HEDONIC_MIN_T = 1;
+
+/** Fewer rows than this in a district and its median / bid premium is borrowed (R-07). */
+export const MIN_DISTRICT_N = 30;
+
+/** Cross-validation folds; a row's fold is its index modulo this (deterministic). */
+export const CV_FOLDS = 5;
+
+/** Neighbour-level kernel (RESEARCH A6): 300 m bandwidth, 1 km cut-off, weight floor 0.5. */
+export const KERNEL_BANDWIDTH_M = 300;
+export const KERNEL_CUTOFF_M = 1000;
+export const KERNEL_MIN_WEIGHT = 0.5;
+
+/** Balcony and build-year effects are never allowed to exceed this (RESEARCH Pattern 1, item 5). */
+export const STAGE2_CAP_PCT = 0.08;
+
+/** A row is an outlier when |residual - median| exceeds this many robust standard deviations. */
+export const OUTLIER_MAD_K = 3;
+
+/** Fewest usable rows fitHedonicModel will work with; below this a fit says nothing. */
+export const MIN_FIT_ROWS = 20;
+
+// ---------------------------------------------------------------------------
+// Fitting: linear algebra (no dependency, R-09)
+// ---------------------------------------------------------------------------
+
+/**
+ * Solves A x = b for a symmetric positive-definite A by Cholesky factorisation
+ * (A = L Lᵀ, then two triangular solves). Only the lower triangle of A is read.
+ * Inputs are not modified. Throws when a pivot is not strictly positive, which
+ * is how a singular or indefinite matrix announces itself; a NaN anywhere also
+ * fails the pivot test, so NaN can never leak out as an answer.
+ */
+export function choleskySolve(A: number[][], b: number[]): number[] {
+  const n = b.length;
+  if (A.length !== n || A.some((row) => row.length !== n)) {
+    throw new RangeError("Cholesky: matrisen och högerledet har olika storlek");
+  }
+  const L: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j <= i; j++) {
+      let sum = A[i][j];
+      for (let k = 0; k < j; k++) sum -= L[i][k] * L[j][k];
+      if (i === j) {
+        if (!(sum > 0)) throw new Error("Cholesky: matrisen är inte positivt definit");
+        L[i][i] = Math.sqrt(sum);
+      } else {
+        L[i][j] = sum / L[j][j];
+      }
+    }
+  }
+  const z = new Array<number>(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    let sum = b[i];
+    for (let k = 0; k < i; k++) sum -= L[i][k] * z[k];
+    z[i] = sum / L[i][i];
+  }
+  const x = new Array<number>(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let sum = z[i];
+    for (let k = i + 1; k < n; k++) sum -= L[k][i] * x[k];
+    x[i] = sum / L[i][i];
+  }
+  return x;
+}
+
+export interface RidgeFit {
+  /** Slopes on the ORIGINAL feature scale. */
+  readonly beta: number[];
+  /** Intercept for un-centred use: y ≈ intercept + Σ beta_j · x_j. */
+  readonly intercept: number;
+  /** Standard errors on the original feature scale (ridge approximation, see fitRidge). */
+  readonly se: number[];
+  readonly r2: number;
+  readonly rmse: number;
+}
+
+/**
+ * Ridge-stabilised ordinary least squares with an unpenalised intercept.
+ *
+ * Steps: centre y and every column, divide each column by its standard deviation
+ * (a zero-spread column keeps scale 1 and becomes all zeros, so it gets slope
+ * exactly 0), solve (ZᵀZ + λI) β = Zᵀy by Cholesky with λ = max(lambda,
+ * HEDONIC_MIN_LAMBDA), then undo the scaling.
+ *
+ * Standard errors use the usual ridge approximation se² = s² · diag((ZᵀZ + λI)⁻¹)
+ * with s² = RSS / max(1, n - k - 1). With a small λ this is the ordinary OLS
+ * standard error; with a large λ it is a little too small (the shrinkage bias is
+ * not in it), which is why the sign guard asks for |t| >= 1 and not 2.
+ */
+export function fitRidge(X: number[][], y: number[], lambda: number): RidgeFit {
+  const n = y.length;
+  if (n === 0 || X.length !== n) {
+    throw new RangeError("fitRidge: X och y måste ha samma antal rader och minst en rad");
+  }
+  const k = X[0].length;
+  if (X.some((row) => row.length !== k)) {
+    throw new RangeError("fitRidge: alla rader i X måste ha lika många kolumner");
+  }
+  if (!Number.isFinite(lambda) || y.some((v) => !Number.isFinite(v)) || X.some((row) => row.some((v) => !Number.isFinite(v)))) {
+    throw new RangeError("fitRidge: indata måste vara ändliga tal");
+  }
+
+  const yMean = y.reduce((s, v) => s + v, 0) / n;
+  const colMean = new Array<number>(k).fill(0);
+  for (const row of X) for (let j = 0; j < k; j++) colMean[j] += row[j] / n;
+  const scale = new Array<number>(k).fill(1);
+  for (let j = 0; j < k; j++) {
+    let ss = 0;
+    for (const row of X) ss += (row[j] - colMean[j]) ** 2;
+    const sd = Math.sqrt(ss / n);
+    // A column that does not vary (or varies only by rounding noise) carries no information.
+    scale[j] = sd > 1e-12 ? sd : 1;
+  }
+  const Z = X.map((row) =>
+    row.map((v, j) => {
+      const c = v - colMean[j];
+      return scale[j] === 1 && Math.abs(c) <= 1e-12 ? 0 : c / scale[j];
+    }),
+  );
+
+  const lam = Math.max(lambda, HEDONIC_MIN_LAMBDA);
+  const A: number[][] = Array.from({ length: k }, () => new Array<number>(k).fill(0));
+  const rhs = new Array<number>(k).fill(0);
+  for (let i = 0; i < n; i++) {
+    const yc = y[i] - yMean;
+    for (let a = 0; a < k; a++) {
+      rhs[a] += Z[i][a] * yc;
+      for (let c = 0; c <= a; c++) A[a][c] += Z[i][a] * Z[i][c];
+    }
+  }
+  for (let a = 0; a < k; a++) {
+    for (let c = a + 1; c < k; c++) A[a][c] = A[c][a];
+    A[a][a] += lam;
+  }
+
+  const betaScaled = choleskySolve(A, rhs);
+
+  let rss = 0;
+  let tss = 0;
+  for (let i = 0; i < n; i++) {
+    let fitted = 0;
+    for (let j = 0; j < k; j++) fitted += betaScaled[j] * Z[i][j];
+    rss += (y[i] - yMean - fitted) ** 2;
+    tss += (y[i] - yMean) ** 2;
+  }
+  const s2 = rss / Math.max(1, n - k - 1);
+  const se = new Array<number>(k).fill(0);
+  for (let j = 0; j < k; j++) {
+    const unit = new Array<number>(k).fill(0);
+    unit[j] = 1;
+    const inverseColumn = choleskySolve(A, unit);
+    se[j] = Math.sqrt(s2 * inverseColumn[j]) / scale[j];
+  }
+
+  const beta = betaScaled.map((b, j) => b / scale[j]);
+  let intercept = yMean;
+  for (let j = 0; j < k; j++) intercept -= beta[j] * colMean[j];
+  return {
+    beta,
+    intercept,
+    se,
+    r2: tss > 0 ? 1 - rss / tss : 0,
+    rmse: Math.sqrt(rss / n),
+  };
+}
