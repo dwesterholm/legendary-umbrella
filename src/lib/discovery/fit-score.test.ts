@@ -8,15 +8,25 @@ import {
   EXPECTED_FINAL_CEILING_SEK,
   FIT_VISION_WINDOW,
   MAX_CREDIT_PCT,
+  MODEL_HEALTH_BAND,
   NOT_COMPARABLE_ASK_TO_PRED,
   TASTE_CAP_PCT,
   booliIdOf,
   cappedTasteSek,
+  clearlyWorseAbove,
+  compareFinal,
+  comparePreRank,
   fitScore,
+  modelHealth,
   parseFitSnapshot,
+  preRank,
   rankFit,
+  selectVisionWindow,
   type FitInputRow,
+  type FitScoreResult,
+  type PreRankedRow,
 } from "@/lib/discovery/fit-score";
+import { computeNicheScore } from "@/lib/discovery/niche-score";
 import {
   parseHedonicModel,
   predictKrPerSqm,
@@ -609,6 +619,297 @@ describe("D-15 fixture suite: Daniel's ordering rules", () => {
       expect(r.holdingCostsSek).toBe(0);
       expect(r.taxSek).toBe(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: pre-rank, vision window, final ranking, dominance, model health
+// ---------------------------------------------------------------------------
+
+/** A hand-built pre-ranked row with chosen sort keys (everything else is real). */
+function preRow(id: number | null, profitSek: number, nicheScore: number, address = `Adress ${id}`): PreRankedRow {
+  const row = flat({ id: id ?? 1 });
+  const real = fitScore(row, model);
+  return {
+    row,
+    pre: { ...real, booliId: id, profitSek, address },
+    nicheScore,
+    position: 0,
+  };
+}
+
+describe("comparePreRank (D-10)", () => {
+  it("higher pre-profit first", () => {
+    expect(comparePreRank(preRow(2, 200, 0.1), preRow(1, 100, 0.9))).toBeLessThan(0);
+    expect(comparePreRank(preRow(1, 100, 0.9), preRow(2, 200, 0.1))).toBeGreaterThan(0);
+  });
+
+  it("equal pre-profit: higher niche score first", () => {
+    expect(comparePreRank(preRow(9, 100, 0.8), preRow(1, 100, 0.2))).toBeLessThan(0);
+  });
+
+  it("equal profit and niche score: lower Booli id first; a null id sorts after any id", () => {
+    expect(comparePreRank(preRow(100, 100, 0.5), preRow(200, 100, 0.5))).toBeLessThan(0);
+    expect(comparePreRank(preRow(null, 100, 0.5), preRow(999_999, 100, 0.5))).toBeGreaterThan(0);
+    expect(comparePreRank(preRow(999_999, 100, 0.5), preRow(null, 100, 0.5))).toBeLessThan(0);
+  });
+
+  it("two rows without an id fall back to address, then to equal", () => {
+    expect(comparePreRank(preRow(null, 100, 0.5, "A-gatan"), preRow(null, 100, 0.5, "B-gatan"))).toBeLessThan(0);
+    expect(comparePreRank(preRow(null, 100, 0.5, "A-gatan"), preRow(null, 100, 0.5, "A-gatan"))).toBe(0);
+  });
+});
+
+describe("compareFinal (FIT-05 adjacency probe)", () => {
+  it("two rows with identical profit: the /bostad/100 row comes before /bostad/200", () => {
+    const a = { ...fitScore(flat({ id: 200 }), model), profitSek: 500 };
+    const b = { ...fitScore(flat({ id: 100 }), model), profitSek: 500 };
+    expect(compareFinal(a, b)).toBeGreaterThan(0);
+    expect(compareFinal(b, a)).toBeLessThan(0);
+    const { ranked } = rankFit([flat({ id: 200 }), flat({ id: 100 })], model);
+    expect(ranked.map((r) => r.booliId)).toEqual([100, 200]);
+  });
+
+  it("higher profit first, including negative profits", () => {
+    const hi = { ...fitScore(flat({ id: 2 }), model), profitSek: -10 };
+    const lo = { ...fitScore(flat({ id: 1 }), model), profitSek: -20 };
+    expect(compareFinal(hi, lo)).toBeLessThan(0);
+  });
+});
+
+describe("preRank (D-10, FIT-05)", () => {
+  it("ignores vision: every pre-ranked row carries the unknown reno bundle, 1-based positions", () => {
+    const rows = [
+      flat({ id: 1, inVisionWindow: true, vision: ALL_DATED, askShareOfModel: 0.9 }),
+      flat({ id: 2, inVisionWindow: true, vision: ALL_FRESH, askShareOfModel: 0.95 }),
+      flat({ id: 3, askShareOfModel: 1.0 }),
+    ];
+    const { ranked, notComparable } = preRank(rows, model);
+    expect(notComparable).toEqual([]);
+    expect(ranked.map((r) => r.position)).toEqual([1, 2, 3]);
+    for (const r of ranked) expect(r.pre.renoSek).toBe(105_000);
+  });
+
+  it("orders by pre-profit, and the niche baseline is the median kr/m2 of the comparable rows", () => {
+    const rows = [
+      flat({ id: 1, askShareOfModel: 1.0 }),
+      flat({ id: 2, askShareOfModel: 0.8 }),
+      flat({ id: 3, askShareOfModel: 0.9 }),
+      flat({ id: 4, askShareOfModel: 0.4 }), // not comparable: far below the model
+    ];
+    const { ranked, notComparable } = preRank(rows, model);
+    expect(ranked.map((r) => r.pre.booliId)).toEqual([2, 3, 1]);
+    expect(notComparable.map((r) => r.booliId)).toEqual([4]);
+
+    const perSqm = ranked
+      .map((r) => (r.row.candidate.price as number) / (r.row.candidate.livingArea as number))
+      .sort((a, b) => a - b);
+    const median = perSqm[1];
+    for (const r of ranked) {
+      const expected = computeNicheScore(r.row.candidate, "renovation-upside", { medianPricePerSqm: median }).score;
+      expect(r.nicheScore).toBe(expected);
+    }
+  });
+
+  it("rows with equal pre-profit are ordered by niche score, then Booli id", () => {
+    const a = flat({ id: 300, askSek: 3_000_000 });
+    const b = flat({ id: 200, askSek: 3_000_000 });
+    const { ranked } = preRank([a, b], model);
+    expect(ranked.map((r) => r.pre.booliId)).toEqual([200, 300]);
+  });
+
+  it("not-comparable rows (no price, no area, ask far below the model) never enter the ranking or the window", () => {
+    const rows = [
+      flat({ id: 1, askShareOfModel: 0.9 }),
+      rowWith(flat({ id: 2 }), { price: null }),
+      rowWith(flat({ id: 3 }), { livingArea: null }),
+      flat({ id: 4, askShareOfModel: 0.3 }),
+    ];
+    const { ranked, notComparable } = preRank(rows, model);
+    expect(ranked.map((r) => r.pre.booliId)).toEqual([1]);
+    expect(notComparable.map((r) => r.booliId).sort()).toEqual([2, 3, 4]);
+    const { inWindow, outside } = selectVisionWindow(ranked);
+    expect([...inWindow, ...outside].map((r) => r.pre.booliId)).toEqual([1]);
+  });
+
+  it("empty input gives an empty pre-rank (FIT-05 empty probe)", () => {
+    expect(preRank([], model)).toEqual({ ranked: [], notComparable: [] });
+  });
+});
+
+describe("selectVisionWindow (FIT-05 ordering probe)", () => {
+  /** 25 pre-ranked rows with strictly falling profit, ids 1..25, shuffled on input. */
+  function twentyFive(): PreRankedRow[] {
+    return Array.from({ length: 25 }, (_, i) => preRow(i + 1, 1_000_000 - i * 1000, 0.5));
+  }
+
+  it("exactly 20 of 25 are inside, the first 20 by the comparator, 5 outside", () => {
+    const shuffled = [...twentyFive()].reverse();
+    const { inWindow, outside } = selectVisionWindow(shuffled, 20);
+    expect(inWindow).toHaveLength(20);
+    expect(outside).toHaveLength(5);
+    expect(inWindow.map((r) => r.pre.booliId)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+    expect(outside.map((r) => r.pre.booliId)).toEqual([21, 22, 23, 24, 25]);
+  });
+
+  it("the default size is FIT_VISION_WINDOW", () => {
+    expect(selectVisionWindow(twentyFive()).inWindow).toHaveLength(FIT_VISION_WINDOW);
+  });
+
+  it("a tie in pre-profit and niche score at positions 20 and 21 puts the lower Booli id inside", () => {
+    const rows = twentyFive().map((r, i) =>
+      i === 19 ? preRow(500, 900_000, 0.5) : i === 20 ? preRow(400, 900_000, 0.5) : r,
+    );
+    // Rows 20 and 21 now both have 900 000; make sure nothing else sits between them.
+    const lowered = rows.map((r, i) => (i > 20 ? { ...r, pre: { ...r.pre, profitSek: 800_000 - i } } : r));
+    const { inWindow, outside } = selectVisionWindow([...lowered].reverse(), 20);
+    expect(inWindow.map((r) => r.pre.booliId)).toContain(400);
+    expect(outside.map((r) => r.pre.booliId)).toContain(500);
+    expect(inWindow).toHaveLength(20);
+  });
+
+  it("fewer rows than the window: all inside, none outside", () => {
+    const some = twentyFive().slice(0, 7);
+    const { inWindow, outside } = selectVisionWindow(some, 20);
+    expect(inWindow).toHaveLength(7);
+    expect(outside).toEqual([]);
+  });
+
+  it("empty input gives an empty window (FIT-05 empty probe)", () => {
+    expect(selectVisionWindow([])).toEqual({ inWindow: [], outside: [] });
+  });
+
+  it("a zero or negative size puts everything outside", () => {
+    expect(selectVisionWindow(twentyFive(), 0).inWindow).toEqual([]);
+    expect(selectVisionWindow(twentyFive(), -3).inWindow).toEqual([]);
+  });
+});
+
+describe("rankFit with the picture read applied (D-10)", () => {
+  it("a dated flat ranks below an otherwise identical fresh flat: vision re-orders", () => {
+    const dated = flat({ id: 1, inVisionWindow: true, vision: ALL_DATED, askShareOfModel: 0.9 });
+    const fresh = flat({ id: 2, inVisionWindow: true, vision: ALL_FRESH, askShareOfModel: 0.9 });
+    // Pre-rank cannot tell them apart (id 1 wins the tie); the picture read can.
+    const pre = preRank([dated, fresh], model).ranked;
+    expect(pre.map((r) => r.pre.booliId)).toEqual([1, 2]);
+    const { ranked } = rankFit([dated, fresh], model);
+    expect(ranked.map((r) => r.booliId)).toEqual([2, 1]);
+    expect((ranked[0].profitSek as number) - (ranked[1].profitSek as number)).toBeCloseTo(427_500 - 10_000, 6);
+  });
+
+  it("empty input gives empty lists and a neutral health (FIT-05 empty probe)", () => {
+    const out = rankFit([], model);
+    expect(out.ranked).toEqual([]);
+    expect(out.notComparable).toEqual([]);
+    expect(out.health).toMatchObject({ medianFinalToPred: null, outOfBand: false, n: 0 });
+  });
+
+  it("health is reported alongside the ranking", () => {
+    const { health } = rankFit(snapshot.rows, model);
+    expect(health.n).toBe(46);
+    expect(health.band).toEqual(MODEL_HEALTH_BAND);
+    expect(typeof health.medianFinalToPred).toBe("number");
+  });
+});
+
+describe("modelHealth", () => {
+  /** A result whose final price is `ratio` x the model value of the flat (area 1, pred 1000). */
+  function withRatio(ratio: number): FitScoreResult {
+    return { ...fitScore(flat(), model), purchaseSek: ratio * 1000, predKrPerSqm: 1000, livingArea: 1 };
+  }
+
+  it("the band is 0.85 to 1.15, inclusive", () => {
+    expect(MODEL_HEALTH_BAND).toEqual([0.85, 1.15]);
+    expect(modelHealth([withRatio(0.85)]).outOfBand).toBe(false);
+    expect(modelHealth([withRatio(1.15)]).outOfBand).toBe(false);
+    expect(modelHealth([withRatio(1)]).outOfBand).toBe(false);
+  });
+
+  it("outside the band is flagged, on either side", () => {
+    expect(modelHealth([withRatio(0.849)]).outOfBand).toBe(true);
+    expect(modelHealth([withRatio(1.151)]).outOfBand).toBe(true);
+  });
+
+  it("uses the median of purchase / (pred x area): odd and even counts, outliers do not move it", () => {
+    expect(modelHealth([withRatio(1.0), withRatio(1.1), withRatio(5)]).medianFinalToPred).toBeCloseTo(1.1, 9);
+    expect(modelHealth([withRatio(1.0), withRatio(1.2)]).medianFinalToPred).toBeCloseTo(1.1, 9);
+    expect(modelHealth([withRatio(1.0), withRatio(1.1), withRatio(5)]).n).toBe(3);
+  });
+
+  it("ignores rows that are not comparable", () => {
+    const bad = fitScore(rowWith(flat(), { price: null }), model);
+    const h = modelHealth([withRatio(1), bad]);
+    expect(h.n).toBe(1);
+  });
+
+  it("no comparable rows: null median, not out of band, n 0", () => {
+    expect(modelHealth([])).toMatchObject({ medianFinalToPred: null, outOfBand: false, n: 0 });
+  });
+});
+
+describe("clearlyWorseAbove (D-14 second clause, measured)", () => {
+  /** A comparable result with explicit comparison keys. */
+  function result(id: number, over: Partial<FitScoreResult>): FitScoreResult {
+    const base = fitScore(flat({ id }), model);
+    return {
+      ...base,
+      predKrPerSqm: 100_000,
+      livingArea: 40,
+      purchaseSek: 4_000_000, // 100 000 kr/m2
+      resaleSek: 4_400_000,
+      tasteSek: 44_000, // 1 % of resale
+      renoSek: 105_000,
+      ...over,
+    };
+  }
+
+  it("returns a row above the target that is no better on anything and worse on something", () => {
+    const target = result(1, {});
+    const worse = result(2, { predKrPerSqm: 90_000 }); // worse location
+    const ranked = [worse, target];
+    expect(clearlyWorseAbove(ranked, 1)).toEqual([worse]);
+  });
+
+  it("equal on every key is not 'clearly worse' (needs strictly worse on at least one)", () => {
+    const target = result(1, {});
+    const twin = result(2, {});
+    expect(clearlyWorseAbove([twin, target], 1)).toEqual([]);
+  });
+
+  it("a row better on any one key is not returned", () => {
+    const target = result(1, {});
+    const biggerFlat = result(2, { predKrPerSqm: 90_000, livingArea: 41 });
+    const moreTaste = result(3, { predKrPerSqm: 90_000, tasteSek: 88_000 });
+    const lessReno = result(4, { predKrPerSqm: 90_000, renoSek: 10_000 });
+    const cheaperPerSqm = result(5, { predKrPerSqm: 90_000, purchaseSek: 3_900_000 });
+    const betterLocation = result(6, { predKrPerSqm: 110_000, renoSek: 427_500 });
+    const ranked = [biggerFlat, moreTaste, lessReno, cheaperPerSqm, betterLocation, target];
+    expect(clearlyWorseAbove(ranked, 1)).toEqual([]);
+  });
+
+  it("each key can be the one that makes a row worse", () => {
+    const target = result(1, {});
+    const smaller = result(2, { livingArea: 38 });
+    const lessTaste = result(3, { tasteSek: 0 });
+    const moreReno = result(4, { renoSek: 427_500 });
+    const dearerPerSqm = result(5, { purchaseSek: 4_200_000 });
+    expect(clearlyWorseAbove([smaller, lessTaste, moreReno, dearerPerSqm, target], 1)).toEqual([
+      smaller,
+      lessTaste,
+      moreReno,
+      dearerPerSqm,
+    ]);
+  });
+
+  it("only rows ranked above the target count", () => {
+    const target = result(1, {});
+    const worseButBelow = result(2, { predKrPerSqm: 90_000 });
+    expect(clearlyWorseAbove([target, worseButBelow], 1)).toEqual([]);
+  });
+
+  it("target absent gives an empty list", () => {
+    expect(clearlyWorseAbove([result(2, {})], 99)).toEqual([]);
+    expect(clearlyWorseAbove([], 1)).toEqual([]);
   });
 });
 

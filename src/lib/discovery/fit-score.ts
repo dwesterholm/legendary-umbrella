@@ -75,6 +75,7 @@ import {
   renoEstimateFromVision,
   type RenoEstimate,
 } from "@/lib/discovery/reno-tier";
+import { computeNicheScore } from "@/lib/discovery/niche-score";
 import { tasteBonus } from "@/lib/discovery/taste";
 
 // ---------------------------------------------------------------------------
@@ -393,31 +394,245 @@ export function fitScore(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Ordering (FIT-05)
+// ---------------------------------------------------------------------------
+
+/** Descending order for numbers: -1 when `a` comes first. Never subtracts, so infinities cannot give NaN. */
+function byDescending(a: number, b: number): number {
+  return a > b ? -1 : a < b ? 1 : 0;
+}
+
+/** Booli id ascending, rows without an id last, then address ascending. */
+function byIdThenAddress(
+  a: { readonly booliId: number | null; readonly address: string | null },
+  b: { readonly booliId: number | null; readonly address: string | null },
+): number {
+  if (a.booliId !== b.booliId) {
+    if (a.booliId === null) return 1;
+    if (b.booliId === null) return -1;
+    return a.booliId - b.booliId;
+  }
+  const aAddr = a.address ?? "";
+  const bAddr = b.address ?? "";
+  return aAddr < bAddr ? -1 : aAddr > bAddr ? 1 : 0;
+}
+
 /**
- * Scores every row and orders the comparable ones: profit descending, then
- * Booli id ascending (rows without an id last, then by address), so ties and
- * reruns come out identical. Rows that cannot be compared are returned
- * separately, in input order.
+ * One comparable row after the free pre-rank: the row, its profit with the
+ * unknown reno bundle (vision ignored), its renovation-upside niche score and
+ * its 1-based position.
+ */
+export interface PreRankedRow {
+  readonly row: FitInputRow;
+  readonly pre: FitScoreResult;
+  readonly nicheScore: number;
+  readonly position: number;
+}
+
+/**
+ * Pre-rank order (D-10): pre-profit descending, then the renovation-upside
+ * niche score descending, then Booli id ascending (no id last), then address.
+ * The same order picks the picture-read window, so a tie at the window edge is
+ * always settled the same way.
+ */
+export function comparePreRank(a: PreRankedRow, b: PreRankedRow): number {
+  const byProfit = byDescending(a.pre.profitSek ?? Number.NEGATIVE_INFINITY, b.pre.profitSek ?? Number.NEGATIVE_INFINITY);
+  if (byProfit !== 0) return byProfit;
+  const byNiche = byDescending(a.nicheScore, b.nicheScore);
+  if (byNiche !== 0) return byNiche;
+  return byIdThenAddress(a.pre, b.pre);
+}
+
+/** Final order: profit descending, then Booli id ascending (no id last), then address. */
+export function compareFinal(a: FitScoreResult, b: FitScoreResult): number {
+  const byProfit = byDescending(a.profitSek ?? Number.NEGATIVE_INFINITY, b.profitSek ?? Number.NEGATIVE_INFINITY);
+  if (byProfit !== 0) return byProfit;
+  return byIdThenAddress(a, b);
+}
+
+/** Median of a non-empty list (mean of the two middle values for an even count). */
+function medianOf(values: readonly number[]): number {
+  const sorted = [...values].sort((x, y) => x - y);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * The free ranking that decides who gets the (paid) picture read. Every
+ * comparable row is scored with the UNKNOWN reno bundle (vision is ignored at
+ * this stage, so the order cannot depend on pictures nobody has read yet) and
+ * ordered with {@link comparePreRank}.
+ *
+ * READING OF D-10 ("existing niche score + hedonic resale"): the pre-profit
+ * already contains the hedonic resale, and the existing renovation-upside niche
+ * score from `niche-score.ts` is the secondary key. D-10's "(cap 60)" was the
+ * expected candidate count, not a truncation: this ranks ALL comparable rows
+ * because it is free, and truncating before scoring would let Booli's own sort
+ * decide who is dropped. The caller caps only the printed table.
+ *
+ * The niche baseline is the median asking kr/m2 of the comparable rows, the
+ * same instrument `scripts/find-reno.ts` uses.
+ */
+export function preRank(
+  rows: readonly FitInputRow[],
+  model: HedonicModel,
+): { ranked: PreRankedRow[]; notComparable: FitScoreResult[] } {
+  const unknownBundle = renoBundle(UNKNOWN_RENO_STATES);
+  const scored = rows.map((row) => ({ row, pre: fitScore(row, model, { renoOverride: unknownBundle }) }));
+  const comparable = scored.filter((x) => x.pre.comparable && x.pre.profitSek !== null);
+  const notComparable = scored.filter((x) => !(x.pre.comparable && x.pre.profitSek !== null)).map((x) => x.pre);
+
+  const perSqm = comparable.map((x) => (x.pre.askingSek as number) / (x.pre.livingArea as number));
+  const medianPricePerSqm = perSqm.length > 0 ? medianOf(perSqm) : null;
+
+  const withNiche = comparable.map((x) => ({
+    row: x.row,
+    pre: x.pre,
+    nicheScore: computeNicheScore(x.row.candidate, "renovation-upside", { medianPricePerSqm }).score,
+    position: 0,
+  }));
+  withNiche.sort(comparePreRank);
+  return { ranked: withNiche.map((x, i) => ({ ...x, position: i + 1 })), notComparable };
+}
+
+/**
+ * The picture-read window: exactly the first `n` rows of the pre-rank order
+ * (default {@link FIT_VISION_WINDOW}). The input is re-sorted with
+ * {@link comparePreRank}, so a tie at the edge goes to the lower Booli id and
+ * the result does not depend on the order the rows arrive in.
+ */
+export function selectVisionWindow(
+  pre: readonly PreRankedRow[],
+  n: number = FIT_VISION_WINDOW,
+): { inWindow: PreRankedRow[]; outside: PreRankedRow[] } {
+  const size = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  const sorted = [...pre].sort(comparePreRank);
+  return { inWindow: sorted.slice(0, size), outside: sorted.slice(size) };
+}
+
+/** Median expected final price / model price outside this band means the model and the market disagree. */
+export const MODEL_HEALTH_BAND = [0.85, 1.15] as const;
+
+export interface ModelHealth {
+  /** Median of purchaseSek / (predKrPerSqm x livingArea) over comparable rows; null with no rows. */
+  readonly medianFinalToPred: number | null;
+  readonly band: readonly [number, number];
+  /** True when the median lies outside the band (the band edges themselves are healthy). */
+  readonly outOfBand: boolean;
+  /** Number of comparable rows the median is over. */
+  readonly n: number;
+}
+
+/**
+ * How well the model's price level matches what the market asks and pays
+ * today. NO automatic level offset is applied when this is out of band (R-02:
+ * nothing shifts levels to make the list look right); the caller prints the
+ * warning and a person decides.
+ */
+export function modelHealth(results: readonly FitScoreResult[]): ModelHealth {
+  const ratios: number[] = [];
+  for (const r of results) {
+    if (!r.comparable || r.purchaseSek === null || r.predKrPerSqm === null || r.livingArea === null) continue;
+    ratios.push(r.purchaseSek / (r.predKrPerSqm * r.livingArea));
+  }
+  const [lo, hi] = MODEL_HEALTH_BAND;
+  if (ratios.length === 0) {
+    return { medianFinalToPred: null, band: MODEL_HEALTH_BAND, outOfBand: false, n: 0 };
+  }
+  const medianFinalToPred = medianOf(ratios);
+  return {
+    medianFinalToPred,
+    band: MODEL_HEALTH_BAND,
+    outOfBand: medianFinalToPred < lo || medianFinalToPred > hi,
+    n: ratios.length,
+  };
+}
+
+/**
+ * Scores every row and orders the comparable ones with {@link compareFinal}
+ * (profit descending, then Booli id ascending), so ties and reruns come out
+ * identical. Rows that cannot be compared are returned separately, in input
+ * order. `health` reports whether the model's price level matches the asking
+ * prices; it changes no number.
  */
 export function rankFit(
   rows: readonly FitInputRow[],
   model: HedonicModel,
   opts: FitScoreOptions = {},
-): { readonly ranked: readonly FitScoreResult[]; readonly notComparable: readonly FitScoreResult[] } {
+): { ranked: FitScoreResult[]; notComparable: FitScoreResult[]; health: ModelHealth } {
   const scored = rows.map((row) => fitScore(row, model, opts));
-  const ranked = scored
-    .filter((r) => r.comparable && r.profitSek !== null)
-    .sort((a, b) => {
-      const byProfit = (b.profitSek as number) - (a.profitSek as number);
-      if (byProfit !== 0) return byProfit;
-      if (a.booliId !== b.booliId) {
-        if (a.booliId === null) return 1;
-        if (b.booliId === null) return -1;
-        return a.booliId - b.booliId;
-      }
-      const aAddr = a.address ?? "";
-      const bAddr = b.address ?? "";
-      return aAddr < bAddr ? -1 : aAddr > bAddr ? 1 : 0;
-    });
-  return { ranked, notComparable: scored.filter((r) => !r.comparable) };
+  const ranked = scored.filter((r) => r.comparable && r.profitSek !== null).sort(compareFinal);
+  return {
+    ranked,
+    notComparable: scored.filter((r) => !r.comparable),
+    health: modelHealth(ranked),
+  };
+}
+
+/** The numbers D-14's "never below a clearly worse flat" is measured on. */
+interface DominanceKeys {
+  readonly pred: number;
+  readonly area: number;
+  readonly tasteShare: number;
+  readonly reno: number;
+  readonly pricePerSqm: number;
+}
+
+function dominanceKeys(r: FitScoreResult): DominanceKeys | null {
+  if (
+    r.predKrPerSqm === null ||
+    r.livingArea === null ||
+    r.resaleSek === null ||
+    r.purchaseSek === null ||
+    !(r.resaleSek > 0) ||
+    !(r.livingArea > 0)
+  ) {
+    return null;
+  }
+  return {
+    pred: r.predKrPerSqm,
+    area: r.livingArea,
+    tasteShare: r.tasteSek / r.resaleSek,
+    reno: r.renoSek,
+    pricePerSqm: r.purchaseSek / r.livingArea,
+  };
+}
+
+/**
+ * Every row ranked ABOVE the target that the target dominates: the row is no
+ * better on location (model kr/m2), size (larger is better), taste share of
+ * resale or reno cost (lower is better), is not cheaper per m2 of expected
+ * final price, and is strictly worse on at least one of those. Such a row
+ * sitting above the target is an order violation worth showing, so D-14's
+ * "never ranked below a clearly worse flat" is measured, not assumed.
+ * A target that is not in the list gives an empty list.
+ */
+export function clearlyWorseAbove(
+  ranked: readonly FitScoreResult[],
+  targetBooliId: number,
+): FitScoreResult[] {
+  const targetIndex = ranked.findIndex((r) => r.booliId === targetBooliId);
+  if (targetIndex < 0) return [];
+  const t = dominanceKeys(ranked[targetIndex]);
+  if (t === null) return [];
+  const worse: FitScoreResult[] = [];
+  for (let i = 0; i < targetIndex; i++) {
+    const x = dominanceKeys(ranked[i]);
+    if (x === null) continue;
+    const noBetter =
+      x.pred <= t.pred &&
+      x.area <= t.area &&
+      x.tasteShare <= t.tasteShare &&
+      x.reno >= t.reno &&
+      x.pricePerSqm >= t.pricePerSqm;
+    const strictlyWorse =
+      x.pred < t.pred ||
+      x.area < t.area ||
+      x.tasteShare < t.tasteShare ||
+      x.reno > t.reno ||
+      x.pricePerSqm > t.pricePerSqm;
+    if (noBetter && strictlyWorse) worse.push(ranked[i]);
+  }
+  return worse;
 }
