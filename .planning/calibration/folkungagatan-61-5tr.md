@@ -1,7 +1,7 @@
 # Calibration listing — Folkungagatan 61, 5tr (SoFo)
 
 Captured 2026-10-12 from Hemnet (id 21898831). Daniel: "basically covered all these
-requirements" — the personal fit score must rank this at or near the top of an innerstan run.
+requirements" — the fit score must place this in the TOP QUARTER of a Södermalm run and never below a clearly worse flat. Not required to be #1 (Daniel 2026-10-12: a reno object, better address, more kvm or a healthier BRF may legitimately beat it).
 
 | Field | Value |
 |---|---|

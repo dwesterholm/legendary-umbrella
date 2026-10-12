@@ -44,9 +44,9 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 
 - [ ] **Phase 13: Discovery UX / Poll-Timeout Fix** — the live discovery flow finishes inside the client poll window (no forced reload) and every job state shows a Swedish status label.
 - [x] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (6 plans executed 2026-08-06, verification `gaps_found` 2/4 → gap-closure plans 14-07..14-10 executed 2026-08-08, re-verification `gaps_found` 3/4 → code-review fix pass closed the last ANL-04 defect by splitting `IMPLAUSIBLE_BRF_DEBT_PER_SQM` from the SPEC §2.2 alarm threshold; final verification 4/4 with the four live-operator items deferred to `14-UAT.md`) (completed 2026-08-10)
-- [ ] **Phase 14.1: Personal Fit Score** (INSERTED 2026-10-12) — Daniel-profile ranking: floor, balcony, morning sun, loved-hub bonus, reno-upside; calibration listing Folkungagatan 61 5tr ranks top.
+- [ ] **Phase 14.1: Personal Fit Score** (INSERTED 2026-10-12) — rank by estimated flip profit (resale from hedonic slutpris model − purchase − reno cost via vision), ~5 % taste bonus; Folkungagatan 61 5tr in the top quarter.
 - [ ] **Phase 14.2: Daily Watch by Email** (INSERTED 2026-10-12) — scheduled innerstan run, seen-listing memory, email only new/price-changed listings.
-- [ ] **Phase 14.3: Orientation Inference Spike** (INSERTED 2026-10-12) — infer street-facade bearing (OSM footprint or floor-plan compass) when the broker states none; go/no-go.
+- [ ] **Phase 14.3: Sun & Orientation Spike** (INSERTED 2026-10-12) — infer facade bearing when unstated + obstructed sun hours from 3D building data; go/no-go.
 - [ ] **Phase 15: ROI-Aware Opportunity Brief** (DEFERRED 2026-10-12 behind 14.1–14.3) — prioritized, buyer-segment-tailored opportunities with tiered cost/uplift, profit ±22% tax, freshness-based bathroom scoring, interior-designer specifics; `OpportunityBrief` schema passes a live Anthropic strict-output smoke.
 - [ ] **Phase 16: Value-Gap Scoring & Ranking** (DEFERRED 2026-10-12) — §2.6 value-gap headline metric that re-orders results on the separate read path, with a "från bildtolkning" UI marker; separation static-grep test extended.
 - [ ] **Phase 17: Proposed Planritning Generation** (DEFERRED 2026-10-12; nice-to-have) — image-gen proposed floor plan for HIGH value-gap candidates only, daylight/bearing caveats stamped, bounded by cost caps; source images analyze-only (GDPR).
@@ -112,10 +112,15 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 ### Phase 14.1: Personal Fit Score (INSERTED)
 
-**Goal**: An innerstan run ranks candidates by Daniel's own profile instead of a generic niche: floor (score only, higher is better, top-floor bonus), balcony, morning-leaning sun from `sun-path.ts` where the broker states a väderstreck (unknown stays unknown), a location bonus for the hubs he loves (SoFo/Folkungagatan, Medborgarplatsen, Mariatorget, Slussen, Katarina Bangata, central Kungsholmen) with all of innerstan as the net, and reno-upside from the existing niche as a strong but non-mandatory signal. Hard filters stay ≥35 kvm, ≤4 M kr.
-**Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must rank at or near the top of a Södermalm run even though it is not a reno object; the location/floor/sun block must be able to outweigh a missing reno signal.
+**Goal**: An innerstan run ranks candidates by **estimated flip profit in kronor** after ~1 year, not by a hand-weighted taste model. Profit = expected renovated resale value − purchase price − renovation cost. No tax (uppskov on a same-year replacement purchase, interest-free since 2021), no broker/holding cost (equal across flats, does not change the order). A taste bonus capped at ~5 % of resale value breaks ties toward morning sun (stated E/SE/S facade) and the hubs Daniel loves (SoFo/Folkungagatan, Medborgarplatsen, Mariatorget, Slussen, Katarina Bangata, central Kungsholmen). Taste otherwise lives in hard filters only: lägenhet, ≥35 kvm, asking ≤4.0 M kr, innerstan, floor ≥2.
+**Mechanics**:
+1. *Market premiums from sold prices.* Pull Booli slutpriser for Södermalm/Kungsholmen/Vasastan/Östermalm (≥35 kvm, last 12–18 months, floor + balcony + build year + coordinates) and fit a hedonic kr/m² model: micro-area, floor, balcony, build year, size band, distance to nearest hub. These coefficients ARE the weights — floor and balcony are worth what the market paid, not what we guessed. Existing `area-comps.ts` (R_med/U_med) is the seed.
+2. *Purchase price* = asking × district bid premium (Söder +7–10 %, Kungsholmen +3–4 %, from the same slutpris data).
+3. *Renovation cost* by tier from the existing `RENO_COST_MATRIX` / `flip-economics.ts`, driven by the VISION condition verdict. This lifts the v1.1 rule that vision never re-orders: deterministic pre-rank over all 60 candidates, vision on the top ~20 (`VISION_ENRICH_LIMIT` 8 → 20, cost cap raised accordingly), then the profit estimate re-sorts. The static-grep separation test is amended, not deleted: `niche-score.ts` stays pure; a NEW module composes profit from niche + vision + comps.
+4. *Headless first.* Output is a ranked table (script / later the 14.2 email), no UI work — Daniel will not use the UI until the model is tuned.
+**Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
 **Requirements**: TBD (derive from memory `daniel-fit-score-decisions`, `daniel-apartment-hunt-2027`)
-**Depends on:** Phase 14 (nothing new; `niche-score.ts` separation guard still applies — fit score must not import vision/value-gap/area-comps)
+**Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
 **Plans:** 0 plans
 
 Plans:
@@ -133,11 +138,11 @@ Plans:
 
 - [ ] TBD (run /gsd-plan-phase 14.2 to break down)
 
-### Phase 14.3: Orientation Inference Spike (INSERTED)
+### Phase 14.3: Sun & Orientation Spike (INSERTED)
 
-**Goal**: Measure how many innerstan listings have no stated väderstreck, then try two ways to infer the street-facade bearing — the building footprint from OpenStreetMap, or reading the compass on the floor-plan image with vision — and decide go/no-go on coverage share and cost. Theoretical sun only; no neighbour-shadow modelling.
+**Goal**: Two measurements, then go/no-go. (a) *Orientation*: how many innerstan listings state no väderstreck, and whether the street-facade bearing can be inferred from the OpenStreetMap building footprint or by reading the compass on the floor-plan image with vision. (b) *Real sun hours*: whether obstructed sun-per-facade-per-month can be computed from a desk — flat position + floor height (~3 m/floor) against footprints and heights of buildings within ~150 m, ray-checked against the sun path from `sun-path.ts`. Height data is the risk: OSM heights are partial in innerstan; check Stockholms stad / Lantmäteriet 3D building data for open access and format. Target accuracy ±1 h; no room-level detail. Sun Tracker AR (phone app) has no API and needs on-site presence, so it is not a source.
 **Requirements**: TBD
-**Depends on:** Phase 14.1 (needs a consumer for the inferred orientation)
+**Depends on:** Phase 14.1 (the taste bonus and resale model are the consumers)
 **Plans:** 0 plans
 
 Plans:

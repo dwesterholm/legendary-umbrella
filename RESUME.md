@@ -21,7 +21,17 @@ Phases 14.1–14.3 inserted, 15–17 deferred. Decisions in memory `daniel-fit-s
 - Today's fixes 3408871 + 55b78d0 (stale vision claim, Apify memory, failed_areas) are pushed
   but NOT yet confirmed by a live run; the next innerstan run doubles as 13-03 + 14-UAT item 1.
 
-Next: `/gsd-plan-phase 14.1`. Questions used this phase: 3 of 5.
+Model decided 2026-10-12 (5 of 5 questions used → autonomous from here):
+- Score = estimated flip profit in kr: resale (hedonic kr/m² model fitted on Booli slutpriser:
+  micro-area, floor, balcony, build year, size, hub distance) − purchase (asking × bid premium)
+  − reno cost (tier from vision condition). No tax (uppskov), no broker/holding.
+- Taste bonus ≤ ~5 % for morning sun + loved hubs; taste otherwise = hard filters.
+- Vision MAY re-order now (pre-rank 60 → vision top ~20 → profit re-sort). Reno ranking today
+  uses build year + kr/m² only; the pictures never touched the order. Separation test amended.
+- Calibration softened: Folkungagatan 61 in the top quarter, not #1.
+- No UI until the model is tuned. 14.3 widened to real (obstructed) sun hours via 3D buildings.
+
+Next: `/gsd-plan-phase 14.1`.
 
 ---
 
