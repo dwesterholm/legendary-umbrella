@@ -40,7 +40,7 @@
 ### Value-Gap Scoring (Phase B)
 
 - [ ] **VGAP-01**: A value-gap headline metric is computed per candidate per the §2.6 formula (Resale_W capped at area 75th pct, Purchase_P with overbid bias, net uplift, HIGH/MED/LOW flag, confidence), including the >25%-below discount-attribution guard.
-- [ ] **VGAP-02**: Value-gap re-orders discovery results as a ranking input, computed on the separate vision/analysis read path — `niche-score.ts` / `flags.ts` never import it (static-grep separation test extended to cover the value-gap module).
+- [ ] **VGAP-02**: Value-gap re-orders discovery results as a ranking input, computed on the separate vision/analysis read path — `niche-score.ts` / `flags.ts` never import it (static-grep separation test extended to cover the value-gap module). (Overlap: Phase 14.1 FIT-03 re-orders the headless fit-score ranking by a value-gap-like profit; VGAP-02 for the in-app results stays open.)
 - [ ] **VGAP-03**: Analysis-derived signals (condition, value-gap) carry a "från bildtolkning" marker in the discovery results UI, visually distinct from deterministic flags.
 
 ### Proposed Drawing (Phase C)

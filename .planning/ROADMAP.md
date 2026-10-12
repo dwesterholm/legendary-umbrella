@@ -203,7 +203,7 @@ Plans:
   2. Discovery results are re-ordered by value-gap as a ranking input, and the static-grep separation test — **extended to cover the value-gap module** — stays green, proving `niche-score.ts` / `flags.ts` never import it.
   3. Analysis-derived signals (condition and value-gap) render with a "från bildtolkning" marker in the discovery results UI, visually distinct from the deterministic verified flags.
 
-**Notes**: Value-gap is a ranking input **and** display (operator decision #1), computed on the separate vision/analysis read path (extend `condition-score.ts` or a sibling), NOT `computeNicheScore`. Structural separation is LOCKED + tested — extend `niche-score.test.ts` grep list. "Low kr/m² ≠ reno object" invariant from Phase 14 carries through the ranking.
+**Notes**: Value-gap is a ranking input **and** display (operator decision #1), computed on the separate vision/analysis read path (extend `condition-score.ts` or a sibling), NOT `computeNicheScore`. Structural separation is LOCKED + tested — extend `niche-score.test.ts` grep list. "Low kr/m² ≠ reno object" invariant from Phase 14 carries through the ranking. 2026-10-12: Phase 14.1 lifted the 'vision never re-orders' rule for the headless fit score only, through `fit-score.ts`; niche-score.ts/flags.ts stay pure.
 **Plans**: TBD
 **UI hint**: yes
 

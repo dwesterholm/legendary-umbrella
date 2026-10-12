@@ -119,12 +119,12 @@
     "kind": "flat",
     "perDistrict": {
       "Södermalm": {
-        "a": 0.076961,
+        "a": 0.0769610411361284,
         "n": 100,
         "source": "fit"
       },
       "Kungsholmen": {
-        "a": 0.039221,
+        "a": 0.03922071315328133,
         "n": 100,
         "source": "fit"
       },
@@ -134,13 +134,13 @@
         "source": "fit"
       },
       "Östermalm": {
-        "a": 0.029559,
+        "a": 0.02955880224154443,
         "n": 100,
         "source": "fit"
       }
     },
     "b": null,
-    "overallA": 0.058269,
+    "overallA": 0.058268908123975824,
     "cvRmse": {
       "flat": 0.05,
       "slope": null

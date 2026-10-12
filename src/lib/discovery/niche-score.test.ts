@@ -442,6 +442,14 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
       expect(importsVisionModule("src/lib/discovery/confounder-guard.ts")).toBe(true);
     });
 
+    // Phase 14.1 (2026-10-12): fit-score.ts is the one file allowed to let
+    // vision influence ranking order. It imports flip-economics (registered),
+    // so the matcher must see it; otherwise the five 14.1 registrations above
+    // could be silently inert.
+    it("fit-score.ts (real file) — recognised as importing a registered specifier", () => {
+      expect(importsVisionModule("src/lib/discovery/fit-score.ts")).toBe(true);
+    });
+
     it("niche-score.ts (real file) — still does not import a registered specifier", () => {
       expect(importsVisionModule("src/lib/discovery/niche-score.ts")).toBe(false);
     });
