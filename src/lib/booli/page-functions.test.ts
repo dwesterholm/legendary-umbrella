@@ -188,6 +188,106 @@ describe("EXTRACT_STATE_BROWSER_FN — Booli's 2026-10 page shapes", () => {
     expect(points.map((p) => p.value.plainText)).toContain("123 500 kr/m²");
   });
 
+  describe("sold-vs-asking percentage (R-04a: sign-correct premium label)", () => {
+    // Booli writes a below-asking sale with an EN DASH (U+2013) or MINUS SIGN
+    // (U+2212), neither of which the price parser's `-?` matches; reading the
+    // label with it silently turned every below-asking sale into a positive
+    // premium. These cases use escaped code points so the file stays ASCII.
+    const soldWith = (priceRemark: unknown) => ({ ...SOLD_CARD, priceRemark });
+    const diffFor = (priceRemark: unknown) => {
+      document.body.innerHTML = "";
+      addInlineScript(transportScript([soldWith(priceRemark)]));
+      return extract()!["SoldProperty:6279104"].soldPricePercentageDiff;
+    };
+
+    it("keeps the existing +15,1% label at 15.1", () => {
+      expect(diffFor({ __typename: "PriceRemark", label: "+15,1%" })).toMatchObject({ raw: 15.1 });
+    });
+
+    it("reads a regular space before % ('+12,5 %') as 12.5", () => {
+      expect(diffFor({ label: "+12,5 %" })).toMatchObject({ raw: 12.5 });
+    });
+
+    it("reads a no-break space before % as 12.5", () => {
+      expect(diffFor({ label: "+12,5 %" })).toMatchObject({ raw: 12.5 });
+    });
+
+    it("reads an EN DASH (U+2013) sign as negative", () => {
+      expect(diffFor({ label: "–1,5 %" })).toMatchObject({ raw: -1.5 });
+    });
+
+    it("reads a MINUS SIGN (U+2212) as negative", () => {
+      expect(diffFor({ label: "−0,4 %" })).toMatchObject({ raw: -0.4 });
+    });
+
+    it("reads an ASCII hyphen as negative", () => {
+      expect(diffFor({ label: "-2,0%" })).toMatchObject({ raw: -2 });
+    });
+
+    it("reads '+0 %' as exactly 0 (a real zero, not null)", () => {
+      const v = diffFor({ label: "+0 %" }) as { raw: number };
+      expect(v).not.toBeNull();
+      expect(Object.is(v.raw, 0)).toBe(true);
+    });
+
+    it("never produces negative zero from a signed zero label", () => {
+      const v = diffFor({ label: "−0 %" }) as { raw: number };
+      expect(Object.is(v.raw, 0)).toBe(true);
+    });
+
+    it("yields null (not 0) when priceRemark is null", () => {
+      expect(diffFor(null)).toBeNull();
+    });
+
+    it("yields null when priceRemark carries no label", () => {
+      expect(diffFor({ __typename: "PriceRemark", icon: "TrendDown" })).toBeNull();
+    });
+
+    it("yields null when the label is not a signed percentage (no guess)", () => {
+      expect(diffFor({ label: "Budgivning" })).toBeNull();
+    });
+
+    it("passes the raw priceRemark through so node-side code can cross-check the icon", () => {
+      document.body.innerHTML = "";
+      const remark = { __typename: "PriceRemark", label: "–1,5 %", icon: "TrendDown" };
+      addInlineScript(transportScript([soldWith(remark)]));
+      expect(extract()!["SoldProperty:6279104"].priceRemark).toEqual(remark);
+    });
+
+    it("passes priceRemark null when the card has none", () => {
+      document.body.innerHTML = "";
+      const { priceRemark: _drop, ...noRemark } = SOLD_CARD;
+      void _drop;
+      addInlineScript(transportScript([noRemark]));
+      expect(extract()!["SoldProperty:6279104"].priceRemark).toBeNull();
+    });
+  });
+
+  describe("displayPrice parsing (FIT-01 precision probe)", () => {
+    it("parses '3 695 000 kr' with regular spaces on a sold card", () => {
+      addInlineScript(transportScript([{ ...SOLD_CARD, displayPrice: "3 695 000 kr" }]));
+      expect(extract()!["SoldProperty:6279104"].soldPrice).toMatchObject({ raw: 3695000 });
+    });
+
+    it("parses '3 695 000 kr' with U+00A0 spaces on a sold card", () => {
+      addInlineScript(transportScript([{ ...SOLD_CARD, displayPrice: "3 695 000 kr" }]));
+      expect(extract()!["SoldProperty:6279104"].soldPrice).toMatchObject({ raw: 3695000 });
+    });
+
+    it("parses U+00A0-spaced displayPrice into listPrice on a for-sale card", () => {
+      addInlineScript(transportScript([{ ...SERP_CARD, displayPrice: "3 695 000 kr" }]));
+      expect(extract()!["Listing:6257338"].listPrice).toMatchObject({ raw: 3695000 });
+    });
+  });
+
+  it("classifies a project card and a for-sale card on one transport by originId kind, as before", () => {
+    addInlineScript(transportScript([PROJECT_CARD, SERP_CARD, SOLD_CARD]));
+    const state = extract()!;
+    expect(Object.keys(state).sort()).toEqual(["Listing:6257338", "Listing:7000001", "SoldProperty:6279104"]);
+    expect(state["Listing:7000001"]).toMatchObject({ isNewConstruction: true });
+    expect(state["Listing:6257338"]).toMatchObject({ isNewConstruction: false });
+  });
+
   it("flags a project card as new construction", () => {
     addInlineScript(transportScript([PROJECT_CARD]));
     expect(extract()!["Listing:7000001"]).toMatchObject({ isNewConstruction: true });

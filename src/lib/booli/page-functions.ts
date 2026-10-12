@@ -58,6 +58,19 @@ export const EXTRACT_STATE_BROWSER_FN = `() => {
     const n = Number(m[0].replace(/ /g, "").replace(",", "."));
     return Number.isFinite(n) ? n : null;
   };
+  // Sold-vs-asking label (e.g. "+12,5 %" or an EN DASH then "1,5 %"). A SEPARATE helper from
+  // toNumber on purpose: toNumber's optional "-" does not match the EN DASH
+  // (U+2013) or MINUS SIGN (U+2212) Booli writes for a below-asking sale, so
+  // reading this label with it turned every discount into a premium (R-04a).
+  // Anchored: sign (optional) + number + "%" or null; never a guess.
+  const toSignedPct = (text) => {
+    if (typeof text !== "string") return null;
+    const m = text.replace(/\\u00a0/g, " ").trim().match(/^([+\\-\\u2013\\u2212]?)\\s*(\\d+(?:[.,]\\d+)?)\\s*%/);
+    if (!m) return null;
+    const n = Number(m[2].replace(",", "."));
+    if (!Number.isFinite(n)) return null;
+    return m[1] !== "" && m[1] !== "+" && n !== 0 ? -n : n;
+  };
   const fv = (n) => (n === null ? null : { __typename: "FormattedValue", raw: n });
 
   // Walks a parsed value and calls visit(obj) for every plain object.
@@ -165,7 +178,10 @@ export const EXTRACT_STATE_BROWSER_FN = `() => {
                   objectType: o.objectType || tp.object_type || null,
                   soldDate: o.displayDate || null,
                   soldPrice: fv(toNumber(o.displayPrice)),
-                  soldPricePercentageDiff: fv(toNumber(o.priceRemark && o.priceRemark.label)),
+                  soldPricePercentageDiff: fv(toSignedPct(o.priceRemark && o.priceRemark.label)),
+                  // Raw passthrough (not persisted: sold-schema.ts copies named
+                  // fields only) so node-side code can cross-check the icon.
+                  priceRemark: o.priceRemark || null,
                   // sold-schema.ts reads pris/kvm, m², rum, vån from these plainTexts.
                   displayAttributes: o.displayAttributes || null,
                   latitude: o.position ? o.position.latitude : null,
