@@ -5,7 +5,7 @@
       "category": "boundary",
       "status": "resolved",
       "verification": "npx vitest run src/lib/booli/slutpriser.test.ts",
-      "resolution": "14.1-04 must_haves.truths: cutoff inclusive, missing soldDate excluded+counted, max 8 in flight never 9",
+      "resolution": "14.1-04 must_haves.truths: cutoff inclusive, missing soldDate excluded+counted, max 8 in flight never 9; six R-12 size bands contiguous 35-120 m2, per-slice page cap (upper bands 4 pages) respected exactly (14.1-04)",
       "reason": "planner 2026-10-12",
       "probe": "What happens exactly at each min/max/threshold — and one step either side?"
     },
@@ -32,7 +32,7 @@
       "category": "boundary",
       "status": "resolved",
       "verification": "npx vitest run src/lib/discovery/fit-score.test.ts",
-      "resolution": "14.1-07 must_haves.truths: taste exactly 5 % cap and clamp; 4 000 000 not flagged, 4 000 001 flagged; negative profit kept",
+      "resolution": "14.1-07 must_haves.truths: taste exactly 5 % cap and clamp; 4 000 000 not flagged, 4 000 001 flagged; negative profit kept; living area outside the fitted [minLivingArea, maxLivingArea] flagged utanförModellensStorlek, edges inclusive (35 and 80 not flagged, 95 flagged, row kept) (14.1-07, R-12)",
       "reason": "planner 2026-10-12",
       "probe": "What happens exactly at each min/max/threshold — and one step either side?"
     },
