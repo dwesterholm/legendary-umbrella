@@ -121,11 +121,20 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 **Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
 **Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
 **Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
-**Plans:** 0 plans
+**Plans:** 10 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 14.1 to break down)
+- [ ] 14.1-01-PLAN.md — Wave 0 data fixes (en-dash premium sign, balcony merge, orientation keywords + sun phrases), prototype copy, replay snapshot fixture, separation-test registration
+- [ ] 14.1-02-PLAN.md — Wave 0 Booli probes (≤7 renders) + real Apify spend ledger and monthly headroom
+- [ ] 14.1-03-PLAN.md — Tracer: offline replay snapshot → hedonic prediction → reno bundle → profit → ranked table
+- [ ] 14.1-04-PLAN.md — Slutpris dataset: tested library + resumable puller + live pull of four districts
+- [ ] 14.1-05-PLAN.md — Hedonic fit library: Cholesky ridge, LOO neighbour level, CV, sign guard with priors, bid premium
+- [ ] 14.1-06-PLAN.md — Vision claims → reno cost, taste bonus module, vision cap 25 SEK
+- [ ] 14.1-07-PLAN.md — Fit-score composition, flags, pre-rank/window/final rank, D-15 fixture suite
+- [ ] 14.1-08-PLAN.md — Sold-detail enrichment branch (R-05) + fit and commit the real model
+- [ ] 14.1-09-PLAN.md — Headless pipeline (runFitPipeline) + live mode of scripts/fit-score.ts
+- [ ] 14.1-10-PLAN.md — Live innerstan run, Folkungagatan 61 readout, in-app smoke closing 13-03 and 14-UAT test 1
 
 ### Phase 14.2: Daily Watch by Email (INSERTED)
 
