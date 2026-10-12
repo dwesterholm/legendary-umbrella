@@ -306,6 +306,11 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
   // BRF lookup) extends this SAME invariant with the three new Phase-14
   // analysis-path modules — registered here BEFORE any of them exist, since
   // the guard is silently inert for an unlisted module specifier.
+  // Phase 14.1 (2026-10-12, D-10/D-11): vision MAY influence ranking order, but
+  // only through `fit-score.ts`; the five Phase 14.1 modules (fit-score,
+  // hedonic-model, reno-tier, taste, fit-pipeline) are registered here so
+  // `niche-score.ts` and `flags.ts` can never import them. Registered BEFORE
+  // the modules exist, same reason as above.
   //
   // WR-01 (gap closure, 14-08): the matcher below used to filter
   // `source.split("\n")` down to lines matching `/^\s*import\b/` — but a
@@ -329,6 +334,11 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/holistic-schema",
     "discovery/confounder-guard",
     "discovery/brf-lookup",
+    "discovery/fit-score",
+    "discovery/hedonic-model",
+    "discovery/reno-tier",
+    "discovery/taste",
+    "discovery/fit-pipeline",
   ];
 
   // Matches a whole `import ... from "..."` / `export ... from "..."`
