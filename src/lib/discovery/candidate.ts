@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 import { CAP_CANDIDATES_MAX, type DiscoveryFilter } from "@/lib/discovery/filter-schema";
 import { visionResultSchema, type VisionResult } from "@/lib/discovery/vision-schema";
 import { extractOrientationFromDescription, type Facade } from "@/lib/discovery/sun-path";
-import { isAllowedImageHost } from "@/lib/booli/client";
+import { isAllowedImageHost } from "@/lib/booli/image-host";
 import {
   areaCompsSummarySchema,
   brfSummarySchema,

@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { isAllowedImageHost } from "@/lib/booli/client";
+import { isAllowedImageHost } from "@/lib/booli/image-host";
 
 /**
  * vision-schema.ts — Phase 11 (DISC-04) foundation contracts: the slim
