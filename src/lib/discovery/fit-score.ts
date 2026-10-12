@@ -27,6 +27,34 @@
  *
  * `valueGap()` is called unchanged (D-01). Its own tax and uplift lines are
  * ignored; this module composes the credit cap, costs, tax and taste itself.
+ *
+ * DECISIONS THIS FILE CARRIES:
+ *   D-01  profit in kr; valueGap() is reused unchanged.
+ *   D-02  resale comes from the hedonic kr/m2 model; the fitted coefficients
+ *         are the weights, so floor and balcony are worth what the market paid.
+ *   D-03  purchase is asking x the district's expected overbid; an expected
+ *         final above 4 000 000 kr is flagged, never dropped.
+ *   D-04  reno cost comes from the vision verdict, priced from RENO_COST_MATRIX;
+ *         unknown is the mid bundle, flagged.
+ *   D-05  sales costs, holding costs and tax default to zero (gross profit).
+ *   D-06  taste adds at most TASTE_CAP_PCT of resale and never subtracts.
+ *   D-07  a reno object with a capped credit can outrank a nice-but-fairly-
+ *         priced flat; this falls out of the arithmetic and is held by a
+ *         regression test, not by a bonus.
+ *   D-10  rows outside the picture-read window carry the unknown reno bundle
+ *         and ejBildtolkad; rows inside use what the pictures said. The
+ *         pre-rank and the window selection live below.
+ *   R-01  reno cost is priced at the mid band of RENO_COST_MATRIX.
+ *   R-02  measured, not tuned: no number exists to lift one listing.
+ *   R-12  a size outside the range the model was fitted on is flagged
+ *         (utanförModellensStorlek); the profit is still computed and shown.
+ *
+ * KNOBS (each named, documented, with a reason that is not "make the list look
+ * right"): MAX_CREDIT_PCT (reused discount-attribution cap), RENO_RESALE_PREMIUM
+ * (low end of the researched range), TASTE_CAP_PCT (Daniel's 5 % ceiling),
+ * FIT_VISION_WINDOW (a spend bound), and the fitted bid-premium model. There is
+ * no level offset, no per-district fudge and no weight whose only purpose is to
+ * move one address.
  */
 
 import { z } from "zod/v4";
@@ -41,7 +69,13 @@ import {
   type HedonicModel,
   type InnerstanDistrict,
 } from "@/lib/discovery/hedonic-model";
-import { renoEstimateFromVision, type RenoEstimate } from "@/lib/discovery/reno-tier";
+import {
+  UNKNOWN_RENO_STATES,
+  renoBundle,
+  renoEstimateFromVision,
+  type RenoEstimate,
+} from "@/lib/discovery/reno-tier";
+import { tasteBonus } from "@/lib/discovery/taste";
 
 // ---------------------------------------------------------------------------
 // Named constants (R-02: every knob is named, documented and principled)
@@ -133,6 +167,7 @@ export type FitFlag =
   | "hiddenDefectRisk"
   | "creditCapped"
   | "renoUnknown"
+  | "utanförModellensStorlek"
   | "notComparable";
 
 /** Cost options. All default to zero / false (D-05): the profit is gross unless asked. */
@@ -192,6 +227,17 @@ export interface FitScoreResult {
 }
 
 /**
+ * The taste bonus in SEK: `tastePct` of the resale value, clamped to
+ * [0, TASTE_CAP_PCT] (D-06). A negative or non-finite share is zero, so taste
+ * can order flats whose money case is close but never rescue a bad deal and
+ * never subtract.
+ */
+export function cappedTasteSek(tastePct: number, resaleSek: number): number {
+  if (!Number.isFinite(tastePct)) return 0;
+  return Math.min(TASTE_CAP_PCT, Math.max(0, tastePct)) * resaleSek;
+}
+
+/**
  * Scores one row. Never throws on missing data: it returns a not-comparable
  * result instead.
  */
@@ -203,8 +249,13 @@ export function fitScore(
   const c = row.candidate;
   const salesCostsSek = opts.salesCostsSek ?? 0;
   const holdingCostsSek = opts.holdingCostsSek ?? 0;
+  // Reno: an override wins; a row inside the picture-read window uses what the
+  // pictures said; every other row carries the unknown bundle (D-10, R-01).
   const reno =
-    opts.renoOverride ?? renoEstimateFromVision(row.inVisionWindow ? c.vision : null);
+    opts.renoOverride ??
+    (row.inVisionWindow
+      ? renoEstimateFromVision(c.vision)
+      : renoBundle(UNKNOWN_RENO_STATES));
 
   const base = {
     booliId: booliIdOf(c),
@@ -217,25 +268,37 @@ export function fitScore(
     renoHighSek: reno.highSek,
     renoTier: reno.tier,
     renoStates: reno.states,
-    // Taste is wired in by 14.1-07; until then it adds nothing.
+    salesCostsSek,
+    holdingCostsSek,
+  } as const;
+
+  /** A row whose price or size is missing has no resale to take a taste share of. */
+  const noTaste = {
     tasteSek: 0,
     tasteSunPct: 0,
     tasteHubPct: 0,
     nearestHub: null,
     hubMeters: null,
-    salesCostsSek,
-    holdingCostsSek,
   } as const;
 
   const outsideWindow: readonly FitFlag[] = row.inVisionWindow ? [] : ["ejBildtolkad"];
   const unknownReno: readonly FitFlag[] =
     row.inVisionWindow && reno.anyUnknown ? ["renoUnknown"] : [];
+  // R-12: a size outside the range the model was fitted on is an extrapolation.
+  // The flag changes no number; it makes the extrapolation visible.
+  const outsideSize: readonly FitFlag[] =
+    c.livingArea !== null &&
+    c.livingArea > 0 &&
+    (c.livingArea < model.minLivingArea || c.livingArea > model.maxLivingArea)
+      ? ["utanförModellensStorlek"]
+      : [];
 
   const price = c.price;
   const area = c.livingArea;
   if (price === null || !(price > 0) || area === null || !(area > 0)) {
     return {
       ...base,
+      ...noTaste,
       comparable: false,
       notComparableReason: price === null || !(price > 0) ? "pris saknas" : "kvm saknas",
       askingSek: price,
@@ -249,7 +312,7 @@ export function fitScore(
       creditSek: null,
       taxSek: 0,
       profitSek: null,
-      flags: [...outsideWindow, ...unknownReno, "notComparable"],
+      flags: [...outsideWindow, ...unknownReno, ...outsideSize, "notComparable"],
       featuresImputed: [],
     };
   }
@@ -284,7 +347,13 @@ export function fitScore(
   const creditSek = Math.min(gapSek, creditCap);
   const gain = creditSek - reno.midSek - salesCostsSek - holdingCostsSek;
   const taxSek = opts.applyTax === true ? taxLines(gain).taxSek : 0;
-  const tasteSek = base.tasteSek;
+  const taste = tasteBonus({
+    latitude: c.latitude,
+    longitude: c.longitude,
+    orientation: c.orientation,
+    sunPhrases: row.sunPhrases,
+  });
+  const tasteSek = cappedTasteSek(taste.pct, gap.resaleW);
   const askToPred = askingPerSqm / pred;
 
   const notComparable = askToPred < NOT_COMPARABLE_ASK_TO_PRED;
@@ -296,10 +365,16 @@ export function fitScore(
   if (gap.hiddenDefectRisk) flags.push("hiddenDefectRisk");
   if (gapSek > creditCap) flags.push("creditCapped");
   flags.push(...unknownReno);
+  flags.push(...outsideSize);
   if (notComparable) flags.push("notComparable");
 
   return {
     ...base,
+    tasteSek,
+    tasteSunPct: taste.sunPct,
+    tasteHubPct: taste.hubPct,
+    nearestHub: taste.nearestHub,
+    hubMeters: taste.hubMeters,
     comparable: !notComparable,
     notComparableReason: notComparable ? "utgångspris långt under modellvärdet" : null,
     askingSek: price,

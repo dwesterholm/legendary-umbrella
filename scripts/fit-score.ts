@@ -37,6 +37,7 @@ const FLAG_LABELS: Record<FitFlag, string> = {
   hiddenDefectRisk: "dold-defekt-risk",
   creditCapped: "kredit-tak",
   renoUnknown: "reno okänd",
+  utanförModellensStorlek: "storlek utanför modellen",
   notComparable: "ej jämförbar",
 };
 
