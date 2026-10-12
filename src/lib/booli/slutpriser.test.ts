@@ -410,11 +410,48 @@ describe("pullSlutpriser", () => {
     expect(out.cache.rows.map((r) => r.booliId).sort()).toEqual(["p1", "p3", "p4"]);
   });
 
-  it("stops a slice when a page returns no sold rows", async () => {
+  it("stops a slice when a page stays empty after every attempt (end of results)", async () => {
     const render = vi.fn(async (url: string) => (pageOf(url) === 1 ? [item(soldEntry("a"))] : [item()]));
     const out = await pullSlutpriser(baseOpts({ render, newestFirst: false, maxPagesPerSlice: 6 }));
+    // page 1 once, page 2 three times (an empty page is looked at again), then the slice ends
+    expect(render).toHaveBeenCalledTimes(1 + SLUTPRIS_PAGE_ATTEMPTS);
+    expect(out.cache.pages["Södermalm|35-40|2"]).toMatchObject({ status: "ok", rowCount: 0, attempts: SLUTPRIS_PAGE_ATTEMPTS });
+    expect(out.cache.pages["Södermalm|35-40|3"]).toBeUndefined();
+  });
+
+  it("an empty first look is retried: a half-loaded page that fills in on attempt 2 is kept", async () => {
+    let calls = 0;
+    const render = vi.fn(async () => {
+      calls += 1;
+      return calls === 1 ? [item()] : [item(soldEntry("a"), soldEntry("b"))];
+    });
+    const out = await pullSlutpriser(baseOpts({ render, newestFirst: false, maxPagesPerSlice: 1 }));
     expect(render).toHaveBeenCalledTimes(2);
-    expect(out.cache.pages["Södermalm|35-40|2"]).toMatchObject({ status: "ok", rowCount: 0 });
+    expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "ok", rowCount: 2, attempts: 2 });
+    expect(out.cache.rows).toHaveLength(2);
+  });
+
+  it("resume: an ok page with 0 entries and fewer than 3 attempts is looked at again; one with 3 stays final", async () => {
+    const cache = newSlutprisCache("2026-10-12", CUTOFF);
+    cache.pages["Södermalm|35-40|1"] = { status: "ok", attempts: 1, rowCount: 0, newestSoldDate: null, oldestSoldDate: null };
+    cache.pages["Vasastan|35-40|1"] = { status: "ok", attempts: 3, rowCount: 0, newestSoldDate: null, oldestSoldDate: null };
+    const urls: string[] = [];
+    const render = vi.fn(async (u: string) => {
+      urls.push(u);
+      return [item(soldEntry("a"))];
+    });
+    await pullSlutpriser(
+      baseOpts({
+        render,
+        cache,
+        slices: [slice("Södermalm", [35, 40]), { district: "Vasastan", areaId: "115349", band: [35, 40] }],
+        maxPagesPerSlice: 1,
+        newestFirst: false,
+      }),
+    );
+    expect(urls).toHaveLength(1);
+    expect(new URL(urls[0]).searchParams.get("areaIds")).toBe("115341");
+    expect(cache.pages["Södermalm|35-40|1"]).toMatchObject({ rowCount: 1 });
   });
 
   it("never has more than 8 renders in flight with 20 slices (FIT-01 boundary)", async () => {

@@ -419,6 +419,21 @@ export async function runPool<T>(tasks: Array<() => Promise<T>>, limit: number):
 // Resumable puller
 // ---------------------------------------------------------------------------
 
+/** Sold entries on a parsed page: rows kept plus entries excluded for a missing field. */
+function soldEntryCount(r: SoldRowsResult): number {
+  return r.rows.length + r.missingSoldDate + r.missingCoords + r.missingPriceOrArea;
+}
+
+/**
+ * A cached page is final (not rendered again on resume) when it is `ok` and
+ * either has sold entries or came back empty on every one of its attempts. An
+ * `ok` page with 0 entries and fewer attempts than SLUTPRIS_PAGE_ATTEMPTS is
+ * treated as a half-loaded page and looked at again.
+ */
+function isFinalPage(p: PageState): boolean {
+  return p.status === "ok" && (p.rowCount > 0 || p.attempts >= SLUTPRIS_PAGE_ATTEMPTS);
+}
+
 export interface PullOptions {
   slices: Slice[];
   /** The paid render: one URL in, the dataset items out. Throws on a failed render. */
@@ -449,11 +464,12 @@ export interface PullResult {
  * returned). One pool task per slice, so renders in flight never exceed slices
  * in flight, which never exceed min(concurrency, SLUTPRIS_CONCURRENCY).
  *
- * - Pages already `ok` in the cache are not rendered again; their stored dates
- *   feed the stop rule. Failed pages are retried.
+ * - Pages already final in the cache are not rendered again; their stored
+ *   dates feed the stop rule. Failed pages are retried.
  * - Up to SLUTPRIS_PAGE_ATTEMPTS renders per page; a page that still fails is
  *   recorded `failed` and ends its slice (a gap in the middle would skew the
- *   time coverage; a re-run resumes at that page).
+ *   time coverage; a re-run resumes at that page). A page that comes back with
+ *   no sold card is looked at again before it counts as the end of results.
  * - A slice ends at a page with no sold entries and, when `newestFirst`, after
  *   the first page whose newest sold date is before the cutoff.
  * - `persist` runs after every page outcome.
@@ -490,29 +506,38 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
       objectType: "Lägenhet",
     });
     let attempts = 0;
-    let items: unknown[] | null = null;
+    let parsed: SoldRowsResult | null = null;
+    let sawEmpty = false;
     let lastError = "";
     while (attempts < SLUTPRIS_PAGE_ATTEMPTS) {
       if (!renderAllowed()) return null;
       rendersUsed += 1;
       attempts += 1;
       try {
-        items = await opts.render(url);
-        break;
+        const candidate = soldRowsFromItems(await opts.render(url), s.district, sliceKey);
+        if (soldEntryCount(candidate) > 0) {
+          parsed = candidate;
+          break;
+        }
+        // Data came back but no sold card in it: on a district this size that is
+        // far more likely a half-loaded page than the end of the results, so
+        // look again before believing it (seen live: Ostermalm 80-120 page 1).
+        sawEmpty = true;
+        lastError = "sidan hade inga sålda objekt";
       } catch (e) {
         lastError = e instanceof Error ? e.message : String(e);
       }
     }
 
     let state: PageState;
-    if (items === null) {
+    if (parsed === null && !sawEmpty) {
       state = { status: "failed", attempts, rowCount: 0, newestSoldDate: null, oldestSoldDate: null };
       say(`${pageKey}: MISSLYCKADES efter ${attempts} försök (${lastError})`);
     } else {
-      const parsed = soldRowsFromItems(items, s.district, sliceKey);
-      const dates = parsed.rows.map((r) => r.soldDate).sort();
+      const result = parsed ?? { rows: [], missingSoldDate: 0, missingCoords: 0, missingPriceOrArea: 0, signDisagreements: 0 };
+      const dates = result.rows.map((r) => r.soldDate).sort();
       let kept = 0;
-      for (const row of parsed.rows) {
+      for (const row of result.rows) {
         if (row.soldDate < cutoffIso) continue;
         if (seen.has(row.booliId)) {
           cache.counts.duplicates += 1;
@@ -522,11 +547,11 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
         cache.rows.push(row);
         kept += 1;
       }
-      cache.counts.missingSoldDate += parsed.missingSoldDate;
-      cache.counts.missingCoords += parsed.missingCoords;
-      cache.counts.missingPriceOrArea += parsed.missingPriceOrArea;
-      cache.counts.signDisagreements += parsed.signDisagreements;
-      const entries = parsed.rows.length + parsed.missingSoldDate + parsed.missingCoords + parsed.missingPriceOrArea;
+      cache.counts.missingSoldDate += result.missingSoldDate;
+      cache.counts.missingCoords += result.missingCoords;
+      cache.counts.missingPriceOrArea += result.missingPriceOrArea;
+      cache.counts.signDisagreements += result.signDisagreements;
+      const entries = soldEntryCount(result);
       state = {
         status: "ok",
         attempts,
@@ -536,7 +561,8 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
       };
       say(
         `${pageKey}: ok, ${entries} sålda (${kept} nya inom fönstret)` +
-          (parsed.signDisagreements ? `, ${parsed.signDisagreements} teckenavvikelse(r) mellan etikett och sidfunktion` : ""),
+          (entries === 0 ? ` - tom efter ${attempts} försök, räknas som slut på resultaten` : "") +
+          (result.signDisagreements ? `, ${result.signDisagreements} teckenavvikelse(r) mellan etikett och sidfunktion` : ""),
       );
     }
     cache.pages[pageKey] = state;
@@ -551,7 +577,7 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
       const pageKey = `${sliceKey}|${page}`;
       const existing = cache.pages[pageKey];
       let info: PageState | null;
-      if (existing && existing.status === "ok") {
+      if (existing && isFinalPage(existing)) {
         info = existing;
       } else {
         info = await fetchPage(s, sliceKey, page, pageKey);
