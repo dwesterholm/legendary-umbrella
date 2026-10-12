@@ -66,8 +66,8 @@
       "task": "Task 1: slutpriser.ts library with boundary tests (URL, parsers, rows, pool, resumable puller)"
     },
     {
-      "command": "npx tsc --noEmit && npm run lint && node -e 'const c=require(\"./.planning/calibration/data/slutpriser-cache.json\");const by={};for(const r of c.rows){by[r.district]=(by[r.district]||0)+1};const neg=c.rows.filter(r=>r.soldVsAskPct!==null&&r.soldVsAskPct<0).length;console.log(JSON.stringify({n:c.rows.length,by,neg,cutoff:c.cutoff}));if(c.rows.length<600||[\"Södermalm\",\"Kungsholmen\",\"Vasastan\",\"Östermalm\"].some(d=>(by[d]||0)<60)||neg<1)throw new Error(\"dataset below threshold\")' && tracked=$(git ls-files .planning/calibration/data) && test -z \"$tracked\"",
-      "statement": "non-zero exit; any \"error TS\" line; eslint errors; \"dataset below threshold\" printed (fewer than 600 rows, a district under 60 rows, or no negative premium at all); any data file tracked by git",
+      "command": "npx tsc --noEmit && npm run lint && node -e 'const c=require(\"./.planning/calibration/data/slutpriser-cache.json\");const by={};for(const r of c.rows){by[r.district]=(by[r.district]||0)+1};const neg=c.rows.filter(r=>r.soldVsAskPct!==null&&r.soldVsAskPct<0).length;const m60=c.rows.filter(r=>r.livingArea>=60&&r.livingArea<80).length;const m80=c.rows.filter(r=>r.livingArea>=80).length;console.log(JSON.stringify({n:c.rows.length,by,neg,m60,m80,cutoff:c.cutoff}));if(c.rows.length<600||[\"Södermalm\",\"Kungsholmen\",\"Vasastan\",\"Östermalm\"].some(d=>(by[d]||0)<60)||neg<1)throw new Error(\"dataset below threshold\");if(m60<60||m80<30)throw new Error(\"upper size bands thin\")' && tracked=$(git ls-files .planning/calibration/data) && test -z \"$tracked\"",
+      "statement": "non-zero exit; any \"error TS\" line; eslint errors; \"dataset below threshold\" printed (fewer than 600 rows, a district under 60 rows, or no negative premium at all); \"upper size bands thin\" printed (fewer than 60 rows of 60-80 m² or fewer than 30 rows of >= 80 m², so R-12 size coverage is not met); any data file tracked by git",
       "status": "ok",
       "severity": "none",
       "plan": "14.1-04-PLAN.md",
@@ -114,8 +114,8 @@
       "task": "Task 3: Raise CAP_VISION_SEK_MAX to 25 SEK (D-10, R-03)"
     },
     {
-      "command": "npx vitest run src/lib/discovery/fit-score.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit",
-      "statement": "non-zero exit; \"failed\" in any vitest summary line; any \"error TS\" line",
+      "command": "npx vitest run src/lib/discovery/fit-score.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\"",
+      "statement": "non-zero exit; \"failed\" in any vitest summary line (including the size-range test); any \"error TS\" line (for example a FitFlag label map in scripts/fit-score.ts missing the new flag); the replay exits non-zero or its output lacks \"Folkungagatan 61\"",
       "status": "ok",
       "severity": "none",
       "plan": "14.1-07-PLAN.md",
@@ -138,8 +138,8 @@
       "task": "Task 1: R-05 branch: enrich a sold-row sample when Booli exposes build year or balcony"
     },
     {
-      "command": "npx tsx scripts/fit-hedonic.ts && node -e 'const m=require(\"./data/hedonic-model.json\");const s=JSON.stringify(m);if(/\"(address|url|soldDate|soldPrice|streetAddress)\"/.test(s))throw new Error(\"pii key in model\");if(m.n<500)throw new Error(\"n too small \"+m.n);for(const p of m.kernel.points){for(const v of p.slice(0,2)){if(Math.round(v*1000)/1000!==v)throw new Error(\"coordinate not rounded\")}};console.log(\"model ok\",m.n,m.r2,m.cvRmseLog,m.bidPremium.kind)' && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && npx tsc --noEmit && npm run lint",
-      "statement": "non-zero exit from either script; \"pii key in model\", \"n too small\" or \"coordinate not rounded\" printed; the replay output lacks \"Folkungagatan 61\"; any \"error TS\" line; eslint errors",
+      "command": "npx tsx scripts/fit-hedonic.ts && node -e 'const m=require(\"./data/hedonic-model.json\");const s=JSON.stringify(m);if(/\"(address|url|soldDate|soldPrice|streetAddress)\"/.test(s))throw new Error(\"pii key in model\");if(m.n<500)throw new Error(\"n too small \"+m.n);if(!(m.minLivingArea<=36&&m.maxLivingArea>=80))throw new Error(\"size range too narrow \"+m.minLivingArea+\"-\"+m.maxLivingArea);for(const p of m.kernel.points){for(const v of p.slice(0,2)){if(Math.round(v*1000)/1000!==v)throw new Error(\"coordinate not rounded\")}};console.log(\"model ok\",m.n,m.r2,m.cvRmseLog,m.bidPremium.kind,m.minLivingArea,m.maxLivingArea)' && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit from either script; \"pii key in model\", \"n too small\", \"size range too narrow\" (minLivingArea above 36 or maxLivingArea below 80, so R-12 coverage failed or the fields are missing) or \"coordinate not rounded\" printed; the replay output lacks \"Folkungagatan 61\"; any \"error TS\" line; eslint errors",
       "status": "ok",
       "severity": "none",
       "plan": "14.1-08-PLAN.md",
@@ -147,15 +147,15 @@
     },
     {
       "command": "npx vitest run src/lib/discovery/fit-pipeline.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit && npm run lint",
-      "statement": "non-zero exit; \"failed\" in any vitest summary line; any \"error TS\" line; eslint errors",
+      "statement": "non-zero exit; \"failed\" in any vitest summary line (including a headroom test where a fake provider at 1.00 USD against a 5.90 USD requirement yields proceed true, or a rejecting provider makes checkApifyHeadroom throw); any \"error TS\" line; eslint errors",
       "status": "ok",
       "severity": "none",
       "plan": "14.1-09-PLAN.md",
       "task": "Task 1: runFitPipeline with injected dependencies, table rows in integer kronor"
     },
     {
-      "command": "out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && printf '%s\\n' \"$out\" | grep -q \"Förrank\" && test \"$(grep -cE '^import .*from \"@/lib/(booli/|discovery/job\"|discovery/vision\")' scripts/fit-score.ts)\" = \"0\" && npx tsc --noEmit && npm run lint && npm run test",
-      "statement": "non-zero exit from the replay; output lacks \"Folkungagatan 61\" or the \"Förrank\" header; any static import of a Booli/job/vision module found; any \"error TS\" line; eslint errors; \"failed\" in the vitest summary",
+      "command": "out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && printf '%s\\n' \"$out\" | grep -q \"Förrank\" && test \"$(grep -cE '^import .*from \"@/lib/(booli/|discovery/job\"|discovery/vision\")' scripts/fit-score.ts)\" = \"0\" && h=$(grep -n \"checkApifyHeadroom(\" scripts/fit-score.ts | grep -vE '^[0-9]+:[[:space:]]*(//|\\*|/\\*)' | head -1 | cut -d: -f1) && r=$(grep -n \"runFitPipeline(\" scripts/fit-score.ts | grep -vE '^[0-9]+:[[:space:]]*(//|\\*|/\\*)' | head -1 | cut -d: -f1) && test -n \"$h\" && test -n \"$r\" && test \"$h\" -lt \"$r\" && grep -q \"process.exit(2)\" scripts/fit-score.ts && npx tsc --noEmit && npm run lint && npm run test",
+      "statement": "non-zero exit from the replay; output lacks \"Folkungagatan 61\" or the \"Förrank\" header; any static import of a Booli/job/vision module found; no code (non-comment) call to checkApifyHeadroom, or its first code call sits after the first code call to runFitPipeline (headroom not checked before the first paid call); no process.exit(2) in the script; any \"error TS\" line; eslint errors; \"failed\" in the vitest summary",
       "status": "ok",
       "severity": "none",
       "plan": "14.1-09-PLAN.md",

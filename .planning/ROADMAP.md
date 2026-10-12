@@ -114,26 +114,44 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 **Goal**: An innerstan run ranks candidates by **estimated flip profit in kronor** after ~1 year, not by a hand-weighted taste model. Profit = expected renovated resale value − purchase price − renovation cost. No tax (uppskov on a same-year replacement purchase, interest-free since 2021), no broker/holding cost (equal across flats, does not change the order). A taste bonus capped at ~5 % of resale value breaks ties toward morning sun (stated E/SE/S facade) and the hubs Daniel loves (SoFo/Folkungagatan, Medborgarplatsen, Mariatorget, Slussen, Katarina Bangata, central Kungsholmen). Taste otherwise lives in hard filters only: lägenhet, ≥35 kvm, asking ≤4.0 M kr, innerstan. Floor is NOT a filter — the hedonic model prices it.
 **Mechanics**:
+
 1. *Market premiums from sold prices.* Pull Booli slutpriser for Södermalm/Kungsholmen/Vasastan/Östermalm (≥35 kvm, last 12–18 months, floor + balcony + build year + coordinates) and fit a hedonic kr/m² model: micro-area, floor, balcony, build year, size band, distance to nearest hub. These coefficients ARE the weights — floor and balcony are worth what the market paid, not what we guessed. Existing `area-comps.ts` (R_med/U_med) is the seed.
 2. *Purchase price* = asking × district bid premium (Söder +7–10 %, Kungsholmen +3–4 %, from the same slutpris data).
 3. *Renovation cost* by tier from the existing `RENO_COST_MATRIX` / `flip-economics.ts`, driven by the VISION condition verdict. This lifts the v1.1 rule that vision never re-orders: deterministic pre-rank over all 60 candidates, vision on the top ~20 (`VISION_ENRICH_LIMIT` 8 → 20, cost cap raised accordingly), then the profit estimate re-sorts. The static-grep separation test is amended, not deleted: `niche-score.ts` stays pure; a NEW module composes profit from niche + vision + comps.
 4. *Headless first.* Output is a ranked table (script / later the 14.2 email), no UI work — Daniel will not use the UI until the model is tuned.
+
 **Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
 **Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
 **Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
 **Plans:** 10 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 14.1-01-PLAN.md — Wave 0 data fixes (en-dash premium sign, balcony merge, orientation keywords + sun phrases), prototype copy, replay snapshot fixture, separation-test registration
 - [ ] 14.1-02-PLAN.md — Wave 0 Booli probes (≤7 renders) + real Apify spend ledger and monthly headroom
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 14.1-03-PLAN.md — Tracer: offline replay snapshot → hedonic prediction → reno bundle → profit → ranked table
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14.1-04-PLAN.md — Slutpris dataset: tested library + resumable puller + live pull of four districts
 - [ ] 14.1-05-PLAN.md — Hedonic fit library: Cholesky ridge, LOO neighbour level, CV, sign guard with priors, bid premium
 - [ ] 14.1-06-PLAN.md — Vision claims → reno cost, taste bonus module, vision cap 25 SEK
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 14.1-07-PLAN.md — Fit-score composition, flags, pre-rank/window/final rank, D-15 fixture suite
 - [ ] 14.1-08-PLAN.md — Sold-detail enrichment branch (R-05) + fit and commit the real model
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 14.1-09-PLAN.md — Headless pipeline (runFitPipeline) + live mode of scripts/fit-score.ts
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 14.1-10-PLAN.md — Live innerstan run, Folkungagatan 61 readout, in-app smoke closing 13-03 and 14-UAT test 1
 
 ### Phase 14.2: Daily Watch by Email (INSERTED)
