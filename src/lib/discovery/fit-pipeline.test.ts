@@ -13,6 +13,7 @@ import {
   FIT_ENRICH_CONCURRENCY_ALL,
   FIT_ENRICH_DEADLINE_ALL_MS,
   FIT_ENRICH_DEADLINE_MS,
+  FIT_FLAG_LABELS,
   FIT_PRICE_MAX,
   FIT_PRICE_SECTION_SPLIT,
   FIT_RENDERS_PER_WINDOW_ROW_MAX,
@@ -348,7 +349,7 @@ describe("table rows and rendering (FIT-03)", () => {
     const rows = toFitTableRows({ ranked: sample }, new Map());
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) {
-      for (const v of [r.askingKr, r.expectedFinalKr, r.resaleKr, r.gapKr, r.creditKr, r.renoMidKr, r.renoLowKr, r.renoHighKr, r.profitKr, r.tasteKr]) {
+      for (const v of [r.askingKr, r.expectedFinalKr, r.resaleKr, r.gapKr, r.renoMidKr, r.renoLowKr, r.renoHighKr, r.profitKr, r.tasteKr]) {
         expect(Number.isInteger(v)).toBe(true);
       }
     }
@@ -363,40 +364,43 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(b.profitKr).toBe(-1234);
   });
 
-  it("the uncapped gap and the credited amount are whole kronor; a capped row shows gap above credit, null stays null (D-11)", () => {
-    const capped: FitScoreResult = { ...sample[0], gapSek: 1_234_567.5, creditSek: 800_000.4 };
-    const uncapped: FitScoreResult = { ...sample[1], gapSek: 300_000.2, creditSek: 300_000.2 };
+  it("the skillnad (value minus expected final) is whole kronor, equals the credit in the profit, and null stays null (D-05, 14.4)", () => {
+    const wide: FitScoreResult = { ...sample[0], gapSek: 1_234_567.5, creditSek: 1_234_567.5 };
+    const narrow: FitScoreResult = { ...sample[1], gapSek: 300_000.2, creditSek: 300_000.2 };
     const missing: FitScoreResult = { ...sample[2], gapSek: null, creditSek: null };
-    const [a, b, c] = toFitTableRows({ ranked: [capped, uncapped, missing] }, new Map());
+    const [a, b, c] = toFitTableRows({ ranked: [wide, narrow, missing] }, new Map());
     expect(a.gapKr).toBe(1_234_568);
-    expect(a.creditKr).toBe(800_000);
-    expect(a.gapKr as number).toBeGreaterThan(a.creditKr as number);
-    expect(b.gapKr).toBe(b.creditKr);
+    expect(b.gapKr).toBe(300_000);
     expect(c.gapKr).toBeNull();
-    expect(c.creditKr).toBeNull();
+    expect("creditKr" in a).toBe(false);
   });
 
-  it("the header puts 'Okapad skillnad | Krediterad' right after 'Värde renoverad' and every row prints both", () => {
-    expect(FIT_TABLE_HEADER).toContain("Värde renoverad | Okapad skillnad | Krediterad | Reno");
-    const capped: FitScoreResult = { ...sample[0], gapSek: 1_234_567, creditSek: 800_000 };
-    const text = renderFitTable(toFitTableRows({ ranked: [capped] }, new Map()));
+  it("the header has one 'Skillnad' column right after 'Värde renoverad', and every row prints it once", () => {
+    expect(FIT_TABLE_HEADER).toContain("Värde renoverad | Skillnad | Reno");
+    expect(FIT_TABLE_HEADER.split(" | ").filter((h) => h === "Skillnad")).toHaveLength(1);
+    const wide: FitScoreResult = { ...sample[0], gapSek: 1_234_567, creditSek: 1_234_567 };
+    const text = renderFitTable(toFitTableRows({ ranked: [wide] }, new Map()));
     const cells = text.split("\n")[1].split(" | ");
     const headerCells = FIT_TABLE_HEADER.split(" | ");
     expect(cells).toHaveLength(headerCells.length);
-    expect(cells[headerCells.indexOf("Okapad skillnad")]).toBe((1_234_567).toLocaleString("sv-SE"));
-    expect(cells[headerCells.indexOf("Krediterad")]).toBe((800_000).toLocaleString("sv-SE"));
+    expect(cells[headerCells.indexOf("Skillnad")]).toBe((1_234_567).toLocaleString("sv-SE"));
+  });
+
+  it("the residual flag reads 'ovanligt långt under modellpris'; no flag label names a ceiling", () => {
+    expect(FIT_FLAG_LABELS.residualFlag).toBe("ovanligt långt under modellpris");
+    expect(Object.values(FIT_FLAG_LABELS).filter((l) => /tak/.test(l))).toEqual([]);
   });
 
   it("the header puts 'Varför här' right after 'Flaggor' and before 'Länk'; every row prints a cell for it", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
     expect(headerCells.indexOf("Varför här")).toBe(headerCells.indexOf("Flaggor") + 1);
     expect(headerCells.indexOf("Länk")).toBe(headerCells.indexOf("Varför här") + 1);
-    const flagged: FitScoreResult = { ...sample[0], flags: ["creditCapped"] };
+    const flagged: FitScoreResult = { ...sample[0], flags: ["residualFlag"] };
     const cells = renderFitTable(toFitTableRows({ ranked: [flagged] }, new Map(), { reasonsOf: () => ["tomträtt", "ute i 75 dagar"] }))
       .split("\n")[1]
       .split(" | ");
     expect(cells).toHaveLength(headerCells.length);
-    expect(cells[headerCells.indexOf("Flaggor")]).toBe("kredit-tak");
+    expect(cells[headerCells.indexOf("Flaggor")]).toBe("ovanligt långt under modellpris");
     expect(cells[headerCells.indexOf("Varför här")]).toBe("tomträtt, ute i 75 dagar");
   });
 
@@ -445,12 +449,12 @@ describe("table rows and rendering (FIT-03)", () => {
 
   it("a flagged row with no reason prints 'oförklarat fynd', an unflagged one '-' (also without reasonsOf)", () => {
     const rows = toFitTableRows(
-      { ranked: [{ ...sample[0], flags: ["hiddenDefectRisk", "creditCapped"] }, { ...sample[1], flags: ["ejBildtolkad"] }] },
+      { ranked: [{ ...sample[0], flags: ["hiddenDefectRisk", "residualFlag"] }, { ...sample[1], flags: ["ejBildtolkad"] }] },
       new Map(),
     );
     expect(rows[0].reasons).toBe("oförklarat fynd");
     expect(rows[1].reasons).toBe("-");
-    const withCallback = toFitTableRows({ ranked: [{ ...sample[0], flags: ["creditCapped"] }] }, new Map(), { reasonsOf: () => [] });
+    const withCallback = toFitTableRows({ ranked: [{ ...sample[0], flags: ["residualFlag"] }] }, new Map(), { reasonsOf: () => [] });
     expect(withCallback[0].reasons).toBe("oförklarat fynd");
   });
 
@@ -897,8 +901,8 @@ describe("coverage: association debt and reasons on flagged rows (WATCH-03, R-07
 
   it("counts explained and unexplained flagged rows from the printed table rows", () => {
     const rows = [
-      tableRow(["kredit-tak", "dold-defekt-risk"], "tomträtt"),
-      tableRow(["kredit-tak"], "oförklarat fynd"),
+      tableRow(["ovanligt långt under modellpris", "dold-defekt-risk"], "tomträtt"),
+      tableRow(["ovanligt långt under modellpris"], "oförklarat fynd"),
       tableRow(["dold-defekt-risk"], "snart till salu (ej budgivning än)"),
       tableRow(["ej bildtolkad"], "-"),
       tableRow([], "-"),
@@ -908,7 +912,7 @@ describe("coverage: association debt and reasons on flagged rows (WATCH-03, R-07
   });
 
   it("appends 'anledning på flaggade rader: E förklarade, U oförklarat fynd av F' last, in the pinned shape", () => {
-    const rows = [tableRow(["kredit-tak"], "tomträtt"), tableRow(["kredit-tak"], "oförklarat fynd")];
+    const rows = [tableRow(["ovanligt långt under modellpris"], "tomträtt"), tableRow(["ovanligt långt under modellpris"], "oförklarat fynd")];
     const text = renderCoverage(withReasonsOnFlagged(computeCoverage([withBrf(1171), withBrf(null)]), rows));
     expect(text).toBe(
       "Täckning (2 annonser): detaljsida 0 av 2 (0,0 %), balkong känd 0 av 2 (0,0 %), skick känt 0 av 2 (0,0 %), " +

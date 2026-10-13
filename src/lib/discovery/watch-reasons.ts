@@ -3,9 +3,10 @@
  * WATCH-03, D-08, D-09, R-07): a short, plain-Swedish list of the facts that
  * may explain why a flat is cheap, built from the facts record and nothing else.
  *
- * WHY IT EXISTS: on 2026-10-13 all of the top 12 rows carried "kredit-tak" (the
- * model credits more than the 20 % cap allows) and "dold-defekt-risk" (the gap
- * looks too good to be only a renovation need). Nothing on a row said whether
+ * WHY IT EXISTS: on 2026-10-13 all of the top 12 rows carried a flag for a gap
+ * that looked too good ("dold-defekt-risk", and a credit ceiling that no longer
+ * exists; since 14.4 the second flag is "ovanligt långt under modellpris", a flat
+ * further below the model than its features explain). Nothing on a row said whether
  * the low price came from a tomträtt, a heavily indebted association, a listing
  * that has sat for months, a lure price in an ongoing bidding round, or a flat
  * that really needs work. A row with none of these facts is the interesting one,
@@ -115,7 +116,7 @@ export const NO_REASON_MARK = "-";
 export const UPCOMING_SALE_REASON = "snart till salu (ej budgivning än)";
 
 /** The flags that make a row need an explanation (the two a cheap-for-a-reason row carries). */
-const REASON_FLAGS = ["creditCapped", "hiddenDefectRisk"] as const;
+const REASON_FLAGS = ["residualFlag", "hiddenDefectRisk"] as const;
 
 /** What `reasonsFor` reads from a snapshot row (structurally satisfied by `FitInputRow`). */
 export interface ReasonRow {
@@ -265,7 +266,7 @@ export function reasonsFor(row: ReasonRow, ctx: ReasonContext): string[] {
   });
 }
 
-/** Whether a row's flags make it need an explanation: "kredit-tak" or "dold-defekt-risk". */
+/** Whether a row's flags make it need an explanation: "ovanligt långt under modellpris" or "dold-defekt-risk". */
 export function isReasonFlagged(flags: readonly string[]): boolean {
   return REASON_FLAGS.some((f) => flags.includes(f));
 }

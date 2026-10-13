@@ -284,8 +284,8 @@ describe("reasonCell / isReasonFlagged", () => {
     expect(reasonCell(["a", "b"], true)).toBe("a, b");
     expect(reasonCell(["a"], false)).toBe("a");
   });
-  it("only kredit-tak and dold-defekt-risk flag a row", () => {
-    expect(isReasonFlagged(["creditCapped"])).toBe(true);
+  it("only the residual flag and dold-defekt-risk flag a row", () => {
+    expect(isReasonFlagged(["residualFlag"])).toBe(true);
     expect(isReasonFlagged(["hiddenDefectRisk"])).toBe(true);
     expect(isReasonFlagged(["ejBildtolkad"])).toBe(false);
     expect(isReasonFlagged(["expectedFinalOver4M", "renoUnknown", "utanförModellensStorlek", "notComparable"])).toBe(false);

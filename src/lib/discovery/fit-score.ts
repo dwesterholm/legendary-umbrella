@@ -5,7 +5,7 @@
  * the expected flip profit with every component visible.
  *
  *   profit = credit - reno - sales costs - holding costs - tax + taste
- *   credit = min(resale - expected final price, MAX_CREDIT_PCT x resale)
+ *   credit = resale - expected final price (the full gap; no ceiling since 14.4)
  *
  * PURE, synchronous - no clock, no randomness, no network, no async, no file or
  * environment access, no console output and no fixed-decimal string formatting.
@@ -26,7 +26,7 @@
  * `featuresImputed`. Nothing is fabricated to make a row rankable.
  *
  * `valueGap()` is called unchanged (D-01). Its own tax and uplift lines are
- * ignored; this module composes the credit cap, costs, tax and taste itself.
+ * ignored; this module composes the credit, costs, tax and taste itself.
  *
  * DECISIONS THIS FILE CARRIES:
  *   D-01  profit in kr; valueGap() is reused unchanged.
@@ -38,7 +38,7 @@
  *         unknown is the mid bundle, flagged.
  *   D-05  sales costs, holding costs and tax default to zero (gross profit).
  *   D-06  taste adds at most TASTE_CAP_PCT of resale and never subtracts.
- *   D-07  a reno object with a capped credit can outrank a nice-but-fairly-
+ *   D-07  a reno object with a large credit can outrank a nice-but-fairly-
  *         priced flat; this falls out of the arithmetic and is held by a
  *         regression test, not by a bonus.
  *   D-10  rows outside the picture-read window carry the unknown reno bundle
@@ -50,7 +50,8 @@
  *         (utanförModellensStorlek); the profit is still computed and shown.
  *
  * KNOBS (each named, documented, with a reason that is not "make the list look
- * right"): MAX_CREDIT_PCT (reused discount-attribution cap), RENO_RESALE_PREMIUM
+ * right"): RESIDUAL_FLAG_BASIS / RESIDUAL_FLAG_SD (when a flat is flagged as far
+ * below the model; the flag never changes a number), RENO_RESALE_PREMIUM
  * (low end of the researched range), TASTE_CAP_PCT (Daniel's 5 % ceiling),
  * FIT_VISION_WINDOW (a spend bound), and the fitted bid-premium model. There is
  * no level offset, no per-district fudge and no weight whose only purpose is to
@@ -59,7 +60,6 @@
 
 import { z } from "zod/v4";
 import { discoveryCandidateSchema, type DiscoveryCandidate } from "@/lib/discovery/candidate";
-import { MAX_CONDITION_EXPLAINED_PCT } from "@/lib/discovery/confounder-guard";
 import { taxLines, valueGap, type ValueGapInput } from "@/lib/discovery/flip-economics";
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import {
@@ -87,11 +87,40 @@ import { tasteBonus, type InferredSunInput } from "@/lib/discovery/taste";
 // ---------------------------------------------------------------------------
 
 /**
- * Most of the resale price that condition (a renovation) may be credited with.
- * Reuses the discount-attribution cap from `confounder-guard.ts`: a cheap flat
- * is mostly cheap for reasons other than its kitchen.
+ * Which ratio decides the "ovanligt långt under modellpris" flag (R-04, 14.4).
+ *
+ * "expectedFinal" (default) compares the price the buyer is expected to pay with
+ * the model's price per m2. The model is fitted on SOLD prices, so this is the
+ * like-for-like comparison. "asking" compares the asking price with the model
+ * (the original D-05 wording); asking prices sit below sold prices by the
+ * expected overbid, so that basis fired on 30 of 77 rows on the 2026-10-13
+ * snapshot, against 7 for the like-for-like basis. Flip the constant to choose.
+ * The flag only explains; it never changes a number.
  */
-export const MAX_CREDIT_PCT = MAX_CONDITION_EXPLAINED_PCT;
+export type ResidualFlagBasis = "expectedFinal" | "asking";
+export const RESIDUAL_FLAG_BASIS: ResidualFlagBasis = "expectedFinal";
+
+/**
+ * How many residual standard deviations (in log kr/m2) below the model a flat
+ * must be before it is flagged: further below than about 97.5 % of the sales
+ * the model was fitted on.
+ */
+export const RESIDUAL_FLAG_SD = 2;
+
+/**
+ * Whether a flat is further below the model than the features can explain (R-04).
+ * Strict on both bases: a ratio exactly on the limit is not flagged.
+ *  - expectedFinal: ln(expected final kr/m2 / model kr/m2) < -RESIDUAL_FLAG_SD x residualSdLog
+ *  - asking:        asking kr/m2 / model kr/m2 < exp(-RESIDUAL_FLAG_SD x residualSdLog)
+ */
+export function residualFlagFires(
+  basis: ResidualFlagBasis,
+  ratios: { readonly askToPred: number; readonly expectedFinalToPred: number },
+  residualSdLog: number,
+): boolean {
+  if (basis === "asking") return ratios.askToPred < Math.exp(-RESIDUAL_FLAG_SD * residualSdLog);
+  return Math.log(ratios.expectedFinalToPred) < -RESIDUAL_FLAG_SD * residualSdLog;
+}
 
 /**
  * How much more a renovated flat fetches than the model's (average-condition)
@@ -184,7 +213,7 @@ export type FitFlag =
   | "expectedFinalOver4M"
   | "ejBildtolkad"
   | "hiddenDefectRisk"
-  | "creditCapped"
+  | "residualFlag"
   | "renoUnknown"
   | "utanförModellensStorlek"
   | "notComparable";
@@ -197,6 +226,8 @@ export interface FitScoreOptions {
   readonly applyTax?: boolean;
   /** Replaces the reno estimate (tests, what-if runs). */
   readonly renoOverride?: RenoEstimate;
+  /** Which ratio decides the residual flag; defaults to {@link RESIDUAL_FLAG_BASIS}. */
+  readonly residualFlagBasis?: ResidualFlagBasis;
 }
 
 /**
@@ -224,9 +255,13 @@ export interface FitScoreResult {
   readonly overbidPct: number | null;
   /** How the expected overbid was put together (base form, days-on-market term, label); null when not comparable. */
   readonly overbidDetail: OverbidDetail | null;
-  /** resale - expected final, before the credit cap. */
+  /** Expected final kr/m2 divided by the model's kr/m2 (the like-for-like ratio); null when not comparable. */
+  readonly expectedFinalToPred: number | null;
+  /** The chosen basis' ratio minus 1 (negative = below the model); null when not comparable. */
+  readonly residualPct: number | null;
+  /** resale - expected final: what the flat is worth renovated minus what it is expected to cost. */
   readonly gapSek: number | null;
-  /** The part of the gap the profit takes credit for, after the cap. */
+  /** The part of the gap the profit takes credit for: the full gap (14.4 removed the 20 % ceiling, features in the model now explain cheap flats). */
   readonly creditSek: number | null;
   readonly renoSek: number;
   readonly renoLowSek: number;
@@ -390,6 +425,8 @@ export function fitScore(
       purchaseSek: null,
       overbidPct: null,
       overbidDetail: null,
+      expectedFinalToPred: null,
+      residualPct: null,
       gapSek: null,
       creditSek: null,
       taxSek: 0,
@@ -421,8 +458,7 @@ export function fitScore(
   const gap = valueGap(gapInput);
 
   const gapSek = gap.resaleW - gap.purchaseP;
-  const creditCap = MAX_CREDIT_PCT * gap.resaleW;
-  const creditSek = Math.min(gapSek, creditCap);
+  const creditSek = gapSek;
   const gain = creditSek - reno.midSek - salesCostsSek - holdingCostsSek;
   const taxSek = opts.applyTax === true ? taxLines(gain).taxSek : 0;
   const taste = tasteBonus({
@@ -434,6 +470,9 @@ export function fitScore(
   });
   const tasteSek = cappedTasteSek(taste.pct, gap.resaleW);
   const askToPred = askingPerSqm / pred;
+  const expectedFinalToPred = gap.purchaseP / area / pred;
+  const residualBasis = opts.residualFlagBasis ?? RESIDUAL_FLAG_BASIS;
+  const residualPct = (residualBasis === "asking" ? askToPred : expectedFinalToPred) - 1;
 
   const notComparable = askToPred < NOT_COMPARABLE_ASK_TO_PRED;
   const profit = gain - taxSek + tasteSek;
@@ -442,7 +481,9 @@ export function fitScore(
   if (gap.purchaseP > EXPECTED_FINAL_CEILING_SEK) flags.push("expectedFinalOver4M");
   flags.push(...outsideWindow);
   if (gap.hiddenDefectRisk) flags.push("hiddenDefectRisk");
-  if (gapSek > creditCap) flags.push("creditCapped");
+  if (residualFlagFires(residualBasis, { askToPred, expectedFinalToPred }, model.residualSdLog)) {
+    flags.push("residualFlag");
+  }
   flags.push(...unknownReno);
   flags.push(...outsideSize);
   if (notComparable) flags.push("notComparable");
@@ -464,6 +505,8 @@ export function fitScore(
     purchaseSek: gap.purchaseP,
     overbidPct: overbidDetail.pct,
     overbidDetail,
+    expectedFinalToPred,
+    residualPct,
     gapSek,
     creditSek,
     taxSek,
@@ -471,6 +514,31 @@ export function fitScore(
     flags,
     featuresImputed: imputed,
   };
+}
+
+/**
+ * How many ranked rows the residual flag would mark under each basis (R-04: both
+ * counts are printed on every run, so the choice of {@link RESIDUAL_FLAG_BASIS}
+ * is an informed one). `primary` is the basis in force, `other` the alternative.
+ * Pure; a row that is not comparable has no ratios and is not counted.
+ */
+export function residualFlagCounts(
+  ranked: readonly Pick<FitScoreResult, "askToPred" | "expectedFinalToPred">[],
+  residualSdLog: number,
+  primaryBasis: ResidualFlagBasis = RESIDUAL_FLAG_BASIS,
+): { n: number; primaryBasis: ResidualFlagBasis; primary: number; otherBasis: ResidualFlagBasis; other: number } {
+  const otherBasis: ResidualFlagBasis = primaryBasis === "asking" ? "expectedFinal" : "asking";
+  let primary = 0;
+  let other = 0;
+  let n = 0;
+  for (const r of ranked) {
+    if (r.askToPred === null || r.expectedFinalToPred === null) continue;
+    n += 1;
+    const ratios = { askToPred: r.askToPred, expectedFinalToPred: r.expectedFinalToPred };
+    if (residualFlagFires(primaryBasis, ratios, residualSdLog)) primary += 1;
+    if (residualFlagFires(otherBasis, ratios, residualSdLog)) other += 1;
+  }
+  return { n, primaryBasis, primary, otherBasis, other };
 }
 
 // ---------------------------------------------------------------------------

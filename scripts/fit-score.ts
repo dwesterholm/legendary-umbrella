@@ -54,14 +54,16 @@
  * The printed table is two sections (Phase 14.2, D-12): "Förväntat under 4 M"
  * (expected final price 4 000 000 kr or less) first, then "Över 4 M förväntat";
  * ordering inside each is the profit order and '#' stays the innerstan rank.
- * Every row shows the uncapped gap ("Okapad skillnad", D-11) beside the credited
- * amount ("Krediterad", capped at 20 % of the value).
+ * Every row shows one "Skillnad" (value minus expected final price, D-05): since 14.4 the whole of
+ * it counts in the profit, there is no ceiling. A flat far below the model for its features gets
+ * the flag "ovanligt långt under modellpris" (R-04, RESIDUAL_FLAG_BASIS in fit-score.ts); the flag
+ * explains, it never changes a number. Every run prints how many rows carry it under both bases.
  *
  * "Varför här" (Phase 14.2, WATCH-03, D-08): every row has a reason column built by the pure
  * rules in src/lib/discovery/watch-reasons.ts (tenure, tomträtt, nyproduktion, bidding, price
  * cut, days on market, avgift per kvm against the district median, association debt per kvm,
  * a high floor with no elevator listed, an unusual layout, "snart till salu"). A row flagged
- * kredit-tak or dold-defekt-risk with no reason says "oförklarat fynd". Association debt comes
+ * ovanligt långt under modellpris or dold-defekt-risk with no reason says "oförklarat fynd". Association debt comes
  * from Booli's public BRF page (one page per distinct association, local browser, free); the
  * line "BRF-sidor: <lästa> av <olika> lästa, <misslyckade> misslyckades" says how many were read.
  *
@@ -135,11 +137,13 @@ import {
 } from "@/lib/discovery/fit-pipeline";
 import {
   FIT_VISION_WINDOW,
-  MAX_CREDIT_PCT,
+  RESIDUAL_FLAG_BASIS,
+  RESIDUAL_FLAG_SD,
   clearlyWorseAbove,
   parseFitSnapshot,
   preRank,
   rankFit,
+  residualFlagCounts,
   type FitInputRow,
   type FitScoreResult,
   type FitSnapshot,
@@ -232,7 +236,8 @@ const USAGE = `Användning:
     npx tsx scripts/fit-score.ts --replay <snapshot.json> --email [--state <fil>] [--no-state-write]
 
   Tabellen har två avsnitt: "Förväntat under 4 M" (förväntat slutpris högst 4 000 000 kr) och "Över 4 M förväntat".
-  "Okapad skillnad" är värde minus slutpris före 20 %-taket; "Krediterad" är den del som räknas in i vinsten.
+  "Skillnad" är värde minus förväntat slutpris; hela skillnaden räknas in i vinsten (inget tak sedan 14.4).
+  Flaggan "ovanligt långt under modellpris" sätts när förväntat slutpris per kvm ligger mer än två restspridningar under modellen; den förklarar men ändrar aldrig en siffra.
   Områdesraden säger "N av M annonser (P sidor, komplett|ofullständig)" och "Kandidatlista: komplett|OFULLSTÄNDIG (...)";
   raden "Täckning (...)" säger hur mycket som faktiskt är känt (balkong, skick, beskrivning, sol, avgift, upplåtelseform, föreningsskuld).
   Kolumnen "Varför här" förklarar varför en annons kan vara billig; en flaggad annons utan förklaring heter "oförklarat fynd".
@@ -280,6 +285,14 @@ const WINDOW_ALL_NEEDS_LOCAL = "--window all kräver --renderer local (med Apify
 
 const sek = (n: number) => Math.round(n).toLocaleString("sv-SE");
 const pct = (n: number) => `${(n * 100).toFixed(1)} %`;
+/** A signed percentage with a decimal comma: 0.042 gives "+4,2 %", -0.2 gives "-20,0 %". */
+const signedPct = (n: number) => `${n < 0 ? "-" : "+"}${(Math.abs(n) * 100).toFixed(1).replace(".", ",")} %`;
+const BASIS_TEXT = { expectedFinal: "förv. slutpris", asking: "utgångspris" } as const;
+/** R-04: how many rows the residual flag marks under the basis in force and under the other one, on every run. */
+function residualCountLine(ranked: readonly FitScoreResult[], model: ReturnType<typeof parseHedonicModel>): string {
+  const c = residualFlagCounts(ranked, model.residualSdLog);
+  return `Residualflagga (${FIT_FLAG_LABELS.residualFlag}): ${c.primary} av ${c.n} jämförbara (bas ${BASIS_TEXT[c.primaryBasis]}); med bas ${BASIS_TEXT[c.otherBasis]}: ${c.other}`;
+}
 const orDash = (n: number | null, f: (x: number) => string) => (n === null ? "-" : f(n));
 
 // ---------------------------------------------------------------------------
@@ -479,8 +492,10 @@ function printTracked(
   const inUnder = splitFitSections(toFitTableRows({ ranked: [r] }, new Map())).under.length === 1;
   console.log(`  Sektion:            ${inUnder ? FIT_SECTION_TITLES.under : FIT_SECTION_TITLES.over}`);
   console.log(`  Värde renoverad:    ${orDash(r.resaleSek, sek)} kr`);
-  console.log(`  Okapad skillnad (värde - slutpris): ${orDash(r.gapSek, sek)} kr`);
-  console.log(`  Kredit (max ${pct(MAX_CREDIT_PCT)} av värdet): ${orDash(r.creditSek, sek)} kr`);
+  console.log(`  Skillnad (värde - slutpris): ${orDash(r.gapSek, sek)} kr`);
+  console.log(
+    `  Residual:           förv. slutpris/modell ${orDash(r.expectedFinalToPred === null ? null : r.expectedFinalToPred - 1, signedPct)} (gräns ${signedPct(Math.exp(-RESIDUAL_FLAG_SD * model.residualSdLog) - 1)}, bas ${RESIDUAL_FLAG_BASIS})`,
+  );
   console.log(`  Reno:               ${renoText(r)}; kök ${r.renoStates.kitchen}, badrum ${r.renoStates.bathroom}, helhet ${r.renoStates.overall}`);
   console.log(`  Försäljningskostnad: ${sek(r.salesCostsSek)} kr`);
   console.log(`  Innehavskostnad:    ${sek(r.holdingCostsSek)} kr`);
@@ -920,6 +935,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   printRanking(model, ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
   const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
   console.log(`\n${coverageLine}`);
+  console.log(residualCountLine(ranking.ranked, model));
   console.log(sunReportOf(ranking.ranked));
   if (recordPath !== null) console.log(`Körningspost: ${relative(process.cwd(), recordPath)}`);
 
@@ -1271,6 +1287,7 @@ async function runLive(args: Args): Promise<void> {
     const reasonsOf = makeReasonsOf(result.snapshot.rows, result.ranking.ranked);
     const tableRows = toFitTableRows(result.ranking, result.preRankPositions, { reasonsOf });
     console.log(`\n${renderCoverage(withReasonsOnFlagged(result.coverage, tableRows))}`);
+    console.log(residualCountLine(result.ranking.ranked, model));
     if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
     console.log(sunReportOf(result.ranking.ranked));
     console.log("");

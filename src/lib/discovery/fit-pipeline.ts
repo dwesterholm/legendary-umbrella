@@ -346,7 +346,7 @@ export const FIT_FLAG_LABELS: Record<FitFlag, string> = {
   expectedFinalOver4M: "slutpris>4M",
   ejBildtolkad: "ej bildtolkad",
   hiddenDefectRisk: "dold-defekt-risk",
-  creditCapped: "kredit-tak",
+  residualFlag: "ovanligt långt under modellpris",
   renoUnknown: "reno okänd",
   utanförModellensStorlek: "storlek utanför modellen",
   notComparable: "ej jämförbar",
@@ -364,10 +364,8 @@ export interface FitTableRow {
   readonly askingKr: number | null;
   readonly expectedFinalKr: number | null;
   readonly resaleKr: number | null;
-  /** D-11: resale minus expected final BEFORE the 20 % credit cap ("Okapad skillnad"). */
+  /** "Skillnad": the renovated value minus the expected final price. Since 14.4 (D-05) the whole of it is credited in the profit. */
   readonly gapKr: number | null;
-  /** The part of the gap the credit cap lets into the profit ("Krediterad"); at most gapKr. */
-  readonly creditKr: number | null;
   readonly renoTier: string;
   readonly renoMidKr: number;
   readonly renoLowKr: number;
@@ -398,7 +396,7 @@ const roundOrNull = (n: number | null): number | null => (n === null ? null : ro
 /**
  * The ranked results as printable rows. This is the one place money is rounded
  * (Math.round, half towards +infinity: 1234.5 gives 1235, -1234.5 gives -1234),
- * the uncapped gap (gapKr) and the credited amount (creditKr) included.
+ * the skillnad (gapKr) included.
  */
 export function toFitTableRows(
   ranking: { readonly ranked: readonly FitScoreResult[] },
@@ -418,7 +416,6 @@ export function toFitTableRows(
       expectedFinalKr: roundOrNull(r.purchaseSek),
       resaleKr: roundOrNull(r.resaleSek),
       gapKr: roundOrNull(r.gapSek),
-      creditKr: roundOrNull(r.creditSek),
       renoTier: r.renoTier,
       renoMidKr: roundKr(r.renoSek),
       renoLowKr: roundKr(r.renoLowSek),
@@ -436,7 +433,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -462,7 +459,6 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         orDash(r.expectedFinalKr),
         orDash(r.resaleKr),
         orDash(r.gapKr),
-        orDash(r.creditKr),
         `${r.renoTier} ${kr(r.renoMidKr)} (${kr(r.renoLowKr)}–${kr(r.renoHighKr)})`,
         orDash(r.profitKr),
         kr(r.tasteKr),
@@ -583,7 +579,7 @@ export interface CoverageItem {
   readonly known: number;
 }
 
-/** How many flagged rows (kredit-tak or dold-defekt-risk) carry a reason (WATCH-03). */
+/** How many flagged rows (ovanligt långt under modellpris or dold-defekt-risk) carry a reason (WATCH-03). */
 export interface ReasonsOnFlagged {
   /** Flagged rows with at least one reason. */
   readonly explained: number;
@@ -645,10 +641,10 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
 
 /**
  * Counts the reasons on the flagged rows of the printed table: a row is flagged when it carries
- * kredit-tak or dold-defekt-risk, unexplained when its cell reads "oförklarat fynd". Pure.
+ * ovanligt långt under modellpris or dold-defekt-risk, unexplained when its cell reads "oförklarat fynd". Pure.
  */
 export function reasonsOnFlaggedOf(rows: readonly FitTableRow[]): ReasonsOnFlagged {
-  const flaggedLabels = [FIT_FLAG_LABELS.creditCapped, FIT_FLAG_LABELS.hiddenDefectRisk];
+  const flaggedLabels = [FIT_FLAG_LABELS.residualFlag, FIT_FLAG_LABELS.hiddenDefectRisk];
   const flagged = rows.filter((r) => r.flags.some((f) => flaggedLabels.includes(f)));
   const unexplained = flagged.filter((r) => r.reasons === UNEXPLAINED_LABEL).length;
   return { explained: flagged.length - unexplained, unexplained, flagged: flagged.length };

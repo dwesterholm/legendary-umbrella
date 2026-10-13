@@ -7,9 +7,10 @@ import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import {
   EXPECTED_FINAL_CEILING_SEK,
   FIT_VISION_WINDOW,
-  MAX_CREDIT_PCT,
   MODEL_HEALTH_BAND,
   NOT_COMPARABLE_ASK_TO_PRED,
+  RESIDUAL_FLAG_BASIS,
+  RESIDUAL_FLAG_SD,
   TASTE_CAP_PCT,
   TASTE_SUN_OBSTRUCTION_DATE,
   booliIdOf,
@@ -24,6 +25,8 @@ import {
   parseFitSnapshot,
   preRank,
   rankFit,
+  residualFlagCounts,
+  residualFlagFires,
   selectVisionWindow,
   type FitInputRow,
   type FitScoreResult,
@@ -107,19 +110,23 @@ describe("profit decomposition (D-01, D-05, R-02)", () => {
     }
   });
 
-  it("credit never exceeds MAX_CREDIT_PCT of the resale value, and equals the smaller of gap and cap", () => {
+  it("creditSek equals resaleSek - purchaseSek and profit rebuilds from it for every comparable row (D-05, 14.4)", () => {
+    expect(ranked.length).toBeGreaterThan(0);
     for (const r of ranked) {
-      const cap = MAX_CREDIT_PCT * (r.resaleSek as number);
-      expect(r.creditSek as number).toBeLessThanOrEqual(cap + 1e-6);
-      expect(r.creditSek).toBeCloseTo(Math.min(r.gapSek as number, cap), 6);
+      const gap = (r.resaleSek as number) - (r.purchaseSek as number);
+      expect(r.creditSek as number).toBeCloseTo(gap, 6);
+      expect(r.gapSek as number).toBeCloseTo(gap, 6);
+      const rebuilt =
+        gap - r.renoSek - r.salesCostsSek - r.holdingCostsSek - r.taxSek + r.tasteSek;
+      expect(Math.abs((r.profitSek as number) - rebuilt)).toBeLessThan(1e-6);
     }
   });
 
-  it("flags creditCapped exactly when the cap binds", () => {
-    for (const r of ranked) {
-      const binds = (r.gapSek as number) > MAX_CREDIT_PCT * (r.resaleSek as number);
-      expect(r.flags.includes("creditCapped")).toBe(binds);
-    }
+  it("a row whose gap is more than 20 % of the resale value keeps the whole gap and carries no cap flag", () => {
+    const deep = fitScore(flat({ id: 171, askShareOfModel: 0.6 }), model);
+    expect((deep.gapSek as number) / (deep.resaleSek as number)).toBeGreaterThan(0.2);
+    expect(deep.creditSek).toBeCloseTo(deep.gapSek as number, 6);
+    expect(deep.flags.map(String).filter((f) => /cap|tak/i.test(f))).toEqual([]);
   });
 
   it("sales, holding and tax default to zero (D-05)", () => {
@@ -638,12 +645,12 @@ describe("D-15 fixture suite: Daniel's ordering rules", () => {
     const { ranked } = rankFit([balcony3, renoObject], model);
     const reno = ranked.find((r) => r.booliId === 101)!;
     const bal = ranked.find((r) => r.booliId === 102)!;
-    expect(reno.flags).toContain("creditCapped");
+    expect(reno.creditSek).toBeCloseTo(reno.gapSek as number, 6);
     expect(reno.profitSek as number).toBeGreaterThan(bal.profitSek as number);
     expect(ranked.map((r) => r.booliId)).toEqual([101, 102]);
   });
 
-  it("D-07 regression: the cap binds for the reno object, and its credit is the capped amount", () => {
+  it("D-07 regression: the reno object is credited with its whole gap, uncapped", () => {
     const renoObject = flat({
       id: 103,
       livingArea: 45,
@@ -654,8 +661,8 @@ describe("D-15 fixture suite: Daniel's ordering rules", () => {
     });
     const r = fitScore(renoObject, model);
     expect(r.renoSek).toBe(427_500);
-    expect(r.creditSek).toBeCloseTo(MAX_CREDIT_PCT * (r.resaleSek as number), 6);
-    expect(r.gapSek as number).toBeGreaterThan(r.creditSek as number);
+    expect(r.creditSek).toBeCloseTo(r.gapSek as number, 6);
+    expect((r.gapSek as number) / (r.resaleSek as number)).toBeGreaterThan(0.2);
     // The profit stays positive even after paying for the full reno bundle.
     expect(r.profitSek as number).toBeGreaterThan(0);
   });
@@ -733,13 +740,13 @@ describe("D-15 fixture suite: Daniel's ordering rules", () => {
     expect(farResult.profitSek as number).toBeLessThan(nearResult.profitSek as number);
   });
 
-  it("#6 a flat 40 % below the model gets hiddenDefectRisk and creditCapped; one 15 % below gets neither (D-15 #6)", () => {
+  it("#6 a flat 40 % below the model gets hiddenDefectRisk and residualFlag; one 15 % below gets neither (D-15 #6)", () => {
     const deep = fitScore(flat({ id: 151, askShareOfModel: 0.6 }), model);
     const mild = fitScore(flat({ id: 152, askShareOfModel: 0.85 }), model);
     expect(deep.flags).toContain("hiddenDefectRisk");
-    expect(deep.flags).toContain("creditCapped");
+    expect(deep.flags).toContain("residualFlag");
     expect(mild.flags).not.toContain("hiddenDefectRisk");
-    expect(mild.flags).not.toContain("creditCapped");
+    expect(mild.flags).not.toContain("residualFlag");
   });
 
   it("the decomposition invariant and the zero cost defaults hold for every fixture flat above", () => {
@@ -1312,5 +1319,95 @@ describe("days on market move the expected final price, never the resale value (
 
   it("with the term absent from the model, days change nothing", () => {
     expect(fitScore(withDays(5), model).overbidPct).toBe(fitScore(withDays(90), model).overbidPct);
+  });
+});
+
+describe("residual flag: further below the model than the features explain (R-04, VAL-04)", () => {
+  const sd = model.residualSdLog;
+  const limit = Math.exp(-RESIDUAL_FLAG_SD * sd);
+
+  it("the default basis is the like-for-like one and the limit is two residual deviations", () => {
+    expect(RESIDUAL_FLAG_BASIS).toBe("expectedFinal");
+    expect(RESIDUAL_FLAG_SD).toBe(2);
+  });
+
+  it("residualFlagFires is strict on the expected-final basis: exactly on the limit does not fire, just below does", () => {
+    const sdLog = 0.115;
+    const onLimit = Math.exp(-2 * sdLog);
+    expect(residualFlagFires("expectedFinal", { askToPred: 0.9, expectedFinalToPred: onLimit }, sdLog)).toBe(false);
+    expect(residualFlagFires("expectedFinal", { askToPred: 0.9, expectedFinalToPred: onLimit * 0.999 }, sdLog)).toBe(true);
+    // The asking ratio is ignored on this basis.
+    expect(residualFlagFires("expectedFinal", { askToPred: 0.1, expectedFinalToPred: 1 }, sdLog)).toBe(false);
+  });
+
+  it("residualFlagFires is strict on the asking basis and ignores the expected-final ratio", () => {
+    const sdLog = 0.115;
+    const onLimit = Math.exp(-2 * sdLog);
+    expect(residualFlagFires("asking", { askToPred: onLimit, expectedFinalToPred: 0.1 }, sdLog)).toBe(false);
+    expect(residualFlagFires("asking", { askToPred: onLimit * 0.999, expectedFinalToPred: 1 }, sdLog)).toBe(true);
+  });
+
+  it("a flat asked at the model price is not flagged on either basis", () => {
+    for (const basis of ["expectedFinal", "asking"] as const) {
+      const r = fitScore(flat({ id: 181 }), model, { residualFlagBasis: basis });
+      expect(r.flags).not.toContain("residualFlag");
+    }
+  });
+
+  it("the two bases flag different rows: asked 22 % below the model fires on the asking basis only, 40 % below on both", () => {
+    const mid = flat({ id: 182, askShareOfModel: 0.78 });
+    const deep = flat({ id: 183, askShareOfModel: 0.6 });
+    const midAsking = fitScore(mid, model, { residualFlagBasis: "asking" });
+    const midFinal = fitScore(mid, model);
+    expect(midAsking.askToPred as number).toBeLessThan(limit);
+    expect(midAsking.flags).toContain("residualFlag");
+    expect(midFinal.expectedFinalToPred as number).toBeGreaterThan(limit);
+    expect(midFinal.flags).not.toContain("residualFlag");
+    for (const basis of ["asking", "expectedFinal"] as const) {
+      expect(fitScore(deep, model, { residualFlagBasis: basis }).flags).toContain("residualFlag");
+    }
+  });
+
+  it("carries expectedFinalToPred and residualPct of the chosen basis; the flag changes no number", () => {
+    const row = flat({ id: 184, askShareOfModel: 0.78 });
+    const finalBasis = fitScore(row, model);
+    const askingBasis = fitScore(row, model, { residualFlagBasis: "asking" });
+    const perSqm = (finalBasis.purchaseSek as number) / (finalBasis.livingArea as number);
+    expect(finalBasis.expectedFinalToPred).toBeCloseTo(perSqm / (finalBasis.predKrPerSqm as number), 9);
+    expect(finalBasis.residualPct).toBeCloseTo((finalBasis.expectedFinalToPred as number) - 1, 9);
+    expect(askingBasis.residualPct).toBeCloseTo((askingBasis.askToPred as number) - 1, 9);
+    expect({ ...askingBasis, flags: [], residualPct: 0 }).toEqual({ ...finalBasis, flags: [], residualPct: 0 });
+    expect(askingBasis.profitSek).toBe(finalBasis.profitSek);
+  });
+
+  it("a row that is not comparable for a missing price has no residual numbers", () => {
+    const r = fitScore(rowWith(snapshot.rows[0], { price: null }), model);
+    expect(r.expectedFinalToPred).toBeNull();
+    expect(r.residualPct).toBeNull();
+    expect(r.flags).not.toContain("residualFlag");
+  });
+
+  it("notComparable still fires below 0.5 of the model price and not at 0.5", () => {
+    const half = modelPriceSek({}) * NOT_COMPARABLE_ASK_TO_PRED;
+    const below = fitScore(flat({ id: 185, askSek: Math.floor(half * 0.98) }), model);
+    const atLimit = fitScore(flat({ id: 186, askSek: Math.ceil(half) }), model);
+    expect(NOT_COMPARABLE_ASK_TO_PRED).toBe(0.5);
+    expect(below.comparable).toBe(false);
+    expect(below.flags).toContain("notComparable");
+    expect(atLimit.askToPred as number).toBeGreaterThanOrEqual(0.5);
+    expect(atLimit.comparable).toBe(true);
+    expect(atLimit.flags).not.toContain("notComparable");
+  });
+
+  it("residualFlagCounts counts both bases over the ranked rows and agrees with the flags", () => {
+    const { ranked } = rankFit(snapshot.rows, model);
+    const counts = residualFlagCounts(ranked, sd);
+    expect(counts.n).toBe(ranked.length);
+    expect(counts.primaryBasis).toBe(RESIDUAL_FLAG_BASIS);
+    expect(counts.primary).toBe(ranked.filter((r) => r.flags.includes("residualFlag")).length);
+    const asking = rankFit(snapshot.rows, model, { residualFlagBasis: "asking" }).ranked;
+    expect(counts.other).toBe(asking.filter((r) => r.flags.includes("residualFlag")).length);
+    // Asking prices sit below sold prices, so the asking basis never flags fewer rows.
+    expect(counts.other).toBeGreaterThanOrEqual(counts.primary);
   });
 });

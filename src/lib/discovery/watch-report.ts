@@ -156,8 +156,7 @@ const COLUMNS = [
   "Utgångspris",
   "Förv. slutpris",
   "Värde renoverad",
-  "Okapad skillnad",
-  "Krediterad",
+  "Skillnad",
   "Reno (nivå, spann)",
   "Vinst",
   "Smak",
@@ -170,7 +169,7 @@ const COLUMNS = [
 ] as const;
 
 /** Columns whose cells are numbers (right-aligned). */
-const NUMERIC = new Set<string>(["kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Okapad skillnad", "Krediterad", "Vinst", "Smak"]);
+const NUMERIC = new Set<string>(["kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Skillnad", "Vinst", "Smak"]);
 
 const renoText = (r: FitTableRow): string =>
   `${r.renoTier} ${formatKr(r.renoMidKr)} (${formatKr(r.renoLowKr)}–${formatKr(r.renoHighKr)})`;
@@ -200,7 +199,6 @@ function plainCells(entry: MailRow): string[] {
     formatKr(r.expectedFinalKr),
     formatKr(r.resaleKr),
     formatKr(r.gapKr),
-    formatKr(r.creditKr),
     renoText(r),
     formatKr(r.profitKr),
     formatKr(r.tasteKr),

@@ -25,7 +25,6 @@ function tableRow(over: Partial<FitTableRow> = {}): FitTableRow {
     expectedFinalKr: 3_900_000,
     resaleKr: 4_800_000,
     gapKr: 900_000,
-    creditKr: 800_000,
     renoTier: "medel",
     renoMidKr: 300_000,
     renoLowKr: 200_000,
@@ -35,7 +34,7 @@ function tableRow(over: Partial<FitTableRow> = {}): FitTableRow {
     sol: "S gata/N gård (fastighet/gata, 0,95)",
     solTheoretical: "6,0/5,5/4,1",
     solObstructed: "5,8 (5,1\u20136,0) / 5,5 (5,5\u20135,5) / 1,2 (0,0\u20134,1) usäker",
-    flags: ["kredit-tak"],
+    flags: ["ovanligt långt under modellpris"],
     reasons: "tomträtt",
     link: "https://www.booli.se/bostad/150148",
     ...over,
@@ -201,9 +200,15 @@ describe("renderWatchHtml", () => {
   });
 
   it("has every column of D-15", () => {
-    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Okapad skillnad", "Krediterad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor", "Varför här", "Booli"]) {
+    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor", "Varför här", "Booli"]) {
       expect(html).toMatch(new RegExp(`<th[^>]*>${heading.replace(/[().]/g, "\\$&")}</th>`));
     }
+  });
+
+  it("shows one 'Skillnad' column and none of the two earlier money columns", () => {
+    const headings = [...html.slice(html.indexOf("<table"), html.indexOf("</table>")).matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    expect(headings.filter((h) => h === "Skillnad")).toHaveLength(1);
+    expect(headings.some((h) => /^Okapad|^Kredit/.test(h))).toBe(false);
   });
 
   it("the three Sol columns sit right after 'Smak' and before 'Flaggor', and each row's cells are at the same index as the headings", () => {
