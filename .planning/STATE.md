@@ -5,11 +5,11 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.1"
 current_phase_name: Personal Fit Score
 status: executing
-stopped_at: Completed 14.1-09-PLAN.md
-last_updated: "2026-10-13T00:09:05.092Z"
+stopped_at: 14.1-10 Task 1 done (live run, replay, readout); Task 2 browser run pending
+last_updated: "2026-10-13T00:42:45.214Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 14.1 execution started
-state_head: b839224888274b5b63bdfa3ecc75516429c1fe0b
+state_head: e999e5d5260b18eb21a39770c453aded4ab221d4
 progress:
   total_phases: 8
   completed_phases: 1
@@ -257,8 +257,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T00:08:50.419Z
-Stopped at: Completed 14.1-09-PLAN.md
+Last session: 2026-10-13T00:42:44.927Z
+Stopped at: 14.1-10 Task 1 done (live run, replay, readout); Task 2 browser run pending
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
