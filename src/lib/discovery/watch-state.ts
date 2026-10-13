@@ -31,6 +31,14 @@
  * switches URL form and changes price in the same week; that is visible in the mail,
  * where a false "already seen" would hide a flat.
  *
+ * The same rule holds ACROSS runs (WR-07): the entry stores the floor, a takeover needs a
+ * compatible floor, only an entry whose key is NOT in this run's rows can be taken over (a
+ * row never steals the entry of a flat that is also listed today), and only an entry last
+ * seen within {@link WATCH_TAKEOVER_MAX_DAYS} days (a URL-form switch happens between two
+ * consecutive runs; a three-month-old sold flat is not a candidate). The fingerprint STRING
+ * is unchanged on purpose: adding the floor to it would orphan every stored entry and show
+ * the whole memory as new.
+ *
  * PRICE CHANGE: both prices known and at least 1 kr apart. A difference of 0 kr
  * is "unchanged". A missing price on either side is never a change.
  *
@@ -63,6 +71,9 @@ export const WATCH_DATA_DIR = ".planning/calibration/data";
 /** An entry not seen for MORE than this many days is pruned on save: 90 days old is kept, 91 is pruned. */
 export const WATCH_PRUNE_DAYS = 90;
 
+/** WR-07: a URL-form switch can only take over an entry last seen this many days ago or fewer. */
+export const WATCH_TAKEOVER_MAX_DAYS = 14;
+
 /** R-01: with an empty memory (first run, or a corrupt file read as empty) the mail carries this many rows per section. */
 export const WATCH_FIRST_MAIL_PER_SECTION = 15;
 
@@ -78,6 +89,8 @@ const listingEntrySchema = z.object({
   /** The last asking price seen, whole kronor, null when the listing showed none. */
   lastAskingSek: z.number().nullable(),
   fingerprint: z.string(),
+  /** The floor when the listing showed one (WR-07); absent in entries written before it was stored. */
+  floor: z.number().nullable().optional(),
   priceHistory: z.array(z.object({ date: dateString, askingSek: z.number() })),
 });
 
@@ -174,6 +187,8 @@ export function diffRun<T extends WatchRow>(state: WatchState, rows: readonly T[
   const changedRows: ChangedRow<T>[] = [];
   const unchanged: T[] = [];
   const seenKeys = new Set<string>();
+  // Every key of THIS run, computed up front: an entry that a later row of the run owns is never taken over.
+  const runKeys = new Set<string>(rows.map((r) => listingKey(r)));
   const acceptedByFingerprint = new Map<string, T[]>();
 
   for (const row of rows) {
@@ -193,7 +208,13 @@ export function diffRun<T extends WatchRow>(state: WatchState, rows: readonly T[
       // in `listings`, was not claimed by another row this run, and has a compatible asking price.
       storedKey =
         (storedByFingerprint.get(fingerprint) ?? []).find(
-          (candidate) => candidate in listings && !seenKeys.has(candidate) && priceCompatible(listings[candidate].lastAskingSek, row.askingKr),
+          (candidate) =>
+            candidate in listings &&
+            !seenKeys.has(candidate) &&
+            !runKeys.has(candidate) &&
+            priceCompatible(listings[candidate].lastAskingSek, row.askingKr) &&
+            floorCompatible(listings[candidate].floor, row.floor) &&
+            daysBetween(listings[candidate].lastSeen, today) <= WATCH_TAKEOVER_MAX_DAYS,
         ) ?? null;
     }
 
@@ -204,6 +225,7 @@ export function diffRun<T extends WatchRow>(state: WatchState, rows: readonly T[
         lastSeen: today,
         lastAskingSek: price,
         fingerprint,
+        floor: row.floor ?? null,
         priceHistory: price === null ? [] : [{ date: today, askingSek: price }],
       };
       newRows.push(row);
@@ -218,6 +240,7 @@ export function diffRun<T extends WatchRow>(state: WatchState, rows: readonly T[
       lastSeen: today,
       lastAskingSek: price ?? old.lastAskingSek,
       fingerprint,
+      floor: row.floor ?? old.floor ?? null,
       priceHistory: changed ? [...old.priceHistory, { date: today, askingSek: price }] : old.priceHistory,
     };
     if (changed) changedRows.push({ row, oldSek: old.lastAskingSek as number, newSek: price });

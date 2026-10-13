@@ -8,6 +8,7 @@ import {
   WATCH_FIRST_MAIL_PER_SECTION,
   WATCH_PRUNE_DAYS,
   WATCH_STATE_PATH,
+  WATCH_TAKEOVER_MAX_DAYS,
   acquireRunLock,
   diffRun,
   emptyWatchState,
@@ -83,6 +84,7 @@ describe("diffRun", () => {
       lastSeen: "2026-10-20",
       lastAskingSek: 3_995_000,
       fingerprint: fingerprintOf(THREE[0]),
+      floor: null,
       priceHistory: [{ date: "2026-10-20", askingSek: 3_995_000 }],
     });
     // A listing with no price has an empty history, not a fake 0.
@@ -190,6 +192,49 @@ describe("diffRun", () => {
     expect(diffRun(emptyWatchState(), [a, b], "2026-10-20").newRows).toHaveLength(2);
     const unknown = row({ link: "https://www.booli.se/annons/13", floor: null });
     expect(diffRun(emptyWatchState(), [a, unknown], "2026-10-20").newRows).toHaveLength(1);
+  });
+
+  describe("a URL-form takeover never hides a different flat (WR-07)", () => {
+    it("stores the floor, and an entry written without one (older memory file) still parses", () => {
+      const d = diffRun(emptyWatchState(), [row({ link: "https://www.booli.se/bostad/1", floor: 3 })], "2026-10-20");
+      expect(d.next.listings["/bostad/1"].floor).toBe(3);
+      const old = { version: 1, updatedAt: null, listings: { "/bostad/2": { firstSeen: "2026-10-01", lastSeen: "2026-10-01", lastAskingSek: 1, fingerprint: "x", priceHistory: [] } } };
+      expect(watchStateSchema.safeParse(old).success).toBe(true);
+    });
+
+    it("identical units (same address, size, price) on different known floors are two flats: the second is new", () => {
+      const first = diffRun(emptyWatchState(), [row({ link: "https://www.booli.se/bostad/11", floor: 1 })], "2026-10-20");
+      const d = diffRun(first.next, [row({ link: "https://www.booli.se/bostad/12", floor: 4 })], "2026-10-27");
+      expect(d.newRows).toHaveLength(1);
+      expect(Object.keys(d.next.listings).sort()).toEqual(["/bostad/11", "/bostad/12"]);
+    });
+
+    it("a URL-form switch with the same floor, or an unknown floor on either side, is still taken over", () => {
+      const first = diffRun(emptyWatchState(), [row({ link: "https://www.booli.se/annons/11", floor: 2 })], "2026-10-20");
+      expect(diffRun(first.next, [row({ link: "https://www.booli.se/bostad/12", floor: 2 })], "2026-10-27").newRows).toEqual([]);
+      expect(diffRun(first.next, [row({ link: "https://www.booli.se/bostad/12", floor: null })], "2026-10-27").newRows).toEqual([]);
+    });
+
+    it("a row never steals the entry of a flat that is also listed in this run, whatever the row order", () => {
+      const old = row({ link: "https://www.booli.se/bostad/11" });
+      const first = diffRun(emptyWatchState(), [old], "2026-10-20");
+      const twin = row({ link: "https://www.booli.se/bostad/12", floor: null });
+      // The twin comes first in the rows; the old flat's own row comes later in the same run. Before the
+      // fix the twin took over /bostad/11 (reported as already seen) and the real old flat was reported new.
+      const d = diffRun(first.next, [twin, old], "2026-10-27");
+      expect(d.newRows).toEqual([twin]);
+      expect(d.next.listings["/bostad/11"].firstSeen).toBe("2026-10-20");
+      expect(d.next.listings["/bostad/12"].firstSeen).toBe("2026-10-27");
+    });
+
+    it("an entry not seen for more than 14 days is not a takeover candidate (a sold flat that is long gone)", () => {
+      const first = diffRun(emptyWatchState(), [row({ link: "https://www.booli.se/bostad/11" })], "2026-10-01");
+      const within = diffRun(first.next, [row({ link: "https://www.booli.se/bostad/12" })], "2026-10-15");
+      expect(within.newRows).toEqual([]);
+      const beyond = diffRun(first.next, [row({ link: "https://www.booli.se/bostad/12" })], "2026-10-16");
+      expect(beyond.newRows).toHaveLength(1);
+      expect(WATCH_TAKEOVER_MAX_DAYS).toBe(14);
+    });
   });
 
   it("a URL-form switch together with a price change shows as new (visible), never as already seen", () => {
