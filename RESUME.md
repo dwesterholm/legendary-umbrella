@@ -30,8 +30,12 @@ Daniel's to-dos (one-time): set `WATCH_SMTP_URL` + `WATCH_EMAIL_TO` in ~/.zshenv
 repo); delete `watch-state.json` if the first real mail should be a top-15; `launchctl load` the
 plist; run the pmset line. All in scripts/launchd/README.md.
 
-Pending when this was written: 14.2-REVIEW.md (code review) and 14.2-VERIFICATION.md (verifier),
-then `phase.complete` / gap closure. 14.1 is still `human_needed` (12/13) with decisions recorded
+DONE after this was written: 14.2-VERIFICATION passed 12/12; Phase 14.2 marked complete; code review
+(1 critical + 11 warnings) ALL FIXED (14.2-REVIEW-FIX.md): a closed local renderer now refuses instead
+of falling back to Apify; 60 s page timeout + 2 h run watchdog (exit 5); lock stale after 6 h;
+WITHOUT SMTP env the run writes the HTML, leaves watch-state alone and EXITS 4 (set
+WATCH_MARK_SEEN_WITHOUT_SMTP=1 to restore the old behaviour) — so Daniel's first scheduled run
+needs the SMTP env or that flag; vision cache key now versioned (first run re-reads all, ≤ 60 kr). 14.1 is still `human_needed` (12/13) with decisions recorded
 in the PICK-UP section below; verify-work 14.1 can close it on those.
 
 Next phase if sun matters: 14.3 (orientation from OSM footprint / floor-plan compass; obstructed
