@@ -167,7 +167,7 @@ Plans:
 
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 6/9 plans executed
+**Plans:** 7/9 plans executed
 
 Plans:
 **Wave 1**
@@ -190,7 +190,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 14.2-07-PLAN.md — "Varför här": BRF debt per kvm from Booli's public BRF page + deterministic reason rules on every flagged row (incl. "snart till salu")
+- [x] 14.2-07-PLAN.md — "Varför här": BRF debt per kvm from Booli's public BRF page + deterministic reason rules on every flagged row (incl. "snart till salu")
 
 **Wave 6** *(blocked on Wave 5 completion)*
 

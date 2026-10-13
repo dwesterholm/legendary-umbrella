@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.2"
 current_phase_name: Trustworthy Weekly Table
 status: executing
-stopped_at: Completed 14.2-06-PLAN.md
-last_updated: "2026-10-13T11:24:52.309Z"
+stopped_at: Completed 14.2-07-PLAN.md
+last_updated: "2026-10-13T11:39:31.429Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.2 execution started
-state_head: a0b237e2d4794448c261df81a963e5c392c827ca
+state_head: a17fa83aca4b38615c1ad75f0ced891dc1ecc95f
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 34
-  completed_plans: 31
+  completed_plans: 32
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.2 (Trustworthy Weekly Table) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-10-13 — Phase 14.2 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
@@ -93,6 +93,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.2 P04 | 14 min | 3 tasks | 7 files |
 | Phase 14.2 P05 | 14 min | 2 tasks | 7 files |
 | Phase 14.2 P06 | 22 min | 2 tasks | 10 files |
+| Phase 14.2 P07 | 14 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -239,6 +240,7 @@ Recent decisions affecting current work:
 - [Phase 14.2]: 14.2-05: window 'all' reads two candidates at a time (the local browser opens two pages at once); 'all' is refused under --renderer apify (checked at argument parsing and after the renderer is resolved)
 - [Phase 14.2]: 14.2-05: coverage measured on 77 comparable flats before pictures: detail/balcony/avgift 100 %, tenure 98,7 %, description 41,6 %, sun/orientation 2,6 %, condition 0 % (no pictures yet); Booli detail pages carry no description, so text coverage depends on broker direct GET only
 - [Phase 14.2]: 14.2-06: vision runs in 3 lanes capped at 20 SEK each (60 SEK per run), cached by listing path + picture-set hash; local browser opens broker pages only via the broker page function (one attempt, no Apify)
+- [Phase 14.2]: 14.2-07: BRF debt per kvm = Booli BRF page loans / boarea (label and value on separate lines); 2 of 30 pages show no Lån line so debt stays null; reasons are pure rules with one thresholds table, snart till salu last and informational; 'ovanlig planlösning' fires on 10 of 35 (1-room flats over 30 kvm) and is flagged for review
 
 ### Pending Todos
 
@@ -270,8 +272,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T11:24:52.184Z
-Stopped at: Completed 14.2-06-PLAN.md
+Last session: 2026-10-13T11:39:31.297Z
+Stopped at: Completed 14.2-07-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
