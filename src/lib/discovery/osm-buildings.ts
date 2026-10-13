@@ -121,23 +121,34 @@ export function normalizeStreetName(name: string): string {
 /** A ring of [lng, lat] pairs, first point equal to the last. */
 export type Ring = Array<[number, number]>;
 
-const M_PER_DEG_LAT = 110_574;
-const M_PER_DEG_LNG_AT_EQUATOR = 111_320;
+/**
+ * Metres per degree of latitude and of longitude at `latDeg`, WGS84 (the standard series for the length of a
+ * degree on the ellipsoid, as in the NGA / Wikipedia "Geographic coordinate system" tables). At Stockholm
+ * (59,33 N) that is about 111 402 m and 56 944 m. The old constants (110 574 for latitude, which is the
+ * equatorial value, and the spherical 111 320 x cos(lat) for longitude) scaled the two axes differently: 300 m
+ * due north came out as 297,8 m (14.3 review WR-02).
+ */
+export function metresPerDegree(latDeg: number): { lat: number; lng: number } {
+  const phi = (latDeg * Math.PI) / 180;
+  return {
+    lat: 111_132.92 - 559.82 * Math.cos(2 * phi) + 1.175 * Math.cos(4 * phi) - 0.0023 * Math.cos(6 * phi),
+    lng: 111_412.84 * Math.cos(phi) - 93.5 * Math.cos(3 * phi) + 0.118 * Math.cos(5 * phi),
+  };
+}
 
 /**
- * Equirectangular projection around (lat0, lng0): (lng, lat) -> [x east, y
- * north] in metres. Good to a few centimetres over 300 m at Stockholm's
- * latitude (RESEARCH "Local projection and bearing").
+ * Equirectangular projection around (lat0, lng0): (lng, lat) -> [x east, y north] in metres, with both axes
+ * scaled at lat0. Within about 0,1 m over 300 m at Stockholm's latitude (RESEARCH "Local projection and bearing").
  */
 export function projectFrom(lat0: number, lng0: number): (lng: number, lat: number) => [number, number] {
-  const mLng = M_PER_DEG_LNG_AT_EQUATOR * Math.cos((lat0 * Math.PI) / 180);
-  return (lng, lat) => [(lng - lng0) * mLng, (lat - lat0) * M_PER_DEG_LAT];
+  const m = metresPerDegree(lat0);
+  return (lng, lat) => [(lng - lng0) * m.lng, (lat - lat0) * m.lat];
 }
 
 /** The inverse of {@link projectFrom}: [x east, y north] in metres -> [lng, lat]. */
 export function unprojectFrom(lat0: number, lng0: number): (x: number, y: number) => [number, number] {
-  const mLng = M_PER_DEG_LNG_AT_EQUATOR * Math.cos((lat0 * Math.PI) / 180);
-  return (x, y) => [lng0 + x / mLng, lat0 + y / M_PER_DEG_LAT];
+  const m = metresPerDegree(lat0);
+  return (x, y) => [lng0 + x / m.lng, lat0 + y / m.lat];
 }
 
 /**

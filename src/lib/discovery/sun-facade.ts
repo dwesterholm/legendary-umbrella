@@ -33,6 +33,7 @@ import {
   type OsmBuilding,
   type OsmIndex,
   type OsmRoad,
+  metresPerDegree,
   normalizeStreetName,
   pointInBuilding,
   projectFrom,
@@ -290,8 +291,9 @@ function findOwnBuilding(index: OsmIndex, lat: number, lng: number): { building:
   const proj = projectFrom(lat, lng);
   const origin: XY = [0, 0];
   // Cheap prefilter: the building's box grown by the snap distance must contain the point.
-  const dLat = (P.snapMaxM + 1) / 110_574;
-  const dLng = (P.snapMaxM + 1) / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const perDeg = metresPerDegree(lat);
+  const dLat = (P.snapMaxM + 1) / perDeg.lat;
+  const dLng = (P.snapMaxM + 1) / perDeg.lng;
   let best: { building: OsmBuilding; d: number } | null = null;
   for (const b of index.buildings) {
     const [minLng, minLat, maxLng, maxLat] = b.bbox;

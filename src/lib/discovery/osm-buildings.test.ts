@@ -8,6 +8,7 @@ import {
   buildingHeight,
   heightOf,
   levelsOf,
+  metresPerDegree,
   normalizeStreetName,
   parseOsmExtract,
   pointInBuilding,
@@ -146,15 +147,55 @@ describe("normalizeStreetName (SUN-01 encoding)", () => {
   });
 });
 
+/** WGS84 ground truth: the length of one degree of latitude / longitude from the radii of curvature (not the series the code uses). */
+function wgs84MetresPerDegree(latDeg: number): { lat: number; lng: number } {
+  const a = 6_378_137;
+  const e2 = 0.00669437999014;
+  const phi = (latDeg * Math.PI) / 180;
+  const w = 1 - e2 * Math.sin(phi) ** 2;
+  const meridian = (a * (1 - e2)) / w ** 1.5;
+  const prime = a / Math.sqrt(w);
+  return { lat: (meridian * Math.PI) / 180, lng: (prime * Math.cos(phi) * Math.PI) / 180 };
+}
+
 describe("projection", () => {
-  it("is 110 574 m per degree of latitude and 111 320 x cos(lat) per degree of longitude", () => {
+  it("scales a degree of latitude and a degree of longitude with the WGS84 ellipsoid at the centre latitude", () => {
+    const truth = wgs84MetresPerDegree(60);
     const p = projectFrom(60, 18);
     const [x, y] = p(18, 61);
     expect(x).toBeCloseTo(0, 6);
-    expect(y).toBeCloseTo(110_574, 3);
+    expect(y).toBeCloseTo(truth.lat, 1);
     const [x2, y2] = p(19, 60);
-    expect(x2).toBeCloseTo(111_320 * 0.5, 2);
+    expect(x2).toBeCloseTo(truth.lng, 1);
     expect(y2).toBeCloseTo(0, 6);
+  });
+
+  it("agrees with the ellipsoid to 0,1 m over 300 m due north and due east at Stockholm (WR-02: it was 297,8 m north)", () => {
+    const lat0 = 59.3293;
+    const lng0 = 18.0686;
+    const truth = wgs84MetresPerDegree(lat0);
+    const project = projectFrom(lat0, lng0);
+    const [nx, ny] = project(lng0, lat0 + 300 / truth.lat);
+    expect(nx).toBeCloseTo(0, 6);
+    expect(Math.abs(ny - 300)).toBeLessThan(0.1);
+    const [ex, ey] = project(lng0 + 300 / truth.lng, lat0);
+    expect(ey).toBeCloseTo(0, 6);
+    expect(Math.abs(ex - 300)).toBeLessThan(0.1);
+  });
+
+  it("keeps the two axes in the true ratio: a 300 m diagonal measures 424,26 m", () => {
+    const lat0 = 59.3293;
+    const truth = wgs84MetresPerDegree(lat0);
+    const [x, y] = projectFrom(lat0, 18.0686)(18.0686 + 300 / truth.lng, lat0 + 300 / truth.lat);
+    expect(Math.abs(Math.hypot(x, y) - 424.26)).toBeLessThan(0.15);
+    expect(Math.abs(Math.atan2(x, y) * (180 / Math.PI) - 45)).toBeLessThan(0.05);
+  });
+
+  it("exposes metresPerDegree for the other modules (no second copy of the constants)", () => {
+    const m = metresPerDegree(59.33);
+    const truth = wgs84MetresPerDegree(59.33);
+    expect(Math.abs(m.lat - truth.lat)).toBeLessThan(0.5);
+    expect(Math.abs(m.lng - truth.lng)).toBeLessThan(0.5);
   });
 
   it("unprojectFrom is its inverse", () => {
