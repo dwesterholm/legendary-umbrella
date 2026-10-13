@@ -47,7 +47,7 @@ import {
   type FitSnapshot,
   type ModelHealth,
 } from "@/lib/discovery/fit-score";
-import type { HedonicModel, InnerstanDistrict } from "@/lib/discovery/hedonic-model";
+import type { HedonicModel, InnerstanDistrict, OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import { formatSolCell, formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
@@ -362,6 +362,11 @@ export interface FitTableRow {
   readonly kvm: number | null;
   readonly floor: number | null;
   readonly askingKr: number | null;
+  /**
+   * "Budpremie": the expected overbid used for the expected final price and what it is made of,
+   * "+4,2 % (distrikt+pris+dagar)", or "-" when the row has none. BID-02 adds the condition part in plan 09.
+   */
+  readonly budpremie: string;
   readonly expectedFinalKr: number | null;
   readonly resaleKr: number | null;
   /** "Skillnad": the renovated value minus the expected final price. Since 14.4 (D-05) the whole of it is credited in the profit. */
@@ -390,6 +395,17 @@ export interface FitTableRow {
   readonly link: string;
 }
 
+/**
+ * The "Budpremie" cell (VAL-03): the premium with its sign, one decimal and a decimal comma, then its makeup
+ * in brackets: "+4,2 % (distrikt+pris+dagar)". "-" without a premium. A premium that rounds to zero reads "+0,0 %".
+ */
+export function budpremieCell(detail: Pick<OverbidDetail, "pct" | "label"> | null): string {
+  if (detail === null || !Number.isFinite(detail.pct)) return "-";
+  const magnitude = (Math.abs(detail.pct) * 100).toFixed(1);
+  const sign = detail.pct < 0 && Number(magnitude) !== 0 ? "-" : "+";
+  return `${sign}${magnitude.replace(".", ",")} % (${detail.label})`;
+}
+
 const roundKr = (n: number): number => Math.round(n);
 const roundOrNull = (n: number | null): number | null => (n === null ? null : roundKr(n));
 
@@ -413,6 +429,7 @@ export function toFitTableRows(
       kvm: r.livingArea,
       floor: r.floor,
       askingKr: roundOrNull(r.askingSek),
+      budpremie: budpremieCell(r.overbidDetail),
       expectedFinalKr: roundOrNull(r.purchaseSek),
       resaleKr: roundOrNull(r.resaleSek),
       gapKr: roundOrNull(r.gapSek),
@@ -433,7 +450,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -456,6 +473,7 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         r.kvm === null ? "-" : r.kvm,
         r.floor === null ? "-" : r.floor,
         orDash(r.askingKr),
+        r.budpremie,
         orDash(r.expectedFinalKr),
         orDash(r.resaleKr),
         orDash(r.gapKr),

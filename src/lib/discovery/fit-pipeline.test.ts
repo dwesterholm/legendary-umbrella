@@ -21,6 +21,7 @@ import {
   FIT_SIZE_MIN,
   FIT_TABLE_HEADER,
   FIT_TABLE_MAX_ROWS,
+  budpremieCell,
   checkApifyHeadroom,
   computeCoverage,
   reasonsOnFlaggedOf,
@@ -384,6 +385,26 @@ describe("table rows and rendering (FIT-03)", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
     expect(cells).toHaveLength(headerCells.length);
     expect(cells[headerCells.indexOf("Skillnad")]).toBe((1_234_567).toLocaleString("sv-SE"));
+  });
+
+  it("budpremieCell shows the sign, one decimal with a decimal comma, and the makeup in brackets (VAL-03)", () => {
+    const detail = (pct: number, label: string) => ({ ...sample[0].overbidDetail!, pct, label });
+    expect(budpremieCell(null)).toBe("-");
+    expect(budpremieCell(detail(0.0423, "distrikt+pris+dagar"))).toBe("+4,2 % (distrikt+pris+dagar)");
+    expect(budpremieCell(detail(-0.005, "distrikt"))).toBe("-0,5 % (distrikt)");
+    expect(budpremieCell(detail(0, "distrikt"))).toBe("+0,0 % (distrikt)");
+    expect(budpremieCell(detail(0.1049, "distrikt, dagar okända"))).toBe("+10,5 % (distrikt, dagar okända)");
+  });
+
+  it("the header puts 'Budpremie' between 'Utgångspris' and 'Förv. slutpris', and every row prints the cell at that index", () => {
+    expect(FIT_TABLE_HEADER).toContain("| Utgångspris | Budpremie | Förv. slutpris |");
+    const detail = { ...sample[0].overbidDetail!, pct: 0.0423, label: "distrikt+pris+dagar" };
+    const text = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], overbidDetail: detail }, { ...sample[1], overbidDetail: null }] }, new Map()));
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    const [first, second] = text.split("\n").slice(1).map((l) => l.split(" | "));
+    expect(first).toHaveLength(headerCells.length);
+    expect(first[headerCells.indexOf("Budpremie")]).toBe("+4,2 % (distrikt+pris+dagar)");
+    expect(second[headerCells.indexOf("Budpremie")]).toBe("-");
   });
 
   it("the residual flag reads 'ovanligt långt under modellpris'; no flag label names a ceiling", () => {

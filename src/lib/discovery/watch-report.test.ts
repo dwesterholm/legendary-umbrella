@@ -22,6 +22,7 @@ function tableRow(over: Partial<FitTableRow> = {}): FitTableRow {
     kvm: 40,
     floor: 3,
     askingKr: 3_995_000,
+    budpremie: "+4,2 % (distrikt+pris+dagar)",
     expectedFinalKr: 3_900_000,
     resaleKr: 4_800_000,
     gapKr: 900_000,
@@ -200,9 +201,19 @@ describe("renderWatchHtml", () => {
   });
 
   it("has every column of D-15", () => {
-    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor", "Varför här", "Booli"]) {
+    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor", "Varför här", "Booli"]) {
       expect(html).toMatch(new RegExp(`<th[^>]*>${heading.replace(/[().]/g, "\\$&")}</th>`));
     }
+  });
+
+  it("'Budpremie' sits right after 'Utgångspris', is text (left-aligned), and its cell is escaped like the others", () => {
+    const headings = [...html.slice(html.indexOf("<table"), html.indexOf("</table>")).matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    expect(headings.indexOf("Budpremie")).toBe(headings.indexOf("Utgångspris") + 1);
+    expect(html).toMatch(/<td style="[^"]*">\+4,2 % \(distrikt\+pris\+dagar\)<\/td>/);
+    expect(html).not.toMatch(/<td style="[^"]*text-align:right[^"]*">\+4,2 %/);
+    const hostile = renderWatchHtml(input({ sections: { under: [newEntry(tableRow({ budpremie: "<b>x</b> & (y)" }))], over: [] } }));
+    expect(hostile).toContain("&lt;b&gt;x&lt;/b&gt; &amp; (y)");
+    expect(hostile).not.toContain("<b>x</b>");
   });
 
   it("shows one 'Skillnad' column and none of the two earlier money columns", () => {
