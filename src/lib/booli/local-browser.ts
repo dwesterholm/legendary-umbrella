@@ -1,6 +1,6 @@
 import { isBooliUrl } from "@/lib/booli/client";
 import { BROKER_RENDER_PAGE_FUNCTION } from "@/lib/broker/fetch-broker-page";
-import { runApifyRender, setRenderer, usableItems, type RenderFn, type RenderOpts } from "@/lib/booli/transport";
+import { NonRetryableRenderError, runApifyRender, setRenderer, usableItems, type RenderFn, type RenderOpts } from "@/lib/booli/transport";
 
 /**
  * local-browser.ts — the LOCAL browser rung (Phase 14.2, WATCH-01; D-02, D-03,
@@ -456,7 +456,7 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
     const broker = !isBooliUrl(url) && pageFunction === BROKER_RENDER_PAGE_FUNCTION && /^https:\/\//i.test(url);
     if (!isBooliUrl(url) && !broker) {
       stats.refused += 1;
-      throw new Error("Lokala webblasaren hamtar bara Booli-sidor och maklarsidor");
+      throw new NonRetryableRenderError("Lokala webblasaren hamtar bara Booli-sidor och maklarsidor");
     }
     let lastError: unknown;
     // At most two attempts, and only a challenge earns the second one (D-04).
@@ -477,7 +477,12 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
         // Challenged twice: the paid rung runs only when the caller asked for it and the cap has room (D-04, R-03).
         if (!closed && allowApify && stats.apifyFallbacks < apifyMaxRenders) {
           stats.apifyFallbacks += 1;
-          return runApifyRender(url, pageFunction, opts);
+          try {
+            return await runApifyRender(url, pageFunction, opts);
+          } catch (apifyError) {
+            // The paid rung has had its go; the tree must not ask the local browser again (WR-04).
+            throw new NonRetryableRenderError(apifyError instanceof Error ? apifyError.message : "Apify-rendering misslyckades");
+          }
         }
       }
     }
@@ -485,7 +490,9 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
     // Log the error object only; never an env value (secret posture). A broker URL is attacker-influenceable
     // (it comes from a listing), so for a broker page only the error name is logged, never the message.
     console.error("[booli-local]", broker ? { broker: true, code: lastError instanceof Error ? lastError.name : "UNKNOWN" } : lastError);
-    throw new Error("Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.");
+    // Non-retryable (WR-04): the retry policy above is the only one. fetchListing and the area and sold
+    // pages walk two rungs built for Apify's fresh-proxy retry; they must not request the page again.
+    throw new NonRetryableRenderError("Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.");
   };
 
   setRenderer(render);
@@ -500,7 +507,7 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
       // starting renders; restoring the default (setRenderer(null)) re-routed every
       // one of them to a paid actor run, past the --allow-apify gate and the cap.
       setRenderer(async () => {
-        throw new Error(CLOSED_RENDERER_MESSAGE);
+        throw new NonRetryableRenderError(CLOSED_RENDERER_MESSAGE);
       });
       try {
         await context?.close();

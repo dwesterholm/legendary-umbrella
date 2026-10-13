@@ -70,6 +70,21 @@ export type RenderFn = (
   opts?: RenderOpts,
 ) => Promise<unknown[]>;
 
+/**
+ * An error a renderer throws once ITS OWN retry policy is used up (WR-04). The
+ * fallback tree reads the `nonRetryable` flag and stops walking: the second
+ * rung exists for Apify's fresh-proxy retry, and re-requesting a challenged page
+ * from the same home IP is the thing most likely to turn a soft challenge into
+ * a block. Duck-typed on purpose so `fallback-tree.ts` needs no import.
+ */
+export class NonRetryableRenderError extends Error {
+  readonly nonRetryable = true;
+  constructor(message: string) {
+    super(message);
+    this.name = "NonRetryableRenderError";
+  }
+}
+
 /** The installed renderer, or `null` for the default (Apify). Only scripts ever set it. */
 let renderer: RenderFn | null = null;
 

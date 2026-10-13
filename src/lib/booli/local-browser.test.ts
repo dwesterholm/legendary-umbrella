@@ -29,6 +29,7 @@ import {
   type LocalRendererOptions,
 } from "@/lib/booli/local-browser";
 import { runPlaywrightRender, setRenderer } from "@/lib/booli/transport";
+import { fetchListing } from "@/lib/booli/client";
 
 const BOOLI_URL = "https://www.booli.se/sok/till-salu?areaIds=115341";
 const STATE = { "Listing:1": { __typename: "Listing", id: "1" } };
@@ -342,6 +343,28 @@ describe("challenge handling (D-04)", () => {
     expect(e).toBeInstanceOf(Error);
     expect(e.status).toBe(403);
     expect(e.marker).toBe("HTTP 403");
+  });
+});
+
+describe("one retry policy across rungs (WR-04)", () => {
+  it("fetchListing with a challenged page opens it twice (attempt + the one retry), not four times, and never calls Apify", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    const h = install(clock, b.launcher, { allowApify: false });
+    await expect(clock.run(fetchListing("https://www.booli.se/annons/123"))).rejects.toThrow("Alla Booli-kallor misslyckades");
+    expect(b.log.opened).toBe(2);
+    expect(h.stats()).toMatchObject({ challenged: 2, retried: 1, failed: 1 });
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("after the paid fallback was used and failed, the tree does not ask the local browser again", async () => {
+    actorCall.mockResolvedValue({ status: "FAILED", defaultDatasetId: "ds-1" });
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    install(clock, b.launcher, { allowApify: true, apifyMaxRenders: 5 });
+    await expect(clock.run(fetchListing("https://www.booli.se/annons/123"))).rejects.toThrow("Alla Booli-kallor misslyckades");
+    expect(b.log.opened).toBe(2);
+    expect(actorCall).toHaveBeenCalledTimes(1);
   });
 });
 

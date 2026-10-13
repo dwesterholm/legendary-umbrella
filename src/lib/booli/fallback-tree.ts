@@ -17,6 +17,10 @@
  * collapsing it into rung 1, and do not flag near-identical rung 1/rung 2
  * attempt functions as code-review duplication — see Pitfall 5.
  *
+ * Exception (WR-04): an error flagged `nonRetryable` (see `NonRetryableRenderError`
+ * in transport.ts) ends the walk. The local browser applies its own single-retry
+ * policy; the second rung is for Apify's fresh container and proxy session.
+ *
  * HIGH-1 discipline at the tree level: `walkFallbackTree` NEVER silently
  * returns empty/undefined when every rung is exhausted — it throws a
  * distinguishable, Swedish user-facing error, mirroring the same discipline
@@ -61,6 +65,10 @@ export async function walkFallbackTree<T>(
     } catch (error) {
       console.error(`[booli-client] rung ${i + 1} (${rungs[i].source}) failed`, error);
       lastError = error;
+      // WR-04: a renderer that already applied its own retry policy (the local
+      // browser: one retry for a challenge, never more) says so, and the next
+      // rung is not tried. Without this a challenged page was requested 4 times.
+      if ((error as { nonRetryable?: boolean } | null)?.nonRetryable === true) break;
     }
   }
   throw new Error(

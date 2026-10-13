@@ -132,4 +132,18 @@ describe("walkFallbackTree", () => {
 
     expect(rung).not.toHaveBeenCalled();
   });
+
+  it("stops at an error flagged nonRetryable: the next rung is not tried (WR-04)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const rung1 = vi.fn().mockRejectedValue(Object.assign(new Error("lokal renderare klar"), { nonRetryable: true }));
+    const rung2 = vi.fn().mockResolvedValue("data-2");
+    await expect(
+      walkFallbackTree([
+        { source: "own-playwright", attempt: rung1 },
+        { source: "own-playwright-retry", attempt: rung2 },
+      ]),
+    ).rejects.toThrow("Alla Booli-kallor misslyckades: lokal renderare klar");
+    expect(rung1).toHaveBeenCalledTimes(1);
+    expect(rung2).not.toHaveBeenCalled();
+  });
 });
