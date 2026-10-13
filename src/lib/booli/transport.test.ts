@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  actorCall,
+  listItems,
   resetApifyMock,
   runsList,
   userLimits,
@@ -9,7 +11,17 @@ import {
 vi.mock("apify-client", () => apifyClientMockFactory());
 
 // Imported AFTER the mock above is registered.
-import { apifySpendSince, apifyMonthlyHeadroomUsd } from "@/lib/booli/transport";
+import {
+  apifySpendSince,
+  apifyMonthlyHeadroomUsd,
+  formatApifyRunsLine,
+  runPlaywrightRender,
+  setRenderer,
+  usableItems,
+  LEDGER_SETTLE_MS,
+  RENDER_MEMORY_MB,
+  RENDER_TIMEOUT_GRACE_SECS,
+} from "@/lib/booli/transport";
 
 const SINCE = new Date("2026-10-12T10:00:00.000Z");
 
@@ -152,5 +164,97 @@ describe("apifyMonthlyHeadroomUsd", () => {
     expect(await apifyMonthlyHeadroomUsd()).toBeNull();
     userLimits.mockResolvedValueOnce(undefined);
     expect(await apifyMonthlyHeadroomUsd()).toBeNull();
+  });
+});
+
+describe("renderer seam (Phase 14.2, D-02/D-03)", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    resetApifyMock();
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    setRenderer(null);
+    errorSpy.mockRestore();
+  });
+
+  it("with a renderer installed, runPlaywrightRender calls it and never the Apify actor", async () => {
+    const fake = vi.fn().mockResolvedValue([{ hasApollo: true, __APOLLO_STATE__: {} }]);
+    setRenderer(fake);
+    const items = await runPlaywrightRender("https://www.booli.se/x", "async function pageFunction() {}", { waitSecs: 30 });
+    expect(items).toEqual([{ hasApollo: true, __APOLLO_STATE__: {} }]);
+    expect(fake).toHaveBeenCalledWith("https://www.booli.se/x", "async function pageFunction() {}", { waitSecs: 30 });
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("after setRenderer(null) the Apify input is unchanged (proxy, retries, memory, timeout)", async () => {
+    setRenderer(() => Promise.resolve([]));
+    setRenderer(null);
+    actorCall.mockResolvedValue({ status: "SUCCEEDED", defaultDatasetId: "ds-1" });
+    listItems.mockResolvedValue({ items: [{ hasApollo: true, __APOLLO_STATE__: {} }] });
+    await runPlaywrightRender("https://www.booli.se/x", "PF");
+    expect(actorCall).toHaveBeenCalledTimes(1);
+    const [input, callOpts] = actorCall.mock.calls[0];
+    expect(input).toEqual({
+      startUrls: [{ url: "https://www.booli.se/x" }],
+      launcher: "chromium",
+      proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"], apifyProxyCountry: "SE" },
+      maxRequestRetries: 3,
+      maxPagesPerCrawl: 1,
+      pageFunction: "PF",
+    });
+    expect(callOpts).toEqual({
+      waitSecs: 240,
+      log: null,
+      memory: RENDER_MEMORY_MB,
+      timeout: 240 + RENDER_TIMEOUT_GRACE_SECS,
+    });
+  });
+});
+
+describe("usableItems (HIGH-1, shared by every renderer)", () => {
+  it("throws the Swedish no-results message for []", () => {
+    expect(() => usableItems([])).toThrow("Inga resultat fran Booli-kallan");
+  });
+  it("throws the Swedish no-Apollo message when every item has hasApollo false", () => {
+    expect(() => usableItems([{ hasApollo: false }, { hasApollo: false }])).toThrow(
+      "Booli-kallan returnerade ingen Apollo-data (hasApollo=false)",
+    );
+  });
+  it("keeps items without the flag and with hasApollo true", () => {
+    const items = [{ hasApollo: true }, { html: "x" }, { hasApollo: false }];
+    expect(usableItems(items)).toEqual([{ hasApollo: true }, { html: "x" }]);
+  });
+});
+
+describe("runs-API line (W4: the one pinned ledger format)", () => {
+  const zero = { usd: 0, runs: 0, succeeded: 0, timedOut: 0, failed: 0, other: 0, missingUsage: 0 };
+
+  it("a zero bill is exactly the pinned string", () => {
+    expect(formatApifyRunsLine(zero)).toBe("Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)");
+  });
+
+  it("a real bill uses two decimals and a decimal comma", () => {
+    expect(formatApifyRunsLine({ ...zero, usd: 0.0549, runs: 2, succeeded: 1, timedOut: 1 })).toBe(
+      "Apify (runs-API): 0,05 USD, 2 körningar (1 lyckade, 1 timeout, 0 misslyckade)",
+    );
+  });
+
+  it("an unreadable bill reports the reason", () => {
+    expect(formatApifyRunsLine(null, "APIFY_API_TOKEN saknas")).toBe("Apify (runs-API): kunde inte läsas (APIFY_API_TOKEN saknas)");
+    expect(formatApifyRunsLine(null)).toBe("Apify (runs-API): kunde inte läsas");
+  });
+
+  it("never has a decimal point in the amount and never starts with a space", () => {
+    for (const line of [formatApifyRunsLine({ ...zero, usd: 12.3456, runs: 3 }), formatApifyRunsLine(zero), formatApifyRunsLine(null, "x")]) {
+      expect(line.startsWith(" ")).toBe(false);
+      expect(line).not.toMatch(/\d\.\d/);
+    }
+  });
+});
+
+describe("ledger settle delay (WR-05)", () => {
+  it("is one shared 10 000 ms constant", () => {
+    expect(LEDGER_SETTLE_MS).toBe(10_000);
   });
 });
