@@ -12,6 +12,13 @@
  *             snapshot (its Booli pictures, no broker photos) and the committed synthetic plan (bytes). The
  *             comparison with the truth is a FINDING, not a pass/fail: a disagreeing read is recorded as is.
  *
+ *   --report <snapshot> --out <json>
+ *             No model call and no RUN_LLM_EVALS needed (Phase 14.4 plan 08, LAY-04): reads the layout facts a live
+ *             run stored in its snapshot and writes the counts (src/lib/discovery/layout-report.ts): coverage per
+ *             field, rows where the plan picked the sun's facade, agreement with a stated facade (with its n),
+ *             internal consistency, the 12-flat sample for the by-eye check and the lifetime spend from the layout
+ *             cache. --out must lie under .planning/phases/. No URL and no picture is written.
+ *
  * The layout cache (`layout-cache.json`, gitignored) is saved after the run whatever happened, so a billed
  * failure stays in the lifetime ledger and a successful read of Folkungagatan 61 is reused by the weekly run.
  *
@@ -26,6 +33,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseFitSnapshot } from "@/lib/discovery/fit-score";
 import { guardedDataPath, writeJsonAtomic } from "@/lib/discovery/json-store";
 import { usableSide } from "@/lib/discovery/layout-fact";
+import { layoutReportOf } from "@/lib/discovery/layout-report";
 import { makeLayoutCall } from "@/lib/discovery/layout-call";
 import {
   LAYOUT_CACHE_PATH,
@@ -34,6 +42,7 @@ import {
   LAYOUT_RUN_CAP_SEK,
   LayoutCallError,
   layoutFactFromRead,
+  layoutSpentSek,
   loadLayoutCache,
   runLayoutReads,
   saveLayoutCache,
@@ -62,27 +71,38 @@ const SMOKE_EST_SEK = 0.45;
 
 const USAGE = `Användning (betalt, högst ${formatSek(SMOKE_CAP_SEK)} kr, kräver RUN_LLM_EVALS=1):
   RUN_LLM_EVALS=1 npx tsx scripts/layout-read-probe.ts --smoke [--snapshot <fil>]
+Rapport (gratis, inget anrop, kräver inte RUN_LLM_EVALS):
+  npx tsx scripts/layout-read-probe.ts --report <snapshot> --out <json under .planning/phases/>
 
   --smoke          Två riktiga läsningar (Folkungagatan 61 från snapshoten och den syntetiska planritningen) som visar att schemat går igenom
   --snapshot <fil> Snapshot med annonser (standard: ${DEFAULT_SNAPSHOT})
+  --report <fil>   Räknar ut täckning per fält, överensstämmelse och stickprovet på 12 annonser ur en snapshot från en riktig körning
+  --out <fil>      Var rapporten skrivs (under .planning/phases/)
 Utan RUN_LLM_EVALS=1 görs inget anrop. Slutkoder: 0 klart eller överhoppat, 1 fel.`;
 
 interface Args {
   smoke: boolean;
   snapshot: string | null;
+  report: string | null;
+  out: string | null;
   help: boolean;
 }
 
 function parseArgs(argv: string[]): Args | null {
-  const out: Args = { smoke: false, snapshot: null, help: false };
+  const out: Args = { smoke: false, snapshot: null, report: null, out: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     const value = argv[i + 1];
     if (flag === "--help" || flag === "-h") out.help = true;
     else if (flag === "--smoke") out.smoke = true;
     else if (flag === "--snapshot" && value !== undefined) { out.snapshot = value; i++; }
+    else if (flag === "--report" && value !== undefined) { out.report = value; i++; }
+    else if (flag === "--out" && value !== undefined) { out.out = value; i++; }
     else return null;
   }
+  // --report and --out belong together, and neither mixes with --smoke.
+  if ((out.report === null) !== (out.out === null)) return null;
+  if (out.report !== null && out.smoke) return null;
   return out;
 }
 
@@ -215,9 +235,29 @@ function writeEvidence(evidence: Record<string, unknown>): void {
   writeJsonAtomic(safe, evidence);
 }
 
+/** --report: counts from a live run's snapshot. No model call, no key, no gate. */
+function report(snapshotPath: string, outPath: string): number {
+  const safe = guardedDataPath(outPath, { dir: EVIDENCE_DIR, ext: ".json" });
+  if (safe === null) {
+    console.error(`--out måste vara en .json-fil under ${EVIDENCE_DIR}/`);
+    return 1;
+  }
+  const snapshot = parseFitSnapshot(JSON.parse(readFileSync(snapshotPath, "utf8")));
+  const { cache, warning } = loadLayoutCache(LAYOUT_CACHE_PATH);
+  if (warning) console.log(warning);
+  const r = layoutReportOf(snapshot.rows, layoutSpentSek(cache));
+  writeJsonAtomic(safe, r);
+  const u = r.usable;
+  console.log(
+    `Rapport: ${r.rowsWithLayout} av ${snapshot.rows.length} rader har en planlösning; användbart (efter spärren): balkong ${u.balcony}, varav gata/gård ${u.balconyStreetOrCourtyard}, fönstersidor ${u.windowSides}, sovrum ${u.bedroom}; sol från planlösning ${r.appliedToSun}; ` +
+      `överensstämmelse med angiven fasad ${r.agreement.agree} av ${r.agreement.n}; inre motsägelser ${r.consistency.contradictions} av ${r.consistency.n}; stickprov ${r.eyeSample.length}; skrivet till ${outPath}`,
+  );
+  return 0;
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
-  if (args === null || (!args.help && !args.smoke)) {
+  if (args === null || (!args.help && !args.smoke && args.report === null)) {
     console.log(USAGE);
     return 1;
   }
@@ -225,6 +265,7 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 0;
   }
+  if (args.report !== null && args.out !== null) return report(args.report, args.out);
   if (process.env.RUN_LLM_EVALS !== "1") {
     console.log("Hoppar över: RUN_LLM_EVALS=1 krävs för betalda anrop");
     return 0;
