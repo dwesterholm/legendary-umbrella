@@ -306,7 +306,8 @@ export function extractOrientationFromDescription(
  *
  *  - `allDaySun`: the broker wrote "sol hela dagen" or "sol större delen av
  *    dagen".
- *  - `throughFlat`: the broker wrote "genomgående" (windows on two sides).
+ *  - `throughFlat`: the broker wrote "genomgående" about the LAYOUT (windows on
+ *    two sides): "genomgående planlösning", "genomgående lägenhet".
  */
 export interface SunPhrases {
   readonly allDaySun: boolean;
@@ -314,7 +315,20 @@ export interface SunPhrases {
 }
 
 const ALL_DAY_SUN_RE = /\bsol\s+(?:hela\s+dagen|större\s+delen\s+av\s+dagen)\b/iu;
-const THROUGH_FLAT_RE = /\bgenomgående\b/iu;
+
+/**
+ * WR-03 (14.1 review, fixed in 14.2-03, D-07): "genomgående" is also a Swedish
+ * intensifier ("genomgående renoverad med hög standard", "genomgående fräsch"),
+ * and a bare match handed those freshly renovated flats a sun bonus (about
+ * 35 000 kr on a 3.8 Mkr flat), the opposite of what a renovation hunt wants.
+ *
+ * Form chosen: the SIMPLE one. The word only counts when a layout noun follows
+ * it (planlösning, lägenhet, våning, bostad, rum, ljus). The alternative, a bare
+ * "genomgående" guarded by a negative lookahead for condition words, would let
+ * any condition word the list forgot ("genomgående parkett") through. A missed
+ * phrase costs nothing; a false hit costs money.
+ */
+const THROUGH_FLAT_RE = /\bgenomgående\s+(?:planlösning|lägenhet|våning|bostad|rum|ljus)\b/iu;
 
 /**
  * Pure keyword scan for {@link SunPhrases}. Returns `null` ONLY when there is
@@ -330,4 +344,36 @@ export function extractSunPhrases(description: string | null): SunPhrases | null
     allDaySun: ALL_DAY_SUN_RE.test(description),
     throughFlat: THROUGH_FLAT_RE.test(description),
   };
+}
+
+/**
+ * Sun phrases a broker can state, in the fixed order {@link statedSunPhrases}
+ * returns them. Each regex also takes the definite form (morgonsolen,
+ * kvällssolen) and refuses to match inside a longer word, so a street name such
+ * as "Morgonsolsgatan" or "Solnavägen" never counts.
+ */
+export const STATED_SUN_PHRASES: readonly { readonly name: string; readonly pattern: RegExp }[] = [
+  { name: "sol hela dagen", pattern: /(?<!\p{L})sol\s+hela\s+dagen(?!\p{L})/iu },
+  { name: "sol större delen av dagen", pattern: /(?<!\p{L})sol\s+större\s+delen\s+av\s+dagen(?!\p{L})/iu },
+  { name: "morgonsol", pattern: /(?<!\p{L})morgonsol(?:en)?(?!\p{L})/iu },
+  { name: "förmiddagssol", pattern: /(?<!\p{L})förmiddagssol(?:en)?(?!\p{L})/iu },
+  { name: "eftermiddagssol", pattern: /(?<!\p{L})eftermiddagssol(?:en)?(?!\p{L})/iu },
+  { name: "kvällssol", pattern: /(?<!\p{L})kvällssol(?:en)?(?!\p{L})/iu },
+];
+
+/**
+ * Which sun phrases the broker STATED in the description (R-05, 14.2-03): the
+ * weekly run counts how many listings state any sun at all, so a low number
+ * reads as "brokers rarely say" and not as "no sun". Canonical phrase names
+ * only, in the fixed {@link STATED_SUN_PHRASES} order; the description text is
+ * never returned (it may carry seller names or phone numbers).
+ *
+ * Returns `null` ONLY when there is nothing to read (null or empty), `[]` when
+ * the text states no sun. Nothing is inferred from an address or street name
+ * (Pitfall 10, degrade-never-guess), and `taste.ts` is deliberately unchanged:
+ * the sun taste bonus stays capped as decided in D-13 and does not move here.
+ */
+export function statedSunPhrases(text: string | null): string[] | null {
+  if (!text) return null;
+  return STATED_SUN_PHRASES.filter(({ pattern }) => pattern.test(text)).map(({ name }) => name);
 }

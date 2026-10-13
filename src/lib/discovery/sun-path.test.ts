@@ -4,6 +4,8 @@ import {
   computeSunExposure,
   extractOrientationFromDescription,
   extractSunPhrases,
+  statedSunPhrases,
+  STATED_SUN_PHRASES,
   type Facade,
 } from "@/lib/discovery/sun-path";
 
@@ -306,7 +308,7 @@ describe("extractSunPhrases (R-04c, Phase 14.1)", () => {
   });
 
   it("both phrases can be found together", () => {
-    expect(extractSunPhrases("Genomgående med sol hela dagen")).toEqual({
+    expect(extractSunPhrases("Genomgående planlösning med sol hela dagen")).toEqual({
       allDaySun: true,
       throughFlat: true,
     });
@@ -319,5 +321,74 @@ describe("extractSunPhrases (R-04c, Phase 14.1)", () => {
   it("returns null for null and empty input", () => {
     expect(extractSunPhrases(null)).toBeNull();
     expect(extractSunPhrases("")).toBeNull();
+  });
+
+  // 14.1 review WR-03, fixed in 14.2-03 (D-07): "genomgående" is also a Swedish
+  // intensifier ("genomgående renoverad"), which must not earn a sun bonus.
+  it.each([
+    ["genomgående planlösning", true],
+    ["Genomgående lägenhet med fönster åt två håll", true],
+    ["genomgående våning", true],
+    ["genomgående ljus", true],
+    ["Lägenheten är genomgående renoverad med hög standard", false],
+    ["genomgående hög standard", false],
+    ["genomgående fräsch", false],
+    ["genomgående nyrenoverad", false],
+  ] as const)("throughFlat: %s -> %s", (text, expected) => {
+    expect(extractSunPhrases(text)).toEqual({ allDaySun: false, throughFlat: expected });
+  });
+
+  it("a through-flat layout phrase still counts when 'genomgående renoverad' appears too", () => {
+    expect(extractSunPhrases("Genomgående renoverad. Genomgående planlösning.")?.throughFlat).toBe(true);
+  });
+});
+
+describe("statedSunPhrases (R-05, 14.2-03)", () => {
+  it("returns the stated phrases in the fixed order, not the order of the text", () => {
+    expect(statedSunPhrases("Balkong med kvällssol och sol hela dagen")).toEqual(["sol hela dagen", "kvällssol"]);
+  });
+
+  it("matches definite forms and returns the canonical name", () => {
+    expect(statedSunPhrases("Morgonsolen når köket, eftermiddagssol på balkongen")).toEqual([
+      "morgonsol",
+      "eftermiddagssol",
+    ]);
+    expect(statedSunPhrases("Kvällssolen på uteplatsen")).toEqual(["kvällssol"]);
+  });
+
+  it("finds every phrase in the list, in order", () => {
+    const text =
+      "Kvällssol, eftermiddagssol, förmiddagssol, morgonsol, sol större delen av dagen och sol hela dagen";
+    expect(statedSunPhrases(text)).toEqual([...STATED_SUN_PHRASES].map((p) => p.name));
+    expect(STATED_SUN_PHRASES.map((p) => p.name)).toEqual([
+      "sol hela dagen",
+      "sol större delen av dagen",
+      "morgonsol",
+      "förmiddagssol",
+      "eftermiddagssol",
+      "kvällssol",
+    ]);
+  });
+
+  it("is case-insensitive", () => {
+    expect(statedSunPhrases("SOL HELA DAGEN")).toEqual(["sol hela dagen"]);
+  });
+
+  it("returns [] when nothing is stated, and null when there is nothing to read", () => {
+    expect(statedSunPhrases("Ljus lägenhet")).toEqual([]);
+    expect(statedSunPhrases(null)).toBeNull();
+    expect(statedSunPhrases("")).toBeNull();
+  });
+
+  it("infers nothing from street names (R-05, Pitfall 10)", () => {
+    expect(statedSunPhrases("Solnavägen 3")).toEqual([]);
+    expect(statedSunPhrases("Morgonsolsgatan 5, Kvällssolsvägen 2")).toEqual([]);
+  });
+
+  it("never returns description text, only canonical names", () => {
+    const names = new Set<string>(STATED_SUN_PHRASES.map((p) => p.name));
+    for (const phrase of statedSunPhrases("Ring Anna 070-123 45 67, kvällssol på balkongen") ?? []) {
+      expect(names.has(phrase)).toBe(true);
+    }
   });
 });
