@@ -86,7 +86,7 @@ Ta bort den med `sudo pmset repeat cancel`.
 Lägg till i `~/.zshenv` (värdena skrivs aldrig ut av någon körning, bara `satt` eller `saknas`):
 
 ```sh
-export WATCH_SMTP_URL='smtp://användare:lösenord@värd:587'   # eller smtps://...
+export WATCH_SMTP_URL='smtp://ANVÄNDARE:LÖSENORD[snabel-a]VÄRD:587'   # byt [snabel-a] mot tecknet @; smtps:// går också
 export WATCH_EMAIL_TO='din@adress.se'
 # valfritt: export WATCH_EMAIL_FROM='avsändare@adress.se'    # standard: samma som WATCH_EMAIL_TO
 ```
