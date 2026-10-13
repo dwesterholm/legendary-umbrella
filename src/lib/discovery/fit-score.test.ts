@@ -11,12 +11,14 @@ import {
   MODEL_HEALTH_BAND,
   NOT_COMPARABLE_ASK_TO_PRED,
   TASTE_CAP_PCT,
+  TASTE_SUN_OBSTRUCTION_DATE,
   booliIdOf,
   cappedTasteSek,
   clearlyWorseAbove,
   compareFinal,
   comparePreRank,
   fitScore,
+  inferredSunForTaste,
   modelHealth,
   parseFitSnapshot,
   preRank,
@@ -36,7 +38,7 @@ import {
 import { CGT_EFFECTIVE_RATE, RENO_COST_MATRIX } from "@/lib/discovery/flip-economics";
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import { RENO_BAND, UNKNOWN_RENO_STATES, renoBundle } from "@/lib/discovery/reno-tier";
-import { unknownSunFact } from "@/lib/discovery/sun-fact";
+import { unknownSunFact, type DateHours, type SideHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { LOVED_HUBS, tasteBonus } from "@/lib/discovery/taste";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 
@@ -390,6 +392,138 @@ describe("taste inside fitScore (D-06)", () => {
     const plain = fitScore(flat({ facades: null }), model);
     const phrased = fitScore({ ...flat({ facades: null }), sunPhrases: { allDaySun: true, throughFlat: false } }, model);
     expect(phrased.tasteSek).toBeGreaterThan(plain.tasteSek);
+  });
+});
+
+/** Hours for one date: theoretical morning-and-midday window and the obstructed nominal (null = not computed). */
+function dateHours(theoretical: number, nominal: number | null): DateHours {
+  return {
+    theoreticalWindow: theoretical,
+    theoreticalDay: theoretical,
+    obstructedWindow: nominal === null ? null : { low: nominal, nominal, high: nominal },
+    obstructedDay: null,
+    floorBelowWindow: null,
+  };
+}
+
+function sideHoursOf(mar: DateHours): SideHours {
+  return { z: 9, heightsEstimated: false, mar, jun: mar, sep: mar, dec: mar };
+}
+
+/** A footprint fact like Folkungagatan 61: street side south, courtyard side north. */
+function footprintFact(streetHours: SideHours | null, courtyardHours: SideHours | null, confidence = 1): SunFact {
+  return {
+    source: "fastighet/gata",
+    confidence,
+    unknownReason: null,
+    conflict: false,
+    conflictWith: null,
+    sides: [
+      { side: "gata", facade: "south", bearingDeg: 170, share: 0.5, point: null, hours: streetHours },
+      { side: "gård", facade: "north", bearingDeg: 350, share: 0.5, point: null, hours: courtyardHours },
+    ],
+    footprint: null,
+  };
+}
+
+describe("inferredSunForTaste (14.3-06: D-07, R-03)", () => {
+  it("reads the obstruction from the March window", () => {
+    expect(TASTE_SUN_OBSTRUCTION_DATE).toBe("mar");
+  });
+
+  it("null gives null; an okänd fact gives source okänd, confidence 0 and no sides", () => {
+    expect(inferredSunForTaste(null)).toBeNull();
+    expect(inferredSunForTaste(unknownSunFact("adress saknas"))).toEqual({ source: "okänd", confidence: 0, sides: [] });
+  });
+
+  it("obstruction factor is obstructed nominal / theoretical on 21 March: 5.7 / 6.0 = 0.95", () => {
+    const fact = footprintFact(sideHoursOf(dateHours(6.0, 5.7)), null);
+    const input = inferredSunForTaste(fact)!;
+    expect(input.source).toBe("fastighet/gata");
+    expect(input.confidence).toBe(1);
+    expect(input.sides).toHaveLength(2);
+    expect(input.sides[0].facade).toBe("south");
+    expect(input.sides[0].obstructionFactor).toBeCloseTo(0.95, 12);
+  });
+
+  it("is 1 when the side has no hours, no obstructed range or no theoretical sun, and clamped to 1 above", () => {
+    const f = (side: SideHours | null) => inferredSunForTaste(footprintFact(side, null))!.sides[0].obstructionFactor;
+    expect(f(null)).toBe(1);
+    expect(f(sideHoursOf(dateHours(6.0, null)))).toBe(1);
+    expect(f(sideHoursOf(dateHours(0, 0)))).toBe(1);
+    expect(f(sideHoursOf(dateHours(6.0, 6.3)))).toBe(1);
+  });
+
+  it("is 0 when the neighbours take all of the sun and never negative", () => {
+    const f = (nominal: number) => inferredSunForTaste(footprintFact(sideHoursOf(dateHours(6, nominal)), null))!.sides[0].obstructionFactor;
+    expect(f(0)).toBe(0);
+    expect(f(-1)).toBe(0);
+  });
+
+  it("copies the stored confidence without rounding", () => {
+    expect(inferredSunForTaste(footprintFact(null, null, 0.35))!.confidence).toBe(0.35);
+  });
+
+  it("uses only March: a different obstruction in June does not move the factor", () => {
+    const mar = dateHours(6, 3);
+    const side: SideHours = { z: 9, heightsEstimated: false, mar, jun: dateHours(6, 6), sep: dateHours(6, 6), dec: dateHours(6, 6) };
+    expect(inferredSunForTaste(footprintFact(side, null))!.sides[0].obstructionFactor).toBeCloseTo(0.5, 12);
+  });
+});
+
+describe("a sun fact inside fitScore (14.3-06, SUN-04)", () => {
+  /** street south, courtyard north, factor 0.95 on the street side, confidence 1, footprint only */
+  const folk = footprintFact(sideHoursOf(dateHours(6.0, 5.7)), sideHoursOf(dateHours(0, 0)), 1);
+
+  it("a Folkungagatan-like row gets tasteSunPct 0.009975 and tasteSek = cappedTasteSek(sun + hub, resale)", () => {
+    const row = { ...flat({ facades: null }), sun: folk };
+    const r = fitScore(row, model);
+    expect(r.tasteSunPct).toBeCloseTo(0.009975, 9);
+    expect(r.tasteSek).toBe(cappedTasteSek((r.tasteSunPct as number) + (r.tasteHubPct as number), r.resaleSek as number));
+  });
+
+  it("the same row with sun null scores exactly as before: tasteSek, profit and flags", () => {
+    const row = flat({ facades: null });
+    const withNull = fitScore({ ...row, sun: null }, model);
+    const without = fitScore(row, model);
+    expect(withNull.tasteSek).toBe(without.tasteSek);
+    expect(withNull.profitSek).toBe(without.profitSek);
+    expect(withNull.flags).toEqual(without.flags);
+    expect(withNull.tasteSunPct).toBe(0);
+    const withSun = fitScore({ ...row, sun: folk }, model);
+    expect(withSun.profitSek as number).toBeGreaterThan(without.profitSek as number);
+    expect(withSun.flags).toEqual(without.flags);
+    expect(withSun.tasteSek - without.tasteSek).toBeCloseTo(0.009975 * (withSun.resaleSek as number), 4);
+  });
+
+  it("an okänd fact scores exactly as no fact", () => {
+    const row = flat({ facades: ["east"] });
+    expect(fitScore({ ...row, sun: unknownSunFact("x") }, model).profitSek).toBe(fitScore(row, model).profitSek);
+  });
+
+  it("a stated east fact with no shade equals the candidate.orientation east path", () => {
+    const stated: SunFact = {
+      source: "angiven",
+      confidence: 1,
+      unknownReason: null,
+      conflict: false,
+      conflictWith: null,
+      sides: [{ side: "angiven", facade: "east", bearingDeg: 90, share: 1, point: null, hours: null }],
+      footprint: null,
+    };
+    const row = flat({ facades: ["east"] });
+    const viaFact = fitScore({ ...row, sun: stated }, model);
+    const viaText = fitScore(row, model);
+    expect(viaFact.tasteSunPct).toBeCloseTo(viaText.tasteSunPct as number, 12);
+    expect(viaFact.tasteSek).toBeCloseTo(viaText.tasteSek, 6);
+  });
+
+  it("the sun part never passes 3 % of resale, whatever the fact", () => {
+    const best: SunFact = { ...footprintFact(null, null, 1), source: "angiven" };
+    best.sides = [{ side: "angiven", facade: "east", bearingDeg: 90, share: 1, point: null, hours: null }];
+    const r = fitScore({ ...flat({ facades: null }), sunPhrases: { allDaySun: true, throughFlat: true }, sun: best }, model);
+    expect(r.tasteSunPct).toBe(0.03);
+    expect(r.tasteSek).toBeLessThanOrEqual(TASTE_CAP_PCT * (r.resaleSek as number) + 1e-6);
   });
 });
 
