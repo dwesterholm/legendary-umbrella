@@ -205,14 +205,14 @@ Plans:
 **Goal**: Two measurements, then go/no-go. (a) *Orientation*: how many innerstan listings state no väderstreck, and whether the street-facade bearing can be inferred from the OpenStreetMap building footprint or by reading the compass on the floor-plan image with vision. (b) *Real sun hours*: whether obstructed sun-per-facade-per-month can be computed from a desk — flat position + floor height (~3 m/floor) against footprints and heights of buildings within ~150 m, ray-checked against the sun path from `sun-path.ts`. Height data is the risk: OSM heights are partial in innerstan; check Stockholms stad / Lantmäteriet 3D building data for open access and format. Target accuracy ±1 h; no room-level detail. Sun Tracker AR (phone app) has no API and needs on-site presence, so it is not a source.
 **Requirements**: SUN-01, SUN-02, SUN-03, SUN-04, SUN-05, SUN-06
 **Depends on:** Phase 14.1 (the taste bonus and resale model are the consumers)
-**Plans:** 2/8 plans executed
+**Plans:** 3/8 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 14.3-01-PLAN.md — Tracer: OSM fixture -> footprint street/courtyard facade -> "Sol" column (Folkungagatan 61 = S); relations, snapping, corners, okänd reasons; SunFact contract
 - [x] 14.3-02-PLAN.md — Overpass download (endpoint list, validation) + local cache with the 31-day refresh rule; the real one-off download (free)
-- [ ] 14.3-03-PLAN.md — Floor-plan compass probe: slim separate Haiku call, live smoke, 12 plans for at most 2 kr, go/no-go at 10 %
+- [x] 14.3-03-PLAN.md — Floor-plan compass probe: slim separate Haiku call, live smoke, 12 plans for at most 2 kr, go/no-go at 10 %
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
