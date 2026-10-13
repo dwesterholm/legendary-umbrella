@@ -1766,7 +1766,7 @@ export function describeModel(model: HedonicModel): string[] {
   );
   lines.push(
     notEstimable("tomtratt")
-      ? "Tomträtt: kan inte skattas (inga tomträttsförsäljningar i underlaget); effekten sätts till noll och ligger inte i värderingen."
+      ? "Tomträtt: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll och ligger inte i värderingen."
       : `${effect("tomtratt", "Tomträtt")}.`,
   );
   // monthsAgo is months BEFORE asOf: a negative coefficient means older sales were cheaper, i.e. rising prices.

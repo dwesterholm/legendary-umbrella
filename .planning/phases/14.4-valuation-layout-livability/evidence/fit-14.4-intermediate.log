@@ -1,0 +1,79 @@
+Mellanmodell: de tre nya egenskaperna utelämnade (R-05)
+=== MODELLANPASSNING (offline, inga nätverksanrop) ===
+Cache: .planning/calibration/data/slutpriser-cache.json (sålda 2025-04-12 till 2026-10-12), prisnivå per 2026-10-12, anpassad 2026-10-13
+Rader i cachen: 7 431. Uteslutna som kalibreringsobjekt (Folkungagatan 61, 34-36 kvm): 1
+Rader med detaljuppgifter (byggår/balkong från försäljningssidan): 1 200
+
+Detaljurval: 1126 försäljningar med både balkong- och byggårsuppgift; balkong angiven på 565. Per byggårsgrupp: före 1931 683, 1931-1960 254, 1961-1990 82, 1991 och senare 107.
+
+Använda rader: 7 380 av 7 430 (50 avvikare uteslutna). Rader med både balkong- och byggårsuppgift i den kvarvarande datan: 1119.
+Modellen bygger på 35–120 kvm; kandidater utanför flaggas.
+
+Rader per storleksband (kvm, före avvikarrensning):
+  35-40     1 639
+  40-45     1 516
+  45-50     1 109
+  50-60     1 894
+  60-80       714
+  80-120      558
+
+R²: 0,610 (på samma data). Korsvalidering (5 delar), RMSE i logskala: 0,115; per del: 0,114, 0,117, 0,117, 0,114, 0,115
+Smearing: 1,007. Residualens 75:e percentil (log): 0,079. Residualens SD (log): 0,115
+
+Koefficienter och slutsatser i klartext:
+  - Underlag: 7380 försäljningar. Modellen förklarar 61 % av prisskillnaderna (R², på samma data).
+  - Modellen bygger på 35–120 kvm; lägenheter utanför intervallet prissätts inte av modellen utan flaggas.
+  - Felmarginal på försäljningar modellen inte sett (korsvalidering): ungefär ±12,2 % på kvadratmeterpriset (CV-RMSE 0,115 i logskala).
+  - Områdesnivå: grannförsäljningarna inom 1,0 km väger 1,07 (1,00 = priset följer grannarna fullt ut), källa: data.
+  - En våning upp ≈ +1,5 % (SE 0,1 %), källa: data.
+  - Bottenvåning eller lägre ≈ -6,5 % (SE 0,8 %), källa: data.
+  - 10 % större yta ≈ +0,4 % på kvadratmeterpriset (SE 0,1 %), källa: data.
+  - Varje km längre från närmaste centrumpunkt ≈ -0,8 % (SE 0,4 %), källa: data.
+  - Avgift per kvm och månad: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll.
+  - Föreningsskuld per kvm: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll.
+  - Tomträtt: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll och ligger inte i värderingen.
+  - Prisutveckling per månad ≈ +0,8 % (SE 0,0 %), källa: data; priset avser 2026-10-12.
+  - Balkong ≈ +8,0 %, källa: data.
+  - Byggår, jämfört med en genomsnittlig lägenhet: före 1931 +4,2 %, 1931–1960 -3,1 %, 1961–1990 -8,0 %, 1991 och senare -6,3 %, källa: data.
+  - Budpremie (slutpris över utgångspris), lutande (b = -0,18: ju lägre utgångspris mot modellens pris, desto högre bud); siffrorna gäller när utgångspriset är lika med modellens pris: Södermalm +11,0 % (n 1791), Kungsholmen +5,7 % (n 1570), Vasastan +6,1 % (n 1361), Östermalm +4,2 % (n 640).
+  - Budpremiens korsvalidering (logskala): fast 0,076, lutande 0,074.
+  - 27,3 % av försäljningarna saknar uppgift om slutpris mot utgångspris och är utelämnade ur budpremien; de räknas inte som noll.
+  - Smearing (omräkning från logskala) 1,007. En renoverad lägenhet prissätts högst +8,2 % över modellens pris (75:e percentilen av avvikelserna).
+  - Reservvärde, avgiftPerSqmMonth (saknas i underlaget): avgift kr/kvm/mån: för få kända värden i underlaget (0; minst 20 krävs).
+  - Reservvärde, brfDebtPerSqm (saknas i underlaget): föreningsskuld kr/kvm: för få kända värden i underlaget (0; minst 20 krävs).
+  - Reservvärde, tomtratt (saknas i underlaget): tomträtt: för få kända värden i underlaget (0; minst 20 krävs).
+
+Nya egenskaper (14.4): utelämnade i den här körningen (mellanmodell, R-05).
+
+Budpremie, vald form: lutande (premien beror på hur långt utgångspriset ligger från modellens pris). Korsvalideringsfel (logskala): fast 0,0758, lutande 0,0737.
+Budpremie per område (modellen) mot rå median av slutpris mot utgångspris och studiens siffra (CONTEXT D-03):
+  Södermalm    modell +11,0 % (n 1791, anpassad)   rå median +13,9 %   studien +7 till +10 %
+  Kungsholmen  modell +5,7 % (n 1570, anpassad)   rå median +7,0 %   studien +3 till +4 %
+  Vasastan     modell +6,1 % (n 1361, anpassad)   rå median +8,1 %   studien (ingen studiesiffra)
+  Östermalm    modell +4,2 % (n 640, anpassad)   rå median +5,8 %   studien (ingen studiesiffra)
+  (Lutande form: modellens siffra gäller när utgångspriset är lika med modellens pris, b = -0,18; den är därför inte direkt jämförbar med råmedianen.)
+Andel försäljningar utan etikett (utelämnade ur budpremien, räknas inte som noll): 27,3 %
+
+Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):
+  alla 7 430 försäljningar:
+    40-45 kvm    -0,2 % mot 35-40 kvm (SE 0,4 %, 1 516 rader)
+    45-50 kvm    -1,1 % mot 35-40 kvm (SE 0,5 %, 1 109 rader)
+    50-60 kvm    +1,0 % mot 35-40 kvm (SE 0,4 %, 1 894 rader)
+    60-80 kvm    +2,8 % mot 35-40 kvm (SE 0,6 %, 714 rader)
+    80-120 kvm   +4,4 % mot 35-40 kvm (SE 0,6 %, 558 rader)
+  försäljningar sedan 2026-07-12 (1 913 st):
+    40-45 kvm    +0,9 % mot 35-40 kvm (SE 1,1 %, 265 rader)
+    45-50 kvm    -0,1 % mot 35-40 kvm (SE 1,2 %, 198 rader)
+    50-60 kvm    +1,8 % mot 35-40 kvm (SE 1,1 %, 324 rader)
+    60-80 kvm    +3,4 % mot 35-40 kvm (SE 1,0 %, 457 rader)
+    80-120 kvm   +4,9 % mot 35-40 kvm (SE 1,0 %, 393 rader)
+  Storleksvalet i modellen: Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0461, SE 0,0055, t = 8,4, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.
+
+Reservvärden (fallbacks):
+  - avgiftPerSqmMonth (absent): avgift kr/kvm/mån: för få kända värden i underlaget (0; minst 20 krävs).
+  - brfDebtPerSqm (absent): föreningsskuld kr/kvm: för få kända värden i underlaget (0; minst 20 krävs).
+  - tomtratt (absent): tomträtt: för få kända värden i underlaget (0; minst 20 krävs).
+
+R² >= 0,35 och CV-RMSE <= 0,13: OK (R² 0,610, CV-RMSE 0,115)
+
+Modell skriven: .planning/calibration/data/hedonic-model-14.4-intermediate.json (319 kB, 7 380 punkter)
