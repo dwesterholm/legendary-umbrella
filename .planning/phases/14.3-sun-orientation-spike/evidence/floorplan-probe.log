@@ -1,0 +1,15 @@
+ANTHROPIC_API_KEY: satt
+Plan 130457: (cache) plan ja, norrpil nej, norr 0°, balkong höger, konfidens 0,95
+Plan 142942: plan ja, norrpil nej, norr 0°, balkong ingen, konfidens 0,95
+Plan 144070: plan ja, norrpil ja, norr 180°, balkong vänster, konfidens 0,85
+Plan 150148: plan ja, norrpil ja, norr 0°, balkong ned, konfidens 0,95
+Plan 208640: plan ja, norrpil nej, norr 0°, balkong ingen, konfidens 0,95
+Plan 309602: plan ja, norrpil ja, norr 270°, balkong upp, konfidens 0,85
+Plan 315823: plan nej, norrpil nej, norr 0°, balkong ingen, konfidens 0,95
+Plan 323721: plan ja, norrpil nej, norr 0°, balkong ingen, konfidens 0,95
+Plan 324812: plan ja, norrpil ja, norr 180°, balkong ingen, konfidens 0,85
+Plan 324847: plan ja, norrpil nej, norr 0°, balkong ingen, konfidens 0,95
+Plan 324863: plan ja, norrpil ja, norr 0°, balkong ingen, konfidens 0,95
+Plan 328402: plan ja, norrpil ja, norr 90°, balkong höger, konfidens 0,85
+Planritningsprobe: 11 anrop, 1 från cache, 0,32 kr av tak 2,00 kr
+Planer: 11 av 12, med kompass: 6 (54,5 %), beslut: go

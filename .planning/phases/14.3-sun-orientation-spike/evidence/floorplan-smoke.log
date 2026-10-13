@@ -1,0 +1,5 @@
+ANTHROPIC_API_KEY: satt
+Smoke 130457: plan ja, norrpil nej, norr 0°, balkong höger, konfidens 0,95
+Smoke syntetisk: plan ja, norrpil ja, norr 0°, balkong ned, konfidens 0,95
+Smoke syntetisk norrpil sedd: ja (väntat: ja, norr 0°, balkong ned; norr uppåt ja, balkong ned ja)
+Smoke: 2 av 2 tolkade, 0,05 kr

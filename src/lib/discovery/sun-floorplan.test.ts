@@ -8,6 +8,7 @@ import {
   FLOORPLAN_CACHE_PATH,
   FLOORPLAN_EST_SEK_PER_CALL,
   FLOORPLAN_MODEL,
+  FLOORPLAN_PROBE_SUMMARY,
   FLOORPLAN_PROBE_VERSION,
   FLOORPLAN_ROUTE_ENABLED,
   FLOORPLAN_SYSTEM_PROMPT,
@@ -290,9 +291,15 @@ describe("pickProbeSample", () => {
 });
 
 describe("the module's own flags", () => {
-  it("the route flag is a boolean and the path sits under the data dir", () => {
-    expect(typeof FLOORPLAN_ROUTE_ENABLED).toBe("boolean");
+  it("the path sits under the data dir", () => {
     expect(FLOORPLAN_CACHE_PATH).toBe(".planning/calibration/data/floorplan-cache.json");
+  });
+  it("records the 2026-10-13 decision: route closed, numbers in the summary", () => {
+    // 6 of 11 plans read as compass, all 6 were door-entrance arrows on inspection: no real compass, route closed.
+    expect(FLOORPLAN_ROUTE_ENABLED).toBe(false);
+    expect(FLOORPLAN_PROBE_SUMMARY).toContain("väg stängd");
+    expect(FLOORPLAN_PROBE_SUMMARY).toContain("6 av 11");
+    expect(FLOORPLAN_PROBE_SUMMARY).not.toBe("ej mätt ännu");
   });
 });
 

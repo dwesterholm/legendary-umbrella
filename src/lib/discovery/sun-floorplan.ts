@@ -25,7 +25,7 @@
  * vision-cache.ts, so this module never loads the Anthropic client and tests need no network
  * and no key. GDPR: only the five read fields are cached, never the picture.
  *
- * The verdict is written here by hand after the real probe: see {@link FLOORPLAN_ROUTE_ENABLED}
+ * The decision is written here by hand after the real probe: see {@link FLOORPLAN_ROUTE_ENABLED}
  * and {@link FLOORPLAN_PROBE_SUMMARY}; the numbers live in
  * `.planning/phases/14.3-sun-orientation-spike/evidence/floorplan-probe.json`.
  *
@@ -110,14 +110,21 @@ export const FLOORPLAN_PROBE_VERSION: string = floorPlanProbeVersion({
 });
 
 /**
- * The verdict of the real probe of 2026-10-13, written by hand from
- * evidence/floorplan-probe.json (true only when that file says "go"). False means: no plan bearing is used
- * anywhere and the balcony side stays unknown (R-01).
+ * The decision of the real probe of 2026-10-13 (evidence/floorplan-probe.json). False means: no plan bearing is
+ * used anywhere and the balcony side stays unknown (R-01).
+ *
+ * It is false although the mechanical 10 % rule said "go". The model read a north arrow on 6 of 11 floor plans
+ * (54,5 %), and looking at those six pictures showed that every one is the arrow at the front door that marks the
+ * entrance, the exact trap the prompt and the field description warn about. The model fell for it despite the
+ * warning, so the 6 are false positives, 0 of 11 plans have a real compass (the research found 0 of 69 by eye), and
+ * opening the route would put wrong facades above correct footprint ones (T-14.3-08). Flip this to true only after a
+ * read that survives the same look at the pictures.
  */
 export const FLOORPLAN_ROUTE_ENABLED: boolean = false;
 
 /** The measured numbers behind {@link FLOORPLAN_ROUTE_ENABLED}, in the words the report uses. */
-export const FLOORPLAN_PROBE_SUMMARY: string = "ej mätt ännu";
+export const FLOORPLAN_PROBE_SUMMARY: string =
+  "0 av 11 planer med verklig kompass (modellen läste 6 av 11, 54,5 %, men alla 6 är ytterdörrspilar), väg stängd, 2026-10-13";
 
 // ---------------------------------------------------------------------------
 // Pictures

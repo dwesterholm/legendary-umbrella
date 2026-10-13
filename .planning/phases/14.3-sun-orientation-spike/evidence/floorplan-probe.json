@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-13",
+  "sampled": 12,
+  "floorPlans": 11,
+  "withCompass": 6,
+  "prevalencePct": 54.5,
+  "verdict": "dropped",
+  "spentSek": 0.3208,
+  "calls": 11,
+  "cacheHits": 1,
+  "model": "claude-haiku-4-5-20251001",
+  "modelVerdict": "go",
+  "audit": {
+    "note": "withCompass, prevalencePct and modelVerdict are what the model read (script output, unedited). verdict is the final decision after looking at the 6 flagged pictures by eye: every one is the arrow at the front door that marks the entrance, none is a north arrow.",
+    "flaggedByModel": 6,
+    "entranceArrows": 6,
+    "realCompass": 0,
+    "realPrevalencePct": 0
+  },
+  "smokeSpentSek": 0.05
+}
