@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.3"
 current_phase_name: Sun & Orientation
 status: executing
-stopped_at: Completed 14.3-03-PLAN.md
-last_updated: "2026-10-13T15:26:40.867Z"
+stopped_at: Completed 14.3-04-PLAN.md
+last_updated: "2026-10-13T15:37:19.704Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: dae695bfe956b5914b4b16da1e919f6c220204b3
+state_head: 47270f1a904c280788eaf644e2e88d7cbf53a666
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 42
-  completed_plans: 37
+  completed_plans: 38
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.3 (Sun & Orientation) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-10-13 — Phase 14.3 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
@@ -99,6 +99,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.3 P01 | 25 min | 2 tasks | 13 files |
 | Phase 14.3 P02 | 12 min | 2 tasks | 6 files |
 | Phase 14.3 P03 | 8 min | 2 tasks | 7 files |
+| Phase 14.3 P04 | 7 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -253,6 +254,8 @@ Recent decisions affecting current work:
 - [Phase 14.3]: 14.3-01: Folkungagatan 61 resolves to south (166.2 deg, conf 1.00) from the OSM footprint; boundary comparisons run at stored 1-decimal precision; normalizeStreetName lives in osm-buildings.ts and is re-exported from sun-facade.ts
 - [Phase 14.3]: 14.3-02: OSM cache stores only type/id/tags/geometry/members (bounds dropped); 31-day refresh rule inclusive; real cache 12,9 MB downloaded 2026-10-13 via lz4/z mirrors
 - [Phase 14.3]: 14.3-03: floor-plan compass route closed. Model read a north arrow on 6 of 11 plans (54,5 %) but all 6 are front-door entrance arrows on inspection; 0 real compasses (research: 0 of 69). FLOORPLAN_ROUTE_ENABLED=false; plan 08 must not run the compass pass. — Entrance arrows misread as north would put wrong facades above correct footprint ones (T-14.3-08); spend 0,37 kr of 2,00 kr
+- [Phase 14.3]: 14.3-04: heights follow the locked formula (levels x 3 + 2, no roof allowance); estimated heights are flagged and every obstructed figure is a +-3 m range — The envelope covers an attic storey; the flag shows when a neighbour's height is our estimate
+- [Phase 14.3]: 14.3-04: wallsNear and the neighbour median share one 150 m bounding-box grid; heights are lazy and memoised per building — A centroid-only grid would miss long buildings; all 15 415 heights resolve in 49 ms
 
 ### Pending Todos
 
@@ -284,8 +287,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T15:26:40.689Z
-Stopped at: Completed 14.3-03-PLAN.md
+Last session: 2026-10-13T15:37:19.565Z
+Stopped at: Completed 14.3-04-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
