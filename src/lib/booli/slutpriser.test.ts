@@ -8,8 +8,12 @@ import {
   SLUTPRIS_SIZE_BANDS,
   SLUTPRIS_UPPER_BAND_MAX_PAGES,
   SLUTPRIS_UPPER_BAND_MIN_M2,
+  ENRICH_BATCH_MAX,
+  IMAGE_IDS_MAX,
+  SOLD_DETAIL_VERSION,
   buildSlutprisSearchUrl,
   enrichSoldRows,
+  needsEnrichment,
   newSlutprisCache,
   parseFloorLabel,
   parsePremiumLabel,
@@ -819,18 +823,18 @@ function flightWith(object: Record<string, unknown>): string {
 describe("parseSoldDetailFacts", () => {
   it("reads build year, balcony and list price from the committed fixture", () => {
     // Values recorded in 14.1-PROBES.md for this page: constructionYear 1933, amenities elevator + balcony, listPrice.raw 3195000.
-    expect(parseSoldDetailFacts(FIXTURE)).toEqual({ buildYear: 1933, balcony: true, listPrice: 3_195_000 });
+    expect(parseSoldDetailFacts(FIXTURE)).toEqual({ buildYear: 1933, balcony: true, listPrice: 3_195_000, rentSek: null, brfId: null, tenureForm: null, daysActive: null, firstPrice: 3_195_000, imageIds: [] });
   });
 
   it("returns all null for an empty string and for text with no sold object", () => {
-    expect(parseSoldDetailFacts("")).toEqual({ buildYear: null, balcony: null, listPrice: null });
-    expect(parseSoldDetailFacts('1:"$Sreact.fragment"\n')).toEqual({ buildYear: null, balcony: null, listPrice: null });
-    expect(parseSoldDetailFacts("19:[[{not json")).toEqual({ buildYear: null, balcony: null, listPrice: null });
+    expect(parseSoldDetailFacts("")).toEqual({ buildYear: null, balcony: null, listPrice: null, rentSek: null, brfId: null, tenureForm: null, daysActive: null, firstPrice: null, imageIds: [] });
+    expect(parseSoldDetailFacts('1:"$Sreact.fragment"\n')).toEqual({ buildYear: null, balcony: null, listPrice: null, rentSek: null, brfId: null, tenureForm: null, daysActive: null, firstPrice: null, imageIds: [] });
+    expect(parseSoldDetailFacts("19:[[{not json")).toEqual({ buildYear: null, balcony: null, listPrice: null, rentSek: null, brfId: null, tenureForm: null, daysActive: null, firstPrice: null, imageIds: [] });
   });
 
   it("reads an empty amenities list as 'balcony not listed' (false), the same way a for-sale card reads it", () => {
     const facts = parseSoldDetailFacts(flightWith({ constructionYear: 1908, amenities: [], listPrice: null }));
-    expect(facts).toEqual({ buildYear: 1908, balcony: false, listPrice: null });
+    expect(facts).toMatchObject({ buildYear: 1908, balcony: false, listPrice: null });
   });
 
   it("leaves balcony null when the page has no amenities field at all", () => {
@@ -877,12 +881,129 @@ describe("parseSoldDetailFacts", () => {
   it("reads the sold object, not the one-line reference stub that follows it", () => {
     // The fixture ends with a stub: {"__typename":"SoldProperty","id":..,"booliId":..}. Reversing the order must not change the answer.
     const lines = FIXTURE.trim().split("\n");
-    expect(parseSoldDetailFacts([...lines].reverse().join("\n"))).toEqual({ buildYear: 1933, balcony: true, listPrice: 3_195_000 });
+    expect(parseSoldDetailFacts([...lines].reverse().join("\n"))).toMatchObject({ buildYear: 1933, balcony: true, listPrice: 3_195_000 });
   });
 
   it("is not fooled by braces and quotes inside strings", () => {
     const facts = parseSoldDetailFacts(flightWith({ note: 'a "quoted } brace {', constructionYear: 1975, amenities: [] }));
     expect(facts.buildYear).toBe(1975);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14.4-02: the v2 read (avgift, BRF id, tenure, days on market, first price, photo ids).
+// The three fixtures are trimmed real sold pages (no address, no coordinates).
+// ---------------------------------------------------------------------------
+const fixtureV2 = (k: "a" | "b" | "c"): string => readFileSync(join(__dirname, "__fixtures__", `sold-detail-flight-v2-${k}.fixture.txt`), "utf8");
+
+describe("parseSoldDetailFacts v2 (14.4-02, R-01)", () => {
+  it("fixture a (probe 6082254): avgift, BRF id, tenure, 6 days on market, the 5 photo ids in page order", () => {
+    expect(parseSoldDetailFacts(fixtureV2("a"))).toEqual({
+      buildYear: 1908,
+      balcony: false,
+      listPrice: null,
+      rentSek: 1549,
+      brfId: "268247",
+      tenureForm: "Bostadsrätt",
+      daysActive: 6,
+      firstPrice: null,
+      imageIds: ["52555065", "52555066", "52555067", "52555068", "52555069"],
+    });
+  });
+
+  it("fixture b (probe 6197601): first price 3 700 000, list price 3 595 000, no photos, 41 days", () => {
+    const f = parseSoldDetailFacts(fixtureV2("b"));
+    expect(f).toMatchObject({ firstPrice: 3_700_000, listPrice: 3_595_000, imageIds: [], rentSek: 2783, brfId: "50166", daysActive: 41, buildYear: null });
+  });
+
+  it("fixture c (probe 6241048): build year 1933 and the days on market as printed on that page (26)", () => {
+    expect(parseSoldDetailFacts(fixtureV2("c"))).toMatchObject({ buildYear: 1933, daysActive: 26, rentSek: 3449, brfId: "47604", tenureForm: "Bostadsrätt" });
+  });
+
+  it("the fixtures hold no street address and no coordinates", () => {
+    for (const k of ["a", "b", "c"] as const) {
+      const t = fixtureV2(k);
+      expect(t.length).toBeLessThan(12_000);
+      expect(t).not.toMatch(/"latitude"|"longitude"|streetAddress|"agentId"|Skeppargatan/);
+    }
+  });
+
+  it("brfId falls back to the last breadcrumb when housingCoop is missing; a non-digit id gives null", () => {
+    const crumb = (url: string) => ({ breadcrumbs: [{ label: "x", url: "/sok/x" }, { label: "BRF", url }] });
+    expect(parseSoldDetailFacts(flightWith(crumb("/bostadsrattsforening/777?x=1"))).brfId).toBe("777");
+    expect(parseSoldDetailFacts(flightWith(crumb("/bostadsrattsforening/777"))).brfId).toBe("777");
+    expect(parseSoldDetailFacts(flightWith(crumb("/bostadsrattsforening/abc"))).brfId).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ housingCoop: { id: "12x" }, ...crumb("/bostadsrattsforening/abc") })).brfId).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ housingCoop: { id: "123" } })).brfId).toBe("123");
+    expect(parseSoldDetailFacts(flightWith({ breadcrumbs: [] })).brfId).toBeNull();
+  });
+
+  it("daysActive: singular 'dag' counts, a missing info point or a non-number gives null", () => {
+    const sec = (md: string, key = "daysActive") => ({ infoSections: [{ key: "propertyInfo", content: { infoPoints: [{ key, displayText: { markdown: md } }] } }] });
+    expect(parseSoldDetailFacts(flightWith(sec("Bostaden var till salu i **1** dag"))).daysActive).toBe(1);
+    expect(parseSoldDetailFacts(flightWith(sec("Bostaden var till salu i **0** dagar"))).daysActive).toBe(0);
+    expect(parseSoldDetailFacts(flightWith(sec("Bostaden var till salu i **många** dagar"))).daysActive).toBeNull();
+    expect(parseSoldDetailFacts(flightWith(sec("Bostaden var till salu i **6** dagar", "other"))).daysActive).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ constructionYear: 1950 })).daysActive).toBeNull();
+  });
+
+  it("rentSek and firstPrice must be positive numbers", () => {
+    const money = (raw: unknown) => ({ rent: { raw }, firstPrice: { raw } });
+    expect(parseSoldDetailFacts(flightWith(money(2000))) ).toMatchObject({ rentSek: 2000, firstPrice: 2000 });
+    for (const bad of [0, -1, "2 000", null]) {
+      expect(parseSoldDetailFacts(flightWith(money(bad)))).toMatchObject({ rentSek: null, firstPrice: null });
+    }
+  });
+
+  it("tenureForm is the page's own word or null", () => {
+    expect(parseSoldDetailFacts(flightWith({ tenureForm: "Äganderätt" })).tenureForm).toBe("Äganderätt");
+    expect(parseSoldDetailFacts(flightWith({ tenureForm: "" })).tenureForm).toBeNull();
+    expect(parseSoldDetailFacts(flightWith({ tenureForm: 4 })).tenureForm).toBeNull();
+  });
+
+  it("imageIds keeps only digit-only string ids and at most IMAGE_IDS_MAX", () => {
+    expect(IMAGE_IDS_MAX).toBe(8);
+    const imgs = [{ id: "1" }, { id: "x2" }, { id: 3 }, { id: "../4" }, { id: "5" }, null, "6"];
+    expect(parseSoldDetailFacts(flightWith({ images: imgs })).imageIds).toEqual(["1", "5"]);
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: String(100 + i) }));
+    expect(parseSoldDetailFacts(flightWith({ images: many })).imageIds).toEqual(many.slice(0, 8).map((i) => i.id));
+  });
+});
+
+describe("needsEnrichment and the v2 schema (14.4-02, R-03a)", () => {
+  const old = { buildYear: 1900, balcony: false, listPrice: null };
+  const v2 = { ...old, detailVersion: 2 as const, rentSek: 1500, brfId: "9", tenureForm: "Bostadsrätt", daysActive: 12, firstPrice: 3_000_000, imageIds: ["1", "2"] };
+
+  it("an unenriched row needs it; an old-shape row needs it only for --re-enrich; a v2 row never", () => {
+    expect(SOLD_DETAIL_VERSION).toBe(2);
+    expect(needsEnrichment(soldRow(1))).toBe(true);
+    expect(needsEnrichment(soldRow(1, { enriched: null }))).toBe(true);
+    expect(needsEnrichment(soldRow(1, { enriched: old }))).toBe(false);
+    expect(needsEnrichment(soldRow(1, { enriched: old }), { reEnrich: true })).toBe(true);
+    expect(needsEnrichment(soldRow(1, { enriched: v2 }))).toBe(false);
+    expect(needsEnrichment(soldRow(1, { enriched: v2 }), { reEnrich: true })).toBe(false);
+  });
+
+  it("a cache with one v2 row survives a JSON round trip with every new key intact (Pitfall 1)", () => {
+    const cache: SlutprisCache = { ...newSlutprisCache("2026-10-13", CUTOFF), rows: [soldRow(1, { enriched: v2 }), soldRow(2, { enriched: old })] };
+    const back = slutprisCacheSchema.parse(JSON.parse(JSON.stringify(cache)));
+    expect(back.rows[0].enriched).toEqual(v2);
+    expect(back.rows[1].enriched).toEqual(old);
+  });
+
+  it("rejects an id that is not digits, more than 8 photos, a negative day count", () => {
+    const bad = (o: Record<string, unknown>) => soldRowSchema.safeParse(soldRow(1, { enriched: { ...v2, ...o } as SoldRow["enriched"] })).success;
+    expect(bad({})).toBe(true);
+    expect(bad({ brfId: "12a" })).toBe(false);
+    expect(bad({ imageIds: ["1", "x"] })).toBe(false);
+    expect(bad({ imageIds: Array.from({ length: 9 }, (_, i) => String(i)) })).toBe(false);
+    expect(bad({ daysActive: -1 })).toBe(false);
+    expect(bad({ daysActive: 1.5 })).toBe(false);
+    expect(bad({ detailVersion: 3 })).toBe(false);
+  });
+
+  it("ENRICH_BATCH_MAX is 1500", () => {
+    expect(ENRICH_BATCH_MAX).toBe(1500);
   });
 });
 
@@ -1089,7 +1210,7 @@ describe("enrichSoldRows", () => {
     const rows = [soldRow(800)];
     const copy = { ...rows[0] };
     await enrichSoldRows({ rows, sample: [copy], render: async () => okItems(1999, false), concurrency: 1, maxRenders: 10, persist: () => {} });
-    expect(rows[0].enriched).toEqual({ buildYear: 1999, balcony: false, listPrice: 3_000_000 });
+    expect(rows[0].enriched).toMatchObject({ buildYear: 1999, balcony: false, listPrice: 3_000_000, detailVersion: 2 });
   });
 
   it("a sample row that is not in `rows` is skipped without a render", async () => {
@@ -1098,5 +1219,63 @@ describe("enrichSoldRows", () => {
     const res = await enrichSoldRows({ rows, sample: [soldRow(901)], render, concurrency: 1, maxRenders: 10, persist: () => {} });
     expect(render).not.toHaveBeenCalled();
     expect(res).toEqual({ enriched: 0, failed: 0, rendersUsed: 0 });
+  });
+});
+
+describe("selectEnrichmentSample and enrichSoldRows with reEnrich (14.4-02, R-03c)", () => {
+  const oldShape = { buildYear: 1900, balcony: false, listPrice: 2_000_000 };
+  const flight = flightWith({
+    constructionYear: 1950,
+    amenities: [],
+    listPrice: { raw: 3_000_000 },
+    rent: { raw: 2100 },
+    tenureForm: "Bostadsrätt",
+    housingCoop: { id: "55" },
+    images: [{ id: "9" }],
+    infoSections: [{ content: { infoPoints: [{ key: "daysActive", displayText: { markdown: "Bostaden var till salu i **8** dagar" } }] } }],
+  });
+  const ok = async () => [{ hasApollo: true, flight }];
+
+  it("selects old-shape rows only with reEnrich", () => {
+    const rows = [soldRow(1, { enriched: oldShape }), soldRow(2), soldRow(3, { enriched: { ...oldShape, detailVersion: 2 } })];
+    expect(selectEnrichmentSample(rows, 10, "s").map((r) => r.booliId)).toEqual(["2"]);
+    expect(selectEnrichmentSample(rows, 10, "s", { reEnrich: true }).map((r) => r.booliId).sort()).toEqual(["1", "2"]);
+  });
+
+  it("a successful re-read replaces the old record with detailVersion 2", async () => {
+    const rows = [soldRow(1, { enriched: oldShape })];
+    const res = await enrichSoldRows({ rows, sample: rows, render: ok, concurrency: 1, maxRenders: 5, persist: () => {}, reEnrich: true });
+    expect(res.enriched).toBe(1);
+    expect(rows[0].enriched).toEqual({
+      buildYear: 1950,
+      balcony: false,
+      listPrice: 3_000_000,
+      detailVersion: 2,
+      rentSek: 2100,
+      brfId: "55",
+      tenureForm: "Bostadsrätt",
+      daysActive: 8,
+      firstPrice: null,
+      imageIds: ["9"],
+    });
+  });
+
+  it("a failed re-read keeps the old enriched record untouched (render throws, or no sold object)", async () => {
+    const rows = [soldRow(1, { enriched: oldShape }), soldRow(2, { enriched: oldShape })];
+    const render = async (url: string) => {
+      if (url.endsWith("/1")) throw new Error("boom");
+      return [{ hasApollo: true, flight: '1:"$Sreact.fragment"\n' }];
+    };
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {}, reEnrich: true });
+    expect(res).toEqual({ enriched: 0, failed: 2, rendersUsed: 2 });
+    expect(rows[0].enriched).toEqual(oldShape);
+    expect(rows[1].enriched).toEqual(oldShape);
+  });
+
+  it("without reEnrich an old-shape row is not rendered", async () => {
+    const rows = [soldRow(1, { enriched: oldShape })];
+    const render = vi.fn(ok);
+    await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {} });
+    expect(render).not.toHaveBeenCalled();
   });
 });

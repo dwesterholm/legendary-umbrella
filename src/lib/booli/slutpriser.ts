@@ -66,6 +66,13 @@ export const SLUTPRIS_UPPER_BAND_MIN_M2 = 60;
  */
 export const SLUTPRIS_UPPER_BAND_MAX_PAGES = 4;
 
+/** The sold-detail record shape written by 14.4 (avgift, BRF id, tenure, days on market, photo ids). */
+export const SOLD_DETAIL_VERSION = 2;
+/** Photo ids kept per sold flat (ids only, never the images: they decide whether a condition read is possible). */
+export const IMAGE_IDS_MAX = 8;
+/** Most rows one enrichment batch may ask for (D-04: batches of at most 1 500). */
+export const ENRICH_BATCH_MAX = 1500;
+
 // ---------------------------------------------------------------------------
 // Types and schemas
 // ---------------------------------------------------------------------------
@@ -92,12 +99,27 @@ export const soldRowSchema = z.object({
   lat: z.number(),
   lng: z.number(),
   sliceKey: z.string(),
-  /** Filled by the sold-detail enrichment in 14.1-08. */
+  /**
+   * Filled by the sold-detail enrichment (14.1-08; extended in 14.4-02). Every key
+   * added in 14.4 is optional so the 35 rows read under the old shape and an old
+   * cache file still parse; `detailVersion` marks a row read under the new shape.
+   */
   enriched: z
     .object({
       buildYear: z.number().nullable(),
       balcony: z.boolean().nullable(),
       listPrice: z.number().nullable(),
+      detailVersion: z.literal(SOLD_DETAIL_VERSION).optional(),
+      /** Monthly avgift in kr. */
+      rentSek: z.number().positive().nullable().optional(),
+      /** Booli's id of the housing association (digits only; builds the BRF page URL). */
+      brfId: z.string().regex(/^\d+$/).nullable().optional(),
+      tenureForm: z.string().nullable().optional(),
+      /** Days on market as the sold page prints it (R-01: the page carries no publish date). */
+      daysActive: z.number().int().nonnegative().nullable().optional(),
+      /** The first asking price ("Första utropspriset"). */
+      firstPrice: z.number().positive().nullable().optional(),
+      imageIds: z.array(z.string().regex(/^\d+$/)).max(IMAGE_IDS_MAX).optional(),
     })
     .nullable()
     .optional(),
@@ -659,6 +681,12 @@ export interface SoldDetailFacts {
   buildYear: number | null;
   balcony: boolean | null;
   listPrice: number | null;
+  rentSek: number | null;
+  brfId: string | null;
+  tenureForm: string | null;
+  daysActive: number | null;
+  firstPrice: number | null;
+  imageIds: string[];
 }
 
 /** Build years outside this range are read as junk, not as a year. */
@@ -749,7 +777,17 @@ const BALCONY_WORD = /balcon|balkong/i;
  * A page with no readable SoldProperty object returns all null.
  */
 export function parseSoldDetailFacts(flightText: string): SoldDetailFacts {
-  const none: SoldDetailFacts = { buildYear: null, balcony: null, listPrice: null };
+  const none: SoldDetailFacts = {
+    buildYear: null,
+    balcony: null,
+    listPrice: null,
+    rentSek: null,
+    brfId: null,
+    tenureForm: null,
+    daysActive: null,
+    firstPrice: null,
+    imageIds: [],
+  };
   if (typeof flightText !== "string" || flightText === "") return none;
   const obj = soldObjectFromFlight(flightText);
   if (!obj) return none;
@@ -776,15 +814,73 @@ export function parseSoldDetailFacts(flightText: string): SoldDetailFacts {
     );
   }
 
-  const raw = rawOf(obj.listPrice);
-  const listPrice = raw !== null && raw > 0 ? raw : null;
-  return { buildYear, balcony, listPrice };
+  const positive = (v: unknown): number | null => {
+    const raw = rawOf(v);
+    return raw !== null && raw > 0 ? raw : null;
+  };
+  return {
+    buildYear,
+    balcony,
+    listPrice: positive(obj.listPrice),
+    rentSek: positive(obj.rent),
+    brfId: brfIdOf(obj),
+    tenureForm: strOrNull(obj.tenureForm),
+    daysActive: daysActiveOf(obj),
+    firstPrice: positive(obj.firstPrice),
+    imageIds: imageIdsOf(obj),
+  };
+}
+
+/** Days on market: "Bostaden var till salu i **6** dagar" (singular "dag" too). No publish date is read (R-01). */
+function daysActiveOf(obj: Record<string, unknown>): number | null {
+  const sections = Array.isArray(obj.infoSections) ? obj.infoSections : [];
+  for (const s of sections) {
+    const points = isRecord(s) && isRecord(s.content) && Array.isArray(s.content.infoPoints) ? s.content.infoPoints : [];
+    for (const p of points) {
+      if (!isRecord(p) || p.key !== "daysActive") continue;
+      const md = isRecord(p.displayText) && typeof p.displayText.markdown === "string" ? p.displayText.markdown : "";
+      const m = /\*\*(\d+)\*\*\s*dag/.exec(md);
+      return m ? Number(m[1]) : null;
+    }
+  }
+  return null;
+}
+
+/** The association id: housingCoop.id, else the last breadcrumb's /bostadsrattsforening/<digits> (regex inlined on purpose: client.ts stays out of this module). */
+function brfIdOf(obj: Record<string, unknown>): string | null {
+  const id = isRecord(obj.housingCoop) ? obj.housingCoop.id : null;
+  if (typeof id === "string" && /^\d+$/.test(id)) return id;
+  if (isRecord(obj.housingCoop) && id != null) return null;
+  const crumbs = Array.isArray(obj.breadcrumbs) ? obj.breadcrumbs : [];
+  const last = crumbs.length > 0 ? crumbs[crumbs.length - 1] : null;
+  const m = isRecord(last) && typeof last.url === "string" ? /\/bostadsrattsforening\/(\d+)(?:[/?#]|$)/.exec(last.url) : null;
+  return m ? m[1] : null;
+}
+
+/** Photo ids in page order: digit-only strings, at most IMAGE_IDS_MAX. Ids only, never the images. */
+function imageIdsOf(obj: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const i of Array.isArray(obj.images) ? obj.images : []) {
+    if (isRecord(i) && typeof i.id === "string" && /^\d+$/.test(i.id)) out.push(i.id);
+    if (out.length >= IMAGE_IDS_MAX) break;
+  }
+  return out;
 }
 
 /** The sold detail URL for a Booli id: fixed origin, digits only (T-14.1-08). */
 export function soldDetailUrl(booliId: string): string {
   if (typeof booliId !== "string" || !/^\d+$/.test(booliId)) throw new Error(`Ogiltigt Booli-id: ${JSON.stringify(booliId)}`);
   return `https://www.booli.se/annons/${booliId}`;
+}
+
+/**
+ * Whether a sold row still has to be read: it has no enriched record at all, or
+ * (with `reEnrich`) its record was written before the 14.4 shape. A row already
+ * at SOLD_DETAIL_VERSION is never read again.
+ */
+export function needsEnrichment(row: Pick<SoldRow, "enriched">, opts: { reEnrich?: boolean } = {}): boolean {
+  if (row.enriched == null) return true;
+  return opts.reEnrich === true && row.enriched.detailVersion !== SOLD_DETAIL_VERSION;
 }
 
 /** FNV-1a, 32 bit. No randomness anywhere: the same seed always picks the same rows. */
@@ -816,13 +912,13 @@ export function selectEnrichmentSample(
   rows: readonly SoldRow[],
   n: number,
   seed: string,
-  opts: { soldSince?: string } = {},
+  opts: { soldSince?: string; reEnrich?: boolean } = {},
 ): SoldRow[] {
   const count = Math.floor(n);
   if (!(count > 0)) return [];
   const since = opts.soldSince;
   return rows
-    .filter((r) => !r.enriched && (since === undefined || r.soldDate >= since))
+    .filter((r) => needsEnrichment(r, { reEnrich: opts.reEnrich }) && (since === undefined || r.soldDate >= since))
     .map((r) => ({ r, h: fnv1a(`${seed}:${r.booliId}`) }))
     .sort((a, b) => a.h - b.h || (a.r.booliId < b.r.booliId ? -1 : a.r.booliId > b.r.booliId ? 1 : 0))
     .slice(0, count)
@@ -843,6 +939,8 @@ export interface EnrichOptions {
   /** Checked before every render; true stops scheduling (the script's USD guard). */
   budgetExceeded?: () => boolean;
   onProgress?: (msg: string) => void;
+  /** Also read rows whose enriched record is not at SOLD_DETAIL_VERSION (the 35 old-shape rows). */
+  reEnrich?: boolean;
 }
 
 export interface EnrichResult {
@@ -882,7 +980,7 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
 
   const one = async (s: SoldRow): Promise<void> => {
     const row = byId.get(s.booliId);
-    if (!row || row.enriched) return;
+    if (!row || !needsEnrichment(row, { reEnrich: opts.reEnrich })) return;
     if (stopped) return;
     if (rendersUsed >= opts.maxRenders || opts.budgetExceeded?.()) {
       stopped = true;
@@ -898,12 +996,22 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
       opts.onProgress?.(`${row.booliId}: MISSLYCKADES (${e instanceof Error ? e.message : String(e)})`);
       return;
     }
-    if (facts.buildYear === null && facts.balcony === null && facts.listPrice === null) {
+    if (
+      facts.buildYear === null &&
+      facts.balcony === null &&
+      facts.listPrice === null &&
+      facts.rentSek === null &&
+      facts.brfId === null &&
+      facts.tenureForm === null &&
+      facts.daysActive === null &&
+      facts.firstPrice === null
+    ) {
       failed += 1;
       opts.onProgress?.(`${row.booliId}: sidan hade inget läsbart säljobjekt`);
       return;
     }
-    row.enriched = facts;
+    // Overwrite only after a successful read: a failed re-read keeps the row's old data.
+    row.enriched = { ...facts, detailVersion: SOLD_DETAIL_VERSION };
     enriched += 1;
     opts.persist();
   };

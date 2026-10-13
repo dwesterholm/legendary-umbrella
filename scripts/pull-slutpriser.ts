@@ -12,6 +12,10 @@
  *       # 14.1-08: renders the sold DETAIL page of up to 110 not-yet-enriched rows (one paid render each)
  *       # and stores build year, balcony and list price on them; re-run to continue, spends nothing when 0 are left
  *       # --enrich-since 2025-10-01 limits it to sales on or after that day (older sold pages no longer carry the data)
+ *   npx tsx scripts/pull-slutpriser.ts --enrich-sample 1200 --enrich-max 1200 --enrich-since 2025-10-01 --re-enrich --renderer local --concurrency 2
+ *       # 14.4-02: the sample may be up to 1 500 rows (ENRICH_BATCH_MAX); --enrich-max is the render ceiling of the run
+ *       # (default = the sample size); --re-enrich also reads rows whose record predates the 14.4 shape (avgift, BRF id,
+ *       # tenure, days on market, first price, photo ids). Free on the local browser; never pass --allow-apify here.
  *
  * What it pulls: the four innerstan districts x the six R-12 size bands
  * (35-120 m2), lagenhet only, sold within the last --months months. The two
@@ -48,6 +52,7 @@ import { INNERSTAN_DISTRICTS, type InnerstanDistrict } from "@/lib/discovery/hed
 import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import {
+  ENRICH_BATCH_MAX,
   SLUTPRIS_CONCURRENCY,
   SLUTPRIS_MAX_PAGES_PER_SLICE,
   SLUTPRIS_MAX_RETRIES,
@@ -57,6 +62,7 @@ import {
   SLUTPRIS_UPPER_BAND_MIN_M2,
   SLUTPRIS_WAIT_SECS,
   SOLD_DETAIL_PAGE_FUNCTION,
+  SOLD_DETAIL_VERSION,
   enrichSoldRows,
   newSlutprisCache,
   pullSlutpriser,
@@ -387,6 +393,7 @@ async function runEnrichment(opts: {
   cache: SlutprisCache | null;
   sampleSize: number;
   soldSince?: string;
+  reEnrich: boolean;
   maxRenders: number;
   budgetUsd: number;
   concurrency: number;
@@ -395,10 +402,13 @@ async function runEnrichment(opts: {
 }): Promise<void> {
   const { cache, cachePath } = opts;
   if (!cache) throw new Error(`Ingen cache att berika på ${cachePath} (kör själva hämtningen först)`);
-  const sample = selectEnrichmentSample(cache.rows, opts.sampleSize, ENRICH_SEED, opts.soldSince ? { soldSince: opts.soldSince } : {});
-  const already = cache.rows.filter((r) => r.enriched).length;
+  const sample = selectEnrichmentSample(cache.rows, opts.sampleSize, ENRICH_SEED, {
+    ...(opts.soldSince ? { soldSince: opts.soldSince } : {}),
+    ...(opts.reEnrich ? { reEnrich: true } : {}),
+  });
+  const already = cache.rows.filter((r) => r.enriched?.detailVersion === SOLD_DETAIL_VERSION).length;
   console.log(
-    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}"${opts.soldSince ? `, sålda från ${opts.soldSince}` : ""}, ${already} redan berikade), ` +
+    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}"${opts.soldSince ? `, sålda från ${opts.soldSince}` : ""}${opts.reEnrich ? ", äldre poster läses om" : ""}, ${already} redan berikade i v${SOLD_DETAIL_VERSION}), ` +
       `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}`,
   );
   if (opts.dryRun) {
@@ -453,11 +463,13 @@ async function runEnrichment(opts: {
   const stop = { requested: false, settled: Promise.resolve() as Promise<unknown> };
   const browser = await installRenderer(opts.renderer, { onSignal: () => void (stop.requested = true), settle: () => stop.settled });
   let result: Awaited<ReturnType<typeof enrichSoldRows>>;
+  const renderPhaseStart = Date.now();
   try {
     const enriching = enrichSoldRows({
       rows: cache.rows,
       sample,
       render,
+      reEnrich: opts.reEnrich,
       concurrency: opts.concurrency,
       maxRenders: opts.maxRenders,
       persist: () => {
@@ -474,6 +486,7 @@ async function runEnrichment(opts: {
     await browser.close();
   }
   persist(cache);
+  const renderPhaseSecs = (Date.now() - renderPhaseStart) / 1000;
 
   console.log(`\nBerikning klar. Renders: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}). Berikade rader: ${result.enriched}, misslyckade: ${result.failed}.`);
   const enrichedRows = cache.rows.filter((r) => r.enriched);
@@ -484,6 +497,19 @@ async function runEnrichment(opts: {
   console.log(
     `Rader med berikning i cachen: ${enrichedRows.length}. Byggår ${withYear} (${pct(withYear, enrichedRows.length)}), ` +
       `balkong angiven ${withBalcony}, ingen balkong angiven ${withoutBalcony}, utgångspris ${withList} (${pct(withList, enrichedRows.length)}).`,
+  );
+  const v2 = enrichedRows.filter((r) => r.enriched?.detailVersion === SOLD_DETAIL_VERSION);
+  const share = (n: number): string => `${n} (${pct(n, v2.length)})`;
+  console.log(
+    `Rader i v${SOLD_DETAIL_VERSION}: ${v2.length}. Avgift ${share(v2.filter((r) => r.enriched?.rentSek != null).length)}, ` +
+      `förenings-id ${share(v2.filter((r) => r.enriched?.brfId != null).length)}, ` +
+      `upplåtelseform ${share(v2.filter((r) => r.enriched?.tenureForm != null).length)}, ` +
+      `dagar ute ${share(v2.filter((r) => r.enriched?.daysActive != null).length)}, ` +
+      `bild-id ${share(v2.filter((r) => (r.enriched?.imageIds?.length ?? 0) > 0).length)}.`,
+  );
+  console.log(
+    `Sekunder per sida: ${result.rendersUsed > 0 ? (renderPhaseSecs / result.rendersUsed).toFixed(1).replace(".", ",") : "-"} ` +
+      `(${renderPhaseSecs.toFixed(0)} s för ${result.rendersUsed} renderingar)`,
   );
 
   const localStats = browser.stats();
@@ -536,7 +562,7 @@ async function main(): Promise<void> {
     ? { local: false, allowApify: false, apifyMaxRenders: 10 }
     : await resolveRenderer();
 
-  const enrichSample = intArg("--enrich-sample", 0, 0, 300);
+  const enrichSample = intArg("--enrich-sample", 0, 0, ENRICH_BATCH_MAX);
   if (enrichSample > 0) {
     const since = argValue("--enrich-since");
     if (since !== null && !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error("--enrich-since måste vara YYYY-MM-DD");
@@ -545,7 +571,9 @@ async function main(): Promise<void> {
       cache: existing,
       sampleSize: enrichSample,
       ...(since !== null ? { soldSince: since } : {}),
-      maxRenders: Math.min(maxRenders, enrichSample),
+      reEnrich: hasFlag("--re-enrich"),
+      // The enrichment's own render ceiling (default: the sample size); --max-renders keeps its 400 for the slice pull.
+      maxRenders: intArg("--enrich-max", enrichSample, 1, ENRICH_BATCH_MAX),
       budgetUsd,
       concurrency,
       dryRun: hasFlag("--dry-run"),

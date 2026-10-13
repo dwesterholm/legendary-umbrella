@@ -1,0 +1,16 @@
+Renderare: lokal webbläsare
+Berikning: 5 av 7431 rader väljs (frö "14.1", sålda från 2026-09-01, äldre poster läses om, 0 redan berikade i v2), render-tak 5, budget 25.00 USD, samtidighet 2
+APIFY_API_TOKEN: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+Start: 2026-10-13T18:53:57.766Z
+
+Berikning klar. Renders: 5 (lyckade 5, misslyckade 0). Berikade rader: 5, misslyckade: 0.
+Rader med berikning i cachen: 37. Byggår 34 (91.9 %), balkong angiven 17, ingen balkong angiven 20, utgångspris 20 (54.1 %).
+Rader i v2: 5. Avgift 5 (100.0 %), förenings-id 5 (100.0 %), upplåtelseform 5 (100.0 %), dagar ute 5 (100.0 %), bild-id 1 (20.0 %).
+Sekunder per sida: 1,6 (8 s för 5 renderingar)
+
+=== KOSTNAD ===
+Lokal webbläsare: 5 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
+Apify-reserv: 0 renderingar (tak 10)
+Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T18:53:57.766Z och kan inkludera andra körningar.
