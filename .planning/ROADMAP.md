@@ -120,11 +120,20 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 3. **Condition-aware bidding.** The expected final price (asking × district premium) ignores that bidders see the same photos; let the picture-read condition adjust the premium (dated bids up less), fitted where the sold data allows, otherwise a documented prior.
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, LAY-01, LAY-02, LAY-03, LAY-04, BID-01, BID-02
 **Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
-**Plans:** 0 plans
+**Plans:** 10 plans (sequential, waves 1-10)
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 14.4 to break down)
+- [ ] 14.4-01-PLAN.md — Freeze today's ranking (before the cap goes) + separation guard for the new modules (VAL-05, R-05)
+- [ ] 14.4-02-PLAN.md — Sold-detail enrichment v2 (avgift, BRF id, tenure, days on market, photo ids), stop rule, BRF pass; 1 200-row local run (VAL-01)
+- [ ] 14.4-03-PLAN.md — Avgift/kvm, BRF debt/kvm, tomträtt (zeroed) in the hedonic model, version 2, refit + R-06 decision (VAL-02)
+- [ ] 14.4-04-PLAN.md — Days on market in the bid premium, kept only by CV (VAL-03)
+- [ ] 14.4-05-PLAN.md — Remove the 20 % credit cap; soft residual flag; reasons; Skillnad + Budpremie columns (VAL-04)
+- [ ] 14.4-06-PLAN.md — Offline before/after report: capped rows, top 15, Folkungagatan 61 (VAL-05)
+- [ ] 14.4-07-PLAN.md — Separate layout read (schema, cache, caps), balcony side picks the sun facade, F61 fixture, live smoke (LAY-01, LAY-02, LAY-04)
+- [ ] 14.4-08-PLAN.md — Korsdrag + quiet bedroom taste and columns, live wiring, real run with coverage and by-eye check (LAY-03, LAY-04)
+- [ ] 14.4-09-PLAN.md — Condition index in the expected final price; sold-photo condition module; smoke and fit/prior branch (BID-02, BID-01)
+- [ ] 14.4-10-PLAN.md — Fit (or 0 prior) the condition term, final report and phase gate (BID-01, BID-02, VAL-05)
 
 ### Phase 15: ROI-Aware Opportunity Brief
 
