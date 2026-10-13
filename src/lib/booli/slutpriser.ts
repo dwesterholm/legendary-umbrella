@@ -496,7 +496,12 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
     return true;
   };
 
-  /** Renders one page (with attempts), records the outcome and persists. null = stopped before finishing. */
+  /**
+   * Renders one page (with attempts), records the outcome and persists. null = stopped before finishing.
+   * A page counts as an empty end-of-results only when EVERY attempt came back
+   * empty; empty-then-error is `failed` and resumable, because a silent gap
+   * would skew the time coverage of the paid cache (14.1 WR-04, 14.2 D-07).
+   */
   const fetchPage = async (s: Slice, sliceKey: string, page: number, pageKey: string): Promise<PageState | null> => {
     const url = buildSlutprisSearchUrl({
       areaId: s.areaId,
@@ -507,7 +512,7 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
     });
     let attempts = 0;
     let parsed: SoldRowsResult | null = null;
-    let sawEmpty = false;
+    let emptyAttempts = 0;
     let lastError = "";
     while (attempts < SLUTPRIS_PAGE_ATTEMPTS) {
       if (!renderAllowed()) return null;
@@ -522,7 +527,7 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
         // Data came back but no sold card in it: on a district this size that is
         // far more likely a half-loaded page than the end of the results, so
         // look again before believing it (seen live: Ostermalm 80-120 page 1).
-        sawEmpty = true;
+        emptyAttempts += 1;
         lastError = "sidan hade inga sålda objekt";
       } catch (e) {
         lastError = e instanceof Error ? e.message : String(e);
@@ -530,7 +535,7 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
     }
 
     let state: PageState;
-    if (parsed === null && !sawEmpty) {
+    if (parsed === null && emptyAttempts < attempts) {
       state = { status: "failed", attempts, rowCount: 0, newestSoldDate: null, oldestSoldDate: null };
       say(`${pageKey}: MISSLYCKADES efter ${attempts} försök (${lastError})`);
     } else {

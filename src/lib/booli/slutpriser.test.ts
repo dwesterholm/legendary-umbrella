@@ -563,6 +563,81 @@ describe("pullSlutpriser", () => {
     expect(persist).toHaveBeenCalledTimes(1);
   });
 
+  // 14.1 review WR-04, fixed in 14.2-03 (D-07): only a page that came back empty on
+  // EVERY attempt is a genuine end of results. Any mix with an error is a failure,
+  // so the slice stays resumable and a gap cannot skew the time coverage.
+  describe("attempt sequences (WR-04)", () => {
+    type Step = "empty" | "throw" | "data";
+    /** A render that plays one step per call, in order. */
+    function scripted(steps: Step[]) {
+      let call = 0;
+      return vi.fn(async () => {
+        const step = steps[call++] ?? "data";
+        if (step === "throw") throw new Error("proxy 403");
+        return step === "empty" ? [item()] : [item(soldEntry("a"), soldEntry("b"))];
+      });
+    }
+
+    it("empty, throw, throw -> failed with 3 attempts; the slice does not end as if results ran out", async () => {
+      const render = scripted(["empty", "throw", "throw"]);
+      const persist = vi.fn();
+      const out = await pullSlutpriser(baseOpts({ render, persist, maxPagesPerSlice: 5, newestFirst: false }));
+      expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "failed", attempts: 3, rowCount: 0 });
+      expect(out.cache.pages["Södermalm|35-40|2"]).toBeUndefined();
+      expect(render).toHaveBeenCalledTimes(3);
+      expect(persist).toHaveBeenCalledTimes(1);
+    });
+
+    it("empty, throw, throw -> a resume renders the page again and keeps the rows", async () => {
+      const first = await pullSlutpriser(
+        baseOpts({ render: scripted(["empty", "throw", "throw"]), maxPagesPerSlice: 1, newestFirst: false }),
+      );
+      expect(first.cache.pages["Södermalm|35-40|1"].status).toBe("failed");
+      const resumeRender = scripted(["data"]);
+      const second = await pullSlutpriser(
+        baseOpts({ render: resumeRender, cache: first.cache, maxPagesPerSlice: 1, newestFirst: false }),
+      );
+      expect(resumeRender).toHaveBeenCalledTimes(1);
+      expect(second.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "ok", rowCount: 2 });
+      expect(second.cache.rows).toHaveLength(2);
+    });
+
+    it("throw, empty, throw -> failed too (any mix with an error is not an end of results)", async () => {
+      const out = await pullSlutpriser(
+        baseOpts({ render: scripted(["throw", "empty", "throw"]), maxPagesPerSlice: 5, newestFirst: false }),
+      );
+      expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "failed", attempts: 3 });
+    });
+
+    it("empty, empty, empty -> ok with 0 rows (a genuine end, as before)", async () => {
+      const out = await pullSlutpriser(
+        baseOpts({ render: scripted(["empty", "empty", "empty"]), maxPagesPerSlice: 5, newestFirst: false }),
+      );
+      expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "ok", attempts: 3, rowCount: 0 });
+    });
+
+    it("throw, data -> ok with the rows (unchanged)", async () => {
+      const out = await pullSlutpriser(
+        baseOpts({ render: scripted(["throw", "data"]), maxPagesPerSlice: 1, newestFirst: false }),
+      );
+      expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "ok", attempts: 2, rowCount: 2 });
+    });
+
+    it("throw, throw, throw -> failed (unchanged)", async () => {
+      const out = await pullSlutpriser(
+        baseOpts({ render: scripted(["throw", "throw", "throw"]), maxPagesPerSlice: 1, newestFirst: false }),
+      );
+      expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "failed", attempts: 3 });
+    });
+
+    it("empty, data -> ok with the rows (unchanged)", async () => {
+      const out = await pullSlutpriser(
+        baseOpts({ render: scripted(["empty", "data"]), maxPagesPerSlice: 1, newestFirst: false }),
+      );
+      expect(out.cache.pages["Södermalm|35-40|1"]).toMatchObject({ status: "ok", attempts: 2, rowCount: 2 });
+    });
+  });
+
   it("persists after every page outcome", async () => {
     const render = vi.fn(async (url: string) => [item(soldEntry(`p${pageOf(url)}`, { date: "2026-07-01" }))]);
     const persist = vi.fn();
