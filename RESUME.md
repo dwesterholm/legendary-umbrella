@@ -6,6 +6,39 @@
 
 ---
 
+## ▶️ STATUS 2026-10-13 (later) — Phase 14.2 executed 9/9; review + verification running
+
+All on `main` (ff-merged + pushed after every wave). `npm run test` 1 929 passed / 3 skipped; tsc + lint clean.
+
+What exists now (weekly trustworthy table):
+- `zsh scripts/launchd/run-weekly.sh` = the weekly job: local headed Chromium (0 USD Apify), complete
+  district lists vs Booli's own counts (Söder 442/445, Östermalm 182/182, Vasastan 507/509,
+  Kungsholmen 481/486), every candidate's detail + broker page read, vision for all (cached; first
+  run 33 kr, repeat ~0 kr), BRF debt/kvm from Booli's public BRF page (72/77), "Varför här" reason on
+  every flagged row (29 explained, 12 "oförklarat fynd" of 41), model refitted (size effect from
+  data), table split "Förväntat under 4 M" (25) / "Över 4 M förväntat" (52), seen-listing memory
+  (`.planning/calibration/data/watch-state.json`), mail via nodemailer when `WATCH_SMTP_URL` +
+  `WATCH_EMAIL_TO` are set, else HTML to `.planning/calibration/data/weekly-<date>.html`.
+- Evidence (tracked): `.planning/phases/14.2-trustworthy-weekly-table/evidence/` (weekly.html, logs).
+- LaunchAgent: `scripts/launchd/com.bostadai.weekly-watch.plist` + README — NOT installed; install
+  + `pmset` commands documented there (Daniel runs them). Mac sleeps after 1 min → caffeinate + pmset.
+- Coverage: balcony 100 %, condition 93,5 %, BRF 93,5 %, avgift 100 %; sun 2,6 % (real: no listing
+  text states it) → D-17 sun clause "not met — 14.3 scope".
+- Folkungagatan 61: 29/77 innerstan, 13/35 Söder, "oförklarat fynd", sun 0 %. Measured, not tuned.
+
+Daniel's to-dos (one-time): set `WATCH_SMTP_URL` + `WATCH_EMAIL_TO` in ~/.zshenv (never in the
+repo); delete `watch-state.json` if the first real mail should be a top-15; `launchctl load` the
+plist; run the pmset line. All in scripts/launchd/README.md.
+
+Pending when this was written: 14.2-REVIEW.md (code review) and 14.2-VERIFICATION.md (verifier),
+then `phase.complete` / gap closure. 14.1 is still `human_needed` (12/13) with decisions recorded
+in the PICK-UP section below; verify-work 14.1 can close it on those.
+
+Next phase if sun matters: 14.3 (orientation from OSM footprint / floor-plan compass; obstructed
+sun hours) — only thing that can lift sun coverage above 3 %.
+
+---
+
 ## ▶️ PICK UP HERE (2026-10-13, written just before Daniel cleared the session)
 
 Daniel's instruction: **run autonomously until there is a finished table of trustworthy candidates.**
