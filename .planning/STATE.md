@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.4"
 current_phase_name: Valuation Gaps, Layout & Livability
 status: executing
-stopped_at: Completed 14.4-01-PLAN.md
-last_updated: "2026-10-13T18:49:59.192Z"
+stopped_at: Completed 14.4-02-PLAN.md (halted at D-04 stop rule)
+last_updated: "2026-10-13T19:03:56.518Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 11233e66eb64803096fb91deb29f2c2218128cc5
+state_head: 5c0cc4044d221b9b17ce73964a61bb5f7bf29b3a
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 52
-  completed_plans: 43
+  completed_plans: 44
   percent: 17
 ---
 
@@ -105,6 +105,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.3 P07 | 24 min | 3 tasks | 7 files |
 | Phase 14.3 P08 | 20 min | 2 tasks | 7 files |
 | Phase 14.4 P01 | 6 min | 2 tasks | 9 files |
+| Phase 14.4 P02 | 14 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -285,6 +286,7 @@ Recent decisions affecting current work:
 
 - ~~[Phase 5/9 BLOCKING spikes]~~ Resolved during v1.1 build (owned acquisition + discovery foundation shipped code-complete).
 - ~~[Phase 9 legal gate]~~ **RESOLVED — GO (operator, 2026-07-08).** `DISCOVERY_ENABLED` set ON in the operator env; per-query/per-day caps enforced in code; flag retained as the runtime kill switch. (v1.1 live validation gates below still stand as separate operator checks.)
+- Plan 14.4-02 stopped by the D-04 rule: 52 of about 1200 sold rows read (3 of 50 pages had no sold data, 6,0 percent). Plan 03 blocked until Daniel picks: rerun with --enrich-since 2025-10-20 (recommended), loosen the rule to 100 attempts, or accept a small sample.
 
 ### Roadmap Evolution
 
@@ -296,8 +298,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T18:49:59.036Z
-Stopped at: Completed 14.4-01-PLAN.md
+Last session: 2026-10-13T19:03:52.905Z
+Stopped at: Completed 14.4-02-PLAN.md (halted at D-04 stop rule)
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

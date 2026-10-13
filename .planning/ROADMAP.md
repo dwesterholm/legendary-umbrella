@@ -122,7 +122,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, LAY-01, LAY-02, LAY-03, LAY-04, BID-01, BID-02
 **Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
-**Plans:** 1/10 plans executed (sequential, waves 1-10)
+**Plans:** 1/10 plans executed, plan 02 halted (sequential, waves 1-10)
 
 Plans:
 **Wave 1**
@@ -131,7 +131,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14.4-02-PLAN.md — Sold-detail enrichment v2 (avgift, BRF id, tenure, days on market, photo ids), stop rule, BRF pass; 1 200-row local run (VAL-01)
+- [ ] 14.4-02-PLAN.md — Sold-detail enrichment v2 (avgift, BRF id, tenure, days on market, photo ids), stop rule, BRF pass; 1 200-row local run (VAL-01) — HALTED 2026-10-13 at the D-04 stop rule: code done, 52 of 1 200 rows read, see 14.4-02-SUMMARY.md
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
