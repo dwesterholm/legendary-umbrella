@@ -1,0 +1,15 @@
+Renderare: lokal webbläsare
+Föreningspass: 5 distinkta föreningar bland v2-raderna, 0 redan lästa, 5 kvar att läsa, högst 5 i den här körningen, samtidighet 2
+APIFY_API_TOKEN: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+Start: 2026-10-13T18:59:24.741Z
+
+Föreningspass klart. Läsningar: 5 (lagrade 5, misslyckade 0, hoppade över 0).
+Föreningar i cachen: 5, med skuld per kvm 3.
+Sekunder per sida: 2,2 (11 s för 5 sidor)
+
+=== KOSTNAD ===
+Lokal webbläsare: 5 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
+Apify-reserv: 0 renderingar (tak 10)
+Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T18:59:24.741Z och kan inkludera andra körningar.

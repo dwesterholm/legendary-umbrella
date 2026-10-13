@@ -13,6 +13,8 @@
  */
 import { z } from "zod/v4";
 import { INNERSTAN_DISTRICTS, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
+// Type only: brf-page.ts imports the Apify/Playwright transport, which this module must not load.
+import type { BrfFacts } from "@/lib/booli/brf-page";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -72,6 +74,11 @@ export const SOLD_DETAIL_VERSION = 2;
 export const IMAGE_IDS_MAX = 8;
 /** Most rows one enrichment batch may ask for (D-04: batches of at most 1 500). */
 export const ENRICH_BATCH_MAX = 1500;
+/** A sold page or BRF page that failed this many times is skipped from then on (Pitfall 4: no endless re-picks). */
+export const ENRICH_MAX_ATTEMPTS = 2;
+/** D-04 stop rule: this share of failed attempts, once at least ENRICH_STOP_MIN_ATTEMPTS were made, ends the run. */
+export const ENRICH_STOP_FAIL_RATE = 0.05;
+export const ENRICH_STOP_MIN_ATTEMPTS = 50;
 
 // ---------------------------------------------------------------------------
 // Types and schemas
@@ -136,6 +143,24 @@ const pageStateSchema = z.object({
 });
 export type PageState = z.infer<typeof pageStateSchema>;
 
+/** One housing association's latest annual-report numbers, read from its public Booli page. */
+export const brfEntrySchema = z.object({
+  loanSek: z.number().nullable(),
+  areaSqm: z.number().nullable(),
+  reportYear: z.number().nullable(),
+  debtPerSqm: z.number().nullable(),
+  readAt: isoDateSchema,
+});
+export type BrfEntry = z.infer<typeof brfEntrySchema>;
+
+/** A page that failed to read: how often, when last, and the error CLASS (never a message: it can carry a URL). */
+export const enrichFailureSchema = z.object({
+  attempts: z.number().int().nonnegative(),
+  lastAt: isoDateSchema,
+  reason: z.string().max(200),
+});
+export type EnrichFailure = z.infer<typeof enrichFailureSchema>;
+
 export const slutprisCacheSchema = z.object({
   version: z.literal(1),
   asOf: isoDateSchema,
@@ -151,6 +176,10 @@ export const slutprisCacheSchema = z.object({
     /** Cards where the node-side label parse and the page-function value disagreed in sign. */
     signDisagreements: z.number().int().nonnegative(),
   }),
+  /** BRF id -> latest report numbers (14.4-02). Optional: an older cache file has none. */
+  brf: z.record(z.string().regex(/^\d+$/), brfEntrySchema).optional(),
+  /** Failure ledger, keys "sold:<booliId>" and "brf:<brfId>" (14.4-02). */
+  enrichFailures: z.record(z.string(), enrichFailureSchema).optional(),
 });
 export type SlutprisCache = z.infer<typeof slutprisCacheSchema>;
 
@@ -406,6 +435,16 @@ export function soldRowsFromItems(items: unknown[], district: InnerstanDistrict,
     }
   }
   return out;
+}
+
+/** Index into SLUTPRIS_SIZE_BANDS: lower edge inclusive, upper exclusive, the last band's upper edge inclusive; -1 outside 35-120 m2. */
+export function sizeBandIndex(area: number): number {
+  const last = SLUTPRIS_SIZE_BANDS.length - 1;
+  for (let i = 0; i < SLUTPRIS_SIZE_BANDS.length; i++) {
+    const [lo, hi] = SLUTPRIS_SIZE_BANDS[i];
+    if (area >= lo && (area < hi || (i === last && area <= hi))) return i;
+  }
+  return -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -893,8 +932,52 @@ function fnv1a(text: string): number {
   return h >>> 0;
 }
 
+const byHashThenId = (a: { h: number; r: SoldRow }, b: { h: number; r: SoldRow }): number =>
+  a.h - b.h || (a.r.booliId < b.r.booliId ? -1 : a.r.booliId > b.r.booliId ? 1 : 0);
+
 /**
- * A deterministic sample of `n` rows that are not enriched yet: order by the
+ * `n` rows spread over the strata district x size band in proportion to each
+ * stratum's size (largest-remainder method, ties by stratum key ascending), the
+ * rows inside a stratum taken in the seeded FNV-1a hash order of
+ * `${seed}:${booliId}`, returned in global hash order. A stratum never gives more
+ * rows than it has; `n` at or above the row count returns every row. Deterministic
+ * and independent of input order; the input is untouched.
+ */
+export function stratifiedHashSample(rows: readonly SoldRow[], n: number, seed: string): SoldRow[] {
+  const count = Math.floor(n);
+  if (!(count > 0) || rows.length === 0) return [];
+  const hashed = rows.map((r) => ({ r, h: fnv1a(`${seed}:${r.booliId}`) })).sort(byHashThenId);
+  if (count >= rows.length) return hashed.map((x) => x.r);
+
+  const strata = new Map<string, Array<{ r: SoldRow; h: number }>>();
+  for (const x of hashed) {
+    const key = `${x.r.district}|${sizeBandIndex(x.r.livingArea)}`;
+    const list = strata.get(key);
+    if (list) list.push(x);
+    else strata.set(key, [x]);
+  }
+  const keys = [...strata.keys()].sort();
+  const sizeOf = (k: string): number => strata.get(k)?.length ?? 0;
+  const exact = keys.map((k) => (count * sizeOf(k)) / rows.length);
+  const quota = exact.map((q) => Math.floor(q));
+  let left = count - quota.reduce((a, b) => a + b, 0);
+  const order = keys
+    .map((k, i) => ({ i, rem: exact[i] - quota[i], k }))
+    .sort((a, b) => b.rem - a.rem || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
+  for (const o of order) {
+    if (left <= 0) break;
+    if (quota[o.i] < sizeOf(o.k)) {
+      quota[o.i] += 1;
+      left -= 1;
+    }
+  }
+  const picked: Array<{ r: SoldRow; h: number }> = [];
+  keys.forEach((k, i) => picked.push(...(strata.get(k) ?? []).slice(0, quota[i])));
+  return picked.sort(byHashThenId).map((x) => x.r);
+}
+
+/**
+ * A deterministic sample of `n` rows that still have to be read: order by the
  * hash of (seed + booliId), ties by id, take the first n. Independent of input
  * order and of earlier calls, so a re-run after a partial failure picks the
  * unfinished rows first (finished ones are skipped, not re-drawn). Allocates a
@@ -907,20 +990,35 @@ function fnv1a(text: string): number {
  * Choosing rows by sale date selects on a model feature (months since sale), which
  * does not bias the balcony and build-year effects: those are fitted on the
  * residual after the time trend is already out.
+ *
+ * 14.4-02 options:
+ * - `reEnrich`: rows whose record predates SOLD_DETAIL_VERSION are due again.
+ * - `ledger`: a row with ENRICH_MAX_ATTEMPTS failed attempts ("sold:<id>") is never picked.
+ * - `stratify`: the `n` rows are drawn proportionally over district x size band
+ *   (stratifiedHashSample). The draw is over every row of the window, finished or
+ *   not, and the finished ones are dropped afterwards, so a resumed run finishes the
+ *   SAME fixed sample instead of extending it by another `n` rows.
  */
 export function selectEnrichmentSample(
   rows: readonly SoldRow[],
   n: number,
   seed: string,
-  opts: { soldSince?: string; reEnrich?: boolean } = {},
+  opts: { soldSince?: string; reEnrich?: boolean; stratify?: boolean; ledger?: Record<string, { attempts: number }> } = {},
 ): SoldRow[] {
   const count = Math.floor(n);
   if (!(count > 0)) return [];
   const since = opts.soldSince;
+  const inWindow = (r: SoldRow): boolean => since === undefined || r.soldDate >= since;
+  const alive = (r: SoldRow): boolean => (opts.ledger?.[`sold:${r.booliId}`]?.attempts ?? 0) < ENRICH_MAX_ATTEMPTS;
+  const due = (r: SoldRow): boolean => needsEnrichment(r, { reEnrich: opts.reEnrich });
+  if (opts.stratify) {
+    const pool = rows.filter((r) => inWindow(r) && alive(r) && (due(r) || r.enriched?.detailVersion === SOLD_DETAIL_VERSION));
+    return stratifiedHashSample(pool, count, seed).filter(due);
+  }
   return rows
-    .filter((r) => needsEnrichment(r, { reEnrich: opts.reEnrich }) && (since === undefined || r.soldDate >= since))
+    .filter((r) => due(r) && inWindow(r) && alive(r))
     .map((r) => ({ r, h: fnv1a(`${seed}:${r.booliId}`) }))
-    .sort((a, b) => a.h - b.h || (a.r.booliId < b.r.booliId ? -1 : a.r.booliId > b.r.booliId ? 1 : 0))
+    .sort(byHashThenId)
     .slice(0, count)
     .map((x) => x.r);
 }
@@ -936,17 +1034,34 @@ export interface EnrichOptions {
   maxRenders: number;
   /** Persist the cache; called after every enriched row. */
   persist: () => void;
-  /** Checked before every render; true stops scheduling (the script's USD guard). */
-  budgetExceeded?: () => boolean;
+  /**
+   * Checked before every render; true stops scheduling (the script's USD guard and
+   * the D-04 stop rule). Gets the attempts made so far and how many of them failed.
+   */
+  budgetExceeded?: (progress: { attempted: number; failed: number }) => boolean;
   onProgress?: (msg: string) => void;
   /** Also read rows whose enriched record is not at SOLD_DETAIL_VERSION (the 35 old-shape rows). */
   reEnrich?: boolean;
+  /** The cache's enrichFailures object, mutated in place; needs `today`. */
+  ledger?: Record<string, EnrichFailure>;
+  /** YYYY-MM-DD, injected (this module has no clock). */
+  today?: string;
 }
 
 export interface EnrichResult {
   enriched: number;
   failed: number;
   rendersUsed: number;
+}
+
+/** The error CLASS name only: a message can carry a URL, so it is never stored (T-14.4-08). */
+function errorClassOf(e: unknown): string {
+  return (e instanceof Error && e.name ? e.name : "Error").slice(0, 80);
+}
+
+/** The ledger entry after one more failed attempt. */
+function recordedFailure(previous: EnrichFailure | undefined, today: string, reason: string): EnrichFailure {
+  return { attempts: (previous?.attempts ?? 0) + 1, lastAt: today, reason };
 }
 
 /** The flight text out of the dataset items `SOLD_DETAIL_PAGE_FUNCTION` returns. */
@@ -971,6 +1086,7 @@ function flightTextOf(items: unknown[]): string {
  * - Stops scheduling at `maxRenders` attempts or when `budgetExceeded()` is true.
  */
 export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult> {
+  if (opts.ledger && !opts.today) throw new Error("enrichSoldRows: ledger kräver today (YYYY-MM-DD)");
   const concurrency = Math.max(1, Math.min(Math.floor(opts.concurrency), SLUTPRIS_CONCURRENCY));
   const byId = new Map(opts.rows.map((r) => [r.booliId, r] as const));
   let rendersUsed = 0;
@@ -978,11 +1094,18 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
   let failed = 0;
   let stopped = false;
 
+  const recordFailure = (booliId: string, reason: string): void => {
+    if (!opts.ledger || !opts.today) return;
+    const key = `sold:${booliId}`;
+    opts.ledger[key] = recordedFailure(opts.ledger[key], opts.today, reason);
+    opts.persist();
+  };
+
   const one = async (s: SoldRow): Promise<void> => {
     const row = byId.get(s.booliId);
     if (!row || !needsEnrichment(row, { reEnrich: opts.reEnrich })) return;
     if (stopped) return;
-    if (rendersUsed >= opts.maxRenders || opts.budgetExceeded?.()) {
+    if (rendersUsed >= opts.maxRenders || opts.budgetExceeded?.({ attempted: rendersUsed, failed })) {
       stopped = true;
       return;
     }
@@ -994,6 +1117,7 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
     } catch (e) {
       failed += 1;
       opts.onProgress?.(`${row.booliId}: MISSLYCKADES (${e instanceof Error ? e.message : String(e)})`);
+      recordFailure(row.booliId, errorClassOf(e));
       return;
     }
     if (
@@ -1008,10 +1132,12 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
     ) {
       failed += 1;
       opts.onProgress?.(`${row.booliId}: sidan hade inget läsbart säljobjekt`);
+      recordFailure(row.booliId, "inget säljobjekt");
       return;
     }
     // Overwrite only after a successful read: a failed re-read keeps the row's old data.
     row.enriched = { ...facts, detailVersion: SOLD_DETAIL_VERSION };
+    if (opts.ledger) delete opts.ledger[`sold:${row.booliId}`];
     enriched += 1;
     opts.persist();
   };
@@ -1027,4 +1153,107 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
     throw new Error(`${rejected.length} berikning(ar) avbröts oväntat: ${first instanceof Error ? first.message : String(first)}`);
   }
   return { enriched, failed, rendersUsed };
+}
+
+// ---------------------------------------------------------------------------
+// D-04 stop rule and the BRF pass (14.4-02)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a long enrichment run must stop now, or null. A challenge page from Booli
+ * stops it at once, whatever the attempt count; failures stop it once at least
+ * ENRICH_STOP_MIN_ATTEMPTS were made and ENRICH_STOP_FAIL_RATE of them failed.
+ */
+export function enrichStopReason(s: { challenged: number; attempted: number; failed: number }): "utmaning" | "felkvot" | null {
+  if (s.challenged > 0) return "utmaning";
+  if (s.attempted >= ENRICH_STOP_MIN_ATTEMPTS && s.failed / s.attempted >= ENRICH_STOP_FAIL_RATE) return "felkvot";
+  return null;
+}
+
+export interface EnrichBrfsOptions {
+  /** The cache; `brf` and `enrichFailures` are created and mutated in place. */
+  cache: SlutprisCache;
+  /** Association ids to read, in the order given. */
+  ids: string[];
+  /** One BRF page: throws when the render failed, resolves with null fields when the labels are missing. */
+  fetchBrf: (id: string) => Promise<BrfFacts>;
+  /** Persist the cache; called after every stored BRF and every recorded failure. */
+  persist: () => void;
+  /** YYYY-MM-DD, injected. */
+  today: string;
+  /** Clamped to 1..2 (the local browser serves two pages at a time). */
+  concurrency: number;
+  /** Hard cap on fetch attempts. */
+  maxFetches: number;
+  /** True stops scheduling; gets the attempts made so far and how many failed. */
+  budgetExceeded?: (progress: { attempted: number; failed: number }) => boolean;
+  onProgress?: (msg: string) => void;
+}
+
+export interface EnrichBrfsResult {
+  fetched: number;
+  failed: number;
+  skipped: number;
+  attempted: number;
+}
+
+/**
+ * One BRF page per distinct association id (the loop `watch-enrich.ts` runs for live
+ * candidates, here resumable): ids already in `cache.brf` or with ENRICH_MAX_ATTEMPTS
+ * failures are skipped; a page that rendered is stored even with null fields
+ * (`readAt` = today); a throwing fetch records "brf:<id>" in the ledger (error class
+ * name only) and the run carries on.
+ */
+export async function enrichBrfs(opts: EnrichBrfsOptions): Promise<EnrichBrfsResult> {
+  const concurrency = Math.max(1, Math.min(Math.floor(opts.concurrency), 2));
+  const brf = (opts.cache.brf ??= {});
+  const ledger = (opts.cache.enrichFailures ??= {});
+  let fetched = 0;
+  let failed = 0;
+  let skipped = 0;
+  let attempted = 0;
+  let stopped = false;
+
+  const one = async (id: string): Promise<void> => {
+    if (!/^\d+$/.test(id)) {
+      skipped += 1;
+      return;
+    }
+    if (brf[id] || (ledger[`brf:${id}`]?.attempts ?? 0) >= ENRICH_MAX_ATTEMPTS) {
+      skipped += 1;
+      return;
+    }
+    if (stopped) return;
+    if (attempted >= opts.maxFetches || opts.budgetExceeded?.({ attempted, failed })) {
+      stopped = true;
+      return;
+    }
+    attempted += 1;
+    let facts: BrfFacts;
+    try {
+      facts = await opts.fetchBrf(id);
+    } catch (e) {
+      failed += 1;
+      ledger[`brf:${id}`] = recordedFailure(ledger[`brf:${id}`], opts.today, errorClassOf(e));
+      opts.onProgress?.(`förening ${id}: MISSLYCKADES (${errorClassOf(e)})`);
+      opts.persist();
+      return;
+    }
+    brf[id] = { loanSek: facts.loanSek, areaSqm: facts.areaSqm, reportYear: facts.reportYear, debtPerSqm: facts.debtPerSqm, readAt: opts.today };
+    delete ledger[`brf:${id}`];
+    fetched += 1;
+    opts.persist();
+  };
+
+  const results = await runPool(
+    opts.ids.map((id) => () => one(id)),
+    concurrency,
+  );
+  const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (rejected.length > 0) {
+    opts.persist();
+    const first = rejected[0].reason;
+    throw new Error(`${rejected.length} föreningsläsning(ar) avbröts oväntat: ${first instanceof Error ? first.message : String(first)}`);
+  }
+  return { fetched, failed, skipped, attempted };
 }

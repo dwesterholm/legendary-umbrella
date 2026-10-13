@@ -16,6 +16,14 @@
  *       # 14.4-02: the sample may be up to 1 500 rows (ENRICH_BATCH_MAX); --enrich-max is the render ceiling of the run
  *       # (default = the sample size); --re-enrich also reads rows whose record predates the 14.4 shape (avgift, BRF id,
  *       # tenure, days on market, first price, photo ids). Free on the local browser; never pass --allow-apify here.
+ *       # --stratify draws the sample proportionally over district x size band (a fixed sample: a resumed run finishes it).
+ *       # --max-minutes <n> stops scheduling after n minutes, saves, exits 0 (run again to continue).
+ *       # The run stops itself (exit 2, no same-day retry) at the first Booli challenge page, or when 5 % of the attempts
+ *       # have failed after at least 50 (D-04). A page that failed twice is skipped from then on (failure ledger in the cache).
+ *   npx tsx scripts/pull-slutpriser.ts --brf-pass --brf-max 1500 --renderer local --concurrency 2 --max-minutes 120
+ *       # 14.4-02: second pass, one BRF page per distinct brfId of the v2 rows (loan, area, report year, debt per m2 into cache.brf)
+ *   npx tsx scripts/pull-slutpriser.ts --enrich-report [--enrich-since 2025-10-01]
+ *       # 14.4-02: prints coverage of the v2 read and the BRF pass; no renderer, no network
  *
  * What it pulls: the four innerstan districts x the six R-12 size bands
  * (35-120 m2), lagenhet only, sold within the last --months months. The two
@@ -35,7 +43,7 @@
  *
  * Secret posture: prints "satt"/"saknas" for the Apify token, never the value.
  */
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   RENDER_MEMORY_MB,
@@ -47,12 +55,15 @@ import {
 } from "@/lib/booli/transport";
 import { APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
 import { isBooliUrl } from "@/lib/booli/client";
+import { fetchBrfFacts } from "@/lib/booli/brf-page";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { INNERSTAN_DISTRICTS, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import {
   ENRICH_BATCH_MAX,
+  ENRICH_MAX_ATTEMPTS,
+  ENRICH_STOP_FAIL_RATE,
   SLUTPRIS_CONCURRENCY,
   SLUTPRIS_MAX_PAGES_PER_SLICE,
   SLUTPRIS_MAX_RETRIES,
@@ -63,10 +74,13 @@ import {
   SLUTPRIS_WAIT_SECS,
   SOLD_DETAIL_PAGE_FUNCTION,
   SOLD_DETAIL_VERSION,
+  enrichBrfs,
   enrichSoldRows,
+  enrichStopReason,
   newSlutprisCache,
   pullSlutpriser,
   selectEnrichmentSample,
+  sizeBandIndex,
   slutprisCacheSchema,
   subtractMonthsIso,
   type Slice,
@@ -273,15 +287,6 @@ function median(xs: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function bandIndex(area: number): number {
-  const last = SLUTPRIS_SIZE_BANDS.length - 1;
-  for (let i = 0; i < SLUTPRIS_SIZE_BANDS.length; i++) {
-    const [lo, hi] = SLUTPRIS_SIZE_BANDS[i];
-    if (area >= lo && (area < hi || (i === last && area <= hi))) return i;
-  }
-  return -1;
-}
-
 const STUDY_MEDIAN: Partial<Record<InnerstanDistrict, string>> = {
   Södermalm: "+7 till +10 %",
   Kungsholmen: "+3 till +4 %",
@@ -303,7 +308,7 @@ function printSummary(cache: SlutprisCache): void {
     for (const r of rows) {
       if (r.district !== d) continue;
       n += 1;
-      const b = bandIndex(r.livingArea);
+      const b = sizeBandIndex(r.livingArea);
       if (b < 0) outside += 1;
       else counts[b] += 1;
     }
@@ -388,36 +393,128 @@ function printSummary(cache: SlutprisCache): void {
 // ---------------------------------------------------------------------------
 // Sold-detail enrichment (14.1-08, R-05 Path A)
 // ---------------------------------------------------------------------------
+/** Decimal comma, one decimal, for the Swedish reports. */
+const pctSv = (part: number, whole: number): string => (whole === 0 ? "-" : `${((100 * part) / whole).toFixed(1).replace(".", ",")} %`);
+const todayIso = (): string => new Date().toISOString().slice(0, 10);
+
+/** The per-run JSON-lines log lives in the gitignored data dir; its path is built here, never from an argument (T-14.4-09). */
+function runLogPath(): string {
+  return join(DATA_DIR, `enrich-run-14.4-${todayIso()}.log`);
+}
+
+function appendRunLog(entry: Record<string, unknown>): void {
+  mkdirSync(DATA_DIR, { recursive: true });
+  appendFileSync(runLogPath(), `${JSON.stringify(entry)}\n`);
+}
+
+type StopWhy = "tid" | "utmaning" | "felkvot" | "signal" | "kostnad";
+
+/**
+ * One guard for both long passes: the D-04 stop rule first (a challenge page, or 5 % failures after 50
+ * attempts), then a stop signal, the cost guard and the --max-minutes limit. The first reason that trips
+ * is kept: scheduling never restarts.
+ */
+function makeRunGuard(args: {
+  maxMinutes: number | null;
+  startedMs: number;
+  stats: () => LocalStats | null;
+  stopRequested: () => boolean;
+  overBudget?: () => boolean;
+}): {
+  check: (p: { attempted: number; failed: number }) => boolean;
+  /** After the pass: the stop rule only (a natural end is not "tid"). */
+  finalStopRule: (p: { attempted: number; failed: number }) => void;
+  why: () => StopWhy | null;
+} {
+  let why: StopWhy | null = null;
+  const challenged = (): number => args.stats()?.challenged ?? 0;
+  return {
+    check: (p) => {
+      if (why !== null) return true;
+      const rule = enrichStopReason({ challenged: challenged(), ...p });
+      if (rule !== null) why = rule;
+      else if (args.stopRequested()) why = "signal";
+      else if (args.overBudget?.()) why = "kostnad";
+      else if (args.maxMinutes !== null && Date.now() - args.startedMs >= args.maxMinutes * 60_000) why = "tid";
+      return why !== null;
+    },
+    finalStopRule: (p) => {
+      if (why !== null) return;
+      const rule = enrichStopReason({ challenged: challenged(), ...p });
+      if (rule !== null) why = rule;
+    },
+    why: () => why,
+  };
+}
+
+/** The line(s) that tell Daniel why a pass ended; "stopp" means exit 2 (D-04: no same-day retry). */
+function printStopReason(why: StopWhy | null, p: { attempted: number; failed: number }, maxMinutes: number | null): "ok" | "stopp" {
+  if (why === "utmaning") {
+    console.log("Stopp: utmaning från Booli upptäckt - körningen avbröts (D-04). Vänta minst ett dygn innan nästa försök.");
+    return "stopp";
+  }
+  if (why === "felkvot") {
+    console.log(`Stopp: ${pctSv(p.failed, p.attempted)} misslyckade efter ${p.attempted} försök (gräns ${Math.round(ENRICH_STOP_FAIL_RATE * 100)} %) - körningen avbröts (D-04).`);
+    return "stopp";
+  }
+  if (why === "tid") console.log(`Tidsgräns nådd efter ${maxMinutes} min; kör samma kommando igen för att fortsätta.`);
+  if (why === "signal") console.log("Avbruten av en stoppsignal; kör samma kommando igen för att fortsätta.");
+  return "ok";
+}
+
+/** Shares of the v2 rows, for the JSON-lines log and the closing summary. */
+function v2Shares(cache: SlutprisCache): { n: number; imageIdsShare: number; daysActiveShare: number; rentShare: number; brfIdShare: number } {
+  const v2 = cache.rows.filter((r) => r.enriched?.detailVersion === SOLD_DETAIL_VERSION);
+  const share = (k: number): number => (v2.length === 0 ? 0 : Math.round((1000 * k) / v2.length) / 1000);
+  return {
+    n: v2.length,
+    imageIdsShare: share(v2.filter((r) => (r.enriched?.imageIds?.length ?? 0) > 0).length),
+    daysActiveShare: share(v2.filter((r) => r.enriched?.daysActive != null).length),
+    rentShare: share(v2.filter((r) => r.enriched?.rentSek != null).length),
+    brfIdShare: share(v2.filter((r) => r.enriched?.brfId != null).length),
+  };
+}
+
 async function runEnrichment(opts: {
   cachePath: string;
   cache: SlutprisCache | null;
   sampleSize: number;
   soldSince?: string;
   reEnrich: boolean;
+  stratify: boolean;
+  maxMinutes: number | null;
   maxRenders: number;
   budgetUsd: number;
   concurrency: number;
   dryRun: boolean;
   renderer: RendererContext;
-}): Promise<void> {
+}): Promise<"ok" | "stopp"> {
   const { cache, cachePath } = opts;
   if (!cache) throw new Error(`Ingen cache att berika på ${cachePath} (kör själva hämtningen först)`);
+  cache.enrichFailures ??= {};
+  const ledger = cache.enrichFailures;
   const sample = selectEnrichmentSample(cache.rows, opts.sampleSize, ENRICH_SEED, {
     ...(opts.soldSince ? { soldSince: opts.soldSince } : {}),
     ...(opts.reEnrich ? { reEnrich: true } : {}),
+    ...(opts.stratify ? { stratify: true } : {}),
+    ledger,
   });
   const already = cache.rows.filter((r) => r.enriched?.detailVersion === SOLD_DETAIL_VERSION).length;
   console.log(
-    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}"${opts.soldSince ? `, sålda från ${opts.soldSince}` : ""}${opts.reEnrich ? ", äldre poster läses om" : ""}, ${already} redan berikade i v${SOLD_DETAIL_VERSION}), ` +
-      `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}`,
+    `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}"${opts.soldSince ? `, sålda från ${opts.soldSince}` : ""}${opts.reEnrich ? ", äldre poster läses om" : ""}${opts.stratify ? ", stratifierat urval" : ""}, ${already} redan berikade i v${SOLD_DETAIL_VERSION}), ` +
+      `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}${opts.maxMinutes !== null ? `, tidsgräns ${opts.maxMinutes} min` : ""}`,
   );
   if (opts.dryRun) {
-    console.log(`--dry-run: inga renders körda. Uppskattad kostnad ${(Math.min(sample.length, opts.maxRenders) * 0.036).toFixed(2)} till ${(Math.min(sample.length, opts.maxRenders) * 0.059).toFixed(2)} USD (observerade kostnader per render).`);
-    return;
+    console.log(
+      opts.renderer.local
+        ? "--dry-run: inga renders körda. Kostnad 0,00 USD (lokal webbläsare)."
+        : `--dry-run: inga renders körda. Uppskattad kostnad ${(Math.min(sample.length, opts.maxRenders) * 0.036).toFixed(2)} till ${(Math.min(sample.length, opts.maxRenders) * 0.059).toFixed(2)} USD (observerade kostnader per render).`,
+    );
+    return "ok";
   }
   if (sample.length === 0) {
     console.log("Inget att berika.");
-    return;
+    return "ok";
   }
 
   await apifyPreflight(opts.renderer, opts.budgetUsd);
@@ -427,6 +524,7 @@ async function runEnrichment(opts: {
   console.log(`Start: ${t0.toISOString()}`);
   let succeeded = 0;
   let failedRenders = 0;
+  let failedNoObject = 0;
   let lastRealUsd = 0;
   let refreshing = false;
   // Local pages cost nothing; the capped Apify fallback is bounded by the renderer's own cap, not by this guard.
@@ -442,6 +540,37 @@ async function runEnrichment(opts: {
         refreshing = false;
       });
   };
+  const stop = { requested: false, settled: Promise.resolve() as Promise<unknown> };
+  const browser = await installRenderer(opts.renderer, { onSignal: () => void (stop.requested = true), settle: () => stop.settled });
+  const startedMs = Date.now();
+  const guard = makeRunGuard({
+    maxMinutes: opts.maxMinutes,
+    startedMs,
+    stats: browser.stats,
+    stopRequested: () => stop.requested,
+    overBudget: () => spentUsd() >= opts.budgetUsd,
+  });
+
+  const batchLine = (final: boolean): void => {
+    const attempted = succeeded + failedRenders;
+    const st = browser.stats();
+    appendRunLog({
+      batch: "14.4-02",
+      pass: "sold",
+      final,
+      startedAt: t0.toISOString(),
+      at: new Date().toISOString(),
+      attempted,
+      ok: succeeded - failedNoObject,
+      failedNoObject,
+      failedRender: failedRenders,
+      challenged: st?.challenged ?? 0,
+      retried: st?.retried ?? 0,
+      secPerPage: attempted > 0 ? Math.round((10 * (Date.now() - startedMs)) / 1000 / attempted) / 10 : null,
+      ...v2Shares(cache),
+    });
+  };
+
   const render = async (url: string): Promise<unknown[]> => {
     if (!isBooliUrl(url)) throw new Error(`Inte en Booli-url: ${url}`);
     try {
@@ -455,13 +584,15 @@ async function runEnrichment(opts: {
       failedRenders += 1;
       throw e;
     } finally {
-      if (!opts.renderer.local && (succeeded + failedRenders) % SPEND_REFRESH_EVERY === 0) refreshReal();
+      const attempted = succeeded + failedRenders;
+      if (!opts.renderer.local && attempted % SPEND_REFRESH_EVERY === 0) refreshReal();
+      if (attempted % 10 === 0) {
+        console.log(`  ${attempted} sidor lästa (${failedRenders + failedNoObject} misslyckade, ${browser.stats()?.challenged ?? 0} utmaningar, uppskattat ${spentUsd().toFixed(2)} USD)`);
+      }
+      if (attempted % 100 === 0) batchLine(false);
     }
   };
 
-  let done = 0;
-  const stop = { requested: false, settled: Promise.resolve() as Promise<unknown> };
-  const browser = await installRenderer(opts.renderer, { onSignal: () => void (stop.requested = true), settle: () => stop.settled });
   let result: Awaited<ReturnType<typeof enrichSoldRows>>;
   const renderPhaseStart = Date.now();
   try {
@@ -470,15 +601,16 @@ async function runEnrichment(opts: {
       sample,
       render,
       reEnrich: opts.reEnrich,
+      ledger,
+      today: todayIso(),
       concurrency: opts.concurrency,
       maxRenders: opts.maxRenders,
-      persist: () => {
-        persist(cache);
-        done += 1;
-        if (done % 10 === 0) console.log(`  ${done} berikade (render ${succeeded + failedRenders}, uppskattat ${spentUsd().toFixed(2)} USD)`);
+      persist: () => persist(cache),
+      budgetExceeded: guard.check,
+      onProgress: (msg) => {
+        if (msg.includes("inget läsbart")) failedNoObject += 1;
+        console.log(`  ${msg}`);
       },
-      budgetExceeded: () => stop.requested || spentUsd() >= opts.budgetUsd,
-      onProgress: (msg) => console.log(`  ${msg}`),
     });
     stop.settled = enriching.then(() => persist(cache), () => undefined);
     result = await enriching;
@@ -487,6 +619,8 @@ async function runEnrichment(opts: {
   }
   persist(cache);
   const renderPhaseSecs = (Date.now() - renderPhaseStart) / 1000;
+  guard.finalStopRule({ attempted: result.rendersUsed, failed: result.failed });
+  batchLine(true);
 
   console.log(`\nBerikning klar. Renders: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}). Berikade rader: ${result.enriched}, misslyckade: ${result.failed}.`);
   const enrichedRows = cache.rows.filter((r) => r.enriched);
@@ -533,9 +667,161 @@ async function runEnrichment(opts: {
     const after = await apifyMonthlyHeadroomUsd();
     console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
   }
-  if (result.failed > 0 || result.rendersUsed < sample.length) {
+  const outcome = printStopReason(guard.why(), { attempted: result.rendersUsed, failed: result.failed }, opts.maxMinutes);
+  if (outcome === "ok" && guard.why() === null && (result.failed > 0 || result.rendersUsed < sample.length)) {
     console.log("Kör samma kommando igen för att fortsätta (redan berikade rader renderas inte om).");
   }
+  return outcome;
+}
+
+// ---------------------------------------------------------------------------
+// BRF pass (14.4-02, D-03 second pass): one public BRF page per distinct brfId
+// ---------------------------------------------------------------------------
+async function runBrfPass(opts: {
+  cachePath: string;
+  cache: SlutprisCache | null;
+  brfMax: number;
+  maxMinutes: number | null;
+  concurrency: number;
+  dryRun: boolean;
+  renderer: RendererContext;
+}): Promise<"ok" | "stopp"> {
+  const { cache, cachePath } = opts;
+  if (!cache) throw new Error(`Ingen cache att läsa föreningar för på ${cachePath}`);
+  cache.brf ??= {};
+  cache.enrichFailures ??= {};
+  const known = cache.brf;
+  const ledger = cache.enrichFailures;
+  const all = new Set<string>();
+  for (const r of cache.rows) {
+    const id = r.enriched?.detailVersion === SOLD_DETAIL_VERSION ? r.enriched.brfId : null;
+    if (id) all.add(id);
+  }
+  const ids = [...all]
+    .filter((id) => !known[id] && (ledger[`brf:${id}`]?.attempts ?? 0) < ENRICH_MAX_ATTEMPTS)
+    .sort((a, b) => Number(a) - Number(b));
+  console.log(
+    `Föreningspass: ${all.size} distinkta föreningar bland v${SOLD_DETAIL_VERSION}-raderna, ${Object.keys(known).length} redan lästa, ${ids.length} kvar att läsa, högst ${opts.brfMax} i den här körningen` +
+      `${opts.maxMinutes !== null ? `, tidsgräns ${opts.maxMinutes} min` : ""}, samtidighet ${Math.min(opts.concurrency, 2)}`,
+  );
+  if (opts.dryRun) {
+    console.log("--dry-run: inga sidor lästa.");
+    return "ok";
+  }
+  if (ids.length === 0) {
+    console.log("Inget att läsa.");
+    return "ok";
+  }
+  if (!opts.renderer.local || opts.renderer.allowApify) {
+    throw new Error("Föreningspasset körs bara på den lokala webbläsaren (0 USD): använd --renderer local och ta bort --allow-apify");
+  }
+
+  await apifyPreflight(opts.renderer, 0);
+
+  const persist = persistTo(cachePath);
+  const t0 = new Date();
+  console.log(`Start: ${t0.toISOString()}`);
+  const stop = { requested: false, settled: Promise.resolve() as Promise<unknown> };
+  const browser = await installRenderer(opts.renderer, { onSignal: () => void (stop.requested = true), settle: () => stop.settled });
+  const startedMs = Date.now();
+  const guard = makeRunGuard({ maxMinutes: opts.maxMinutes, startedMs, stats: browser.stats, stopRequested: () => stop.requested });
+  const storedBefore = Object.keys(known).length;
+
+  const batchLine = (final: boolean, p: { attempted: number; failed: number }): void => {
+    const st = browser.stats();
+    appendRunLog({
+      batch: "14.4-02",
+      pass: "brf",
+      final,
+      startedAt: t0.toISOString(),
+      at: new Date().toISOString(),
+      attempted: p.attempted,
+      ok: p.attempted - p.failed,
+      failedNoObject: 0,
+      failedRender: p.failed,
+      challenged: st?.challenged ?? 0,
+      retried: st?.retried ?? 0,
+      secPerPage: p.attempted > 0 ? Math.round((10 * (Date.now() - startedMs)) / 1000 / p.attempted) / 10 : null,
+      stored: Object.keys(known).length - storedBefore,
+    });
+  };
+
+  let result: Awaited<ReturnType<typeof enrichBrfs>>;
+  try {
+    let lastLogged = 0;
+    const running = enrichBrfs({
+      cache,
+      ids,
+      fetchBrf: (id) => fetchBrfFacts(id),
+      persist: () => persist(cache),
+      today: todayIso(),
+      concurrency: opts.concurrency,
+      maxFetches: opts.brfMax,
+      budgetExceeded: (p) => {
+        if (p.attempted > 0 && p.attempted % 100 === 0 && p.attempted !== lastLogged) {
+          lastLogged = p.attempted;
+          batchLine(false, p);
+        }
+        return guard.check(p);
+      },
+      onProgress: (msg) => console.log(`  ${msg}`),
+    });
+    stop.settled = running.then(() => persist(cache), () => undefined);
+    result = await running;
+  } finally {
+    await browser.close();
+  }
+  persist(cache);
+  const secs = (Date.now() - startedMs) / 1000;
+  guard.finalStopRule({ attempted: result.attempted, failed: result.failed });
+  batchLine(true, { attempted: result.attempted, failed: result.failed });
+
+  const withDebt = Object.values(known).filter((b) => typeof b.debtPerSqm === "number").length;
+  console.log(`\nFöreningspass klart. Läsningar: ${result.attempted} (lagrade ${result.fetched}, misslyckade ${result.failed}, hoppade över ${result.skipped}).`);
+  console.log(`Föreningar i cachen: ${Object.keys(known).length}, med skuld per kvm ${withDebt}.`);
+  console.log(
+    `Sekunder per sida: ${result.attempted > 0 ? (secs / result.attempted).toFixed(1).replace(".", ",") : "-"} (${secs.toFixed(0)} s för ${result.attempted} sidor)`,
+  );
+  const localStats = browser.stats();
+  if (localStats) await printLocalLedger(t0, localStats, opts.renderer);
+  const outcome = printStopReason(guard.why(), { attempted: result.attempted, failed: result.failed }, opts.maxMinutes);
+  if (outcome === "ok" && guard.why() === null && (result.failed > 0 || result.attempted < ids.length)) {
+    console.log("Kör samma kommando igen för att fortsätta (lästa föreningar hoppas över).");
+  }
+  return outcome;
+}
+
+// ---------------------------------------------------------------------------
+// --enrich-report (14.4-02): coverage of the v2 read and the BRF pass. Reads the cache only.
+// ---------------------------------------------------------------------------
+function printEnrichReport(cache: SlutprisCache, since: string): void {
+  const eligible = cache.rows.filter((r) => r.soldDate >= since);
+  const v2 = cache.rows.filter((r) => r.enriched?.detailVersion === SOLD_DETAIL_VERSION);
+  const withRent = v2.filter((r) => r.enriched?.rentSek != null).length;
+  const brfIds = new Set(v2.flatMap((r) => (r.enriched?.brfId ? [r.enriched.brfId] : [])));
+  const withBrfId = v2.filter((r) => r.enriched?.brfId != null).length;
+  const tenure = new Map<string, number>();
+  for (const r of v2) {
+    const t = r.enriched?.tenureForm ?? "saknas";
+    tenure.set(t, (tenure.get(t) ?? 0) + 1);
+  }
+  const withDays = v2.filter((r) => r.enriched?.daysActive != null).length;
+  const withImages = v2.filter((r) => (r.enriched?.imageIds?.length ?? 0) > 0);
+  const withImagesAndAsk = withImages.filter((r) => r.askingPrice != null || r.enriched?.listPrice != null || r.enriched?.firstPrice != null).length;
+  const brf = cache.brf ?? {};
+  const read = [...brfIds].filter((id) => brf[id]);
+  const withDebt = read.filter((id) => typeof brf[id].debtPerSqm === "number").length;
+  const failures = Object.keys(cache.enrichFailures ?? {});
+  console.log("=== BERIKNINGSRAPPORT (14.4-02) ===");
+  console.log(`Berikade (v2): ${v2.length} av ${eligible.length} sålda från ${since}`);
+  console.log(`Avgift: ${withRent} (${pctSv(withRent, v2.length)})`);
+  console.log(`Förenings-id: ${withBrfId} (${pctSv(withBrfId, v2.length)}), distinkta föreningar ${brfIds.size}`);
+  console.log(`Upplåtelseform: ${[...tenure].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([k, n]) => `${k}: ${n}`).join(", ") || "-"}`);
+  console.log(`Dagar ute: ${withDays} (${pctSv(withDays, v2.length)})`);
+  console.log(`Bild-id: ${withImages.length} rader med minst ett (${pctSv(withImages.length, v2.length)})`);
+  console.log(`Bild-id och utgångspris: ${withImagesAndAsk} rader`);
+  console.log(`Föreningar lästa: ${read.length} av ${brfIds.size}, med skuld/kvm ${withDebt}`);
+  console.log(`Misslyckade enligt loggboken: sålda ${failures.filter((k) => k.startsWith("sold:")).length}, föreningar ${failures.filter((k) => k.startsWith("brf:")).length}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -557,19 +843,47 @@ async function main(): Promise<void> {
 
   const existing = loadCache(cachePath);
 
+  // --enrich-report reads the cache only: no renderer, no network, no Apify preflight.
+  if (hasFlag("--enrich-report")) {
+    if (!existing) throw new Error(`Ingen cache att rapportera på ${cachePath}`);
+    const sinceArg = argValue("--enrich-since") ?? "2025-10-01";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sinceArg)) throw new Error("--enrich-since måste vara YYYY-MM-DD");
+    printEnrichReport(existing, sinceArg);
+    return;
+  }
+
   // D-03: the renderer line comes before any dry-run return. --report-only reads the cache only and needs none.
   const rctx: RendererContext = hasFlag("--report-only")
     ? { local: false, allowApify: false, apifyMaxRenders: 10 }
     : await resolveRenderer();
 
+  const maxMinutesRaw = argValue("--max-minutes");
+  const maxMinutes = maxMinutesRaw === null ? null : intArg("--max-minutes", 1, 1, 600);
+
+  if (hasFlag("--brf-pass")) {
+    const outcome = await runBrfPass({
+      cachePath,
+      cache: existing,
+      brfMax: intArg("--brf-max", ENRICH_BATCH_MAX, 1, ENRICH_BATCH_MAX),
+      maxMinutes,
+      concurrency,
+      dryRun: hasFlag("--dry-run"),
+      renderer: rctx,
+    });
+    if (outcome === "stopp") process.exit(2);
+    return;
+  }
+
   const enrichSample = intArg("--enrich-sample", 0, 0, ENRICH_BATCH_MAX);
   if (enrichSample > 0) {
     const since = argValue("--enrich-since");
     if (since !== null && !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error("--enrich-since måste vara YYYY-MM-DD");
-    await runEnrichment({
+    const outcome = await runEnrichment({
       cachePath,
       cache: existing,
       sampleSize: enrichSample,
+      stratify: hasFlag("--stratify"),
+      maxMinutes,
       ...(since !== null ? { soldSince: since } : {}),
       reEnrich: hasFlag("--re-enrich"),
       // The enrichment's own render ceiling (default: the sample size); --max-renders keeps its 400 for the slice pull.
@@ -579,6 +893,8 @@ async function main(): Promise<void> {
       dryRun: hasFlag("--dry-run"),
       renderer: rctx,
     });
+    // D-04: a stopped run exits 2 (no same-day retry). The browser is already closed by now.
+    if (outcome === "stopp") process.exit(2);
     return;
   }
 

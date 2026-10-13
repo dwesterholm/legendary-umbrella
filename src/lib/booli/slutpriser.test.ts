@@ -9,10 +9,16 @@ import {
   SLUTPRIS_UPPER_BAND_MAX_PAGES,
   SLUTPRIS_UPPER_BAND_MIN_M2,
   ENRICH_BATCH_MAX,
+  ENRICH_MAX_ATTEMPTS,
+  ENRICH_STOP_FAIL_RATE,
+  ENRICH_STOP_MIN_ATTEMPTS,
   IMAGE_IDS_MAX,
   SOLD_DETAIL_VERSION,
+  brfEntrySchema,
   buildSlutprisSearchUrl,
+  enrichBrfs,
   enrichSoldRows,
+  enrichStopReason,
   needsEnrichment,
   newSlutprisCache,
   parseFloorLabel,
@@ -21,11 +27,13 @@ import {
   parseSoldDetailFacts,
   runPool,
   selectEnrichmentSample,
+  sizeBandIndex,
   slutprisCacheSchema,
   SOLD_DETAIL_PAGE_FUNCTION,
   soldDetailUrl,
   soldRowSchema,
   soldRowsFromItems,
+  stratifiedHashSample,
   subtractMonthsIso,
   type Slice,
   type SlutprisCache,
@@ -1277,5 +1285,271 @@ describe("selectEnrichmentSample and enrichSoldRows with reEnrich (14.4-02, R-03
     const render = vi.fn(ok);
     await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {} });
     expect(render).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14.4-02 task 2: making the long run safe.
+// ---------------------------------------------------------------------------
+describe("sizeBandIndex (14.4-02)", () => {
+  it("lower edge inclusive, upper edge exclusive, last band upper edge inclusive, outside gives -1", () => {
+    for (let i = 0; i < SLUTPRIS_SIZE_BANDS.length; i++) {
+      const [lo, hi] = SLUTPRIS_SIZE_BANDS[i];
+      const last = i === SLUTPRIS_SIZE_BANDS.length - 1;
+      expect(sizeBandIndex(lo)).toBe(i);
+      expect(sizeBandIndex(hi)).toBe(last ? i : i + 1);
+      expect(sizeBandIndex(hi - 0.01)).toBe(i);
+    }
+    expect(sizeBandIndex(34.99)).toBe(-1);
+    expect(sizeBandIndex(120.01)).toBe(-1);
+    expect(sizeBandIndex(120)).toBe(SLUTPRIS_SIZE_BANDS.length - 1);
+  });
+});
+
+describe("stratifiedHashSample and selectEnrichmentSample with stratify/ledger (14.4-02, D-04)", () => {
+  // 4 strata (district x band) of 50 / 30 / 15 / 5 rows.
+  const stratum = (start: number, count: number, district: SoldRow["district"], area: number): SoldRow[] =>
+    Array.from({ length: count }, (_, i) => soldRow(start + i, { district, livingArea: area }));
+  const rows = [
+    ...stratum(1000, 50, "Södermalm", 37),
+    ...stratum(2000, 30, "Södermalm", 55),
+    ...stratum(3000, 15, "Kungsholmen", 37),
+    ...stratum(4000, 5, "Kungsholmen", 70),
+  ];
+  const countBy = (picked: SoldRow[]) => {
+    const m = new Map<string, number>();
+    for (const r of picked) m.set(`${r.district}|${sizeBandIndex(r.livingArea)}`, (m.get(`${r.district}|${sizeBandIndex(r.livingArea)}`) ?? 0) + 1);
+    return [m.get("Södermalm|0"), m.get("Södermalm|3"), m.get("Kungsholmen|0"), m.get("Kungsholmen|4")];
+  };
+
+  it("allocates n proportionally: 10 / 6 / 3 / 1 for n = 20 over 50 / 30 / 15 / 5", () => {
+    expect(countBy(stratifiedHashSample(rows, 20, "14.1"))).toEqual([10, 6, 3, 1]);
+  });
+
+  it("the leftover seat goes to the largest remainder: n = 7 gives 4 / 2 / 1 / 0", () => {
+    // exact quotas 3.5 / 2.1 / 1.05 / 0.35: floors 3 / 2 / 1 / 0 = 6, one seat left for the largest remainder (3.5)
+    const picked = stratifiedHashSample(rows, 7, "14.1");
+    expect(picked).toHaveLength(7);
+    expect(countBy(picked)).toEqual([4, 2, 1, undefined]);
+  });
+
+  it("is deterministic, independent of input order, and picks each stratum in hash order", () => {
+    const a = stratifiedHashSample(rows, 20, "14.1").map((r) => r.booliId);
+    const b = stratifiedHashSample([...rows].reverse(), 20, "14.1").map((r) => r.booliId);
+    expect(a).toEqual(b);
+    // the first 10 of the big stratum are exactly its first 10 in plain hash order
+    const plain = selectEnrichmentSample(rows.filter((r) => r.booliId.startsWith("1")), 10, "14.1").map((r) => r.booliId);
+    expect(a.filter((id) => id.startsWith("1")).sort()).toEqual([...plain].sort());
+  });
+
+  it("n larger than the rows returns all of them; n <= 0 returns none; the input is untouched", () => {
+    const copy = rows.map((r) => r.booliId);
+    expect(stratifiedHashSample(rows, 500, "14.1")).toHaveLength(100);
+    expect(stratifiedHashSample(rows, 0, "14.1")).toEqual([]);
+    expect(rows.map((r) => r.booliId)).toEqual(copy);
+  });
+
+  it("stratify draws a FIXED sample: rows already read still count toward it, so a resume does not extend it", () => {
+    const fresh = selectEnrichmentSample(rows, 20, "14.1", { stratify: true });
+    expect(fresh).toHaveLength(20);
+    const done = fresh.slice(0, 8).map((r) => r.booliId);
+    const partly = rows.map((r) => (done.includes(r.booliId) ? { ...r, enriched: { buildYear: 1900, balcony: false, listPrice: null, detailVersion: 2 as const } } : r));
+    const resumed = selectEnrichmentSample(partly, 20, "14.1", { stratify: true });
+    expect(resumed.map((r) => r.booliId).sort()).toEqual(fresh.slice(8).map((r) => r.booliId).sort());
+  });
+
+  it("a row with two failed attempts in the ledger is never selected, a row with one still is", () => {
+    const ledger = { "sold:1000": { attempts: ENRICH_MAX_ATTEMPTS }, "sold:1001": { attempts: 1 } };
+    expect(ENRICH_MAX_ATTEMPTS).toBe(2);
+    const plain = selectEnrichmentSample(rows, 500, "14.1", { ledger }).map((r) => r.booliId);
+    expect(plain).not.toContain("1000");
+    expect(plain).toContain("1001");
+    const strat = selectEnrichmentSample(rows, 500, "14.1", { ledger, stratify: true }).map((r) => r.booliId);
+    expect(strat).not.toContain("1000");
+    expect(strat).toContain("1001");
+  });
+});
+
+describe("failure ledger in enrichSoldRows (14.4-02, Pitfall 4)", () => {
+  const goodFlight = flightWith({ constructionYear: 1950, amenities: [], rent: { raw: 2000 } });
+  const ok = async () => [{ hasApollo: true, flight: goodFlight }];
+
+  it("a failed read increments attempts, sets lastAt and a short reason; a later success deletes the entry", async () => {
+    const rows = [soldRow(1), soldRow(2)];
+    const ledger: Record<string, { attempts: number; lastAt: string; reason: string }> = {};
+    class Boom extends Error {
+      constructor() {
+        super("https://www.booli.se/annons/1 gave 500 with a long message");
+        this.name = "BoomError";
+      }
+    }
+    const render = async (url: string) => {
+      if (url.endsWith("/1")) throw new Boom();
+      return [{ hasApollo: true, flight: '1:"$Sreact.fragment"\n' }];
+    };
+    const persist = vi.fn();
+    await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist, ledger, today: "2026-10-13" });
+    expect(ledger["sold:1"]).toEqual({ attempts: 1, lastAt: "2026-10-13", reason: "BoomError" });
+    expect(ledger["sold:2"]).toEqual({ attempts: 1, lastAt: "2026-10-13", reason: "inget säljobjekt" });
+    expect(JSON.stringify(ledger)).not.toContain("booli.se");
+    expect(persist).toHaveBeenCalled(); // the ledger change is written too
+
+    await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist, ledger, today: "2026-10-14" });
+    expect(ledger["sold:1"].attempts).toBe(2);
+    expect(ledger["sold:1"].lastAt).toBe("2026-10-14");
+
+    await enrichSoldRows({ rows, sample: rows, render: ok, concurrency: 2, maxRenders: 5, persist, ledger, today: "2026-10-15" });
+    expect(ledger).toEqual({});
+    expect(rows.every((r) => r.enriched?.detailVersion === 2)).toBe(true);
+  });
+
+  it("passes the running attempted/failed counts to budgetExceeded", async () => {
+    const rows = Array.from({ length: 6 }, (_, i) => soldRow(10 + i));
+    const seen: Array<{ attempted: number; failed: number }> = [];
+    const render = async () => {
+      throw new Error("x");
+    };
+    await enrichSoldRows({
+      rows,
+      sample: rows,
+      render,
+      concurrency: 1,
+      maxRenders: 99,
+      persist: () => {},
+      budgetExceeded: (p) => {
+        seen.push({ ...p });
+        return p.attempted >= 3;
+      },
+    });
+    expect(seen.map((x) => x.attempted)).toEqual([0, 1, 2, 3]);
+    expect(seen[3]).toEqual({ attempted: 3, failed: 3 });
+  });
+
+  it("requires `today` when a ledger is given", async () => {
+    const rows = [soldRow(1)];
+    await expect(enrichSoldRows({ rows, sample: rows, render: ok, concurrency: 1, maxRenders: 5, persist: () => {}, ledger: {} })).rejects.toThrow(/today/);
+  });
+});
+
+describe("enrichStopReason (14.4-02, D-04 stop rule)", () => {
+  it("stops at the first challenge, whatever the attempt count", () => {
+    expect(enrichStopReason({ challenged: 1, attempted: 3, failed: 0 })).toBe("utmaning");
+    expect(enrichStopReason({ challenged: 2, attempted: 500, failed: 400 })).toBe("utmaning");
+  });
+  it("stops at 5 % failures only after 50 attempts", () => {
+    expect([ENRICH_STOP_FAIL_RATE, ENRICH_STOP_MIN_ATTEMPTS]).toEqual([0.05, 50]);
+    expect(enrichStopReason({ challenged: 0, attempted: 49, failed: 10 })).toBeNull();
+    expect(enrichStopReason({ challenged: 0, attempted: 50, failed: 2 })).toBeNull();
+    expect(enrichStopReason({ challenged: 0, attempted: 50, failed: 3 })).toBe("felkvot");
+    expect(enrichStopReason({ challenged: 0, attempted: 100, failed: 4 })).toBeNull();
+    expect(enrichStopReason({ challenged: 0, attempted: 100, failed: 5 })).toBe("felkvot");
+  });
+  it("is quiet for a clean run", () => {
+    expect(enrichStopReason({ challenged: 0, attempted: 0, failed: 0 })).toBeNull();
+    expect(enrichStopReason({ challenged: 0, attempted: 1200, failed: 0 })).toBeNull();
+  });
+});
+
+describe("enrichBrfs (14.4-02, D-03 second pass)", () => {
+  const facts = { loanSek: 14_800_000, areaSqm: 3000, reportYear: 2025, debtPerSqm: 4933 };
+  const cacheWith = (over: Partial<SlutprisCache> = {}): SlutprisCache => ({ ...newSlutprisCache("2026-10-13", CUTOFF), ...over });
+  const base = { today: "2026-10-13", concurrency: 2, maxFetches: 100 };
+
+  it("skips ids already in cache.brf and stores the rest with readAt = today, persisting after each", async () => {
+    const cache = cacheWith({ brf: { "1": { ...facts, readAt: "2026-10-01" } } });
+    const fetchBrf = vi.fn(async () => facts);
+    const persist = vi.fn();
+    const res = await enrichBrfs({ ...base, cache, ids: ["1", "2", "3"], fetchBrf, persist });
+    expect(fetchBrf).toHaveBeenCalledTimes(2);
+    expect(res).toEqual({ fetched: 2, failed: 0, skipped: 1, attempted: 2 });
+    expect(cache.brf?.["1"].readAt).toBe("2026-10-01");
+    expect(cache.brf?.["2"]).toEqual({ ...facts, readAt: "2026-10-13" });
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(slutprisCacheSchema.safeParse(JSON.parse(JSON.stringify(cache))).success).toBe(true);
+  });
+
+  it("a throwing fetch records the ledger entry brf:<id> (class name only) and the run continues", async () => {
+    const cache = cacheWith();
+    const fetchBrf = async (id: string) => {
+      if (id === "2") throw new TypeError("https://www.booli.se/bostadsrattsforening/2 failed");
+      return facts;
+    };
+    const res = await enrichBrfs({ ...base, cache, ids: ["1", "2", "3"], fetchBrf, persist: () => {} });
+    expect(res).toEqual({ fetched: 2, failed: 1, skipped: 0, attempted: 3 });
+    expect(cache.enrichFailures?.["brf:2"]).toEqual({ attempts: 1, lastAt: "2026-10-13", reason: "TypeError" });
+    expect(cache.brf?.["2"]).toBeUndefined();
+    expect(JSON.stringify(cache.enrichFailures)).not.toContain("booli.se");
+  });
+
+  it("an id with two failed attempts is skipped; a later success clears the ledger entry", async () => {
+    const cache = cacheWith({ enrichFailures: { "brf:5": { attempts: 2, lastAt: "2026-10-12", reason: "Error" }, "brf:6": { attempts: 1, lastAt: "2026-10-12", reason: "Error" } } });
+    const fetchBrf = vi.fn(async () => facts);
+    const res = await enrichBrfs({ ...base, cache, ids: ["5", "6"], fetchBrf, persist: () => {} });
+    expect(res).toEqual({ fetched: 1, failed: 0, skipped: 1, attempted: 1 });
+    expect(fetchBrf).toHaveBeenCalledWith("6");
+    expect(cache.enrichFailures?.["brf:6"]).toBeUndefined();
+    expect(cache.enrichFailures?.["brf:5"]?.attempts).toBe(2);
+  });
+
+  it("a page that rendered without the labels is stored (null fields), not counted as failed", async () => {
+    const cache = cacheWith();
+    const empty = { loanSek: null, areaSqm: null, reportYear: null, debtPerSqm: null };
+    const res = await enrichBrfs({ ...base, cache, ids: ["9"], fetchBrf: async () => empty, persist: () => {} });
+    expect(res.fetched).toBe(1);
+    expect(cache.brf?.["9"]).toEqual({ ...empty, readAt: "2026-10-13" });
+    expect(brfEntrySchema.safeParse(cache.brf?.["9"]).success).toBe(true);
+  });
+
+  it("budgetExceeded stops scheduling, maxFetches caps the attempts, concurrency never exceeds 2", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const slow = async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 2));
+      inFlight -= 1;
+      return facts;
+    };
+    const ids = Array.from({ length: 20 }, (_, i) => String(100 + i));
+    const c1 = cacheWith();
+    const r1 = await enrichBrfs({ ...base, concurrency: 50, cache: c1, ids, fetchBrf: slow, persist: () => {} });
+    expect(peak).toBe(2);
+    expect(r1.attempted).toBe(20);
+
+    const c2 = cacheWith();
+    let calls = 0;
+    const r2 = await enrichBrfs({
+      ...base,
+      concurrency: 1,
+      cache: c2,
+      ids,
+      fetchBrf: async () => {
+        calls += 1;
+        return facts;
+      },
+      persist: () => {},
+      budgetExceeded: (p) => p.attempted >= 4,
+    });
+    expect(calls).toBe(4);
+    expect(r2.attempted).toBe(4);
+
+    const c3 = cacheWith();
+    const r3 = await enrichBrfs({ ...base, maxFetches: 6, cache: c3, ids, fetchBrf: slow, persist: () => {} });
+    expect(r3.attempted).toBe(6);
+  });
+});
+
+describe("cache additions (14.4-02): brf and enrichFailures stay optional, version stays 1", () => {
+  it("an old cache without them parses; the new keys round trip", () => {
+    const empty = newSlutprisCache("2026-10-13", CUTOFF);
+    expect(slutprisCacheSchema.safeParse(empty).success).toBe(true);
+    const full = {
+      ...empty,
+      brf: { "268247": { loanSek: 1, areaSqm: 2, reportYear: 2025, debtPerSqm: 0, readAt: "2026-10-13" } },
+      enrichFailures: { "sold:1": { attempts: 2, lastAt: "2026-10-13", reason: "Error" } },
+    };
+    expect(slutprisCacheSchema.parse(JSON.parse(JSON.stringify(full)))).toEqual(full);
+    expect(slutprisCacheSchema.safeParse({ ...full, brf: { "12x": full.brf["268247"] } }).success).toBe(false);
+    expect(slutprisCacheSchema.safeParse({ ...full, enrichFailures: { k: { attempts: -1, lastAt: "2026-10-13", reason: "x" } } }).success).toBe(false);
   });
 });
