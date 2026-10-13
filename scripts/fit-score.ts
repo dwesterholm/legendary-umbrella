@@ -8,11 +8,29 @@
  *     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model data/hedonic-model.json] [--track 150148]
  *
  *   Live: scrapes the four innerstan districts, ranks every comparable flat
- *   for free, detail-fetches and picture-reads only the top FIT_VISION_WINDOW,
- *   re-ranks by profit, writes a snapshot under .planning/calibration/data/
+ *   for free, detail-fetches (and, unless --no-vision, picture-reads) the
+ *   window, re-ranks by profit, writes a snapshot under .planning/calibration/data/
  *   and prints the spend.
- *     npx tsx scripts/fit-score.ts [--window 20] [--budget-usd N] [--out <file>] [--dry-run]
+ *     npx tsx scripts/fit-score.ts [--window all|N] [--district <name>] [--no-vision]
+ *         [--budget-usd N] [--out <file>] [--dry-run]
  *         [--renderer local|apify] [--allow-apify] [--apify-max-renders N]
+ *
+ *   Window (Phase 14.2, D-06): in local mode the default is "all": every
+ *   comparable flat gets its Booli detail page and, where the detail names one,
+ *   its broker page (src/lib/discovery/watch-enrich.ts), and a facts record for
+ *   every row. That is free. With --renderer apify the window stays a number
+ *   (default FIT_VISION_WINDOW) and "--window all" is refused with exit 1,
+ *   because every page there is a paid render (denial of wallet).
+ *
+ *   Completeness (R-04): each district is paged until Booli's own count is in
+ *   hand (HEADLESS_MAX_AREA_PAGES) and the area report prints "N av M annonser
+ *   (P sidor, komplett|ofullständig)", then "Kandidatlista: komplett" or
+ *   "Kandidatlista: OFULLSTÄNDIG (<districts>)". Coverage (R-05): a
+ *   "Täckning (N annonser): ..." line says how much of balcony, condition,
+ *   description, sun, avgift and tenure is actually known.
+ *
+ *   --no-vision prints "Bildtolkning: avstängd (--no-vision)" and makes no
+ *   Anthropic call. Picture reading for every candidate arrives in a later plan.
  *
  *   Renderer (Phase 14.2, D-03, R-03): Booli pages are read by a headed
  *   Chromium on this Mac by default (BOOLI_RENDERER or --renderer override;
@@ -50,11 +68,14 @@ import { toCandidate } from "@/lib/discovery/candidate";
 import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
 import {
   FIT_SECTION_TITLES,
+  FIT_SIZE_MIN,
   FIT_TABLE_MAX_ROWS,
   checkApifyHeadroom,
+  coverageOfRows,
   estimateFitRunUsd,
   fitRowKey,
   renderAreaReport,
+  renderCoverage,
   renderFitSections,
   renderWindowReport,
   runFitPipeline,
@@ -79,6 +100,7 @@ import {
   type ModelHealth,
 } from "@/lib/discovery/fit-score";
 import { INNERSTAN_DISTRICTS, parseHedonicModel, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
+import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
@@ -96,15 +118,20 @@ const USAGE = `Användning:
   Uppspelning (gratis, offline):
     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
-    npx tsx scripts/fit-score.ts [--window ${FIT_VISION_WINDOW}] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+    npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
 
   Tabellen har två avsnitt: "Förväntat under 4 M" (förväntat slutpris högst 4 000 000 kr) och "Över 4 M förväntat".
   "Okapad skillnad" är värde minus slutpris före 20 %-taket; "Krediterad" är den del som räknas in i vinsten.
+  Områdesraden säger "N av M annonser (P sidor, komplett|ofullständig)" och "Kandidatlista: komplett|OFULLSTÄNDIG (...)";
+  raden "Täckning (...)" säger hur mycket som faktiskt är känt (balkong, skick, beskrivning, sol, avgift, upplåtelseform).
 
   --replay <fil>     Spela upp en sparad snapshot av bostäder till salu (inga nätverksanrop)
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
   --track <id>       Booli-id att visa uppdelat i detalj, standard ${DEFAULT_TRACK_ID}
-  --window <n>       Live: antal annonser som får detaljsida och bildtolkning, standard ${FIT_VISION_WINDOW} (0-${MAX_WINDOW})
+  --window all|<n>   Live: antal annonser som får detaljsida (och bildtolkning). Standard: all (alla jämförbara) med lokal webbläsare,
+                     ${FIT_VISION_WINDOW} med Apify. "all" kräver --renderer local; <n> är 0-${MAX_WINDOW}
+  --district <namn>  Live: läs bara ett område (${INNERSTAN_DISTRICTS.join(", ")})
+  --no-vision        Live: ingen bildtolkning och inget Anthropic-anrop (detaljsidor och mäklartext läses ändå)
   --budget-usd <n>   Live: kan bara höja det Apify-utrymme som krävs, aldrig sänka det under värsta-fall-uppskattningen
   --out <fil>        Live: snapshot att skriva, standard ${DATA_DIR}/forsale-snapshot-<datum>.json (måste ligga under ${DATA_DIR}/)
   --dry-run          Live: gör förkontrollerna (med Apify även utrymmeskontrollen), avsluta sedan innan första sidan hämtas
@@ -115,6 +142,8 @@ const USAGE = `Användning:
 
 Slutkoder: 0 klart (även med noll kandidater), 1 fel (argument, fil, nyckel saknas, alla distrikt misslyckades, ingen skärm),
 2 Apify-utrymmet för månaden är mindre än körningens uppskattade kostnad (inget betalt anrop gjordes).`;
+
+const WINDOW_ALL_NEEDS_LOCAL = "--window all kräver --renderer local (med Apify är varje sida en betald rendering)";
 
 const sek = (n: number) => Math.round(n).toLocaleString("sv-SE");
 const pct = (n: number) => `${(n * 100).toFixed(1)} %`;
@@ -128,7 +157,10 @@ interface Args {
   replay: string | null;
   model: string;
   track: number;
-  window: number;
+  /** null = the default for the renderer in use (all with the local browser, FIT_VISION_WINDOW with Apify). */
+  window: number | "all" | null;
+  district: string | null;
+  noVision: boolean;
   budgetUsd: number | null;
   out: string | null;
   dryRun: boolean;
@@ -143,7 +175,9 @@ function parseArgs(argv: string[]): Args | null {
     replay: null,
     model: DEFAULT_MODEL_PATH,
     track: DEFAULT_TRACK_ID,
-    window: FIT_VISION_WINDOW,
+    window: null,
+    district: null,
+    noVision: false,
     budgetUsd: null,
     out: null,
     dryRun: false,
@@ -161,9 +195,12 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--replay" && value !== undefined) { out.replay = value; i++; }
     else if (flag === "--model" && value !== undefined) { out.model = value; i++; }
     else if (flag === "--track" && value !== undefined && Number.isInteger(Number(value))) { out.track = Number(value); i++; }
+    else if (flag === "--window" && value === "all") { out.window = "all"; liveOnly = true; i++; }
     else if (flag === "--window" && value !== undefined && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= MAX_WINDOW) {
       out.window = Number(value); liveOnly = true; i++;
-    } else if (flag === "--budget-usd" && value !== undefined && Number.isFinite(Number(value)) && Number(value) > 0) {
+    } else if (flag === "--district" && value !== undefined) { out.district = value; liveOnly = true; i++; }
+    else if (flag === "--no-vision") { out.noVision = true; liveOnly = true; }
+    else if (flag === "--budget-usd" && value !== undefined && Number.isFinite(Number(value)) && Number(value) > 0) {
       out.budgetUsd = Number(value); liveOnly = true; i++;
     } else if (flag === "--out" && value !== undefined) { out.out = value; liveOnly = true; i++; }
     else if (flag === "--renderer" && value !== undefined) { out.renderer = value; liveOnly = true; i++; }
@@ -342,6 +379,7 @@ function runReplay(args: Args): void {
     `Snapshot per ${snapshot.asOf}: ${snapshot.rows.length} rader, ${ranking.ranked.length} jämförbara, ${ranking.notComparable.length} ej jämförbara (förrank räknat om från snapshoten)\n`,
   );
   printRanking(ranking, snapshot.rows, preRankPositions, args.track);
+  console.log(`\n${renderCoverage(coverageOfRows(snapshot.rows, model))}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -411,6 +449,12 @@ async function runLive(args: Args): Promise<void> {
   }
   const localMode = choice.renderer === "local";
   console.log(localMode ? "Renderare: lokal webbläsare" : "Renderare: Apify");
+  // The renderer can also come from BOOLI_RENDERER or the display check, so the window/renderer pair is checked again here.
+  if (args.window === "all" && !localMode) {
+    console.error(WINDOW_ALL_NEEDS_LOCAL);
+    process.exit(1);
+  }
+  const window: number | "all" = args.window ?? (localMode ? "all" : FIT_VISION_WINDOW);
 
   const outPath = guardedOutPath(args.out ?? `${DATA_DIR}/forsale-snapshot-${new Date().toISOString().slice(0, 10)}.json`);
   if (outPath === null) {
@@ -426,12 +470,14 @@ async function runLive(args: Args): Promise<void> {
   console.log(`${ANTHROPIC_ENV}: ${anthropicState}`);
   // R-03: the local browser needs no Apify token. Only the paid modes do.
   if (apifyState === "saknas" && (!localMode || args.allowApify)) process.exit(1);
-  if (anthropicState === "saknas") console.log("Bildtolkning hoppas över: nyckel saknas");
+  if (args.noVision) console.log("Bildtolkning: avstängd (--no-vision)");
+  else if (anthropicState === "saknas") console.log("Bildtolkning hoppas över: nyckel saknas");
 
   // Free: loading modules and reading limits spends nothing.
   const transport = await import("@/lib/booli/transport");
   const { splitAreaQuery } = await import("@/lib/discovery/resolve-area");
-  const names = splitAreaQuery(AREA_QUERY);
+  // --district keeps AREA_QUERY's order for the districts that remain (dedupe: the first district in that order wins).
+  const names = splitAreaQuery(AREA_QUERY).filter((n) => args.district === null || districtOf(n) === districtOf(args.district));
 
   if (!localMode) {
     if (transport.RENDER_MEMORY_MB !== EXPECTED_RENDER_MEMORY_MB) {
@@ -439,8 +485,9 @@ async function runLive(args: Args): Promise<void> {
       process.exit(1);
     }
     // R-13: the headroom check runs before the first paid call.
-    const requiredUsd = Math.max(estimateFitRunUsd({ districts: names.length, window: args.window }), args.budgetUsd ?? 0);
-    console.log(`Uppskattad Apify-kostnad (värsta fall): ${requiredUsd.toFixed(2)} USD (${names.length} distrikt, fönster ${args.window})`);
+    // Apify mode never gets "all" (refused above), so the window is a number here.
+    const requiredUsd = Math.max(estimateFitRunUsd({ districts: names.length, window: window as number }), args.budgetUsd ?? 0);
+    console.log(`Uppskattad Apify-kostnad (värsta fall): ${requiredUsd.toFixed(2)} USD (${names.length} distrikt, fönster ${window})`);
     const check = await checkApifyHeadroom(transport.apifyMonthlyHeadroomUsd, requiredUsd);
     console.log(check.message);
     if (!check.proceed) process.exit(2);
@@ -459,8 +506,8 @@ async function runLive(args: Args): Promise<void> {
     return;
   }
 
-  const { fetchAreaListings } = await import("@/lib/booli/client");
-  const job = await import("@/lib/discovery/job");
+  const { fetchAreaListings, HEADLESS_MAX_AREA_PAGES } = await import("@/lib/booli/client");
+  const { enrichAllCandidates } = await import("@/lib/discovery/watch-enrich");
   const vision = await import("@/lib/discovery/vision");
 
   const asOf = new Date().toISOString().slice(0, 10);
@@ -496,21 +543,37 @@ async function runLive(args: Args): Promise<void> {
         if (t.areaId === null) areas.push({ name: t.name, listings: 0, renders: 0, ok: false, error: "kunde inte resolvas" });
         else if (t.district === null) areas.push({ name: t.name, listings: 0, renders: 0, ok: false, error: "inte ett modellerat innerstadsdistrikt" });
       }
-      const settled = await Promise.allSettled(runnable.map((t) => fetchAreaListings(t.areaId as string, "Lägenhet")));
+      // Local mode pages each district until Booli's own count is in hand and asks Booli for >= 35 m2 only (R-04, A6);
+      // the Apify call is the 14.1 one (5 pages), unchanged.
+      const pageOpts = localMode ? { maxPages: HEADLESS_MAX_AREA_PAGES, minLivingArea: FIT_SIZE_MIN } : undefined;
+      const settled = await Promise.allSettled(runnable.map((t) => fetchAreaListings(t.areaId as string, "Lägenhet", pageOpts)));
       settled.forEach((s, i) => {
         const t = runnable[i];
         if (s.status === "fulfilled") {
-          areas.push({ name: t.name, listings: s.value.listings.length, renders: s.value.rendersUsed, ok: true, error: null });
-          for (const raw of s.value.listings) rows.push({ district: t.district as InnerstanDistrict, candidate: toCandidate(raw) });
+          areas.push({
+            name: t.name,
+            listings: s.value.listings.length,
+            renders: s.value.rendersUsed,
+            ok: true,
+            error: null,
+            totalCount: s.value.totalCount,
+            pages: s.value.pagesFetched,
+            complete: s.value.complete,
+          });
+          for (const raw of s.value.listings) {
+            rows.push({ district: t.district as InnerstanDistrict, candidate: toCandidate(raw), facts: factsFromCard(raw) });
+          }
         } else {
           areas.push({ name: t.name, listings: 0, renders: 0, ok: false, error: (s.reason as Error)?.message ?? String(s.reason) });
         }
       });
       return { rows, areas };
     },
-    enrich: (candidates, limit, opts) => job.enrichCandidateImages(candidates, limit, opts),
+    // Detail page, broker page and facts for every candidate (D-06); broker photos only when something will read them.
+    enrich: (candidates, limit, opts) => enrichAllCandidates(candidates, limit, { ...opts, asOf, fetchBrokerImages: !args.noVision }),
+    // Vision stays as 14.1 wired it (in-app cap); --no-vision turns it off entirely.
     vision:
-      anthropicState === "satt"
+      anthropicState === "satt" && !args.noVision
         ? (candidates, opts) => vision.runVisionPass(candidates, opts)
         : async (candidates) => candidates,
   };
@@ -527,7 +590,7 @@ async function runLive(args: Args): Promise<void> {
   try {
     const t0 = new Date();
     console.log(`\nStart: ${t0.toISOString()}`);
-    const result = await runFitPipeline(deps, { model, asOf, window: args.window });
+    const result = await runFitPipeline(deps, { model, asOf, window });
 
     printModelLine(model);
     console.log(renderAreaReport(result.areas));
@@ -552,6 +615,7 @@ async function runLive(args: Args): Promise<void> {
       `\nAnnonser: ${result.counts.scraped} hämtade, ${result.counts.deduped} efter dubblettstädning, ${result.counts.filtered} efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); ${result.ranking.ranked.length} jämförbara, ${result.ranking.notComparable.length} ej jämförbara`,
     );
     console.log(`\n${renderWindowReport(result)}`);
+    console.log(`\n${renderCoverage(result.coverage)}`);
     console.log("");
     printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track);
     await printSpend(t0, result, transport, ledger());
@@ -576,6 +640,15 @@ async function main(): Promise<void> {
   if (args.help) {
     console.log(USAGE);
     return;
+  }
+  // Checked while reading the arguments, before any preflight (T-14.2-07): "all" is free only with the local browser.
+  if (args.window === "all" && args.renderer === "apify") {
+    console.error(WINDOW_ALL_NEEDS_LOCAL);
+    process.exit(1);
+  }
+  if (args.district !== null && districtOf(args.district) === null) {
+    console.error(`--district måste vara ett av: ${INNERSTAN_DISTRICTS.join(", ")} (fick "${args.district}")`);
+    process.exit(1);
   }
   if (args.replay !== null) runReplay(args);
   else await runLive(args);

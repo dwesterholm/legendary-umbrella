@@ -11,6 +11,13 @@
  * the tests pass fakes; the Phase 14.2 email can call `runFitPipeline` with the
  * same real ones instead of re-implementing the order of paid calls.
  *
+ * Phase 14.2 (WATCH-02, D-06): `window: "all"` reads every comparable row (detail
+ * page, broker page, facts record) through the free local browser; the facts record
+ * rides on each row beside the candidate (R-08); the area report says "N av M
+ * annonser" per district and whether the whole candidate list is complete (R-04); and
+ * {@link computeCoverage} / {@link renderCoverage} print how much of each fact is
+ * actually known (R-05).
+ *
  * It imports types only from job.ts, vision and the broker modules, so loading
  * it loads no Apify transport and no Anthropic client. `niche-score.ts` and
  * `report/flags.ts` must never import it (registered in 14.1-01).
@@ -42,6 +49,7 @@ import {
 } from "@/lib/discovery/fit-score";
 import type { HedonicModel, InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
+import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -50,8 +58,18 @@ import type { EnrichmentResult } from "@/lib/discovery/job";
 /** Wall-clock budget for the headless detail-page stage. The in-app ENRICH_DEADLINE_MS stays 120 s. */
 export const FIT_ENRICH_DEADLINE_MS = 15 * 60_000;
 
+/**
+ * Wall-clock budget for window "all" (Phase 14.2, D-06): about 100 candidates, each a detail page
+ * (~5 s through the local browser's 2-page gate) and often a broker page. Generous on purpose: the
+ * deadline is a safety net, not the expected duration.
+ */
+export const FIT_ENRICH_DEADLINE_ALL_MS = 40 * 60_000;
+
 /** Detail pages fetched at the same time (each one is a paid render). */
 export const FIT_ENRICH_CONCURRENCY = 4;
+
+/** Window "all": the local browser opens at most 2 pages at once, so more candidates in flight would only queue. */
+export const FIT_ENRICH_CONCURRENCY_ALL = 2;
 
 /** D-10 "(cap 60)" read as the printed-table cap. The ranking itself covers every comparable row. */
 export const FIT_TABLE_MAX_ROWS = 60;
@@ -77,6 +95,8 @@ export const FIT_RENDERS_PER_WINDOW_ROW_MAX = 3;
 export interface ScrapedRow {
   readonly district: InnerstanDistrict;
   readonly candidate: DiscoveryCandidate;
+  /** What the search card said beyond the candidate (R-08); absent in older callers. */
+  readonly facts?: CandidateFacts | null;
 }
 
 /** What happened when one district was scraped. */
@@ -86,9 +106,18 @@ export interface AreaReport {
   readonly renders: number;
   readonly ok: boolean;
   readonly error: string | null;
+  /** Booli's own count for the district (Phase 14.2, R-04); null = Booli printed none; absent = not measured. */
+  readonly totalCount?: number | null;
+  /** Pages that came back with data. */
+  readonly pages?: number;
+  /** Every counted listing is in hand (fetchAreaListings.complete); null = unknown. */
+  readonly complete?: boolean | null;
 }
 
-export type EnrichmentLike = Pick<EnrichmentResult, "candidates" | "brokerImages" | "sunPhrases">;
+export type EnrichmentLike = Pick<EnrichmentResult, "candidates" | "brokerImages" | "sunPhrases"> & {
+  /** Detail-side facts by window index (watch-enrich.ts); absent from the in-app enrichment. */
+  readonly facts?: ReadonlyMap<number, CandidateFacts>;
+};
 
 export interface FitPipelineDeps {
   /** Scrapes the districts. Never rejects for one failed district: that district is reported with ok false. */
@@ -127,6 +156,8 @@ export interface FitPipelineResult {
   readonly snapshot: FitSnapshot;
   readonly areas: AreaReport[];
   readonly counts: { scraped: number; deduped: number; filtered: number };
+  /** R-05: how much is known across the comparable rows. */
+  readonly coverage: Coverage;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,10 +194,11 @@ function dedupe(rows: readonly ScrapedRow[]): ScrapedRow[] {
  */
 export async function runFitPipeline(
   deps: FitPipelineDeps,
-  opts: { model: HedonicModel; asOf: string; window?: number },
+  opts: { model: HedonicModel; asOf: string; window?: number | "all" },
 ): Promise<FitPipelineResult> {
   const { model, asOf } = opts;
-  const windowSize = opts.window ?? FIT_VISION_WINDOW;
+  const windowOpt = opts.window ?? FIT_VISION_WINDOW;
+  const readAll = windowOpt === "all";
 
   const scraped = await deps.scrape();
   const deduped = dedupe(scraped.rows);
@@ -187,7 +219,7 @@ export async function runFitPipeline(
     inVisionWindow: false,
     sunPhrases: null,
     candidate: r.candidate,
-    facts: null,
+    facts: r.facts ?? null,
   }));
 
   const counts = { scraped: scraped.rows.length, deduped: deduped.length, filtered: filtered.length };
@@ -195,15 +227,19 @@ export async function runFitPipeline(
   const preRankPositions = new Map<string, number>();
   for (const p of pre.ranked) preRankPositions.set(fitRowKey(p.row.candidate), p.position);
 
-  const { inWindow, outside } = selectVisionWindow(pre.ranked, windowSize);
+  // "all" = every comparable row (D-06, local mode only; the script refuses it with Apify).
+  const { inWindow, outside } = selectVisionWindow(pre.ranked, readAll ? pre.ranked.length : windowOpt);
 
   // Clear the card images so enrichment detail-fetches every window row.
   const originals = inWindow.map((p) => p.row.candidate);
   const copies = originals.map((c) => ({ ...c, imageUrls: null }));
   // With no window row (nothing comparable) neither paid stage is called.
-  const enrichment =
+  const enrichment: EnrichmentLike =
     copies.length > 0
-      ? await deps.enrich(copies, copies.length, { deadlineMs: FIT_ENRICH_DEADLINE_MS, concurrency: FIT_ENRICH_CONCURRENCY })
+      ? await deps.enrich(copies, copies.length, {
+          deadlineMs: readAll ? FIT_ENRICH_DEADLINE_ALL_MS : FIT_ENRICH_DEADLINE_MS,
+          concurrency: readAll ? FIT_ENRICH_CONCURRENCY_ALL : FIT_ENRICH_CONCURRENCY,
+        })
       : { candidates: [], brokerImages: new Map<number, BrokerImageBytes[]>(), sunPhrases: new Map() };
 
   // A detail fetch replaces the entry; an untouched entry keeps its identity
@@ -224,7 +260,8 @@ export async function runFitPipeline(
     inVisionWindow: true,
     sunPhrases: enrichment.sunPhrases.get(i) ?? null,
     candidate: afterVision[i] ?? forVision[i],
-    facts: null,
+    // Card facts, with the detail page's on top when it was read (R-08).
+    facts: combineFacts(p.row.facts, detailFetched[i] ? (enrichment.facts?.get(i) ?? null) : null),
   }));
   const outsideRows: FitInputRow[] = outside.map((p) => p.row);
   const comparableRows = new Set(pre.ranked.map((p) => p.row));
@@ -232,6 +269,7 @@ export async function runFitPipeline(
 
   const allRows = [...windowRows, ...outsideRows, ...notComparableRows];
   const ranking = rankFit(allRows, model);
+  const coverage = computeCoverage([...windowRows, ...outsideRows]);
 
   const visionSkipped: Record<string, number> = {};
   let visionSek = 0;
@@ -259,7 +297,14 @@ export async function runFitPipeline(
     snapshot: { version: 1, asOf, source: `live run ${asOf}`, rows: allRows },
     areas: scraped.areas,
     counts,
+    coverage,
   };
+}
+
+/** The card facts with the detail facts on top: the detail wins where it has a value. Null when neither exists. */
+function combineFacts(card: CandidateFacts | null | undefined, detail: CandidateFacts | null): CandidateFacts | null {
+  if (card && detail) return mergeFacts(card, detail);
+  return detail ?? card ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -420,17 +465,122 @@ export function renderFitSections(rows: readonly FitTableRow[], opts: { maxRows?
 // Run reports (shared by the script and the Phase 14.2 email)
 // ---------------------------------------------------------------------------
 
-/** One line per district plus the line that says whether Kungsholmen made it. */
+/**
+ * The districts whose list cannot be called complete (R-04): a district that failed, one for which
+ * Booli printed no count (or none was measured), and one whose collected listings fall short of the
+ * count. Never counted complete on a guess. A district whose page 1 carried Booli's count but no
+ * cards fails in fetchAreaListings (a dead page, W6) and so appears here as failed. Pure.
+ */
+export function incompleteDistricts(areas: readonly AreaReport[]): string[] {
+  return areas
+    .filter((a) => !a.ok || a.totalCount === undefined || a.totalCount === null || a.complete !== true)
+    .map((a) => a.name);
+}
+
+/**
+ * One line per district, the line that says whether Kungsholmen made it, and the run line
+ * "Kandidatlista: komplett" or "Kandidatlista: OFULLSTÄNDIG (<districts>)". A district with Booli's
+ * count prints "<listings> av <count> annonser (<pages> sidor, komplett|ofullständig)"; without it
+ * (14.1 callers) the old line.
+ */
 export function renderAreaReport(areas: readonly AreaReport[]): string {
   const lines = ["Områden:"];
   for (const a of areas) {
-    lines.push(
-      a.ok ? `  ${a.name}: ${a.listings} annonser (${a.renders} renders)` : `  ${a.name}: MISSLYCKADES - ${a.error ?? "okänt fel"}`,
-    );
+    if (!a.ok) {
+      lines.push(`  ${a.name}: MISSLYCKADES - ${a.error ?? "okänt fel"}`);
+    } else if (a.totalCount === undefined) {
+      lines.push(`  ${a.name}: ${a.listings} annonser (${a.renders} renders)`);
+    } else if (a.totalCount === null) {
+      lines.push(`  ${a.name}: ${a.listings} annonser (${a.pages ?? "?"} sidor, ofullständig: Booli angav inget antal)`);
+    } else {
+      lines.push(
+        `  ${a.name}: ${a.listings} av ${a.totalCount} annonser (${a.pages ?? "?"} sidor, ${a.complete === true ? "komplett" : "ofullständig"})`,
+      );
+    }
   }
   const kungsholmen = areas.find((a) => a.name.toLowerCase() === "kungsholmen");
   lines.push(kungsholmen !== undefined && kungsholmen.ok && kungsholmen.listings > 0 ? "Kungsholmen: med" : "Kungsholmen: SAKNAS");
+  const missing = incompleteDistricts(areas);
+  if (areas.length === 0) lines.push("Kandidatlista: OFULLSTÄNDIG (inga distrikt lästes)");
+  else lines.push(missing.length === 0 ? "Kandidatlista: komplett" : `Kandidatlista: OFULLSTÄNDIG (${missing.join(", ")})`);
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Coverage (R-05)
+// ---------------------------------------------------------------------------
+
+/** The seven coverage items in print order. Plan 09 parses these labels; do not rename or reorder. */
+export const COVERAGE_LABELS = [
+  "detaljsida",
+  "balkong känd",
+  "skick känt",
+  "beskrivning läst",
+  "sol/orientering angiven",
+  "avgift",
+  "upplåtelseform",
+] as const;
+
+export interface CoverageItem {
+  readonly label: string;
+  /** Rows where the fact is known. */
+  readonly known: number;
+}
+
+export interface Coverage {
+  /** Comparable rows counted. */
+  readonly n: number;
+  readonly items: readonly CoverageItem[];
+}
+
+/** Rows whose fact is known, by the R-05 definitions. One predicate per label, in {@link COVERAGE_LABELS} order. */
+const COVERAGE_KNOWN: readonly ((row: FitInputRow) => boolean)[] = [
+  // detaljsida: a detail page was read
+  (r) => r.detailFetched,
+  // balkong känd: the facts record knows (true or false), or the candidate says true
+  (r) => r.facts?.balcony != null || r.candidate.balcony === true,
+  // skick känt: a vision claim on the kitchen or the overall impression
+  (r) => (r.candidate.vision?.claims ?? []).some((c) => c.attribute === "kitchen" || c.attribute === "overall"),
+  // beskrivning läst: a broker or Booli description was read
+  (r) => r.facts?.descriptionRead === true,
+  // sol/orientering angiven: stated facades, or a stated sun phrase ("sol hela dagen", "kvällssol", ...)
+  (r) =>
+    (r.candidate.orientation?.facades.length ?? 0) > 0 ||
+    (r.facts?.orientationFacades?.length ?? 0) > 0 ||
+    (r.facts?.sunPhrases?.length ?? 0) > 0 ||
+    r.sunPhrases?.allDaySun === true,
+  // avgift / upplåtelseform: the listing states them
+  (r) => r.facts?.avgiftMonthlySek != null,
+  (r) => r.facts?.tenureForm != null,
+];
+
+/**
+ * How much is actually known across `rows` (pass the comparable rows). Measured, never faked: a fact
+ * counts only when the row holds it. Pure.
+ */
+export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
+  return {
+    n: rows.length,
+    items: COVERAGE_LABELS.map((label, i) => ({ label, known: rows.filter(COVERAGE_KNOWN[i]).length })),
+  };
+}
+
+/** Coverage over a stored snapshot's comparable rows (the same set the live run counts), for replay. Pure. */
+export function coverageOfRows(rows: readonly FitInputRow[], model: HedonicModel): Coverage {
+  return computeCoverage(preRank(rows, model).ranked.map((p) => p.row));
+}
+
+const percent = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 100).toFixed(1).replace(".", ","));
+
+/**
+ * The pinned R-05 line that plan 09 parses:
+ * "Täckning (N annonser): detaljsida k av N (p %), balkong känd k av N (p %), ..." with every item
+ * "<label> <k> av <N> (<p> %)", p to one decimal with a decimal comma, and N = 0 printing
+ * "0 av 0 (0,0 %)" instead of dividing by zero.
+ */
+export function renderCoverage(coverage: Coverage): string {
+  const items = coverage.items.map((i) => `${i.label} ${i.known} av ${coverage.n} (${percent(i.known, coverage.n)} %)`);
+  return `Täckning (${coverage.n} annonser): ${items.join(", ")}`;
 }
 
 /**

@@ -7,7 +7,10 @@ import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { AREA_MAX_RENDERS_PER_AREA, OBSERVED_USD_PER_TIMED_OUT_RENDER } from "@/lib/discovery/cost";
 import {
+  COVERAGE_LABELS,
   FIT_ENRICH_CONCURRENCY,
+  FIT_ENRICH_CONCURRENCY_ALL,
+  FIT_ENRICH_DEADLINE_ALL_MS,
   FIT_ENRICH_DEADLINE_MS,
   FIT_PRICE_MAX,
   FIT_PRICE_SECTION_SPLIT,
@@ -17,9 +20,13 @@ import {
   FIT_TABLE_HEADER,
   FIT_TABLE_MAX_ROWS,
   checkApifyHeadroom,
+  computeCoverage,
+  coverageOfRows,
   estimateFitRunUsd,
   fitRowKey,
+  incompleteDistricts,
   renderAreaReport,
+  renderCoverage,
   renderFitSections,
   renderFitTable,
   renderWindowReport,
@@ -41,6 +48,7 @@ import {
   type FitScoreResult,
 } from "@/lib/discovery/fit-score";
 import { parseHedonicModel } from "@/lib/discovery/hedonic-model";
+import { candidateFactsSchema, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import type { SunPhrases } from "@/lib/discovery/sun-path";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 
@@ -94,6 +102,8 @@ interface FakeOptions {
   /** Window indices whose detail fetch "fails" (the fake returns the same object). */
   failIndexes?: number[];
   sunPhrases?: Map<number, SunPhrases>;
+  /** Detail-side facts by window index (what watch-enrich returns). */
+  facts?: Map<number, CandidateFacts>;
   /** Vision result per listing URL. */
   visionByUrl?: Map<string, VisionResult>;
   areas?: AreaReport[];
@@ -108,6 +118,7 @@ function fakeDeps(rows: ScrapedRow[], options: FakeOptions = {}) {
       candidates: candidates.map((c, i) => (failIndexes.has(i) ? c : { ...c, imageUrls: [DETAIL_IMAGE] })),
       brokerImages: new Map(),
       sunPhrases: options.sunPhrases ?? new Map(),
+      facts: options.facts,
     }),
   );
   const vision = vi.fn(async (candidates: DiscoveryCandidate[]): Promise<DiscoveryCandidate[]> =>
@@ -121,7 +132,7 @@ function fakeDeps(rows: ScrapedRow[], options: FakeOptions = {}) {
   return { deps, scrape, enrich, vision };
 }
 
-const run = (deps: FitPipelineDeps, window?: number) => runFitPipeline(deps, { model, asOf: AS_OF, window });
+const run = (deps: FitPipelineDeps, window?: number | "all") => runFitPipeline(deps, { model, asOf: AS_OF, window });
 
 describe("empty input (FIT-05 probe)", () => {
   it("scrape returns nothing: no enrichment, no vision, empty ranking, header and '0 kandidater'", async () => {
@@ -186,6 +197,15 @@ describe("hard filters (D-08)", () => {
     const result = await run(fakeDeps([a, b]).deps);
 
     expect(result.counts).toEqual({ scraped: 2, deduped: 1, filtered: 1 });
+  });
+
+  it("WATCH-02 adjacency: the district that comes first in the scrape order keeps the listing", async () => {
+    const a: ScrapedRow = { ...scrapedWith(base, 900001), district: "Södermalm" };
+    const b: ScrapedRow = { district: "Vasastan", candidate: { ...a.candidate } };
+    const forward = await run(fakeDeps([a, b]).deps);
+    expect(forward.snapshot.rows.map((r) => r.district)).toEqual(["Södermalm"]);
+    const reversed = await run(fakeDeps([b, a]).deps);
+    expect(reversed.snapshot.rows.map((r) => r.district)).toEqual(["Vasastan"]);
   });
 });
 
@@ -551,6 +571,272 @@ describe("checkApifyHeadroom (R-13)", () => {
     expect(check.proceed).toBe(true);
     expect(check.headroomUsd).toBeNull();
     expect(provider).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('window "all" (D-06, WATCH-02)', () => {
+  const rows = fixtureScraped;
+  const comparable = preRank(
+    rows.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null })),
+    model,
+  ).ranked.length;
+
+  it("enriches and picture-reads every comparable row, with the long deadline and the 2-page concurrency", async () => {
+    expect(comparable).toBeGreaterThan(FIT_VISION_WINDOW);
+    const { deps, enrich, vision } = fakeDeps(rows);
+    const result = await run(deps, "all");
+
+    const [enrichArg, limit, optsArg] = enrich.mock.calls[0] as unknown as [DiscoveryCandidate[], number, unknown];
+    expect(enrichArg).toHaveLength(comparable);
+    expect(limit).toBe(comparable);
+    expect(optsArg).toEqual({ deadlineMs: FIT_ENRICH_DEADLINE_ALL_MS, concurrency: FIT_ENRICH_CONCURRENCY_ALL });
+    expect(FIT_ENRICH_DEADLINE_ALL_MS).toBe(40 * 60_000);
+    expect(vision.mock.calls[0][0]).toHaveLength(comparable);
+    expect(result.window.size).toBe(comparable);
+    expect(result.window.detailFetched).toBe(comparable);
+    expect(result.snapshot.rows.filter((r) => r.inVisionWindow)).toHaveLength(comparable);
+  });
+
+  it("a numeric window keeps the 14.1 deadline and concurrency", async () => {
+    const { deps, enrich } = fakeDeps(rows);
+    await run(deps, 5);
+    expect((enrich.mock.calls[0] as unknown as [unknown, unknown, unknown])[2]).toEqual({
+      deadlineMs: FIT_ENRICH_DEADLINE_MS,
+      concurrency: FIT_ENRICH_CONCURRENCY,
+    });
+  });
+
+  it("zero candidates after filtering: neither enrichment nor vision is called and both sections say '0 kandidater'", async () => {
+    const tooExpensive = scrapedWith(fixtureScraped[0], 900001, { price: FIT_PRICE_MAX + 1 });
+    const { deps, enrich, vision } = fakeDeps([tooExpensive]);
+    const result = await run(deps, "all");
+
+    expect(enrich).not.toHaveBeenCalled();
+    expect(vision).not.toHaveBeenCalled();
+    const text = renderFitSections(toFitTableRows(result.ranking, result.preRankPositions));
+    expect(text.match(/0 kandidater/g)).toHaveLength(2);
+    expect(result.coverage.n).toBe(0);
+    expect(renderCoverage(result.coverage)).toContain("detaljsida 0 av 0 (0,0 %)");
+  });
+});
+
+describe("facts on the snapshot rows (R-08)", () => {
+  const card = (patch: object) => candidateFactsSchema.parse(patch);
+  const rows26 = fixtureScraped.slice(0, 26);
+  /** The key of the first pre-ranked row, which is window index 0. */
+  const firstKeyOf = async (rows: ScrapedRow[]): Promise<string> => {
+    const probe = await run(fakeDeps(rows).deps);
+    return [...probe.preRankPositions.entries()].find(([, pos]) => pos === 1)![0];
+  };
+  const withCardFacts = (rows: ScrapedRow[], key: string, facts: CandidateFacts): ScrapedRow[] =>
+    rows.map((r) => (fitRowKey(r.candidate) === key ? { ...r, facts } : r));
+
+  it("a window row carries the card facts merged with the detail facts; the detail wins", async () => {
+    const firstKey = await firstKeyOf(rows26);
+    const withCard = withCardFacts(rows26, firstKey, card({ avgiftMonthlySek: 3900, tenureForm: "Bostadsrätt", balcony: true }));
+    const detail = card({ avgiftMonthlySek: 4100, balcony: false, elevatorListed: true, detailFetched: true });
+    const result = await run(fakeDeps(withCard, { facts: new Map([[0, detail]]) }).deps);
+
+    const row = result.snapshot.rows.find((r) => fitRowKey(r.candidate) === firstKey)!;
+    expect(row.facts?.avgiftMonthlySek).toBe(4100); // detail wins
+    expect(row.facts?.balcony).toBe(false); // detail false wins over a card true
+    expect(row.facts?.tenureForm).toBe("Bostadsrätt"); // the card fills what the detail lacks
+    expect(row.facts?.elevatorListed).toBe(true);
+    expect(row.facts?.detailFetched).toBe(true);
+  });
+
+  it("a row outside the window keeps its card facts; a row with no facts at all is null", async () => {
+    const withCard = rows26.map((r, i) => (i % 2 === 0 ? { ...r, facts: card({ tenureForm: "Bostadsrätt", avgiftMonthlySek: 3000 + i }) } : r));
+    const result = await run(fakeDeps(withCard).deps, 3);
+    const outside = result.snapshot.rows.filter((r) => !r.inVisionWindow);
+    expect(outside.length).toBeGreaterThan(0);
+    for (const r of outside) {
+      const source = withCard.find((x) => fitRowKey(x.candidate) === fitRowKey(r.candidate))!;
+      expect(r.facts).toEqual(source.facts ?? null);
+    }
+    expect(outside.some((r) => r.facts === null)).toBe(true);
+    expect(outside.some((r) => r.facts !== null)).toBe(true);
+  });
+
+  it("a failed detail fetch leaves the card facts and no detail facts", async () => {
+    const firstKey = await firstKeyOf(rows26);
+    const withCard = withCardFacts(rows26, firstKey, card({ avgiftMonthlySek: 3900 }));
+    const detail = card({ avgiftMonthlySek: 9999, detailFetched: true });
+    const result = await run(fakeDeps(withCard, { failIndexes: [0], facts: new Map([[0, detail]]) }).deps);
+    const row = result.snapshot.rows.find((r) => fitRowKey(r.candidate) === firstKey)!;
+    expect(row.detailFetched).toBe(false);
+    expect(row.facts?.avgiftMonthlySek).toBe(3900);
+    expect(row.facts?.detailFetched).toBe(false);
+  });
+
+  it("detail facts alone become the row's facts when the card had none", async () => {
+    const detail = card({ tenureForm: "Bostadsrätt", detailFetched: true });
+    const result = await run(fakeDeps(fixtureScraped.slice(0, 3), { facts: new Map([[0, detail]]) }).deps);
+    expect(result.snapshot.rows.filter((r) => r.facts?.tenureForm === "Bostadsrätt")).toHaveLength(1);
+  });
+
+  it("the facts survive JSON and a snapshot re-parse", async () => {
+    const result = await run(fakeDeps(rows26).deps);
+    const reparsed = parseFitSnapshot(JSON.parse(JSON.stringify(result.snapshot)));
+    expect(reparsed.rows.map((r) => r.facts)).toEqual(result.snapshot.rows.map((r) => r.facts));
+  });
+});
+
+describe("coverage (R-05)", () => {
+  const baseRow = snapshot.rows[0];
+  const plain = { orientation: null, balcony: null, vision: null, visionSkippedReason: null };
+  const row = (patch: Partial<(typeof snapshot.rows)[number]> & { cand?: Partial<DiscoveryCandidate> } = {}) => {
+    const { cand, ...rest } = patch;
+    return { ...baseRow, detailFetched: false, sunPhrases: null, facts: null, ...rest, candidate: { ...baseRow.candidate, ...plain, ...cand } };
+  };
+  const knownOf = (rows: ReturnType<typeof row>[], label: (typeof COVERAGE_LABELS)[number]) =>
+    computeCoverage(rows).items.find((i) => i.label === label)!.known;
+
+  const hand = [
+    row({
+      detailFetched: true,
+      facts: candidateFactsSchema.parse({
+        balcony: true,
+        descriptionRead: true,
+        sunPhrases: ["kvällssol"],
+        avgiftMonthlySek: 4000,
+        tenureForm: "Bostadsrätt",
+        detailFetched: true,
+      }),
+      cand: { vision: visionOf("Köket är nyrenoverat", "Badrummet är helrenoverat", "fräscht") },
+    }),
+    row({
+      detailFetched: true,
+      facts: candidateFactsSchema.parse({ balcony: false, descriptionRead: true, sunPhrases: [], tenureForm: "Bostadsrätt", detailFetched: true }),
+      cand: { orientation: { facades: ["south"], confidence: 0.8 } },
+    }),
+    row({ cand: { balcony: true } }),
+  ];
+
+  it("counts each item on hand-built rows by the definitions", () => {
+    const c = computeCoverage(hand);
+    expect(c.n).toBe(3);
+    expect(c.items.map((i) => i.label)).toEqual([...COVERAGE_LABELS]);
+    expect(Object.fromEntries(c.items.map((i) => [i.label, i.known]))).toEqual({
+      detaljsida: 2,
+      "balkong känd": 3,
+      "skick känt": 1,
+      "beskrivning läst": 2,
+      "sol/orientering angiven": 2,
+      avgift: 1,
+      upplåtelseform: 2,
+    });
+  });
+
+  it("renders the pinned line exactly (decimal comma, one decimal, '<label> <k> av <N> (<p> %)')", () => {
+    expect(renderCoverage(computeCoverage(hand))).toBe(
+      "Täckning (3 annonser): detaljsida 2 av 3 (66,7 %), balkong känd 3 av 3 (100,0 %), skick känt 1 av 3 (33,3 %), " +
+        "beskrivning läst 2 av 3 (66,7 %), sol/orientering angiven 2 av 3 (66,7 %), avgift 1 av 3 (33,3 %), upplåtelseform 2 av 3 (66,7 %)",
+    );
+  });
+
+  it("N = 0 prints '0 av 0 (0,0 %)' for every item and never divides by zero", () => {
+    const text = renderCoverage(computeCoverage([]));
+    expect(text.startsWith("Täckning (0 annonser): ")).toBe(true);
+    expect(text.match(/ 0 av 0 \(0,0 %\)/g)).toHaveLength(COVERAGE_LABELS.length);
+    expect(text).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("balcony: a card 'false' is not knowledge, a facts false from a detail page is", () => {
+    expect(knownOf([row({ cand: { balcony: false } })], "balkong känd")).toBe(0);
+    expect(knownOf([row({ cand: { balcony: true } })], "balkong känd")).toBe(1);
+    expect(knownOf([row({ facts: candidateFactsSchema.parse({ balcony: false, detailFetched: true }) })], "balkong känd")).toBe(1);
+  });
+
+  it("condition: only a kitchen or overall claim counts, a bathroom claim alone does not", () => {
+    const bathOnly: VisionResult = { ...ALL_FRESH, claims: [claim("bathroom", "Badrummet är helrenoverat")] };
+    const overall: VisionResult = { ...ALL_FRESH, claims: [claim("overall", "fräscht")] };
+    expect(knownOf([row({ cand: { vision: bathOnly } })], "skick känt")).toBe(0);
+    expect(knownOf([row({ cand: { vision: overall } })], "skick känt")).toBe(1);
+    expect(knownOf([row({ cand: { vision: { ...ALL_FRESH, claims: [] } } })], "skick känt")).toBe(0);
+  });
+
+  it("sun: stated facades, a stated phrase or the older allDaySun flag count; an empty phrase list does not", () => {
+    expect(knownOf([row({ facts: candidateFactsSchema.parse({ sunPhrases: [] }) })], "sol/orientering angiven")).toBe(0);
+    expect(knownOf([row({ facts: candidateFactsSchema.parse({ orientationFacades: ["west"] }) })], "sol/orientering angiven")).toBe(1);
+    expect(knownOf([row({ sunPhrases: { allDaySun: true, throughFlat: false } })], "sol/orientering angiven")).toBe(1);
+    expect(knownOf([row({ sunPhrases: { allDaySun: false, throughFlat: true } })], "sol/orientering angiven")).toBe(0);
+  });
+
+  it("an old snapshot row (no facts) reads as unknown, and coverageOfRows counts only comparable rows", () => {
+    const c = coverageOfRows(snapshot.rows, model);
+    const ranking = rankFit(snapshot.rows, model);
+    expect(c.n).toBe(ranking.ranked.length);
+    expect(c.items.find((i) => i.label === "upplåtelseform")!.known).toBe(0);
+    expect(renderCoverage(c)).toMatch(/balkong känd \d+ av \d+ \(\d+,\d %\)/);
+  });
+
+  it("a live run reports coverage over its comparable rows", async () => {
+    const detail = candidateFactsSchema.parse({ avgiftMonthlySek: 4100, tenureForm: "Bostadsrätt", descriptionRead: true, detailFetched: true });
+    const facts = new Map<number, CandidateFacts>(Array.from({ length: 5 }, (_, i) => [i, detail]));
+    const result = await run(fakeDeps(fixtureScraped.slice(0, 26), { facts }).deps, 5);
+    expect(result.coverage.n).toBe(result.ranking.ranked.length);
+    const get = (l: string) => result.coverage.items.find((i) => i.label === l)!.known;
+    expect(get("detaljsida")).toBe(5);
+    expect(get("upplåtelseform")).toBe(5);
+    expect(get("avgift")).toBe(5);
+  });
+});
+
+describe("district completeness in the area report (R-04)", () => {
+  const area = (name: string, patch: Partial<AreaReport> = {}): AreaReport => ({
+    name,
+    listings: 441,
+    renders: 0,
+    ok: true,
+    error: null,
+    totalCount: 444,
+    pages: 13,
+    complete: true,
+    ...patch,
+  });
+
+  it("a complete district prints 'N av M annonser (P sidor, komplett)'", () => {
+    const text = renderAreaReport([area("Södermalm"), area("Kungsholmen", { listings: 482, totalCount: 487, pages: 14 })]);
+    expect(text).toContain("  Södermalm: 441 av 444 annonser (13 sidor, komplett)");
+    expect(text).toContain("  Kungsholmen: 482 av 487 annonser (14 sidor, komplett)");
+    expect(text.split("\n").at(-1)).toBe("Kandidatlista: komplett");
+  });
+
+  it("a short district prints 'ofullständig' and is named in the run line", () => {
+    const text = renderAreaReport([area("Södermalm"), area("Vasastan", { listings: 300, totalCount: 509, pages: 9, complete: false })]);
+    expect(text).toContain("  Vasastan: 300 av 509 annonser (9 sidor, ofullständig)");
+    expect(text.split("\n").at(-1)).toBe("Kandidatlista: OFULLSTÄNDIG (Vasastan)");
+  });
+
+  it("an unknown total is never counted complete", () => {
+    const unknown = area("Östermalm", { totalCount: null, complete: null });
+    const text = renderAreaReport([area("Södermalm"), unknown]);
+    expect(text).toContain("  Östermalm: 441 annonser (13 sidor, ofullständig: Booli angav inget antal)");
+    expect(incompleteDistricts([area("Södermalm"), unknown])).toEqual(["Östermalm"]);
+    expect(text.split("\n").at(-1)).toBe("Kandidatlista: OFULLSTÄNDIG (Östermalm)");
+  });
+
+  it("a failed district (including a page that had a count but no cards) is named, in scrape order", () => {
+    const failed: AreaReport = { name: "Södermalm", listings: 0, renders: 0, ok: false, error: "Booli: sidan saknar annonser" };
+    const areas = [failed, area("Vasastan", { complete: false, listings: 10 }), area("Östermalm")];
+    expect(incompleteDistricts(areas)).toEqual(["Södermalm", "Vasastan"]);
+    const text = renderAreaReport(areas);
+    expect(text).toContain("MISSLYCKADES - Booli: sidan saknar annonser");
+    expect(text.split("\n").at(-1)).toBe("Kandidatlista: OFULLSTÄNDIG (Södermalm, Vasastan)");
+  });
+
+  it("a 14.1 report without a count is not complete, and no district at all is not complete either", () => {
+    const old: AreaReport = { name: "Södermalm", listings: 12, renders: 3, ok: true, error: null };
+    expect(incompleteDistricts([old])).toEqual(["Södermalm"]);
+    expect(renderAreaReport([old])).toContain("  Södermalm: 12 annonser (3 renders)");
+    expect(renderAreaReport([])).toContain("Kandidatlista: OFULLSTÄNDIG (inga distrikt lästes)");
+  });
+
+  it("the Kandidatlista line comes right after the Kungsholmen line", () => {
+    const lines = renderAreaReport([area("Södermalm"), area("Kungsholmen")]).split("\n");
+    const k = lines.findIndex((l) => l.startsWith("Kungsholmen: "));
+    expect(lines[k + 1]).toMatch(/^Kandidatlista: /);
   });
 });
 
