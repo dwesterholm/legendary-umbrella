@@ -167,7 +167,7 @@ Plans:
 
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 4/9 plans executed
+**Plans:** 5/9 plans executed
 
 Plans:
 **Wave 1**
@@ -182,7 +182,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 14.2-05-PLAN.md — Every candidate read (free): detail + broker + facts for all, complete districts, coverage line
+- [x] 14.2-05-PLAN.md — Every candidate read (free): detail + broker + facts for all, complete districts, coverage line
 
 **Wave 4** *(blocked on Wave 3 completion)*
 

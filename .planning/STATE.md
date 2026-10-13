@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.2"
 current_phase_name: Trustworthy Weekly Table
 status: executing
-stopped_at: Completed 14.2-04-PLAN.md
-last_updated: "2026-10-13T10:54:23.974Z"
+stopped_at: Completed 14.2-05-PLAN.md
+last_updated: "2026-10-13T11:10:30.916Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.2 execution started
-state_head: 73f151c658f17a59c3b8d3b7d2de74d60c5451d7
+state_head: 7305e2a1aa11e9e73087428a922eeac89cf3abd9
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 34
-  completed_plans: 29
+  completed_plans: 30
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.2 (Trustworthy Weekly Table) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-10-13 — Phase 14.2 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
@@ -91,6 +91,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.2 P02 | 25 min | 3 tasks | 11 files |
 | Phase 14.2 P03 | 6 min | 3 tasks | 6 files |
 | Phase 14.2 P04 | 14 min | 3 tasks | 7 files |
+| Phase 14.2 P05 | 14 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -234,6 +235,8 @@ Recent decisions affecting current work:
 - [Phase 14.2]: 14.2-02: district completeness counts new-construction items Booli counts but never draws as cards (unlistedProjects) as in hand; page count refined from page 2's size — Real runs: bare collected >= totalCount reads ofullstandig on 3 of 4 districts; page-1 size undercounted Kungsholmen by 32
 - [Phase 14.2]: 14.2-03: WR-03 uses layout-noun-only THROUGH_FLAT_RE (missed phrase costs nothing, false hit costs ~35 000 kr); NO_RENOVATION_NEED is stripped, not short-circuited
 - [Phase 14.2]: 14.2-04: D-10 applied - size direction rule dropped; size coefficient +0,0461 (t 8,4) now comes from data; Daniel can overturn by reverting cdbbf63 + 15335c0
+- [Phase 14.2]: 14.2-05: window 'all' reads two candidates at a time (the local browser opens two pages at once); 'all' is refused under --renderer apify (checked at argument parsing and after the renderer is resolved)
+- [Phase 14.2]: 14.2-05: coverage measured on 77 comparable flats before pictures: detail/balcony/avgift 100 %, tenure 98,7 %, description 41,6 %, sun/orientation 2,6 %, condition 0 % (no pictures yet); Booli detail pages carry no description, so text coverage depends on broker direct GET only
 
 ### Pending Todos
 
@@ -265,8 +268,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T10:54:23.851Z
-Stopped at: Completed 14.2-04-PLAN.md
+Last session: 2026-10-13T11:10:30.792Z
+Stopped at: Completed 14.2-05-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
