@@ -168,6 +168,36 @@ describe("diffRun", () => {
     expect(Object.keys(twoForms.next.listings)).toHaveLength(1);
   });
 
+  it("two different flats with the same address, area and size are two listings (Gyllenborgsgatan 15, found live 2026-10-13)", () => {
+    const a = row({ link: "https://www.booli.se/bostad/328408", address: "Gyllenborgsgatan 15", district: "Kungsholmen", kvm: 38, askingKr: 3_295_000, floor: 2 });
+    const b = row({ link: "https://www.booli.se/bostad/328402", address: "Gyllenborgsgatan 15", district: "Kungsholmen", kvm: 38, askingKr: 3_695_000, floor: 2.5 });
+    expect(fingerprintOf(a)).toBe(fingerprintOf(b));
+    // Same run: both are new, both are remembered.
+    const first = diffRun(emptyWatchState(), [a, b], "2026-10-20");
+    expect(first.newRows).toHaveLength(2);
+    expect(Object.keys(first.next.listings).sort()).toEqual(["/bostad/328402", "/bostad/328408"]);
+    // Next week with only one of them left: it is not mistaken for the other under a new key.
+    const aOnly = diffRun(emptyWatchState(), [a], "2026-10-20");
+    const bLater = diffRun(aOnly.next, [b], "2026-10-27");
+    expect(bLater.newRows).toEqual([b]);
+    expect(Object.keys(bLater.next.listings).sort()).toEqual(["/bostad/328402", "/bostad/328408"]);
+  });
+
+  it("same fingerprint and price but a different known floor are two flats; an unknown floor is not a contradiction", () => {
+    const a = row({ link: "https://www.booli.se/bostad/11", floor: 1 });
+    const b = row({ link: "https://www.booli.se/bostad/12", floor: 4 });
+    expect(diffRun(emptyWatchState(), [a, b], "2026-10-20").newRows).toHaveLength(2);
+    const unknown = row({ link: "https://www.booli.se/annons/13", floor: null });
+    expect(diffRun(emptyWatchState(), [a, unknown], "2026-10-20").newRows).toHaveLength(1);
+  });
+
+  it("a URL-form switch together with a price change shows as new (visible), never as already seen", () => {
+    const first = diffRun(emptyWatchState(), [row({ link: "https://www.booli.se/annons/6305391" })], "2026-10-20");
+    const d = diffRun(first.next, [row({ link: "https://www.booli.se/bostad/150148", askingKr: 3_795_000 })], "2026-10-27");
+    expect(d.newRows).toHaveLength(1);
+    expect(d.changedRows).toEqual([]);
+  });
+
   it("does not mutate the input state", () => {
     const first = diffRun(emptyWatchState(), THREE, "2026-10-20");
     const snapshot = JSON.stringify(first.next);

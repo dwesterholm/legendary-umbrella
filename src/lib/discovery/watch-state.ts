@@ -23,6 +23,14 @@
  * Unicode-normalised, lower-cased). A flat that switches URL form is therefore
  * not "new"; its memory entry is re-keyed to the new path.
  *
+ * A FINGERPRINT ALONE IS NOT ENOUGH (found on the first real run, 2026-10-13): two
+ * different flats in one building can share address, area and size (Gyllenborgsgatan 15,
+ * 38 kvm: one at 3 295 000 kr, one at 3 695 000 kr). A fingerprint match therefore also
+ * needs a compatible asking price (equal, or unknown on one side) and, within a run, a
+ * floor that does not contradict. The cost of being strict is a false "new" when a flat
+ * switches URL form and changes price in the same week; that is visible in the mail,
+ * where a false "already seen" would hide a flat.
+ *
  * PRICE CHANGE: both prices known and at least 1 kr apart. A difference of 0 kr
  * is "unchanged". A missing price on either side is never a change.
  *
@@ -92,7 +100,16 @@ export interface WatchRow {
   readonly district: string;
   readonly kvm: number | null;
   readonly askingKr: number | null;
+  /** Optional: when two rows share a fingerprint, a known floor that differs makes them different flats. */
+  readonly floor?: number | null;
 }
+
+/** Asking prices that do not contradict each other: equal, or unknown on one side. */
+const priceCompatible = (a: number | null, b: number | null): boolean => a === null || b === null || a === b;
+
+/** Floors that do not contradict each other: equal, or unknown on one side. */
+const floorCompatible = (a: number | null | undefined, b: number | null | undefined): boolean =>
+  a === null || a === undefined || b === null || b === undefined || a === b;
 
 const LISTING_PATH = /^\/(?:bostad|annons)\/\d+/;
 
@@ -141,30 +158,38 @@ export interface DiffResult<T extends WatchRow = WatchRow> {
  */
 export function diffRun<T extends WatchRow>(state: WatchState, rows: readonly T[], today: string): DiffResult<T> {
   const listings: Record<string, WatchListing> = { ...state.listings };
-  const byFingerprint = new Map<string, string>();
+  const storedByFingerprint = new Map<string, string[]>();
   for (const [key, entry] of Object.entries(state.listings)) {
-    if (!byFingerprint.has(entry.fingerprint)) byFingerprint.set(entry.fingerprint, key);
+    const keys = storedByFingerprint.get(entry.fingerprint);
+    if (keys === undefined) storedByFingerprint.set(entry.fingerprint, [key]);
+    else keys.push(key);
   }
 
   const newRows: T[] = [];
   const changedRows: ChangedRow<T>[] = [];
   const unchanged: T[] = [];
   const seenKeys = new Set<string>();
-  const seenFingerprints = new Set<string>();
+  const acceptedByFingerprint = new Map<string, T[]>();
 
   for (const row of rows) {
     const key = listingKey(row);
     const fingerprint = fingerprintOf(row);
-    if (seenKeys.has(key) || seenFingerprints.has(fingerprint)) continue;
+    // The same listing twice in one run: the same path, or the same flat under a second URL form or district.
+    const twin = (acceptedByFingerprint.get(fingerprint) ?? []).some(
+      (other) => priceCompatible(other.askingKr, row.askingKr) && floorCompatible(other.floor, row.floor),
+    );
+    if (seenKeys.has(key) || twin) continue;
     seenKeys.add(key);
-    seenFingerprints.add(fingerprint);
+    acceptedByFingerprint.set(fingerprint, [...(acceptedByFingerprint.get(fingerprint) ?? []), row]);
 
     let storedKey: string | null = key in listings ? key : null;
     if (storedKey === null) {
-      const byFp = byFingerprint.get(fingerprint);
-      // A URL-form switch: take over the old entry, keyed by the new path. Only an entry that is
-      // still in `listings` and was not already claimed by another row this run.
-      if (byFp !== undefined && byFp in listings && !seenKeys.has(byFp)) storedKey = byFp;
+      // A URL-form switch: take over the old entry, keyed by the new path. Only an entry that is still
+      // in `listings`, was not claimed by another row this run, and has a compatible asking price.
+      storedKey =
+        (storedByFingerprint.get(fingerprint) ?? []).find(
+          (candidate) => candidate in listings && !seenKeys.has(candidate) && priceCompatible(listings[candidate].lastAskingSek, row.askingKr),
+        ) ?? null;
     }
 
     const price = row.askingKr;
