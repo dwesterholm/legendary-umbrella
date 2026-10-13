@@ -40,11 +40,16 @@
  *
  * LOCK: `watch-state.lock` next to the state file, created with the exclusive
  * flag, holding the pid and start time. A second run exits instead of racing the
- * first. A lock whose pid is gone is taken over with a warning (a crashed run
- * must not block every later week).
+ * first. A lock is stale, and taken over with a warning, when its pid is gone, when it
+ * is unreadable, or when it is older than {@link LOCK_MAX_AGE_MS} whatever its pid says
+ * (after a reboot the pid is routinely reused by an unrelated process, and a crashed
+ * run must not block every later week). The takeover renames the stale file aside
+ * first, which only one racer can win, and the winner confirms its own record is in
+ * the file after creating it.
  */
 
-import { closeSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, linkSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { dirname, join, basename } from "node:path";
 import { z } from "zod/v4";
 import { guardedDataPath, readJsonIfExists, writeJsonAtomic } from "@/lib/discovery/json-store";
@@ -328,6 +333,18 @@ export class RunLockedError extends Error {
   }
 }
 
+/**
+ * A lock older than this is stale even when its pid answers (WR-02): a pid is reused after a reboot,
+ * and a run is stopped by its own 2 h watchdog long before this.
+ */
+export const LOCK_MAX_AGE_MS = 6 * 60 * 60_000;
+
+/** True when `startedAt` is older than {@link LOCK_MAX_AGE_MS} at `nowMs`. An unparseable time counts as old. */
+function lockTooOld(startedAt: string, nowMs: number): boolean {
+  const started = Date.parse(startedAt);
+  return !Number.isFinite(started) || nowMs - started > LOCK_MAX_AGE_MS;
+}
+
 /** True when a process with this pid exists. EPERM means it exists but belongs to someone else. */
 export function isPidAlive(pid: number): boolean {
   try {
@@ -358,11 +375,12 @@ function readLockRecord(lockPath: string): LockRecord | null {
 /** Who holds the lock right now, without taking it (the dry run prints this). Null when there is no lock file. */
 export function readRunLock(
   lockPath: string,
-  opts: { isAlive?: (pid: number) => boolean } = {},
+  opts: { isAlive?: (pid: number) => boolean; now?: () => Date } = {},
 ): (LockRecord & { alive: boolean }) | null {
   const record = readLockRecord(lockPath);
   if (record === null) return null;
-  return { ...record, alive: (opts.isAlive ?? isPidAlive)(record.pid) };
+  const nowMs = (opts.now ?? (() => new Date()))().getTime();
+  return { ...record, alive: (opts.isAlive ?? isPidAlive)(record.pid) && !lockTooOld(record.startedAt, nowMs) };
 }
 
 export interface RunLock {
@@ -374,24 +392,31 @@ export interface RunLock {
 
 /**
  * Takes the run lock: the file is created with the exclusive flag (so two runs cannot both succeed)
- * and holds the pid and start time. A lock held by a live pid throws {@link RunLockedError}; one whose
- * pid is gone (or whose content is unreadable) is removed and re-taken, with a warning. The caller
- * releases it in `finally`.
+ * and holds the pid and start time. A lock held by a live pid that started less than
+ * {@link LOCK_MAX_AGE_MS} ago throws {@link RunLockedError}; a stale one (pid gone, unreadable, or
+ * too old) is taken over with a warning. The caller releases it in `finally`.
+ *
+ * Takeover is atomic enough for two racers (WR-02): the stale file is RENAMED to a unique name (only
+ * one racer's rename can succeed; the other gets ENOENT), the loser of any race backs off, and the
+ * winner re-reads the lock after creating it to confirm that its own record is the one in the file.
  */
 export function acquireRunLock(
   lockPath: string,
   opts: { pid?: number; now?: () => Date; isAlive?: (pid: number) => boolean } = {},
 ): RunLock {
   const pid = opts.pid ?? process.pid;
-  const startedAt = (opts.now ?? (() => new Date()))().toISOString();
+  const now = opts.now ?? (() => new Date());
+  const startedAt = now().toISOString();
   const isAlive = opts.isAlive ?? isPidAlive;
+  const token = randomBytes(8).toString("hex");
+  const mine = JSON.stringify({ pid, startedAt, token });
   let warning: string | null = null;
 
   const create = (): boolean => {
     try {
       const fd = openSync(lockPath, "wx");
       try {
-        writeSync(fd, JSON.stringify({ pid, startedAt }));
+        writeSync(fd, mine);
       } finally {
         closeSync(fd);
       }
@@ -401,25 +426,66 @@ export function acquireRunLock(
       throw error;
     }
   };
+  const readRaw = (path: string): string | null => {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const lockedBy = (path: string): RunLockedError => {
+    const winner = readLockRecord(path);
+    return new RunLockedError(winner?.pid ?? 0, winner?.startedAt ?? "okänd tid");
+  };
 
   if (!create()) {
+    const heldRaw = readRaw(lockPath);
     const held = readLockRecord(lockPath);
-    if (held !== null && isAlive(held.pid)) throw new RunLockedError(held.pid, held.startedAt);
+    const tooOld = held !== null && lockTooOld(held.startedAt, now().getTime());
+    if (held !== null && !tooOld && isAlive(held.pid)) throw new RunLockedError(held.pid, held.startedAt);
     warning =
       held === null
         ? `Låsfilen ${lockPath} var oläslig och togs över`
-        : `Låsfilen ${lockPath} tillhörde pid ${held.pid} (startad ${held.startedAt}), som inte längre körs; låset togs över`;
+        : tooOld
+          ? `Låsfilen ${lockPath} tillhörde pid ${held.pid} (startad ${held.startedAt}), äldre än ${LOCK_MAX_AGE_MS / 3_600_000} timmar; låset togs över (pid:et kan ha återanvänts)`
+          : `Låsfilen ${lockPath} tillhörde pid ${held.pid} (startad ${held.startedAt}), som inte längre körs; låset togs över`;
+
+    // Move the stale file aside. Exactly one racer's rename succeeds.
+    const aside = `${lockPath}.stale-${pid}-${token}`;
+    let moved = true;
     try {
-      unlinkSync(lockPath);
+      renameSync(lockPath, aside);
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+      moved = false; // gone already: the holder released, or another racer is taking over
     }
-    if (!create()) {
-      // Someone else took it in the instant between our remove and our create.
-      const winner = readLockRecord(lockPath);
-      throw new RunLockedError(winner?.pid ?? 0, winner?.startedAt ?? "okänd tid");
+    if (moved) {
+      if (readRaw(aside) !== heldRaw) {
+        // What we moved is not what we judged stale: another run replaced it between our read and our
+        // rename. Put it back (link fails if yet another file appeared) and give way.
+        try {
+          linkSync(aside, lockPath);
+        } catch {
+          // a newer lock already exists: that one wins as well
+        }
+        try {
+          unlinkSync(aside);
+        } catch {
+          // already gone
+        }
+        throw lockedBy(lockPath);
+      }
+      try {
+        unlinkSync(aside);
+      } catch {
+        // already gone
+      }
     }
+    if (!create()) throw lockedBy(lockPath); // another racer took it first
   }
+
+  // Confirm the file really holds our record (a racing takeover could have replaced it).
+  if (readRaw(lockPath) !== mine) throw lockedBy(lockPath);
 
   let released = false;
   return {
@@ -427,6 +493,8 @@ export function acquireRunLock(
     release() {
       if (released) return;
       released = true;
+      // Only remove a lock that is still ours; never somebody else's after a takeover.
+      if (readRaw(lockPath) !== mine) return;
       try {
         unlinkSync(lockPath);
       } catch {

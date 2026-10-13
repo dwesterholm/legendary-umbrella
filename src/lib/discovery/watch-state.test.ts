@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  LOCK_MAX_AGE_MS,
   RunLockedError,
   WATCH_FIRST_MAIL_PER_SECTION,
   WATCH_PRUNE_DAYS,
@@ -318,7 +319,7 @@ describe("run lock", () => {
 
   it("creates the lock with pid and start time, and release removes it", () => {
     const lock = acquireRunLock(lockPath, { pid: 4242, now: () => new Date("2026-10-20T06:00:00Z") });
-    expect(JSON.parse(readFileSync(lockPath, "utf8"))).toEqual({ pid: 4242, startedAt: "2026-10-20T06:00:00.000Z" });
+    expect(JSON.parse(readFileSync(lockPath, "utf8"))).toMatchObject({ pid: 4242, startedAt: "2026-10-20T06:00:00.000Z" });
     expect(lock.warning).toBeNull();
     lock.release();
     expect(existsSync(lockPath)).toBe(false);
@@ -336,7 +337,7 @@ describe("run lock", () => {
     writeFileSync(lockPath, JSON.stringify({ pid: 777, startedAt: "2026-10-20T05:00:00Z" }), "utf8");
     let caught: unknown;
     try {
-      acquireRunLock(lockPath, { pid: 1, isAlive: (p) => p === 777 });
+      acquireRunLock(lockPath, { pid: 1, isAlive: (p) => p === 777, now: () => new Date("2026-10-20T06:00:00Z") });
     } catch (e) {
       caught = e;
     }
@@ -360,6 +361,64 @@ describe("run lock", () => {
     const lock = acquireRunLock(lockPath, { pid: 9, isAlive: () => true });
     expect(lock.warning).toContain("oläslig");
     lock.release();
+  });
+
+  it("a lock older than 6 hours is taken over even when its pid answers (pid reuse after a reboot, WR-02)", () => {
+    writeFileSync(lockPath, JSON.stringify({ pid: 321, startedAt: "2026-10-20T00:00:00Z" }), "utf8");
+    const lock = acquireRunLock(lockPath, { pid: 9, isAlive: () => true, now: () => new Date("2026-10-20T06:00:01Z") });
+    expect(lock.warning).toContain("återanvänts");
+    expect(JSON.parse(readFileSync(lockPath, "utf8")).pid).toBe(9);
+    lock.release();
+  });
+
+  it("a live pid under 6 hours old still blocks (exactly 6 hours is not yet stale)", () => {
+    writeFileSync(lockPath, JSON.stringify({ pid: 321, startedAt: "2026-10-20T00:00:00Z" }), "utf8");
+    expect(() => acquireRunLock(lockPath, { pid: 9, isAlive: () => true, now: () => new Date("2026-10-20T06:00:00Z") })).toThrow(RunLockedError);
+    expect(LOCK_MAX_AGE_MS).toBe(6 * 3_600_000);
+  });
+
+  it("a takeover leaves no .stale file behind", () => {
+    writeFileSync(lockPath, JSON.stringify({ pid: 555, startedAt: "2026-10-13T00:00:00Z" }), "utf8");
+    const lock = acquireRunLock(lockPath, { pid: 9, isAlive: () => false });
+    expect(readdirSync(dir)).toEqual(["watch-state.lock"]);
+    lock.release();
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it("race: another run puts a fresh lock in place between our staleness check and our takeover; we give way and that lock survives", () => {
+    writeFileSync(lockPath, JSON.stringify({ pid: 555, startedAt: "2026-10-20T05:00:00Z" }), "utf8");
+    const fresh = JSON.stringify({ pid: 888, startedAt: "2026-10-20T06:00:00Z", token: "a" });
+    const isAlive = (): boolean => {
+      writeFileSync(lockPath, fresh, "utf8"); // run A finished its takeover just now
+      return false;
+    };
+    expect(() => acquireRunLock(lockPath, { pid: 9, isAlive, now: () => new Date("2026-10-20T06:00:00Z") })).toThrow(RunLockedError);
+    expect(readFileSync(lockPath, "utf8")).toBe(fresh);
+    expect(readdirSync(dir)).toEqual(["watch-state.lock"]);
+  });
+
+  it("race: the stale lock is already gone when we rename it (its holder or another racer removed it): we create ours", () => {
+    writeFileSync(lockPath, JSON.stringify({ pid: 555, startedAt: "2026-10-13T00:00:00Z" }), "utf8");
+    const isAlive = (): boolean => {
+      rmSync(lockPath);
+      return false;
+    };
+    const lock = acquireRunLock(lockPath, { pid: 9, isAlive });
+    expect(JSON.parse(readFileSync(lockPath, "utf8")).pid).toBe(9);
+    lock.release();
+  });
+
+  it("release never removes a lock somebody else holds now (ownership check)", () => {
+    const lock = acquireRunLock(lockPath, { pid: 1 });
+    writeFileSync(lockPath, JSON.stringify({ pid: 2, startedAt: "2026-10-20T06:00:00Z", token: "other" }), "utf8");
+    lock.release();
+    expect(existsSync(lockPath)).toBe(true);
+  });
+
+  it("readRunLock reports a too-old lock as not alive", () => {
+    writeFileSync(lockPath, JSON.stringify({ pid: 31, startedAt: "2026-10-20T00:00:00Z" }), "utf8");
+    expect(readRunLock(lockPath, { isAlive: () => true, now: () => new Date("2026-10-20T07:00:00Z") })?.alive).toBe(false);
+    expect(readRunLock(lockPath, { isAlive: () => true, now: () => new Date("2026-10-20T05:00:00Z") })?.alive).toBe(true);
   });
 
   it("a real lock held by this very process is seen as live with the default liveness check", () => {
