@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
-current_phase: "14.1"
-current_phase_name: Personal Fit Score
+current_phase: "14.2"
+current_phase_name: Trustworthy Weekly Table
 status: executing
 stopped_at: 14.1-10 Task 1 done (live run, replay, readout); Task 2 browser run pending
-last_updated: "2026-10-13T08:40:10.518Z"
+last_updated: "2026-10-13T10:06:57.688Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 14.1 execution started
-state_head: db25200e5ccf968f31bb63c93c1f0556d9449097
+state_head: 4eac2fe1fe94582b680815a172a9a7daeca8f0a2
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 25
+  total_plans: 34
   completed_plans: 23
   percent: 13
 ---
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 ## Current Position
 
-Phase: 14.1 (Personal Fit Score) — EXECUTING
+Phase: 14.2 (Trustworthy Weekly Table) — READY TO EXECUTE
 Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-10-12 — Phase 14.1 execution started
