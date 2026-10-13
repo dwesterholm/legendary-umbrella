@@ -32,6 +32,7 @@ function tableRow(over: Partial<FitTableRow> = {}): FitTableRow {
     renoHighKr: 400_000,
     profitKr: 250_000,
     tasteKr: 10_000,
+    sol: "-",
     flags: ["kredit-tak"],
     reasons: "tomträtt",
     link: "https://www.booli.se/bostad/150148",

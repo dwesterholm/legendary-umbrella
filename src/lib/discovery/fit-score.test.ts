@@ -36,6 +36,7 @@ import {
 import { CGT_EFFECTIVE_RATE, RENO_COST_MATRIX } from "@/lib/discovery/flip-economics";
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import { RENO_BAND, UNKNOWN_RENO_STATES, renoBundle } from "@/lib/discovery/reno-tier";
+import { unknownSunFact } from "@/lib/discovery/sun-fact";
 import { LOVED_HUBS, tasteBonus } from "@/lib/discovery/taste";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 
@@ -1015,6 +1016,44 @@ describe("snapshot row facts (R-08, Phase 14.2)", () => {
     const facts = candidateFactsSchema.parse({ tenureForm: "Bostadsrätt", detailFetched: true });
     const a = rankFit(snapshot.rows, model);
     const b = rankFit(snapshot.rows.map((r) => ({ ...r, facts })), model);
+    expect(b.ranked.map((r) => [r.booliId, r.profitSek])).toEqual(a.ranked.map((r) => [r.booliId, r.profitSek]));
+  });
+});
+
+describe("snapshot row sun (R-08, Phase 14.3)", () => {
+  const sun = unknownSunFact("adress saknas");
+
+  it("the committed fixture has no sun record: every row reads null", () => {
+    for (const row of snapshot.rows) expect(row.sun).toBeNull();
+  });
+
+  it("a stored value that does not match the current schema reads null and the snapshot still parses", () => {
+    const raw = JSON.parse(JSON.stringify(snapshot));
+    raw.rows[0].sun = { junk: 1 };
+    raw.rows[1].sun = "okänd";
+    raw.rows[2].sun = { ...sun, source: "gissning" };
+    const parsed = parseFitSnapshot(raw);
+    expect(parsed.rows.slice(0, 3).map((r) => r.sun)).toEqual([null, null, null]);
+    expect(parsed.rows).toHaveLength(snapshot.rows.length);
+  });
+
+  it("a valid record round-trips through JSON", () => {
+    const withSun = { ...snapshot, rows: snapshot.rows.map((r, i) => (i === 0 ? { ...r, sun } : r)) };
+    const reparsed = parseFitSnapshot(JSON.parse(JSON.stringify(withSun)));
+    expect(reparsed.rows[0].sun).toEqual(sun);
+    expect(reparsed.rows[1].sun).toBeNull();
+  });
+
+  it("the result carries the row's record through unchanged on both return paths, and scoring ignores it", () => {
+    const row = snapshot.rows.find((r) => fitScore(r, model).comparable) as FitInputRow;
+    expect(fitScore({ ...row, sun }, model).sun).toEqual(sun);
+    expect(fitScore(row, model).sun).toBeNull();
+    const noPrice = { ...row, sun, candidate: { ...row.candidate, price: null } };
+    const notComparable = fitScore(noPrice, model);
+    expect(notComparable.comparable).toBe(false);
+    expect(notComparable.sun).toEqual(sun);
+    const a = rankFit(snapshot.rows, model);
+    const b = rankFit(snapshot.rows.map((r) => ({ ...r, sun })), model);
     expect(b.ranked.map((r) => [r.booliId, r.profitSek])).toEqual(a.ranked.map((r) => [r.booliId, r.profitSek]));
   });
 });

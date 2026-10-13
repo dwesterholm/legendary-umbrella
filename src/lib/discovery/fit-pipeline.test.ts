@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
 import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { unknownSunFact } from "@/lib/discovery/sun-fact";
 import { AREA_MAX_RENDERS_PER_AREA, OBSERVED_USD_PER_TIMED_OUT_RENDER } from "@/lib/discovery/cost";
 import {
   COVERAGE_LABELS,
@@ -216,7 +217,7 @@ describe("the vision window (D-10, R-03)", () => {
   // The first 26 fixture rows; at least 25 are comparable on the fixture model.
   const rows26 = fixtureScraped.slice(0, 26);
   const comparableCount = preRank(
-    rows26.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null })),
+    rows26.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null, sun: null })),
     model,
   ).ranked.length;
 
@@ -396,6 +397,19 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(cells).toHaveLength(headerCells.length);
     expect(cells[headerCells.indexOf("Flaggor")]).toBe("kredit-tak");
     expect(cells[headerCells.indexOf("Varför här")]).toBe("tomträtt, ute i 75 dagar");
+  });
+
+  it("the header puts 'Sol' right after 'Smak'; a row prints '-' without a sun record and the formatted cell with one (D-02)", () => {
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    expect(headerCells.indexOf("Sol")).toBe(headerCells.indexOf("Smak") + 1);
+    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 1);
+    const none = renderFitTable(toFitTableRows({ ranked: [sample[0]] }, new Map())).split("\n")[1].split(" | ");
+    expect(none).toHaveLength(headerCells.length);
+    expect(none[headerCells.indexOf("Sol")]).toBe("-");
+    const unknown = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], sun: unknownSunFact("adress saknas") }] }, new Map()))
+      .split("\n")[1]
+      .split(" | ");
+    expect(unknown[headerCells.indexOf("Sol")]).toBe("okänd");
   });
 
   it("a flagged row with no reason prints 'oförklarat fynd', an unflagged one '-' (also without reasonsOf)", () => {
@@ -615,7 +629,7 @@ describe("checkApifyHeadroom (R-13)", () => {
 describe('window "all" (D-06, WATCH-02)', () => {
   const rows = fixtureScraped;
   const comparable = preRank(
-    rows.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null })),
+    rows.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null, sun: null })),
     model,
   ).ranked.length;
 

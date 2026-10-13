@@ -50,6 +50,7 @@ import {
 import type { HedonicModel, InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
+import { formatSolCell } from "@/lib/discovery/sun-fact";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
 // ---------------------------------------------------------------------------
@@ -232,6 +233,7 @@ export async function runFitPipeline(
     sunPhrases: null,
     candidate: r.candidate,
     facts: r.facts ?? null,
+    sun: null,
   }));
 
   const counts = { scraped: scraped.rows.length, deduped: deduped.length, filtered: filtered.length };
@@ -274,6 +276,7 @@ export async function runFitPipeline(
     candidate: afterVision[i] ?? forVision[i],
     // Card facts, with the detail page's on top when it was read (R-08).
     facts: combineFacts(p.row.facts, detailFetched[i] ? (enrichment.facts?.get(i) ?? null) : null),
+    sun: null, // the live sun stage arrives in plan 14.3-07
   }));
   const outsideRows: FitInputRow[] = outside.map((p) => p.row);
   const comparableRows = new Set(pre.ranked.map((p) => p.row));
@@ -357,6 +360,8 @@ export interface FitTableRow {
   readonly renoHighKr: number;
   readonly profitKr: number | null;
   readonly tasteKr: number;
+  /** The D-02 "Sol" cell: facade, source and confidence ("S gata/N gård (fastighet/gata, 0,95)"), "okänd", or "-" when the run did not look. */
+  readonly sol: string;
   readonly flags: string[];
   /** WATCH-03 "Varför här": the reasons, "oförklarat fynd" on a flagged row with none, "-" on an unflagged one. */
   readonly reasons: string;
@@ -394,6 +399,7 @@ export function toFitTableRows(
     renoHighKr: roundKr(r.renoHighSek),
     profitKr: roundOrNull(r.profitSek),
     tasteKr: roundKr(r.tasteSek),
+    sol: formatSolCell(r.sun),
     flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
     reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
     link: r.sourceListingUrl ?? "-",
@@ -401,7 +407,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Sol | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -431,6 +437,7 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         `${r.renoTier} ${kr(r.renoMidKr)} (${kr(r.renoLowKr)}–${kr(r.renoHighKr)})`,
         orDash(r.profitKr),
         kr(r.tasteKr),
+        r.sol,
         r.flags.join(", ") || "-",
         r.reasons,
         r.link,

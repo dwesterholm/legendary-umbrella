@@ -77,6 +77,7 @@ import {
   type RenoEstimate,
 } from "@/lib/discovery/reno-tier";
 import { computeNicheScore } from "@/lib/discovery/niche-score";
+import { sunFactSchema, type SunFact } from "@/lib/discovery/sun-fact";
 import { tasteBonus } from "@/lib/discovery/taste";
 
 // ---------------------------------------------------------------------------
@@ -135,6 +136,13 @@ const fitRowSchema = z.object({
    * read as "no facts".
    */
   facts: candidateFactsSchema.nullable().default(null),
+  /**
+   * R-08 (Phase 14.3): what the sun spike worked out for this flat (facade, source, confidence),
+   * beside the candidate and never inside it. Reads null when absent AND when the stored value
+   * does not match the current schema (`.catch(null)`): an old or foreign record never breaks a
+   * replay, it just reads as "this run did not look".
+   */
+  sun: sunFactSchema.nullable().catch(null).default(null),
 });
 
 export const fitSnapshotSchema = z.object({
@@ -233,6 +241,8 @@ export interface FitScoreResult {
   readonly profitSek: number | null;
   readonly flags: readonly FitFlag[];
   readonly featuresImputed: readonly string[];
+  /** The row's sun record passed through unchanged (Phase 14.3); null when the run did not look. */
+  readonly sun: SunFact | null;
 }
 
 /**
@@ -272,6 +282,7 @@ export function fitScore(
     sourceListingUrl: c.sourceListingUrl,
     district: row.district,
     floor: c.floor,
+    sun: row.sun,
     renoSek: reno.midSek,
     renoLowSek: reno.lowSek,
     renoHighSek: reno.highSek,

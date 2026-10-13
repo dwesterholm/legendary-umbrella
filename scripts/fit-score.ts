@@ -172,6 +172,9 @@ import {
   saveVisionCache,
   type VisionChunksResult,
 } from "@/lib/discovery/vision-cache";
+import { buildOsmIndex, parseOsmExtract } from "@/lib/discovery/osm-buildings";
+import { inferStreetFacade } from "@/lib/discovery/sun-facade";
+import { sunFactFromFootprint } from "@/lib/discovery/sun-fact";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
 const DEFAULT_TRACK_ID = 150148;
@@ -186,7 +189,7 @@ const MAX_APIFY_MAX_RENDERS = 100;
 
 const USAGE = `Användning:
   Uppspelning (gratis, offline):
-    npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+    npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
     npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Veckomejl med bevakningsminne (båda lägena):
@@ -200,6 +203,9 @@ const USAGE = `Användning:
   Kolumnen "Varför här" förklarar varför en annons kan vara billig; en flaggad annons utan förklaring heter "oförklarat fynd".
 
   --replay <fil>     Spela upp en sparad snapshot av bostäder till salu (inga nätverksanrop)
+  --osm <fil>        Uppspelning: OSM-utdrag (JSON, .json) med byggnader och gator; kolumnen "Sol" visar då vilken väderstreck gatusidan
+                     och gårdssidan vetter mot, med källa och säkerhet. Utan den skrivs "-". Filen läses bara, ingenting hämtas.
+                     Data (c) OpenStreetMap contributors, ODbL
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
   --track <id>       Booli-id att visa uppdelat i detalj, standard ${DEFAULT_TRACK_ID}
   --window all|<n>   Live: antal annonser som får detaljsida (och bildtolkning). Standard: all (alla jämförbara) med lokal webbläsare,
@@ -242,6 +248,8 @@ const orDash = (n: number | null, f: (x: number) => string) => (n === null ? "-"
 
 interface Args {
   replay: string | null;
+  /** OSM extract file for the "Sol" column (14.3-01). Replay only until the live sun stage exists. */
+  osm: string | null;
   model: string;
   track: number;
   /** null = the default for the renderer in use (all with the local browser, FIT_VISION_WINDOW with Apify). */
@@ -265,6 +273,7 @@ interface Args {
 function parseArgs(argv: string[]): Args | null {
   const out: Args = {
     replay: null,
+    osm: null,
     model: DEFAULT_MODEL_PATH,
     track: DEFAULT_TRACK_ID,
     window: null,
@@ -288,6 +297,7 @@ function parseArgs(argv: string[]): Args | null {
     if (flag === "--help" || flag === "-h") out.help = true;
     else if (flag === "--dry-run") { out.dryRun = true; liveOnly = true; }
     else if (flag === "--replay" && value !== undefined) { out.replay = value; i++; }
+    else if (flag === "--osm" && value !== undefined && value.toLowerCase().endsWith(".json")) { out.osm = value; i++; }
     else if (flag === "--model" && value !== undefined) { out.model = value; i++; }
     else if (flag === "--track" && value !== undefined && Number.isInteger(Number(value))) { out.track = Number(value); i++; }
     else if (flag === "--window" && value === "all") { out.window = "all"; liveOnly = true; i++; }
@@ -313,6 +323,8 @@ function parseArgs(argv: string[]): Args | null {
     else return null;
   }
   if (out.replay !== null && liveOnly) return null;
+  // --osm is replay-only for now (T-14.3-03): refuse it rather than ignore it silently.
+  if (out.osm !== null && out.replay === null) return null;
   // The memory flags mean nothing without the mail: refuse them rather than ignore them silently.
   if (!out.email && (out.state !== null || out.noStateWrite)) return null;
   return out;
@@ -644,21 +656,43 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   }
   const snapshot = parseFitSnapshot(JSON.parse(readFileSync(snapshotPath, "utf8")));
   const model = loadModel(args.model);
-  const ranking = rankFit(snapshot.rows, model);
+
+  // 14.3-01: with --osm every row gets a sun record from the building footprint BEFORE the ranking,
+  // so the "Sol" column fills; the extract is only read. Without it the column prints "-".
+  let rows = snapshot.rows;
+  let solLine: string | null = null;
+  if (args.osm !== null) {
+    const osmPath = resolve(args.osm);
+    if (!existsSync(osmPath)) {
+      console.error(`OSM-utdrag saknas: ${args.osm}`);
+      process.exit(1);
+    }
+    const index = buildOsmIndex(parseOsmExtract(JSON.parse(readFileSync(osmPath, "utf8"))));
+    rows = snapshot.rows.map((row) => {
+      const c = row.candidate;
+      const result = inferStreetFacade(index, { lat: c.latitude, lng: c.longitude, address: c.address, floor: c.floor ?? row.facts?.floor ?? null });
+      return { ...row, sun: sunFactFromFootprint(result) };
+    });
+    solLine = `Sol: OSM-utdrag ${args.osm} (${index.buildings.length} byggnader, ${index.roadsByName.size} gator)`;
+  }
+
+  const ranking = rankFit(rows, model);
 
   // The free pre-rank is recomputed from the stored rows (their detail-page
   // facts are included, so it can differ slightly from the live run's own).
   const preRankPositions = new Map<string, number>();
-  for (const p of preRank(snapshot.rows, model).ranked) preRankPositions.set(fitRowKey(p.row.candidate), p.position);
+  for (const p of preRank(rows, model).ranked) preRankPositions.set(fitRowKey(p.row.candidate), p.position);
 
   printModelLine(model);
   console.log(
-    `Snapshot per ${snapshot.asOf}: ${snapshot.rows.length} rader, ${ranking.ranked.length} jämförbara, ${ranking.notComparable.length} ej jämförbara (förrank räknat om från snapshoten)\n`,
+    `Snapshot per ${snapshot.asOf}: ${rows.length} rader, ${ranking.ranked.length} jämförbara, ${ranking.notComparable.length} ej jämförbara (förrank räknat om från snapshoten)`,
   );
-  const reasonsOf = makeReasonsOf(snapshot.rows, ranking.ranked);
+  if (solLine !== null) console.log(solLine);
+  console.log("");
+  const reasonsOf = makeReasonsOf(rows, ranking.ranked);
   const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });
-  printRanking(ranking, snapshot.rows, preRankPositions, args.track, tableRows, reasonsOf);
-  const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(snapshot.rows, model), tableRows));
+  printRanking(ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
+  const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
   console.log(`\n${coverageLine}`);
 
   if (statePath !== null) {
