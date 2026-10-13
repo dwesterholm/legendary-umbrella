@@ -203,7 +203,7 @@ Plans:
 ### Phase 14.3: Sun & Orientation Spike (INSERTED)
 
 **Goal**: Two measurements, then go/no-go. (a) *Orientation*: how many innerstan listings state no väderstreck, and whether the street-facade bearing can be inferred from the OpenStreetMap building footprint or by reading the compass on the floor-plan image with vision. (b) *Real sun hours*: whether obstructed sun-per-facade-per-month can be computed from a desk — flat position + floor height (~3 m/floor) against footprints and heights of buildings within ~150 m, ray-checked against the sun path from `sun-path.ts`. Height data is the risk: OSM heights are partial in innerstan; check Stockholms stad / Lantmäteriet 3D building data for open access and format. Target accuracy ±1 h; no room-level detail. Sun Tracker AR (phone app) has no API and needs on-site presence, so it is not a source.
-**Requirements**: TBD
+**Requirements**: SUN-01, SUN-02, SUN-03, SUN-04, SUN-05, SUN-06
 **Depends on:** Phase 14.1 (the taste bonus and resale model are the consumers)
 **Plans:** 0 plans
 
