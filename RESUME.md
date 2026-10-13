@@ -6,6 +6,36 @@
 
 ---
 
+## ▶️ STATUS 2026-10-13 — Phase 14.1 executed (10/10 plans), verification pending
+
+All on `main` (ff-merged + pushed after every wave; phase branch `gsd/phase-14.1-personal-fit-score`
+tracks it). `npm run test` 1440 passed / 3 skipped; tsc + lint clean.
+
+What exists now:
+- `scripts/fit-score.ts` — headless ranking by estimated flip profit (resale − expected final − reno),
+  `--replay <snapshot> --model data/hedonic-model.json` is free; live mode runs the Apify headroom
+  check first (exit 2 when short). `--dry-run` is free.
+- `data/hedonic-model.json` — fitted on 7,380 innerstan sales (Apr 2025–Oct 2026): floor +1.6 %/floor,
+  bottenvåning −6.4 %, −0.7 %/km from centre, trend +0.9 %/month, renovated ≤ +8.3 %, balcony +1.9 %
+  (prior), size effect ZEROED by the sign rule (data says large flats cost +3–5 %/m² MORE — decision
+  for Daniel, see 14.1-FOLLOWUPS.md), R² 0.61, CV error ±12 %. Bid premiums from data: Söder +11 %,
+  Kungsholmen +5.7 %, Vasastan +6.1 %, Östermalm +4 %.
+- Raw data (gitignored): `.planning/calibration/data/slutpriser-cache.json` (7,431 rows),
+  `forsale-snapshot-2026-10-13.json`, `live-run-2026-10-13.log`, `evidence/*.jpg`.
+- Live innerstan run 2026-10-13: 76 candidates, Folkungagatan 61 ranked 33/75 (16/35 Söder), never
+  reached the 20-flat vision window so its sun wording was unread. Measured, not tuned.
+- In-app browser run (job d32ae1fe): done in 26.6 min WITHOUT reload, 60 candidates, Kungsholmen
+  present; but the 15-min client ceiling showed a false "Försök igen" → 13-03 truth 2 FAIL, 14-UAT
+  test 1 `issue`. Fix belongs to Phase 13 constants (raise/soften ABSOLUTE_CEILING_MS, incremental
+  vision progress).
+- Spend this phase: ≈27.8 USD Apify (headroom now 2.71 USD until the monthly reset) + ~8 SEK vision.
+
+Pending: 14.1-REVIEW.md (code review) and 14.1-VERIFICATION.md (verifier) were running when this was
+written; then `phase.complete` / gap closure. Decisions parked for Daniel in
+`.planning/phases/14.1-personal-fit-score/14.1-FOLLOWUPS.md` and the SUMMARYs' "calls made" lists.
+
+---
+
 ## ▶️ STATUS 2026-10-12 — roadmap reshaped around Daniel's own hunt
 
 Daniel sells his flat this week, moves out mid-April 2027. The roadmap now serves that hunt:
