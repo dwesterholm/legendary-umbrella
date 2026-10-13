@@ -12,6 +12,8 @@ import { CAP_VISION_SEK_MAX, visionCostSek, estimateVisionCallSek } from "@/lib/
 import { CAP_IMAGES_PER_LISTING } from "@/lib/discovery/filter-schema";
 import type { BrokerImageBytes } from "@/lib/broker/broker-images";
 import {
+  VISION_HAIKU_MODEL,
+  VISION_SONNET_MODEL,
   VISION_PREFILTER_SYSTEM_PROMPT,
   VISION_DEEPPASS_SYSTEM_PROMPT,
 } from "@/lib/discovery/vision-prompt";
@@ -41,11 +43,11 @@ import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
  * must never reach the browser (T-02-09, mirrors extract.ts:19). */
 const client = new Anthropic();
 
-/** Haiku 4.5 — the cheap triage tier (verified id, extract.ts:22). */
-const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+/** Haiku 4.5 — the cheap triage tier (id defined in vision-prompt.ts so the vision cache key can include it). */
+const HAIKU_MODEL = VISION_HAIKU_MODEL;
 
-/** Sonnet 4.6 — the deep-pass tier (verified id, bare, no date suffix, synthesize.ts:24). */
-const SONNET_MODEL = "claude-sonnet-4-6";
+/** Sonnet 4.6 — the deep-pass tier (id defined in vision-prompt.ts, see above). */
+const SONNET_MODEL = VISION_SONNET_MODEL;
 
 const PREFILTER_USER_INSTRUCTION =
   "Vilka bilder är värda en djupare granskning av skick?";

@@ -27,6 +27,19 @@
  * liability-bearing sentence must never depend solely on model compliance.
  */
 
+/** Haiku 4.5, the cheap triage tier (verified id). Lives here so the cache key can include it without loading the Anthropic client. */
+export const VISION_HAIKU_MODEL = "claude-haiku-4-5-20251001";
+
+/** Sonnet 4.6, the deep-pass tier (verified id, bare, no date suffix). */
+export const VISION_SONNET_MODEL = "claude-sonnet-4-6";
+
+/**
+ * Bump when the post-processing in vision.ts (banned-word rewrite, disclaimer, confidence threshold)
+ * changes what a stored result means. Prompts, model ids and schemas are covered automatically by the
+ * cache's prompt version (vision-cache.ts); this number covers the code that is not text.
+ */
+export const VISION_LOGIC_REVISION = 1;
+
 /** The explicit PII/people-ignore instruction — verbatim in BOTH prompts. */
 const PII_IGNORE_INSTRUCTION =
   "Ignorera helt eventuella människor eller personliga dokument (post, fakturor, ID-handlingar, foton av personer) som syns i bilderna. Kommentera ALDRIG på personer eller identifierbar information i bilderna — fokusera uteslutande på rummets skick (kök, badrum, allmänt skick).";

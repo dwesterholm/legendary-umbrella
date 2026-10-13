@@ -37,7 +37,14 @@ import { z } from "zod/v4";
 import type { BrokerImageBytes } from "@/lib/broker/broker-images";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { guardedDataPath, readJsonIfExists, writeJsonAtomic } from "@/lib/discovery/json-store";
-import { visionResultSchema, type VisionResult } from "@/lib/discovery/vision-schema";
+import {
+  VISION_DEEPPASS_SYSTEM_PROMPT,
+  VISION_HAIKU_MODEL,
+  VISION_LOGIC_REVISION,
+  VISION_PREFILTER_SYSTEM_PROMPT,
+  VISION_SONNET_MODEL,
+} from "@/lib/discovery/vision-prompt";
+import { preFilterSchema, visionDeepPassSchema, visionResultSchema, type VisionResult } from "@/lib/discovery/vision-schema";
 
 /** The cache file. Gitignored (the whole data directory is). */
 export const VISION_CACHE_PATH = ".planning/calibration/data/vision-cache.json";
@@ -48,9 +55,28 @@ export const HEADLESS_VISION_CAP_SEK = 60;
 /** Parallel lanes. */
 export const HEADLESS_VISION_CHUNKS = 3;
 
+/**
+ * Identifies everything that decides what a stored read means: both system prompts, both model ids, the
+ * schemas the model answers in, and {@link VISION_LOGIC_REVISION}. Change any of them and the version
+ * changes, so no flat is served a read made under the old rules (WR-05).
+ */
+export const VISION_PROMPT_VERSION: string = createHash("sha256")
+  .update(
+    JSON.stringify({
+      models: [VISION_HAIKU_MODEL, VISION_SONNET_MODEL],
+      prompts: [VISION_PREFILTER_SYSTEM_PROMPT, VISION_DEEPPASS_SYSTEM_PROMPT],
+      schemas: [preFilterSchema, visionDeepPassSchema, visionResultSchema].map((s) => z.toJSONSchema(s, { unrepresentable: "any" })),
+      logic: VISION_LOGIC_REVISION,
+    }),
+  )
+  .digest("hex")
+  .slice(0, 16);
+
 const cacheEntrySchema = z.object({
   listingKey: z.string(),
   imageKey: z.string(),
+  /** {@link VISION_PROMPT_VERSION} the read was made under; absent in entries from before WR-05 (never hit). */
+  promptVersion: z.string().optional(),
   storedAt: z.string(),
   result: visionResultSchema,
 });
@@ -67,14 +93,38 @@ const emptyCache = (): VisionCache => ({ version: 1, entries: {} });
 const entryId = (listingKey: string, imageKey: string): string => `${listingKey}#${imageKey}`;
 
 /**
- * A key for the set of pictures a read would use: the Booli picture URLs
- * (order does not matter) and how many broker pictures were available. One URL
- * more or less, or a different broker picture count, gives a different key.
+ * The cache key of a listing path: `booli:<digits>` for `/annons/<n>` and `/bostad/<n>`, so the two URL
+ * forms Booli serves for one flat share an entry. Anything else is kept as given.
  */
-export function imageSetKey(imageUrls: readonly string[] | null | undefined, brokerImageCount: number): string {
+export function visionListingKey(listingPath: string): string {
+  const m = listingPath.match(/^\/(?:annons|bostad)\/(\d+)/);
+  return m ? `booli:${m[1]}` : listingPath;
+}
+
+/** The id an entry is stored under (listing key as returned by {@link visionListingKey}). */
+export const visionCacheId = entryId;
+
+/**
+ * A key for the set of pictures a read would use and the rules it would be read under: the Booli picture
+ * URLs (order does not matter), the broker pictures (their count, plus a digest of their content when the
+ * bytes are available, so a swapped photo with the same count misses), and {@link VISION_PROMPT_VERSION}.
+ * `brokerImages` is the pictures themselves or just their count.
+ */
+export function imageSetKey(
+  imageUrls: readonly string[] | null | undefined,
+  brokerImages: number | readonly BrokerImageBytes[],
+  promptVersion: string = VISION_PROMPT_VERSION,
+): string {
   const urls = [...(imageUrls ?? [])].sort();
+  const count = typeof brokerImages === "number" ? brokerImages : brokerImages.length;
+  let brokerDigest: string | null = null;
+  if (typeof brokerImages !== "number" && brokerImages.length > 0 && brokerImages.every((b) => typeof b?.data === "string")) {
+    const h = createHash("sha256");
+    for (const b of brokerImages) h.update(`${b.mediaType}:${b.data.length}:`).update(b.data);
+    brokerDigest = h.digest("hex").slice(0, 16);
+  }
   return createHash("sha256")
-    .update(JSON.stringify({ urls, broker: Math.max(0, Math.floor(brokerImageCount)) }))
+    .update(JSON.stringify({ urls, broker: Math.max(0, Math.floor(count)), brokerDigest, v: promptVersion }))
     .digest("hex")
     .slice(0, 32);
 }
@@ -186,12 +236,13 @@ export async function runVisionChunks(
   let cacheHits = 0;
 
   candidates.forEach((c, i) => {
-    const listingKey = opts.keyOf(c);
-    if (listingKey !== null) {
-      const imageKey = imageSetKey(c.imageUrls, opts.brokerImagesOf(c, i).length);
+    const rawKey = opts.keyOf(c);
+    if (rawKey !== null) {
+      const listingKey = visionListingKey(rawKey);
+      const imageKey = imageSetKey(c.imageUrls, opts.brokerImagesOf(c, i));
       keyed.set(i, { listingKey, imageKey });
       const hit = opts.cache.entries[entryId(listingKey, imageKey)];
-      if (hit) {
+      if (hit && hit.promptVersion === VISION_PROMPT_VERSION) {
         // Free this run: the attached copy costs 0, the stored entry keeps the original cost.
         out[i] = { ...c, vision: { ...hit.result, costSek: 0 }, visionSkippedReason: null };
         cacheHits += 1;
@@ -240,14 +291,15 @@ export async function runVisionChunks(
     }
   }
 
-  // New entries replace older entries of the same listing (an old picture set is dead weight).
+  // New entries replace older entries of the same listing (an old picture set is dead weight). Entries made
+  // under another prompt version can never be hit again (the version is in their key) and are dropped (WR-05).
   const replaced = new Set(fresh.map((f) => f.listingKey));
   const entries: VisionCache["entries"] = {};
   for (const [id, e] of Object.entries(opts.cache.entries)) {
-    if (!replaced.has(e.listingKey)) entries[id] = e;
+    if (e.promptVersion === VISION_PROMPT_VERSION && !replaced.has(e.listingKey)) entries[id] = e;
   }
   for (const f of fresh) {
-    entries[f.id] = { listingKey: f.listingKey, imageKey: f.imageKey, storedAt: opts.today, result: f.result };
+    entries[f.id] = { listingKey: f.listingKey, imageKey: f.imageKey, promptVersion: VISION_PROMPT_VERSION, storedAt: opts.today, result: f.result };
   }
 
   return { candidates: out, spentSek, calls, cacheHits, skipped, chunkSizes, cacheNext: { version: 1, entries } };

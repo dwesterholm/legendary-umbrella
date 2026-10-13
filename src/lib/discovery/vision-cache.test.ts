@@ -12,11 +12,14 @@ import {
   HEADLESS_VISION_CAP_SEK,
   HEADLESS_VISION_CHUNKS,
   VISION_CACHE_PATH,
+  VISION_PROMPT_VERSION,
   imageSetKey,
   loadVisionCache,
   renderVisionLine,
   runVisionChunks,
   saveVisionCache,
+  visionCacheId,
+  visionListingKey,
   type VisionCache,
   type VisionPassFn,
 } from "@/lib/discovery/vision-cache";
@@ -94,6 +97,78 @@ describe("imageSetKey", () => {
   });
 });
 
+describe("cache key: model, prompt, schema and photo content (WR-05)", () => {
+  it("the prompt version is a stable 16-character hex id", () => {
+    expect(VISION_PROMPT_VERSION).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("another prompt version gives another image key (so an old read is never served for new rules)", () => {
+    expect(imageSetKey(["a"], 0, "v1")).not.toBe(imageSetKey(["a"], 0, "v2"));
+    expect(imageSetKey(["a"], 0)).toBe(imageSetKey(["a"], 0, VISION_PROMPT_VERSION));
+  });
+
+  it.each([
+    ["the deep-pass prompt", { VISION_DEEPPASS_SYSTEM_PROMPT: "ändrad prompt" }],
+    ["the pre-filter prompt", { VISION_PREFILTER_SYSTEM_PROMPT: "ändrad prompt" }],
+    ["the deep-pass model id", { VISION_SONNET_MODEL: "claude-sonnet-9-9" }],
+    ["the triage model id", { VISION_HAIKU_MODEL: "claude-haiku-9-9" }],
+    ["the logic revision", { VISION_LOGIC_REVISION: 2 }],
+  ])("the derived version changes when %s changes", async (_label, change) => {
+    vi.resetModules();
+    vi.doMock("@/lib/discovery/vision-prompt", async (importOriginal) => ({ ...(await importOriginal<object>()), ...change }));
+    try {
+      const changed = await import("@/lib/discovery/vision-cache");
+      expect(changed.VISION_PROMPT_VERSION).not.toBe(VISION_PROMPT_VERSION);
+    } finally {
+      vi.doUnmock("@/lib/discovery/vision-prompt");
+      vi.resetModules();
+    }
+  });
+
+  it("a swapped broker photo with the same count gives another key; identical bytes give the same key", () => {
+    const a = [{ mediaType: "image/jpeg", data: "AAAA" }] as BrokerImageBytes[];
+    const b = [{ mediaType: "image/jpeg", data: "BBBB" }] as BrokerImageBytes[];
+    expect(imageSetKey(["u"], a)).not.toBe(imageSetKey(["u"], b));
+    expect(imageSetKey(["u"], a)).toBe(imageSetKey(["u"], [{ mediaType: "image/jpeg", data: "AAAA" }] as BrokerImageBytes[]));
+  });
+
+  it("visionListingKey shares one key between /annons/ and /bostad/ and leaves other paths alone", () => {
+    expect(visionListingKey("/annons/6305391")).toBe("booli:6305391");
+    expect(visionListingKey("/bostad/6305391")).toBe("booli:6305391");
+    expect(visionListingKey("/annons/6305391?x=1")).toBe("booli:6305391");
+    expect(visionListingKey("/nagot/annat")).toBe("/nagot/annat");
+  });
+
+  it("a flat that switches from /annons/ to /bostad/ with the same pictures is a cache hit, not paid for again", async () => {
+    const c = cand(0);
+    const first = await runVisionChunks([c], { brokerImagesOf: noBroker, cache: emptyCache(), runPass: fakePass().runPass, keyOf: listingKeyOf, today: "2026-10-06" });
+    const switched = { ...c, sourceListingUrl: "https://www.booli.se/bostad/1000" };
+    const { runPass, calls } = fakePass();
+    const second = await runVisionChunks([switched], { brokerImagesOf: noBroker, cache: first.cacheNext, runPass, keyOf: listingKeyOf, today: "2026-10-13" });
+    expect(second.cacheHits).toBe(1);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a stored read from an older prompt version is not served, is read again, and is dropped on save", async () => {
+    const c0 = cand(0);
+    const oldKey = imageSetKey(c0.imageUrls, 0, "old-version");
+    const cache: VisionCache = {
+      version: 1,
+      entries: {
+        [visionCacheId("booli:1000", oldKey)]: { listingKey: "booli:1000", imageKey: oldKey, promptVersion: "old-version", storedAt: "2026-10-06", result: visionResult(0.5, "gammal läsning") },
+        // an entry from before the version was stored, for a flat that is not in this run
+        "/annons/9999#legacy": { listingKey: "/annons/9999", imageKey: "legacy", storedAt: "2026-09-01", result: visionResult(0.5) },
+      },
+    };
+    const { runPass, calls } = fakePass();
+    const r = await runVisionChunks([c0], { brokerImagesOf: noBroker, cache, runPass, keyOf: listingKeyOf, today: "2026-10-13" });
+    expect(r.cacheHits).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(Object.keys(r.cacheNext.entries)).toEqual([visionCacheId("booli:1000", imageSetKey(c0.imageUrls, 0))]);
+    expect(Object.values(r.cacheNext.entries)[0].promptVersion).toBe(VISION_PROMPT_VERSION);
+  });
+});
+
 describe("runVisionChunks", () => {
   it("7 candidates, 3 chunks, 60 SEK: three passes over {0,3,6} {1,4} {2,5}, 20 SEK each, output in input order", async () => {
     const candidates = Array.from({ length: 7 }, (_, i) => cand(i));
@@ -152,8 +227,9 @@ describe("runVisionChunks", () => {
     const cache: VisionCache = {
       version: 1,
       entries: {
-        [`/annons/1004#${imageSetKey(candidates[4].imageUrls, 0)}`]: {
-          listingKey: "/annons/1004",
+        [visionCacheId("booli:1004", imageSetKey(candidates[4].imageUrls, 0))]: {
+          listingKey: "booli:1004",
+          promptVersion: VISION_PROMPT_VERSION,
           imageKey: imageSetKey(candidates[4].imageUrls, 0),
           storedAt: "2026-10-06",
           result: visionResult(0.77, "cached claim"),
@@ -171,7 +247,7 @@ describe("runVisionChunks", () => {
     expect(r.spentSek).toBeCloseTo(6 * 0.4, 10);
     expect(r.chunkSizes).toEqual([3, 2, 2]);
     // The stored entry keeps its original cost.
-    expect(r.cacheNext.entries[`/annons/1004#${imageSetKey(candidates[4].imageUrls, 0)}`].result.costSek).toBe(0.77);
+    expect(r.cacheNext.entries[visionCacheId("booli:1004", imageSetKey(candidates[4].imageUrls, 0))].result.costSek).toBe(0.77);
   });
 
   it("a changed image set misses, is read again, and replaces the old entry of that listing", async () => {
@@ -179,7 +255,7 @@ describe("runVisionChunks", () => {
     const oldKey = imageSetKey(c0.imageUrls, 0);
     const cache: VisionCache = {
       version: 1,
-      entries: { [`/annons/1000#${oldKey}`]: { listingKey: "/annons/1000", imageKey: oldKey, storedAt: "2026-10-06", result: visionResult(0.5) } },
+      entries: { [visionCacheId("booli:1000", oldKey)]: { listingKey: "booli:1000", imageKey: oldKey, promptVersion: VISION_PROMPT_VERSION, storedAt: "2026-10-06", result: visionResult(0.5) } },
     };
     const changed = { ...c0, imageUrls: [...(c0.imageUrls ?? []), "https://bcdn.example/0-c.jpg"] };
     const { runPass, calls } = fakePass();
@@ -187,7 +263,7 @@ describe("runVisionChunks", () => {
     expect(calls).toHaveLength(1);
     expect(r.cacheHits).toBe(0);
     const keys = Object.keys(r.cacheNext.entries);
-    expect(keys).toEqual([`/annons/1000#${imageSetKey(changed.imageUrls, 0)}`]);
+    expect(keys).toEqual([visionCacheId("booli:1000", imageSetKey(changed.imageUrls, 0))]);
   });
 
   it("a different broker photo count misses the cache", async () => {
@@ -195,7 +271,7 @@ describe("runVisionChunks", () => {
     const key = imageSetKey(c0.imageUrls, 2);
     const cache: VisionCache = {
       version: 1,
-      entries: { [`/annons/1000#${key}`]: { listingKey: "/annons/1000", imageKey: key, storedAt: "2026-10-06", result: visionResult(0.5) } },
+      entries: { [visionCacheId("booli:1000", key)]: { listingKey: "booli:1000", imageKey: key, promptVersion: VISION_PROMPT_VERSION, storedAt: "2026-10-06", result: visionResult(0.5) } },
     };
     const { runPass } = fakePass();
     const hit = await runVisionChunks([c0], { brokerImagesOf: () => [{}, {}] as unknown as BrokerImageBytes[], cache, runPass, keyOf: listingKeyOf, today: "2026-10-13" });
@@ -214,12 +290,12 @@ describe("runVisionChunks", () => {
       );
     const r = await runVisionChunks(candidates, { brokerImagesOf: noBroker, cache: emptyCache(), runPass, keyOf: listingKeyOf, today: "2026-10-13" });
     expect(Object.keys(r.cacheNext.entries).sort()).toEqual([
-      `/annons/1000#${imageSetKey(candidates[0].imageUrls, 0)}`,
-      `/annons/1002#${imageSetKey(candidates[2].imageUrls, 0)}`,
+      visionCacheId("booli:1000", imageSetKey(candidates[0].imageUrls, 0)),
+      visionCacheId("booli:1002", imageSetKey(candidates[2].imageUrls, 0)),
     ]);
     expect(r.skipped).toEqual({ cost_cap: 1 });
     expect(r.calls).toBe(2);
-    expect(r.cacheNext.entries[`/annons/1000#${imageSetKey(candidates[0].imageUrls, 0)}`].storedAt).toBe("2026-10-13");
+    expect(r.cacheNext.entries[visionCacheId("booli:1000", imageSetKey(candidates[0].imageUrls, 0))].storedAt).toBe("2026-10-13");
   });
 
   it("a candidate with no listing key is read but never cached", async () => {
