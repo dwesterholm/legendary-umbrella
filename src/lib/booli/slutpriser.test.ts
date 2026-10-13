@@ -1124,7 +1124,7 @@ describe("enrichSoldRows", () => {
     const persist = vi.fn();
     const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 5, maxRenders: 1000, persist });
     expect(peak).toBe(5);
-    expect(res).toEqual({ enriched: 40, failed: 0, rendersUsed: 40 });
+    expect(res).toEqual({ enriched: 40, failed: 0, noData: 0, rendersUsed: 40 });
     expect(rows.every((r) => r.enriched?.buildYear === 1950 && r.enriched.balcony === true && r.enriched.listPrice === 3_000_000)).toBe(true);
     expect(persist).toHaveBeenCalledTimes(40);
   });
@@ -1173,7 +1173,7 @@ describe("enrichSoldRows", () => {
     };
     const persist = vi.fn();
     const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 3, maxRenders: 100, persist });
-    expect(res).toEqual({ enriched: 4, failed: 2, rendersUsed: 6 });
+    expect(res).toEqual({ enriched: 4, failed: 2, noData: 0, rendersUsed: 6 });
     expect(rows[1].enriched).toBeUndefined();
     expect(rows[3].enriched).toBeUndefined();
     expect(rows[0].enriched).toBeTruthy();
@@ -1184,7 +1184,7 @@ describe("enrichSoldRows", () => {
     const rows = [soldRow(500)];
     const render = async () => [{ hasApollo: true, flight: '1:"$Sreact.fragment"\n' }];
     const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 10, persist: () => {} });
-    expect(res).toEqual({ enriched: 0, failed: 1, rendersUsed: 1 });
+    expect(res).toEqual({ enriched: 0, failed: 0, noData: 1, rendersUsed: 1 });
     expect(rows[0].enriched).toBeUndefined();
   });
 
@@ -1226,7 +1226,7 @@ describe("enrichSoldRows", () => {
     const render = vi.fn(async () => okItems());
     const res = await enrichSoldRows({ rows, sample: [soldRow(901)], render, concurrency: 1, maxRenders: 10, persist: () => {} });
     expect(render).not.toHaveBeenCalled();
-    expect(res).toEqual({ enriched: 0, failed: 0, rendersUsed: 0 });
+    expect(res).toEqual({ enriched: 0, failed: 0, noData: 0, rendersUsed: 0 });
   });
 });
 
@@ -1275,7 +1275,7 @@ describe("selectEnrichmentSample and enrichSoldRows with reEnrich (14.4-02, R-03
       return [{ hasApollo: true, flight: '1:"$Sreact.fragment"\n' }];
     };
     const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {}, reEnrich: true });
-    expect(res).toEqual({ enriched: 0, failed: 2, rendersUsed: 2 });
+    expect(res).toEqual({ enriched: 0, failed: 1, noData: 1, rendersUsed: 2 });
     expect(rows[0].enriched).toEqual(oldShape);
     expect(rows[1].enriched).toEqual(oldShape);
   });
@@ -1390,7 +1390,7 @@ describe("failure ledger in enrichSoldRows (14.4-02, Pitfall 4)", () => {
     const persist = vi.fn();
     await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist, ledger, today: "2026-10-13" });
     expect(ledger["sold:1"]).toEqual({ attempts: 1, lastAt: "2026-10-13", reason: "BoomError" });
-    expect(ledger["sold:2"]).toEqual({ attempts: 1, lastAt: "2026-10-13", reason: "inget säljobjekt" });
+    expect(ledger["sold:2"]).toEqual({ attempts: ENRICH_MAX_ATTEMPTS, lastAt: "2026-10-13", reason: "no_data" });
     expect(JSON.stringify(ledger)).not.toContain("booli.se");
     expect(persist).toHaveBeenCalled(); // the ledger change is written too
 
@@ -1436,13 +1436,13 @@ describe("enrichStopReason (14.4-02, D-04 stop rule)", () => {
     expect(enrichStopReason({ challenged: 1, attempted: 3, failed: 0 })).toBe("utmaning");
     expect(enrichStopReason({ challenged: 2, attempted: 500, failed: 400 })).toBe("utmaning");
   });
-  it("stops at 5 % failures only after 50 attempts", () => {
-    expect([ENRICH_STOP_FAIL_RATE, ENRICH_STOP_MIN_ATTEMPTS]).toEqual([0.05, 50]);
-    expect(enrichStopReason({ challenged: 0, attempted: 49, failed: 10 })).toBeNull();
-    expect(enrichStopReason({ challenged: 0, attempted: 50, failed: 2 })).toBeNull();
-    expect(enrichStopReason({ challenged: 0, attempted: 50, failed: 3 })).toBe("felkvot");
+  it("stops at 5 % true failures only after 100 attempts", () => {
+    expect([ENRICH_STOP_FAIL_RATE, ENRICH_STOP_MIN_ATTEMPTS]).toEqual([0.05, 100]);
+    expect(enrichStopReason({ challenged: 0, attempted: 99, failed: 10 })).toBeNull();
     expect(enrichStopReason({ challenged: 0, attempted: 100, failed: 4 })).toBeNull();
     expect(enrichStopReason({ challenged: 0, attempted: 100, failed: 5 })).toBe("felkvot");
+    expect(enrichStopReason({ challenged: 0, attempted: 200, failed: 9 })).toBeNull();
+    expect(enrichStopReason({ challenged: 0, attempted: 200, failed: 10 })).toBe("felkvot");
   });
   it("is quiet for a clean run", () => {
     expect(enrichStopReason({ challenged: 0, attempted: 0, failed: 0 })).toBeNull();
@@ -1551,5 +1551,59 @@ describe("cache additions (14.4-02): brf and enrichFailures stay optional, versi
     expect(slutprisCacheSchema.parse(JSON.parse(JSON.stringify(full)))).toEqual(full);
     expect(slutprisCacheSchema.safeParse({ ...full, brf: { "12x": full.brf["268247"] } }).success).toBe(false);
     expect(slutprisCacheSchema.safeParse({ ...full, enrichFailures: { k: { attempts: -1, lastAt: "2026-10-13", reason: "x" } } }).success).toBe(false);
+  });
+});
+
+describe("no_data pages are not block signals (14.4-02, R-10)", () => {
+  const empty = async () => [{ hasApollo: true, flight: '1:"$Sreact.fragment"\n' }];
+
+  it("60 pages that render without a sold payload never trip the stop rule and never reach the failure count", async () => {
+    const rows = Array.from({ length: 60 }, (_, i) => soldRow(5000 + i));
+    const ledger: Record<string, { attempts: number; lastAt: string; reason: string }> = {};
+    const seen: Array<{ attempted: number; failed: number }> = [];
+    let challenged = 0;
+    const res = await enrichSoldRows({
+      rows,
+      sample: rows,
+      render: empty,
+      concurrency: 1,
+      maxRenders: 100,
+      persist: () => {},
+      ledger,
+      today: "2026-10-13",
+      budgetExceeded: (p) => {
+        seen.push({ ...p });
+        return enrichStopReason({ challenged, ...p }) !== null;
+      },
+    });
+    expect(res).toEqual({ enriched: 0, failed: 0, noData: 60, rendersUsed: 60 });
+    expect(seen.every((p) => p.failed === 0)).toBe(true);
+    expect(Object.values(ledger).every((e) => e.reason === "no_data" && e.attempts >= ENRICH_MAX_ATTEMPTS)).toBe(true);
+    challenged = 1;
+    expect(enrichStopReason({ challenged, attempted: 60, failed: 0 })).toBe("utmaning");
+  });
+
+  it("a no_data row is never selected again, a once-failed row still is", () => {
+    const rows = [soldRow(1), soldRow(2), soldRow(3)];
+    const ledger = {
+      "sold:1": { attempts: ENRICH_MAX_ATTEMPTS, reason: "no_data" },
+      "sold:2": { attempts: 1, reason: "BoomError" },
+    };
+    expect(selectEnrichmentSample(rows, 10, "s", { ledger }).map((r) => r.booliId).sort()).toEqual(["2", "3"]);
+  });
+
+  it("true render failures still count: 5 of 100 stops, and they are ledgered by class name", async () => {
+    const rows = Array.from({ length: 100 }, (_, i) => soldRow(7000 + i));
+    const ledger: Record<string, { attempts: number; lastAt: string; reason: string }> = {};
+    const flight = flightWith({ constructionYear: 1950, amenities: [], rent: { raw: 2000 } });
+    const render = async (url: string) => {
+      if (Number(url.split("/").pop()) % 20 === 0) throw new TypeError("x");
+      return [{ hasApollo: true, flight }];
+    };
+    const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 200, persist: () => {}, ledger, today: "2026-10-13" });
+    expect(res.failed).toBe(5);
+    expect(res.noData).toBe(0);
+    expect(enrichStopReason({ challenged: 0, attempted: res.rendersUsed, failed: res.failed })).toBe("felkvot");
+    expect(Object.values(ledger).every((e) => e.reason === "TypeError")).toBe(true);
   });
 });

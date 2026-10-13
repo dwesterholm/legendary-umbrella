@@ -19,7 +19,9 @@
  *       # --stratify draws the sample proportionally over district x size band (a fixed sample: a resumed run finishes it).
  *       # --max-minutes <n> stops scheduling after n minutes, saves, exits 0 (run again to continue).
  *       # The run stops itself (exit 2, no same-day retry) at the first Booli challenge page, or when 5 % of the attempts
- *       # have failed after at least 50 (D-04). A page that failed twice is skipped from then on (failure ledger in the cache).
+ *       # (render failures only) have failed after at least 100 (D-04, amended by R-10). A page that rendered without a sold
+ *       # payload is "no_data" (data age): ledgered, never retried, never counted toward the block signal. A page that
+ *       # failed twice is skipped from then on (failure ledger in the cache).
  *   npx tsx scripts/pull-slutpriser.ts --brf-pass --brf-max 1500 --renderer local --concurrency 2 --max-minutes 120
  *       # 14.4-02: second pass, one BRF page per distinct brfId of the v2 rows (loan, area, report year, debt per m2 into cache.brf)
  *   npx tsx scripts/pull-slutpriser.ts --enrich-report [--enrich-since 2025-10-01]
@@ -524,7 +526,7 @@ async function runEnrichment(opts: {
   console.log(`Start: ${t0.toISOString()}`);
   let succeeded = 0;
   let failedRenders = 0;
-  let failedNoObject = 0;
+  let noData = 0;
   let lastRealUsd = 0;
   let refreshing = false;
   // Local pages cost nothing; the capped Apify fallback is bounded by the renderer's own cap, not by this guard.
@@ -561,8 +563,9 @@ async function runEnrichment(opts: {
       startedAt: t0.toISOString(),
       at: new Date().toISOString(),
       attempted,
-      ok: succeeded - failedNoObject,
-      failedNoObject,
+      ok: succeeded - noData,
+      noData,
+      failedNoObject: noData,
       failedRender: failedRenders,
       challenged: st?.challenged ?? 0,
       retried: st?.retried ?? 0,
@@ -587,7 +590,7 @@ async function runEnrichment(opts: {
       const attempted = succeeded + failedRenders;
       if (!opts.renderer.local && attempted % SPEND_REFRESH_EVERY === 0) refreshReal();
       if (attempted % 10 === 0) {
-        console.log(`  ${attempted} sidor lästa (${failedRenders + failedNoObject} misslyckade, ${browser.stats()?.challenged ?? 0} utmaningar, uppskattat ${spentUsd().toFixed(2)} USD)`);
+        console.log(`  ${attempted} sidor lästa (${failedRenders} misslyckade, ${noData} no_data, ${browser.stats()?.challenged ?? 0} utmaningar, uppskattat ${spentUsd().toFixed(2)} USD)`);
       }
       if (attempted % 100 === 0) batchLine(false);
     }
@@ -608,7 +611,7 @@ async function runEnrichment(opts: {
       persist: () => persist(cache),
       budgetExceeded: guard.check,
       onProgress: (msg) => {
-        if (msg.includes("inget läsbart")) failedNoObject += 1;
+        if (msg.includes("(no_data)")) noData += 1;
         console.log(`  ${msg}`);
       },
     });
@@ -622,7 +625,7 @@ async function runEnrichment(opts: {
   guard.finalStopRule({ attempted: result.rendersUsed, failed: result.failed });
   batchLine(true);
 
-  console.log(`\nBerikning klar. Renders: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}). Berikade rader: ${result.enriched}, misslyckade: ${result.failed}.`);
+  console.log(`\nBerikning klar. Renders: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}). Berikade rader: ${result.enriched}, misslyckade: ${result.failed}, no_data: ${result.noData}.`);
   const enrichedRows = cache.rows.filter((r) => r.enriched);
   const withYear = enrichedRows.filter((r) => r.enriched?.buildYear != null).length;
   const withBalcony = enrichedRows.filter((r) => r.enriched?.balcony === true).length;
@@ -668,7 +671,7 @@ async function runEnrichment(opts: {
     console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
   }
   const outcome = printStopReason(guard.why(), { attempted: result.rendersUsed, failed: result.failed }, opts.maxMinutes);
-  if (outcome === "ok" && guard.why() === null && (result.failed > 0 || result.rendersUsed < sample.length)) {
+  if (outcome === "ok" && guard.why() === null && (result.failed > 0 || result.noData > 0 || result.rendersUsed < sample.length)) {
     console.log("Kör samma kommando igen för att fortsätta (redan berikade rader renderas inte om).");
   }
   return outcome;
@@ -737,6 +740,7 @@ async function runBrfPass(opts: {
       at: new Date().toISOString(),
       attempted: p.attempted,
       ok: p.attempted - p.failed,
+      noData: 0,
       failedNoObject: 0,
       failedRender: p.failed,
       challenged: st?.challenged ?? 0,
@@ -812,6 +816,7 @@ function printEnrichReport(cache: SlutprisCache, since: string): void {
   const read = [...brfIds].filter((id) => brf[id]);
   const withDebt = read.filter((id) => typeof brf[id].debtPerSqm === "number").length;
   const failures = Object.keys(cache.enrichFailures ?? {});
+  const noDataCount = Object.values(cache.enrichFailures ?? {}).filter((e) => e.reason === "no_data").length;
   console.log("=== BERIKNINGSRAPPORT (14.4-02) ===");
   console.log(`Berikade (v2): ${v2.length} av ${eligible.length} sålda från ${since}`);
   console.log(`Avgift: ${withRent} (${pctSv(withRent, v2.length)})`);
@@ -821,7 +826,7 @@ function printEnrichReport(cache: SlutprisCache, since: string): void {
   console.log(`Bild-id: ${withImages.length} rader med minst ett (${pctSv(withImages.length, v2.length)})`);
   console.log(`Bild-id och utgångspris: ${withImagesAndAsk} rader`);
   console.log(`Föreningar lästa: ${read.length} av ${brfIds.size}, med skuld/kvm ${withDebt}`);
-  console.log(`Misslyckade enligt loggboken: sålda ${failures.filter((k) => k.startsWith("sold:")).length}, föreningar ${failures.filter((k) => k.startsWith("brf:")).length}`);
+  console.log(`Misslyckade enligt loggboken: sålda ${failures.filter((k) => k.startsWith("sold:")).length} (varav no_data ${noDataCount}), föreningar ${failures.filter((k) => k.startsWith("brf:")).length}`);
 }
 
 // ---------------------------------------------------------------------------

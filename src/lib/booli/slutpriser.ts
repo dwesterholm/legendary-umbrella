@@ -76,9 +76,14 @@ export const IMAGE_IDS_MAX = 8;
 export const ENRICH_BATCH_MAX = 1500;
 /** A sold page or BRF page that failed this many times is skipped from then on (Pitfall 4: no endless re-picks). */
 export const ENRICH_MAX_ATTEMPTS = 2;
-/** D-04 stop rule: this share of failed attempts, once at least ENRICH_STOP_MIN_ATTEMPTS were made, ends the run. */
+/**
+ * D-04 stop rule (amended by R-10): this share of TRUE render failures, once at least ENRICH_STOP_MIN_ATTEMPTS
+ * attempts were made, ends the run. A page that renders without a sold payload is "no_data" (data age), not a failure.
+ */
 export const ENRICH_STOP_FAIL_RATE = 0.05;
-export const ENRICH_STOP_MIN_ATTEMPTS = 50;
+export const ENRICH_STOP_MIN_ATTEMPTS = 100;
+/** Ledger reason for a page that rendered but carries no sold-flat payload (R-10). Such a row is never retried. */
+export const NO_DATA_REASON = "no_data";
 
 // ---------------------------------------------------------------------------
 // Types and schemas
@@ -1050,7 +1055,10 @@ export interface EnrichOptions {
 
 export interface EnrichResult {
   enriched: number;
+  /** True failures: the render threw. These feed the block signal. */
   failed: number;
+  /** Pages that rendered but held no sold payload (R-10); never a block signal. */
+  noData: number;
   rendersUsed: number;
 }
 
@@ -1092,12 +1100,19 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
   let rendersUsed = 0;
   let enriched = 0;
   let failed = 0;
+  let noData = 0;
   let stopped = false;
 
   const recordFailure = (booliId: string, reason: string): void => {
     if (!opts.ledger || !opts.today) return;
     const key = `sold:${booliId}`;
     opts.ledger[key] = recordedFailure(opts.ledger[key], opts.today, reason);
+    opts.persist();
+  };
+  // R-10: an expired page will not come back, so it goes straight to the retry limit.
+  const recordNoData = (booliId: string): void => {
+    if (!opts.ledger || !opts.today) return;
+    opts.ledger[`sold:${booliId}`] = { attempts: ENRICH_MAX_ATTEMPTS, lastAt: opts.today, reason: NO_DATA_REASON };
     opts.persist();
   };
 
@@ -1130,9 +1145,9 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
       facts.daysActive === null &&
       facts.firstPrice === null
     ) {
-      failed += 1;
-      opts.onProgress?.(`${row.booliId}: sidan hade inget läsbart säljobjekt`);
-      recordFailure(row.booliId, "inget säljobjekt");
+      noData += 1;
+      opts.onProgress?.(`${row.booliId}: sidan hade inget läsbart säljobjekt (no_data)`);
+      recordNoData(row.booliId);
       return;
     }
     // Overwrite only after a successful read: a failed re-read keeps the row's old data.
@@ -1152,7 +1167,7 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
     const first = rejected[0].reason;
     throw new Error(`${rejected.length} berikning(ar) avbröts oväntat: ${first instanceof Error ? first.message : String(first)}`);
   }
-  return { enriched, failed, rendersUsed };
+  return { enriched, failed, noData, rendersUsed };
 }
 
 // ---------------------------------------------------------------------------
@@ -1162,7 +1177,7 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
 /**
  * Why a long enrichment run must stop now, or null. A challenge page from Booli
  * stops it at once, whatever the attempt count; failures stop it once at least
- * ENRICH_STOP_MIN_ATTEMPTS were made and ENRICH_STOP_FAIL_RATE of them failed.
+ * ENRICH_STOP_MIN_ATTEMPTS were made and ENRICH_STOP_FAIL_RATE of them failed (true render failures only; no_data pages do not count).
  */
 export function enrichStopReason(s: { challenged: number; attempted: number; failed: number }): "utmaning" | "felkvot" | null {
   if (s.challenged > 0) return "utmaning";
