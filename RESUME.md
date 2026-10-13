@@ -6,6 +6,34 @@
 
 ---
 
+## ▶️ PICK UP HERE (2026-10-13, written before Daniel cleared the session)
+
+Daniel's instruction: **go ahead with Phase 14.4, three parts in this order, autonomously** (question
+budget 0 — decide, record, report). Scope + his reasoning: ROADMAP "### Phase 14.4"; memory
+`daniel-fit-score-decisions` (2026-10-13 additions).
+
+Resume with: `/gsd-plan-phase 14.4 --auto` (writes CONTEXT.md first from the roadmap section; no
+discuss step). Execute sequentially on the working tree (`workflow.use_worktrees=false`); ff-merge
+main + push after every wave; Fable 5.1 trailer on orchestrator commits.
+
+Part 1 — valuation covers the gaps: enrich ≈7 400 cached sales (`.planning/calibration/data/
+slutpriser-cache.json`) with avgift/kvm, BRF debt/kvm (`src/lib/booli/brf-page.ts`, dedup by BRF
+≈1 500 pages), tenure + listing age (sold-detail pages, Oct 2025+ only) via the FREE local rung;
+refit `data/hedonic-model.json`; REMOVE the 20 % credit cap (`MAX_CREDIT_PCT` in fit-score.ts);
+keep a soft residual flag; report how the old `kredit-tak` gaps are now explained and how the
+top 15 moves. Part 2 — layout & livability: one cached slim vision call per flat (≈0,5 kr; NOT
+the compass): balcony side, rooms on it, windows one vs two sides (korsdrag), bedroom street/
+courtyard, street-vs-courtyard confirmed from photos; combine with 14.3's footprint bearing →
+room-level sun; drop `streetOnlyFactor` where layout known; korsdrag + quiet-bedroom as taste
+terms and mail flags; calibration Folkungagatan 61 (sun yes, korsdrag no, bedroom on the
+street). Part 3 — condition-aware bid premium.
+
+UAT: 14.1 and 14.3 items all answered by Daniel 2026-10-13 (files updated). If `phase.complete`
+still refuses, run `/gsd-verify-work 14.1` / `14.3` once — every answer is already in the UAT files.
+Everything else (weekly job one-time steps) unchanged: scripts/launchd/README.md.
+
+---
+
 ## ▶️ STATUS 2026-10-13 (evening) — Phase 14.3 executed 8/8; review + verification running
 
 Sun coverage is solved without on-site visits: `sol härledd 74 av 76 (97,4 %)` live, 75/77 replay.

@@ -110,123 +110,21 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 **UI hint**: yes
 
-### Phase 14.1: Personal Fit Score (INSERTED)
+### Phase 14.4: Valuation Gaps, Layout & Livability (INSERTED 2026-10-13)
 
-**Goal**: An innerstan run ranks candidates by **estimated flip profit in kronor** after ~1 year, not by a hand-weighted taste model. Profit = expected renovated resale value − purchase price − renovation cost. No tax (uppskov on a same-year replacement purchase, interest-free since 2021), no broker/holding cost (equal across flats, does not change the order). A taste bonus capped at ~5 % of resale value breaks ties toward morning sun (stated E/SE/S facade) and the hubs Daniel loves (SoFo/Folkungagatan, Medborgarplatsen, Mariatorget, Slussen, Katarina Bangata, central Kungsholmen). Taste otherwise lives in hard filters only: lägenhet, ≥35 kvm, asking ≤4.0 M kr, innerstan. Floor is NOT a filter — the hedonic model prices it.
-**Mechanics**:
+**Why (Daniel, 2026-10-13):** "Why not cover the gaps instead of slapping on a hardcoded ceiling of 20 %? All those things (high avgift, BRF debt etc.) should go into the valuation." And: the valuation ignores the photos entirely today — they only set the renovation cost and the sun/taste part. The floor plan + photos can give, with high confidence, where the balcony is, which rooms are on the street side, whether windows sit on one or two sides (korsdrag), and whether the bedroom faces a busy street. For Daniel korsdrag (not boiling in summer) and a bedroom he can keep open at night matter a lot, and buyers price them too (long-term resale).
 
-1. *Market premiums from sold prices.* Pull Booli slutpriser for Södermalm/Kungsholmen/Vasastan/Östermalm (≥35 kvm, last 12–18 months, floor + balcony + build year + coordinates) and fit a hedonic kr/m² model: micro-area, floor, balcony, build year, size band, distance to nearest hub. These coefficients ARE the weights — floor and balcony are worth what the market paid, not what we guessed. Existing `area-comps.ts` (R_med/U_med) is the seed.
-2. *Purchase price* = asking × district bid premium (Söder +7–10 %, Kungsholmen +3–4 %, from the same slutpris data).
-3. *Renovation cost* by tier from the existing `RENO_COST_MATRIX` / `flip-economics.ts`, driven by the VISION condition verdict. This lifts the v1.1 rule that vision never re-orders: deterministic pre-rank over all 60 candidates, vision on the top ~20 (`VISION_ENRICH_LIMIT` 8 → 20, cost cap raised accordingly), then the profit estimate re-sorts. The static-grep separation test is amended, not deleted: `niche-score.ts` stays pure; a NEW module composes profit from niche + vision + comps.
-4. *Headless first.* Output is a ranked table (script / later the 14.2 email), no UI work — Daniel will not use the UI until the model is tuned.
-
-**Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
-**Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
-**Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
-**Plans:** 10/10 plans executed
+**Goal, three parts in this order:**
+1. **Valuation covers the gaps (replaces the 20 % credit cap).** Enrich the sold-price training set with avgift/kvm, BRF debt/kvm (Booli public BRF page, parser from 14.2), tenure/tomträtt and listing age via the free local rung (≈7 400 sales → ≈1 500 BRF pages; sold-detail pages only serve sales from Oct 2025 on, so tenure is partial — say so). Refit `data/hedonic-model.json` with those features; remove the 20 % credit cap; keep only a soft residual flag ("ovanligt långt under modellpris") for gaps no feature explains. Measure how much of the old `kredit-tak` gaps the new features explain, and how the top 15 moves.
+2. **Layout & livability from floor plan + photos.** One extra cached vision call per flat (≈0,5 kr; slim strict schema; never the compass): balcony side relative to the plan, rooms on the balcony side (living/kitchen/bedroom), windows on one side or two opposite sides (korsdrag ja/nej), bedroom on street or courtyard side, street-vs-courtyard confirmed from the photos (cars, opposite facade). Combine with 14.3's footprint bearing (street side known) → room-level sun hours, the 0.5 street-only factor goes away where the layout is known, korsdrag and quiet-bedroom become explicit taste terms AND mail flags. Calibration row: Folkungagatan 61 (balcony + living + glass-walled bedroom on the south street side, no courtyard windows → sun yes, korsdrag no, bedroom on Folkungagatan).
+3. **Condition-aware bidding.** The expected final price (asking × district premium) ignores that bidders see the same photos; let the picture-read condition adjust the premium (dated bids up less), fitted where the sold data allows, otherwise a documented prior.
+**Requirements**: TBD (prefix VAL-, LAY-, BID-)
+**Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
+**Plans:** 0 plans
 
 Plans:
-**Wave 1**
 
-- [x] 14.1-01-PLAN.md — Wave 0 data fixes (en-dash premium sign, balcony merge, orientation keywords + sun phrases), prototype copy, replay snapshot fixture, separation-test registration
-- [x] 14.1-02-PLAN.md — Wave 0 Booli probes (≤7 renders) + real Apify spend ledger and monthly headroom
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 14.1-03-PLAN.md — Tracer: offline replay snapshot → hedonic prediction → reno bundle → profit → ranked table
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 14.1-04-PLAN.md — Slutpris dataset: tested library + resumable puller + live pull of four districts
-- [x] 14.1-05-PLAN.md — Hedonic fit library: Cholesky ridge, LOO neighbour level, CV, sign guard with priors, bid premium
-- [x] 14.1-06-PLAN.md — Vision claims → reno cost, taste bonus module, vision cap 25 SEK
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 14.1-07-PLAN.md — Fit-score composition, flags, pre-rank/window/final rank, D-15 fixture suite
-- [x] 14.1-08-PLAN.md — Sold-detail enrichment branch (R-05) + fit and commit the real model
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 14.1-09-PLAN.md — Headless pipeline (runFitPipeline) + live mode of scripts/fit-score.ts
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
-- [x] 14.1-10-PLAN.md — Live innerstan run, Folkungagatan 61 readout, in-app smoke closing 13-03 and 14-UAT test 1
-
-### Phase 14.2: Trustworthy Weekly Table (INSERTED)
-
-**Goal**: The weekly innerstan list becomes something Daniel can act on, produced without Apify and delivered by email with only new/changed flats. Today's list (14.1, 2026-10-13) ranks "big and cheap for its location" correctly but cannot tell a reno object from a problem listing, reads pictures/sun for only the top 20, has no BRF debt, and expects most of the top 20 to close above 4 M.
-**Plans, in this order (plan 1 is mandatory first — Daniel 2026-10-13):**
-
-1. **Local browser rung.** A headed local Playwright Chromium rung (`headless: false`, AutomationControlled disabled, sv-SE) as rung 0 for the HEADLESS scripts only (`scripts/fit-score.ts`, pull/enrich); Apify stays the fallback and the in-app job is untouched. Verified 2026-10-13: search, slutpris and detail pages all 200 with full data in ~5 s from this Mac; headless detail → 403 "Vänta...". Spend ledger prints 0 USD for local pages. Memory: `booli-local-browser-works`.
-2. **Every candidate read, not only the top 20.** With local pages ≈ free, fetch the detail + broker page for ALL filtered candidates (~75): stated orientation/sun phrases, floor, balcony, build year, tenure, avgift, listing age/"budgivning pågår"; run vision on all of them within `CAP_VISION_SEK_MAX` (raise if needed, log the SEK). The taste and reno inputs stop being "unknown" for most rows.
-3. **Problem-listing vs reno-object separation.** Explain every `kredit-tak` / `dold-defekt-risk` row: tomträtt/andelsrätt, stale listing (days on market), price cut history, BRF debt per kvm and avgift per kvm (from Booli's detail payload where present; Allabrf is dead), new-production. Rows the model cannot explain stay flagged with a plain-Swedish reason column ("varför här").
-4. **Model decisions applied (orchestrator calls, Daniel to confirm):** drop the sign rule for size (data t = 8.4, market-derived per the north star) and refit for free; keep the 20 % credit cap but print the uncapped gap beside it; show "under 4 M förväntat" as its own section at the top of the table since that is what Daniel can actually win; Folkungagatan 61 stays a watched listing, measured.
-5. **Seen-listing memory + weekly email.** Persist seen Booli ids + last asking price (local JSON or the local Supabase); weekly run on this Mac (launchd/cron, Mac is the E2E runner and stays awake); email only new or price-changed rows with the full column set + the "varför här" reason + Booli link; zero mail on a quiet week.
-
-**Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
-**Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 9/9 plans complete
-
-Plans:
-**Wave 1**
-
-- [x] 14.2-01-PLAN.md — Local browser rung (D-01, first): transport renderer seam, headed local Chromium, parity test, challenge/one-retry/no-Apify gate, local default in the headless scripts, 0 USD ledger after a settle wait (one pinned runs-API line), playwright pinned
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 14.2-02-PLAN.md — Complete district lists (Booli's own total, up to 15 pages; in-app dead-page detection unchanged) + CandidateFacts from Booli payloads, with real local fixtures
-- [x] 14.2-03-PLAN.md — 14.1 review fixes WR-01..WR-04 (reno-tier negation, "genomgående", slutpris resume) + stated-sun phrase list
-- [x] 14.2-04-PLAN.md — Model decisions: size sign rule dropped + free refit committed, uncapped gap column, "Förväntat under 4 M" / "Över 4 M förväntat" sections
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 14.2-05-PLAN.md — Every candidate read (free): detail + broker + facts for all, complete districts, coverage line
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 14.2-06-PLAN.md — Vision for every candidate: 3 lanes, 60 SEK run cap, cache; paid 10-flat smoke across all lanes + cached rerun
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 14.2-07-PLAN.md — "Varför här": BRF debt per kvm from Booli's public BRF page + deterministic reason rules on every flagged row (incl. "snart till salu")
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
-- [x] 14.2-08-PLAN.md — Seen-listing memory, run lock, weekly HTML e-mail via nodemailer (HTML-file fallback), quiet weeks send nothing
-
-**Wave 7** *(blocked on Wave 6 completion)*
-
-- [x] 14.2-09-PLAN.md — LaunchAgent (Monday 07:00, documented, not installed) + the real evidence run, quiet rerun, lock check and D-17 readout (condition/balcony under 80 % = gaps, sun under 80 % = 14.3 scope)
-
-### Phase 14.3: Sun & Orientation Spike (INSERTED)
-
-**Goal**: Two measurements, then go/no-go. (a) *Orientation*: how many innerstan listings state no väderstreck, and whether the street-facade bearing can be inferred from the OpenStreetMap building footprint or by reading the compass on the floor-plan image with vision. (b) *Real sun hours*: whether obstructed sun-per-facade-per-month can be computed from a desk — flat position + floor height (~3 m/floor) against footprints and heights of buildings within ~150 m, ray-checked against the sun path from `sun-path.ts`. Height data is the risk: OSM heights are partial in innerstan; check Stockholms stad / Lantmäteriet 3D building data for open access and format. Target accuracy ±1 h; no room-level detail. Sun Tracker AR (phone app) has no API and needs on-site presence, so it is not a source.
-**Requirements**: SUN-01, SUN-02, SUN-03, SUN-04, SUN-05, SUN-06
-**Depends on:** Phase 14.1 (the taste bonus and resale model are the consumers)
-**Plans:** 8/8 plans executed
-
-Plans:
-**Wave 1**
-
-- [x] 14.3-01-PLAN.md — Tracer: OSM fixture -> footprint street/courtyard facade -> "Sol" column (Folkungagatan 61 = S); relations, snapping, corners, okänd reasons; SunFact contract
-- [x] 14.3-02-PLAN.md — Overpass download (endpoint list, validation) + local cache with the 31-day refresh rule; the real one-off download (free)
-- [x] 14.3-03-PLAN.md — Floor-plan compass probe: slim separate Haiku call, live smoke, 12 plans for at most 2 kr, go/no-go at 10 %
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 14.3-04-PLAN.md — Building heights + sun-hours engine: theoretical and obstructed hours, low/nominal/high (+-3 m), 250 m ray-check, DST-safe windows
-- [x] 14.3-05-PLAN.md — Precedence: stated > plan > footprint, konflikt over 90 degrees, okänd scores 0
-- [x] 14.3-06-PLAN.md — Taste: inferred facade x confidence x 0,5 street-only x obstruction factor, cap unchanged
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 14.3-07-PLAN.md — Wiring: sun stage before ranking (live + replay), no Overpass while the cache is fresh, Sol columns in table and mail, "sol härledd" coverage, sun report
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 14.3-08-PLAN.md — Evidence: free live run + replay of the 2026-10-13 snapshot, Folkungagatan 61 calibration, D-17 sun clause verdict
+- [ ] TBD (run /gsd-plan-phase 14.4 to break down)
 
 ### Phase 15: ROI-Aware Opportunity Brief
 
