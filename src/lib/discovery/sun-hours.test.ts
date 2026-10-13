@@ -223,8 +223,10 @@ describe("sideHours: a tall wall due south", () => {
     const found = crossings(p.azimuth, south, 250);
     expect(found.length).toBeGreaterThan(0);
     expect(isBlocked(found, 10, Math.tan((p.altitude * Math.PI) / 180), 0)).toBe(false);
-    expect(side.jun.obstructedWindow?.nominal).toBeGreaterThan(0);
-    expect(side.jun.obstructedWindow?.nominal).toBeLessThan(side.jun.theoreticalWindow);
+    // A June ray over a 20 m gap needs 45 degrees to clear 30 m; the June sun is higher than that from 08:12 to 13:24 UTC.
+    expect(side.jun.obstructedWindow?.nominal).toBe(side.jun.theoreticalWindow);
+    // In March the equinox sun peaks near 31 degrees: the same wall takes most of the window.
+    expect(side.mar.obstructedWindow?.nominal).toBeLessThan(side.mar.theoreticalWindow / 2);
   });
 
   it("wall: the same wall that blocks all of December leaves some June sun, so the season changes the answer", () => {
@@ -340,8 +342,10 @@ describe("sideHours: envelope", () => {
   it("envelope: +-3 m on the neighbours really moves the answer for a wall near the ray's height", () => {
     // Wall top 12 m at 20 m: the ray equals it at tan 0,1; a 3 m taller wall blocks higher sun, a 3 m lower one lets more through.
     const side = sideHours({ ...here, bearingDeg: 180, z: 10, walls: [wall(-50, -20, 50, -20, 12)] });
-    expect(side.dec.obstructedDay?.low).toBeLessThan(side.dec.obstructedDay?.high ?? 0);
-    expect(side.mar.obstructedDay?.low).toBeLessThan(side.mar.obstructedDay?.high ?? 0);
+    expect(side.dec.obstructedDay?.low).toBe(0);
+    expect(side.dec.obstructedDay?.high).toBe(side.dec.theoreticalDay);
+    expect(side.dec.obstructedDay?.nominal).toBeGreaterThan(side.dec.obstructedDay?.low ?? 1);
+    expect(side.dec.obstructedDay?.nominal).toBeLessThan(side.dec.obstructedDay?.high ?? 0);
   });
 
   it("floor below: the same flat one storey (3 m) lower gets no more window sun than the nominal flat, and the clamp stops at 1,5 m", () => {
