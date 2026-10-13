@@ -335,6 +335,20 @@ export function pointInBuilding(building: OsmBuilding, lng: number, lat: number)
  * innerstan median of 5 storeys (17 m). Every height that does not come from a
  * tag is marked `estimated`, which prints as "höjd uppskattad".
  *
+ * SANITY RULE (14.3 review CR-01): a `height` tag is used as it is UNLESS it is
+ * implausible, because one bad import (Ringen centrum, way/715073073: 151,7 m on
+ * a six-storey mall) put a 150 m wall next to Skanstull and moved the shade
+ * hours of every flat in reach. A tag is "orimlig" when it is more than
+ * `suspectFactor` (2,5) times the largest of the storey formula, the local
+ * median and the innerstan typical height (17 m; without that floor a low-rise
+ * pocket with a 5,75 m median made Vasamuseet's 41 m and the palace's 39 m
+ * look absurd), or more than `suspectAbsM` (60 m) on a building of at most
+ * `suspectAbsMaxLevels` (8) storeys. An orimlig tag is replaced by the storey
+ * formula (else the local median), marked `estimated` AND `suspect`, and
+ * counted by {@link suspectHeights}. Genuinely tall landmarks are exempt:
+ * churches, towers and chimneys by tag (`trustedBuildingTypes`,
+ * `trustedManMade`) and a few named ways by OSM id (`trustedTallIds`).
+ *
  * The research prototype also added 1,5 m per `roof:levels`. That term is
  * left out on purpose: the locked formula is levels x 3 + 2, and the +-3 m
  * envelope the hours engine applies to every neighbour already covers an attic
@@ -355,12 +369,29 @@ export const HEIGHT_PARAMS = {
   fallbackLevels: 5,
   gridCellM: 150,
   wallMarginM: 50,
+  /** A height tag above this many times max(storey formula, local median, innerstan typical height) is orimlig. */
+  suspectFactor: 2.5,
+  /** ... and so is any tag above this many metres on a building of at most `suspectAbsMaxLevels` storeys. */
+  suspectAbsM: 60,
+  suspectAbsMaxLevels: 8,
+  /** Tall by nature: a church spire or a chimney is not a data error. `building=` values. */
+  trustedBuildingTypes: ["church", "cathedral", "chapel", "mosque", "synagogue", "temple", "tower", "chimney"] as readonly string[],
+  /** ... and `man_made=` values. */
+  trustedManMade: ["tower", "chimney", "mast", "lighthouse", "water_tower", "silo", "communications_tower"] as readonly string[],
+  /**
+   * Named tall landmarks that are neither a church nor a tower by tag, checked by hand against the
+   * innerstan extract (2026-10-13): the Gröna Lund rides Fritt fall (80 m) and Katapulten (55 m), and
+   * the 121 m industrial "torn". Add an id here when `suspectHeights` lists a real landmark.
+   */
+  trustedTallIds: ["way/1122922291", "way/1122927971", "way/877287650"] as readonly string[],
 } as const;
 
 /** A building's height in metres and whether it is our estimate rather than a tag. */
 export interface BuildingHeight {
   readonly heightM: number;
   readonly estimated: boolean;
+  /** Present (true) only when the building carries a height tag we rejected as orimlig; `heightM` is then our estimate. */
+  readonly suspect?: true;
 }
 
 /** A wall segment in metres east/north of a point, with the height of its building. */
@@ -397,6 +428,54 @@ export function heightOf(tags: Readonly<Record<string, string>>): BuildingHeight
   if (levels !== null) return { heightM: levels * HEIGHT_PARAMS.storeyM + HEIGHT_PARAMS.baseM, estimated: false };
   if (isSmallType(tags)) return { heightM: HEIGHT_PARAMS.smallM, estimated: true };
   return null;
+}
+
+/** The tag value of `height` when it is a positive number, else null. */
+function taggedHeightOf(tags: Readonly<Record<string, string>>): number | null {
+  const tagged = firstNumber(tags.height);
+  return tagged !== null && tagged > 0 ? tagged : null;
+}
+
+const baseIdOf = (id: string): string => id.replace(/#\d+$/, "");
+
+/** Tall by nature (church, tower, chimney) or a hand-checked landmark: its height tag is believed whatever its size. */
+function isTrustedTall(id: string, tags: Readonly<Record<string, string>>): boolean {
+  const P = HEIGHT_PARAMS;
+  return (
+    P.trustedTallIds.includes(baseIdOf(id)) ||
+    (tags.building !== undefined && P.trustedBuildingTypes.includes(tags.building)) ||
+    (tags.man_made !== undefined && P.trustedManMade.includes(tags.man_made))
+  );
+}
+
+/** The storey-formula height of a building, or null without a storey count. */
+const heightFromLevels = (levels: number | null): number | null =>
+  levels === null ? null : levels * HEIGHT_PARAMS.storeyM + HEIGHT_PARAMS.baseM;
+
+/** Is this height tag orimlig next to `reference` (the largest of the storey formula, the local median and the innerstan typical height)? */
+function isOrimlig(tagged: number, levels: number | null, reference: number): boolean {
+  const P = HEIGHT_PARAMS;
+  if (tagged > P.suspectFactor * reference) return true;
+  return levels !== null && levels <= P.suspectAbsMaxLevels && tagged > P.suspectAbsM;
+}
+
+/** Innerstan's typical height (5 storeys), the stand-in for the local median where no neighbourhood is known yet. */
+const FALLBACK_HEIGHT_M = HEIGHT_PARAMS.fallbackLevels * HEIGHT_PARAMS.storeyM + HEIGHT_PARAMS.baseM;
+
+/**
+ * The height a building contributes to a NEIGHBOUR's median: its own tags, with an orimlig height tag
+ * judged against the storey formula and the innerstan typical height (no neighbourhood needed), so one
+ * bad tag cannot pull a median. A rejected tag with a storey count gives the storey formula; without
+ * one the building contributes nothing.
+ */
+function neighbourContribution(id: string, tags: Readonly<Record<string, string>>): number | null {
+  if (isSmallType(tags)) return null;
+  const own = heightOf(tags);
+  const tagged = taggedHeightOf(tags);
+  if (own === null || tagged === null || isTrustedTall(id, tags)) return own?.heightM ?? null;
+  const levels = levelsOf(tags);
+  if (!isOrimlig(tagged, levels, Math.max(heightFromLevels(levels) ?? 0, FALLBACK_HEIGHT_M))) return own.heightM;
+  return heightFromLevels(levels);
 }
 
 interface GeometryContext {
@@ -453,7 +532,7 @@ function geometryContextOf(index: OsmIndex): GeometryContext {
     const distinct = Math.max(1, b.outer.length - 1);
     centroids.push([sx / distinct, sy / distinct]);
     outerXY.push(xy);
-    neighbourHeight.push(isSmallType(b.tags) ? null : (heightOf(b.tags)?.heightM ?? null));
+    neighbourHeight.push(neighbourContribution(b.id, b.tags));
     for (let cx = Math.floor(minX / cell); cx <= Math.floor(maxX / cell); cx++) {
       for (let cy = Math.floor(minY / cell); cy <= Math.floor(maxY / cell); cy++) {
         const key = cellKey(cx, cy);
@@ -476,45 +555,91 @@ function median(values: number[]): number {
 }
 
 /**
+ * The median of the neighbour contributions of ordinary buildings whose centre is within 150 m of
+ * (cx0, cy0) (inclusive, compared at one decimal so 150,0 m counts and 150,1 m does not), `skip`
+ * (the building itself) left out; null when none is in reach. Neighbours come from a 150 m grid
+ * (3 x 3 cells), never an all-pairs scan.
+ */
+function localMedian(ctx: GeometryContext, cx0: number, cy0: number, skip: number | undefined): number | null {
+  const cell = HEIGHT_PARAMS.gridCellM;
+  const seen = new Set<number>();
+  const values: number[] = [];
+  for (let cx = Math.floor(cx0 / cell) - 1; cx <= Math.floor(cx0 / cell) + 1; cx++) {
+    for (let cy = Math.floor(cy0 / cell) - 1; cy <= Math.floor(cy0 / cell) + 1; cy++) {
+      for (const j of ctx.cells.get(cellKey(cx, cy)) ?? []) {
+        if (seen.has(j)) continue;
+        seen.add(j);
+        if (j === skip) continue;
+        const h = ctx.neighbourHeight[j];
+        if (h === null) continue;
+        const [x, y] = ctx.centroids[j];
+        if (Math.round(Math.hypot(x - cx0, y - cy0) * 10) <= HEIGHT_PARAMS.neighbourRadiusM * 10) values.push(h);
+      }
+    }
+  }
+  return values.length > 0 ? median(values) : null;
+}
+
+/**
  * The height of a building, resolved lazily and memoised per building id: its
  * own tags first, else the median of the tag-derived heights of ordinary
- * buildings whose centre is within 150 m (inclusive, compared at one decimal
- * so 150,0 m counts and 150,1 m does not), else 5 storeys = 17 m. The result
- * does not depend on the order of `index.buildings`. Neighbours are found
- * through a 150 m grid (3 x 3 cells), never an all-pairs scan.
+ * buildings whose centre is within 150 m, else 5 storeys = 17 m. The result
+ * does not depend on the order of `index.buildings`.
+ *
+ * A `height` tag that is orimlig (see HEIGHT_PARAMS: more than 2,5 times the
+ * larger of the storey formula and the local median, or over 60 m on at most 8
+ * storeys, and not a church, tower or listed landmark) is NOT used: the height
+ * becomes the storey formula, else the local median, marked `estimated` and
+ * `suspect`.
  */
 export function buildingHeight(index: OsmIndex, building: OsmBuilding): BuildingHeight {
   const ctx = geometryContextOf(index);
   const memoised = ctx.memo.get(building.id);
   if (memoised !== undefined) return memoised;
 
+  const at = ctx.position.get(building);
+  const centre = (): [number, number] => (at !== undefined ? [ctx.centroids[at][0], ctx.centroids[at][1]] : centroidOf(building, ctx.proj));
   let result: BuildingHeight;
   const own = heightOf(building.tags);
-  if (own !== null) {
+  const tagged = taggedHeightOf(building.tags);
+  if (own !== null && tagged !== null && !isTrustedTall(building.id, building.tags)) {
+    const levels = levelsOf(building.tags);
+    const fromLevels = heightFromLevels(levels);
+    // The local median only matters when the tag is big enough to be orimlig against the storey formula alone.
+    const [cx0, cy0] = centre();
+    const reference =
+      tagged > HEIGHT_PARAMS.suspectFactor * Math.max(fromLevels ?? 0, FALLBACK_HEIGHT_M)
+        ? Math.max(fromLevels ?? 0, localMedian(ctx, cx0, cy0, at) ?? 0, FALLBACK_HEIGHT_M)
+        : Infinity;
+    if (isOrimlig(tagged, levels, reference)) {
+      result = { heightM: fromLevels ?? localMedian(ctx, cx0, cy0, at) ?? FALLBACK_HEIGHT_M, estimated: true, suspect: true };
+    } else {
+      result = own;
+    }
+  } else if (own !== null) {
     result = own;
   } else {
-    const at = ctx.position.get(building);
-    const [cx0, cy0] = at !== undefined ? ctx.centroids[at] : centroidOf(building, ctx.proj);
-    const cell = HEIGHT_PARAMS.gridCellM;
-    const seen = new Set<number>();
-    const values: number[] = [];
-    for (let cx = Math.floor(cx0 / cell) - 1; cx <= Math.floor(cx0 / cell) + 1; cx++) {
-      for (let cy = Math.floor(cy0 / cell) - 1; cy <= Math.floor(cy0 / cell) + 1; cy++) {
-        for (const j of ctx.cells.get(cellKey(cx, cy)) ?? []) {
-          if (seen.has(j)) continue;
-          seen.add(j);
-          const h = ctx.neighbourHeight[j];
-          if (h === null) continue;
-          const [x, y] = ctx.centroids[j];
-          if (Math.round(Math.hypot(x - cx0, y - cy0) * 10) <= HEIGHT_PARAMS.neighbourRadiusM * 10) values.push(h);
-        }
-      }
-    }
-    const heightM = values.length > 0 ? median(values) : HEIGHT_PARAMS.fallbackLevels * HEIGHT_PARAMS.storeyM + HEIGHT_PARAMS.baseM;
-    result = { heightM, estimated: true };
+    const [cx0, cy0] = centre();
+    result = { heightM: localMedian(ctx, cx0, cy0, at) ?? FALLBACK_HEIGHT_M, estimated: true };
   }
   ctx.memo.set(building.id, result);
   return result;
+}
+
+/**
+ * The buildings whose `height` tag was rejected as orimlig, as { id, taggedM, usedM }, in index order.
+ * Only buildings that carry a height tag can be listed, so the scan is cheap. The weekly run prints the
+ * count next to the cache line so a bad import is visible, and the ids tell what to check by hand.
+ */
+export function suspectHeights(index: OsmIndex): Array<{ id: string; taggedM: number; usedM: number }> {
+  const found: Array<{ id: string; taggedM: number; usedM: number }> = [];
+  for (const b of index.buildings) {
+    const tagged = taggedHeightOf(b.tags);
+    if (tagged === null) continue;
+    const h = buildingHeight(index, b);
+    if (h.suspect === true) found.push({ id: b.id, taggedM: tagged, usedM: h.heightM });
+  }
+  return found;
 }
 
 function centroidOf(building: OsmBuilding, proj: (lng: number, lat: number) => [number, number]): [number, number] {

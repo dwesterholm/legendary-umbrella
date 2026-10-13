@@ -12,6 +12,7 @@ import {
   parseOsmExtract,
   pointInBuilding,
   projectFrom,
+  suspectHeights,
   unprojectFrom,
   wallsNear,
   type OsmExtract,
@@ -450,6 +451,107 @@ describe("buildingHeight (local median within 150 m, then the innerstan median)"
     const estimated = heights.filter((h) => h.estimated).length;
     expect(estimated).toBeGreaterThan(0);
     expect(estimated).toBeLessThan(heights.length / 2);
+  });
+});
+
+describe("buildingHeight sanity rule: an orimlig height tag is replaced and flagged (14.3 review CR-01)", () => {
+  const square = (cx: number, cy: number): XY[] => rect(cx - 5, cy - 5, cx + 5, cy + 5);
+  const tagged = (id: number, cx: number, cy: number, tags: Record<string, string>) => way(id, square(cx, cy), { building: "yes", ...tags });
+  const find = (idx: ReturnType<typeof index>, id: string) => {
+    const b = idx.buildings.find((x) => x.id === id);
+    if (b === undefined) throw new Error(`no building ${id}`);
+    return b;
+  };
+  /** Two ordinary 20 m neighbours, so the local median is 20. */
+  const neighbours = [tagged(90, 60, 0, { "building:levels": "6" }), tagged(91, -60, 0, { "building:levels": "6" })];
+
+  it("replaces the Ringen centrum tag (151,7 m on 6 storeys) with the storey formula, estimated and suspect", () => {
+    const idx = index({ buildings: [...neighbours, tagged(1, 0, 0, { height: "151.703703", "building:levels": "6" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 20, estimated: true, suspect: true });
+  });
+
+  it("flags a tag over 2,5 times the storey formula even next to low neighbours", () => {
+    const idx = index({ buildings: [tagged(1, 0, 0, { height: "60", "building:levels": "4" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toMatchObject({ heightM: 14, estimated: true, suspect: true });
+  });
+
+  it("flags more than 60 m on at most 8 storeys even when the ratio rule would pass it", () => {
+    // 8 storeys = 26 m, 2,5 x 26 = 65 m: a 62 m tag passes the ratio rule but not the 60 m / 8 storeys rule.
+    const idx = index({ buildings: [tagged(1, 0, 0, { height: "62", "building:levels": "8" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toMatchObject({ heightM: 26, estimated: true, suspect: true });
+    const nine = index({ buildings: [tagged(1, 0, 0, { height: "62", "building:levels": "9" })] });
+    expect(buildingHeight(nine, find(nine, "way/1"))).toEqual({ heightM: 62, estimated: false });
+  });
+
+  it("falls back to the local median when an orimlig tag comes with no storey count", () => {
+    const idx = index({ buildings: [...neighbours, tagged(1, 0, 0, { height: "90" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 20, estimated: true, suspect: true });
+  });
+
+  it("keeps a real tall block: 12 storeys tagged 40 m", () => {
+    const idx = index({ buildings: [...neighbours, tagged(1, 0, 0, { height: "40", "building:levels": "12" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 40, estimated: false });
+  });
+
+  it("does not let a low-rise pocket make a 41 m museum on 4 storeys look absurd (the innerstan typical height is the floor)", () => {
+    const low = [tagged(90, 60, 0, { height: "5" }), tagged(91, -60, 0, { height: "5" }), tagged(92, 0, 60, { height: "6" })];
+    const idx = index({ buildings: [...low, tagged(1, 0, 0, { height: "41", "building:levels": "4", building: "museum" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 41, estimated: false });
+  });
+
+  it.each([
+    ["a church", { building: "church", height: "64.5", "building:levels": "1.5" }],
+    ["a chimney", { building: "yes", man_made: "chimney", height: "108" }],
+    ["a tower", { building: "yes", man_made: "tower", height: "90" }],
+  ])("believes the height tag of %s however tall", (_name, tags) => {
+    const idx = index({ buildings: [...neighbours, way(1, square(0, 0), tags)] });
+    const h = buildingHeight(idx, find(idx, "way/1"));
+    expect(h).toEqual({ heightM: Number(tags.height), estimated: false });
+    expect(h.suspect).toBeUndefined();
+  });
+
+  it("believes a way on the landmark allowlist (Fritt fall, Gröna Lund) even though it is a plain building=yes", () => {
+    expect(HEIGHT_PARAMS.trustedTallIds).toContain("way/1122922291");
+    const idx = index({ buildings: [...neighbours, tagged(1122922291, 0, 0, { height: "80" })] });
+    expect(buildingHeight(idx, find(idx, "way/1122922291"))).toEqual({ heightM: 80, estimated: false });
+  });
+
+  it("does not let a rejected tag pull a neighbour's median: one 151,7 m neighbour and one 14 m neighbour give 17 m, not 82,9 m", () => {
+    const idx = index({
+      buildings: [way(1, square(0, 0)), tagged(2, 50, 0, { height: "151.7", "building:levels": "6" }), tagged(3, -50, 0, { height: "14" })],
+    });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 17, estimated: true });
+  });
+
+  it("hands the replaced height to the wall step: the walls of the Ringen-style building are 20 m and estimated", () => {
+    const idx = index({ buildings: [tagged(1, 100, 0, { height: "151.7", "building:levels": "6" })] });
+    const walls = wallsNear(idx, LAT0, LNG0, 250);
+    expect(walls).toHaveLength(4);
+    for (const w of walls) {
+      expect(w.heightM).toBe(20);
+      expect(w.estimated).toBe(true);
+    }
+  });
+
+  it("suspectHeights lists every rejected tag with the tag and the height used, and nothing else", () => {
+    const idx = index({
+      buildings: [
+        ...neighbours,
+        tagged(1, 0, 0, { height: "151.7", "building:levels": "6" }),
+        tagged(2, 0, 60, { height: "40", "building:levels": "12" }),
+        way(3, square(0, -60), { building: "church", height: "116" }),
+        way(4, square(120, 0), { building: "yes" }),
+      ],
+    });
+    expect(suspectHeights(idx)).toEqual([{ id: "way/1", taggedM: 151.7, usedM: 20 }]);
+    expect(suspectHeights(index({ buildings: neighbours }))).toEqual([]);
+  });
+
+  it("is stable: asking twice, or in the other building order, gives the same answer", () => {
+    const list = [...neighbours, tagged(1, 0, 0, { height: "151.7", "building:levels": "6" }), way(5, square(0, 40))];
+    const forward = index({ buildings: list });
+    const backward = index({ buildings: [...list].reverse() });
+    for (const b of forward.buildings) expect(buildingHeight(backward, find(backward, b.id))).toEqual(buildingHeight(forward, b));
   });
 });
 

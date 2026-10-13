@@ -183,7 +183,7 @@ import {
   saveVisionCache,
   type VisionChunksResult,
 } from "@/lib/discovery/vision-cache";
-import { buildOsmIndex, parseOsmExtract, type OsmIndex } from "@/lib/discovery/osm-buildings";
+import { buildOsmIndex, parseOsmExtract, suspectHeights, type OsmIndex } from "@/lib/discovery/osm-buildings";
 import {
   OSM_CACHE_PATH,
   loadOsmCacheRaw,
@@ -728,7 +728,8 @@ function sunSourceLine(source: SunSourceChoice, load: SunIndexLoad, mode: "repla
       ? `Sol: ${name} ${load.failure}, solfakta från snapshoten`
       : `Sol: ${name} ${load.failure}, alla annonser får okänd sol`;
   }
-  const counts = `${load.index.buildings.length} byggnader, ${load.index.roadsByName.size} gator`;
+  // CR-01: a bad height tag is replaced by an estimate; the count makes a bad import visible in every run.
+  const counts = `${load.index.buildings.length} byggnader, ${load.index.roadsByName.size} gator, höjd orimlig ${suspectHeights(load.index).length} (ersatt med uppskattning)`;
   if (source.kind === "file") return `Sol: ${name} (${counts})`;
   const age = cacheAgeDays(load.meta, now);
   const where = `${age === null ? "okänd" : days1(age)} dagar gammal (OSM-tid ${load.meta?.osmBase ?? "?"}), ${counts}`;
