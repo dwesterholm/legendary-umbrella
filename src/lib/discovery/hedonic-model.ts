@@ -629,16 +629,20 @@ export function fitRidge(X: number[][], y: number[], lambda: number): RidgeFit {
 
 /**
  * Which way each coefficient must point if the market behaves as expected:
- * a higher neighbour level, a higher floor and a bigger "ground floor or below"
- * penalty are checked; monthsAgo carries no expectation (prices can fall) and is
- * never guarded. A coefficient that points the wrong way, or is too uncertain
- * to tell, is not trusted (see fitHedonicModel, step 5).
+ * a higher neighbour level, a higher floor, a bigger "ground floor or below"
+ * penalty and distance from the hubs are checked. monthsAgo and size (lnArea)
+ * carry no expectation and are never guarded. monthsAgo because prices can fall.
+ * Size because the data show bigger innerstan flats cost MORE per m2 (t = 8.4 in
+ * the 2026-10 fit), and the old rule (bigger costs less per m2) zeroed the most
+ * certain coefficient in the model; dropped by decision D-10 on 2026-10-13
+ * (14.1 review WR-06). Any other coefficient that points the wrong way, or is
+ * too uncertain to tell, is not trusted (see fitHedonicModel, step 5).
  */
 export const EXPECTED_SIGNS: Record<HedonicFeature, 1 | -1 | 0> = {
   nbLevel: 1,
   floor: 1,
   groundOrBelow: -1,
-  lnArea: -1,
+  lnArea: 0,
   centralityKm: -1,
   monthsAgo: 0,
 };

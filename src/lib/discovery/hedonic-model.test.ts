@@ -550,12 +550,12 @@ describe("monthsBetweenIso", () => {
 });
 
 describe("constants and priors", () => {
-  it("expected signs follow D-02 (monthsAgo has no expectation)", () => {
+  it("expected signs follow D-02, minus size (D-10): monthsAgo and lnArea have no expectation", () => {
     expect(EXPECTED_SIGNS).toEqual({
       nbLevel: 1,
       floor: 1,
       groundOrBelow: -1,
-      lnArea: -1,
+      lnArea: 0,
       centralityKm: -1,
       monthsAgo: 0,
     });
@@ -733,8 +733,15 @@ describe("guardVerdict (D-18)", () => {
 
   it("calls a right-direction coefficient with |t| below the limit unstable", () => {
     expect(guardVerdict("floor", 0.004, 0.01)?.reason).toBe("unstable");
-    expect(guardVerdict("lnArea", -0.001, 0.02)?.reason).toBe("unstable");
+    expect(guardVerdict("floor", -0.001, 0.02)?.reason).toBe("wrong-sign");
+    expect(guardVerdict("nbLevel", 0.001, 0.02)?.reason).toBe("unstable");
     expect(guardVerdict("floor", 0, 0.01)?.reason).toBe("unstable");
+  });
+
+  it("never guards size (D-10, WR-06): either sign, sure or unsure", () => {
+    expect(guardVerdict("lnArea", -0.001, 0.02)).toBeNull();
+    expect(guardVerdict("lnArea", 0.05, 0.005)).toBeNull();
+    expect(guardVerdict("lnArea", 0.15, 0.0001)).toBeNull();
   });
 
   it("never guards monthsAgo, and survives a zero standard error", () => {
@@ -761,14 +768,25 @@ describe("fitHedonicModel: sign and stability guard (D-18, T-14.1-13)", () => {
     expect(hedonicModelSchema.safeParse(model).success).toBe(true);
   });
 
-  it("wrong sign WITHOUT a prior: size is set to zero, source zeroed, recorded", () => {
-    // Bigger flats costing MORE per m2 contradicts the expected sign; there is no study value for it.
+  it("a positive size coefficient is kept (D-10): bigger flats costing more per m2 stays source fit, no fallback", () => {
+    // Bigger flats costing MORE per m2 used to be zeroed; the data are sure about it, so the fit now keeps it.
     const { model } = fitHedonicModel(generateRows({ seed: 32, centralityEffect: 0, areaEffect: 0.15 }), OPTS);
     const size = featureOf(model, "lnArea");
-    expect(size.beta).toBe(0);
-    expect(size.source).toBe("zeroed");
-    expect(size.se).toBeNull();
-    expect(model.fallbacks).toContainEqual(expect.objectContaining({ item: "lnArea", reason: "wrong-sign" }));
+    expect(size.beta).toBeGreaterThan(0.05);
+    expect(size.source).toBe("fit");
+    expect(size.se).not.toBeNull();
+    expect(model.fallbacks.some((f) => f.item === "lnArea")).toBe(false);
+    expect(hedonicModelSchema.safeParse(model).success).toBe(true);
+  });
+
+  it("wrong sign WITHOUT a prior: centralityKm is set to zero, source zeroed, recorded (zeroing path)", () => {
+    // Prices RISING with distance from a hub contradicts the expected sign; there is no study value for it.
+    const { model } = fitHedonicModel(generateRows({ seed: 33, centralityEffect: 0.12 }), OPTS);
+    const centrality = featureOf(model, "centralityKm");
+    expect(centrality.beta).toBe(0);
+    expect(centrality.source).toBe("zeroed");
+    expect(centrality.se).toBeNull();
+    expect(model.fallbacks).toContainEqual(expect.objectContaining({ item: "centralityKm", reason: "wrong-sign" }));
     expect(hedonicModelSchema.safeParse(model).success).toBe(true);
   });
 
