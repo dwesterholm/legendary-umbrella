@@ -81,6 +81,17 @@
  * --email also works with --replay (offline apart
  * from the send itself).
  *
+ * Sol (Phase 14.3, SUN-01, SUN-03, SUN-05, R-05): every row gets a sun fact before ranking: the building footprint
+ * from the cached OpenStreetMap map of innerstan (.planning/calibration/data/osm/innerstan.json, gitignored), the
+ * stated facades, the precedence between them and the hours of direct sun on each side with the neighbouring
+ * buildings in the way (src/lib/discovery/sun-fact.ts computeSunFact). The table, the mail, the coverage line and
+ * the taste bonus all read that one fact. The map is refreshed only when it is missing or 31 days old (the live run
+ * says "OSM-cache: <ålder> dagar gammal, ingen hämtning (gräns 31 dagar)" otherwise); the Overpass client is loaded by
+ * dynamic import in that one branch, so a replay and a dry run never reach it. --osm <fil> uses that file instead and
+ * skips the refresh. A missing or unreadable map gives every row "okänd" (live) or keeps the snapshot's stored sun
+ * (replay) and says so. The floor-plan route is closed (FLOORPLAN_ROUTE_ENABLED, plan 14.3-03): no floor-plan cache
+ * is read and no model call is made here. Map data (c) OpenStreetMap contributors, ODbL.
+ *
  * The orchestration (order of paid calls, filters, table) lives in
  * src/lib/discovery/fit-pipeline.ts so the Phase 14.2 email can reuse it.
  *
@@ -172,9 +183,28 @@ import {
   saveVisionCache,
   type VisionChunksResult,
 } from "@/lib/discovery/vision-cache";
-import { buildOsmIndex, parseOsmExtract } from "@/lib/discovery/osm-buildings";
-import { inferStreetFacade } from "@/lib/discovery/sun-facade";
-import { sunFactFromFootprint } from "@/lib/discovery/sun-fact";
+import { isAllowedImageHost } from "@/lib/booli/image-host";
+import { buildOsmIndex, parseOsmExtract, type OsmIndex } from "@/lib/discovery/osm-buildings";
+import {
+  OSM_CACHE_PATH,
+  loadOsmCacheRaw,
+  osmCacheNeedsRefresh,
+  readOsmCacheMeta,
+  refreshOsmCacheIfStale,
+  renderOsmCacheLine,
+  type OsmCacheMeta,
+} from "@/lib/discovery/osm-cache";
+import {
+  FLOORPLAN_CACHE_PATH,
+  FLOORPLAN_PROBE_VERSION,
+  FLOORPLAN_ROUTE_ENABLED,
+  floorPlanImageId,
+  loadFloorPlanCache,
+  planBearingOf,
+  type FloorPlanCache,
+} from "@/lib/discovery/sun-floorplan";
+import { computeSunFact, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
+import type { PlanBearing } from "@/lib/discovery/sun-fact";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
 const DEFAULT_TRACK_ID = 150148;
@@ -191,7 +221,7 @@ const USAGE = `Användning:
   Uppspelning (gratis, offline):
     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
-    npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+    npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--osm <utdrag.json>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Veckomejl med bevakningsminne (båda lägena):
     npx tsx scripts/fit-score.ts --email [--state <fil>] [--no-state-write] [--no-vision] [--dry-run]
     npx tsx scripts/fit-score.ts --replay <snapshot.json> --email [--state <fil>] [--no-state-write]
@@ -203,8 +233,10 @@ const USAGE = `Användning:
   Kolumnen "Varför här" förklarar varför en annons kan vara billig; en flaggad annons utan förklaring heter "oförklarat fynd".
 
   --replay <fil>     Spela upp en sparad snapshot av bostäder till salu (inga nätverksanrop)
-  --osm <fil>        Uppspelning: OSM-utdrag (JSON, .json) med byggnader och gator; kolumnen "Sol" visar då vilken väderstreck gatusidan
-                     och gårdssidan vetter mot, med källa och säkerhet. Utan den skrivs "-". Filen läses bara, ingenting hämtas.
+  --osm <fil>        OSM-utdrag (JSON, .json) med byggnader och gator att räkna solen på i stället för cachen ${OSM_CACHE_PATH}.
+                     Filen läses bara, ingenting hämtas och cachen uppdateras inte. Utan flaggan används cachen: uppspelning läser den
+                     och hämtar aldrig; en live-körning hämtar bara när den saknas eller är 31 dagar gammal. Kolumnerna "Sol",
+                     "Soltim. fri" och "Soltim. med grannhus" visar väderstreck, källa och säkerhet samt timmar sol (mar/jun/dec).
                      Data (c) OpenStreetMap contributors, ODbL
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
   --track <id>       Booli-id att visa uppdelat i detalj, standard ${DEFAULT_TRACK_ID}
@@ -248,7 +280,7 @@ const orDash = (n: number | null, f: (x: number) => string) => (n === null ? "-"
 
 interface Args {
   replay: string | null;
-  /** OSM extract file for the "Sol" column (14.3-01). Replay only until the live sun stage exists. */
+  /** OSM extract file for the sun stage (14.3-01); null = the cache. Read only, no refresh, replay and live. */
   osm: string | null;
   model: string;
   track: number;
@@ -323,8 +355,6 @@ function parseArgs(argv: string[]): Args | null {
     else return null;
   }
   if (out.replay !== null && liveOnly) return null;
-  // --osm is replay-only for now (T-14.3-03): refuse it rather than ignore it silently.
-  if (out.osm !== null && out.replay === null) return null;
   // The memory flags mean nothing without the mail: refuse them rather than ignore them silently.
   if (!out.email && (out.state !== null || out.noStateWrite)) return null;
   return out;
@@ -634,6 +664,142 @@ async function runWatchEmail(run: WatchEmailRun): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Sol (Phase 14.3): the OSM map and the sun stage, shared by replay and live
+// ---------------------------------------------------------------------------
+
+/** Where the map comes from: the --osm file (read only, no refresh) or the cache. */
+type SunSourceChoice = { kind: "file"; path: string } | { kind: "cache" };
+
+const DAY_MS = 86_400_000;
+const days1 = (d: number): string => d.toFixed(1).replace(".", ",");
+
+/** Age of the cache in days, never negative; null when there is no usable cache. */
+function cacheAgeDays(meta: OsmCacheMeta | null, now: Date): number | null {
+  if (meta === null) return null;
+  const fetched = Date.parse(meta.fetchedAt);
+  return Number.isNaN(fetched) ? null : Math.max(0, (now.getTime() - fetched) / DAY_MS);
+}
+
+type SunIndexLoad =
+  | { readonly index: OsmIndex; readonly meta: OsmCacheMeta | null; readonly buildMs: number }
+  | { readonly index: null; readonly failure: string };
+
+/**
+ * Reads the map and builds the index. Never throws: a missing, unreadable or invalid file comes back as
+ * `failure` ("saknas (filen finns inte)", "ogiltig (<first issue>)"), so the run fails closed to "okänd" out loud (T-14.3-01).
+ */
+function loadSunIndex(source: SunSourceChoice): SunIndexLoad {
+  const t0 = performance.now();
+  let raw: unknown;
+  let meta: OsmCacheMeta | null = null;
+  if (source.kind === "cache") {
+    const loaded = loadOsmCacheRaw(OSM_CACHE_PATH);
+    if ("error" in loaded) {
+      const failure =
+        loaded.error === "saknas" ? "saknas (filen finns inte)" : loaded.error === "oläsbar" ? "saknas (oläsbar)" : `ogiltig (${loaded.error})`;
+      return { index: null, failure };
+    }
+    raw = loaded.raw;
+    meta = loaded.meta;
+  } else {
+    try {
+      raw = JSON.parse(readFileSync(resolve(source.path), "utf8"));
+    } catch (e) {
+      return { index: null, failure: e instanceof SyntaxError ? "ogiltig (JSON)" : "saknas (oläsbar)" };
+    }
+  }
+  try {
+    const index = buildOsmIndex(parseOsmExtract(raw));
+    return { index, meta, buildMs: performance.now() - t0 };
+  } catch (e) {
+    const issue = (e instanceof Error ? e.message : String(e)).replace(/^Invalid OSM extract: /, "").split("; ")[0];
+    return { index: null, failure: `ogiltig (${issue})` };
+  }
+}
+
+/** The one "Sol: ..." line that says which map the run used (or why it used none). */
+function sunSourceLine(source: SunSourceChoice, load: SunIndexLoad, mode: "replay" | "live", now: Date): string {
+  const name = source.kind === "file" ? `OSM-utdrag ${source.path}` : "OSM-cache";
+  if (load.index === null) {
+    return mode === "replay"
+      ? `Sol: ${name} ${load.failure}, solfakta från snapshoten`
+      : `Sol: ${name} ${load.failure}, alla annonser får okänd sol`;
+  }
+  const counts = `${load.index.buildings.length} byggnader, ${load.index.roadsByName.size} gator`;
+  if (source.kind === "file") return `Sol: ${name} (${counts})`;
+  const age = cacheAgeDays(load.meta, now);
+  const where = `${age === null ? "okänd" : days1(age)} dagar gammal (OSM-tid ${load.meta?.osmBase ?? "?"}), ${counts}`;
+  return mode === "replay" ? `Sol: OSM-cache ${where}; ingen hämtning i uppspelning` : `Sol: OSM-cache ${where}`;
+}
+
+/**
+ * The floor-plan bearing of a row, from the floor-plan cache only (the weekly run never calls the model for this).
+ * While the route is closed (FLOORPLAN_ROUTE_ENABLED false, plan 14.3-03) it is always null and the cache file is not read.
+ */
+function makePlanOf(): (row: FitInputRow) => PlanBearing | null {
+  if (!FLOORPLAN_ROUTE_ENABLED) return () => null;
+  let cache: FloorPlanCache | null = null;
+  return (row) => {
+    if (cache === null) {
+      const loaded = loadFloorPlanCache(FLOORPLAN_CACHE_PATH);
+      if (loaded.warning) console.log(`OBS: ${loaded.warning}`);
+      cache = loaded.cache;
+    }
+    const url = (row.candidate.imageUrls ?? []).find((u) => isAllowedImageHost(u));
+    if (url === undefined) return null;
+    const entry = cache.entries[floorPlanImageId(url)];
+    if (!entry || entry.promptVersion !== FLOORPLAN_PROBE_VERSION) return null;
+    const bearingDeg = planBearingOf(entry.result);
+    return bearingDeg === null ? null : { bearingDeg, confidence: entry.result.confidence };
+  };
+}
+
+interface SunStage {
+  /** Pure and offline; counts its own calls and time. */
+  readonly sunOf: (row: FitInputRow) => SunFact | null;
+  /** SUN-03: the index build plus every sunOf call so far. */
+  readonly timingLine: () => string;
+}
+
+/** With no index every row gets the okänd fact "OSM-cache saknas"; otherwise the fact comes from computeSunFact. */
+function makeSunStage(index: OsmIndex | null, buildMs: number): SunStage {
+  const planOf = makePlanOf();
+  let calls = 0;
+  let ms = buildMs;
+  return {
+    sunOf: (row) => {
+      const t0 = performance.now();
+      try {
+        if (index === null) return unknownSunFact("OSM-cache saknas");
+        const c = row.candidate;
+        return computeSunFact(
+          index,
+          {
+            lat: c.latitude,
+            lng: c.longitude,
+            address: c.address,
+            floor: c.floor ?? row.facts?.floor ?? null,
+            candidateOrientation: c.orientation,
+            factsFacades: row.facts?.orientationFacades ?? null,
+          },
+          { plan: planOf(row) },
+        );
+      } finally {
+        calls += 1;
+        ms += performance.now() - t0;
+      }
+    },
+    timingLine: () => `Sol: beräknat för ${calls} rader på ${Math.round(ms)} ms`,
+  };
+}
+
+/** The first line of an OSM-cache decision: how old it is, or that it is missing. */
+function osmCacheDescribe(meta: OsmCacheMeta | null, now: Date): string {
+  const age = cacheAgeDays(meta, now);
+  return meta === null ? "saknas" : age === null ? "okänd ålder" : `${days1(age)} dagar gammal`;
+}
+
+// ---------------------------------------------------------------------------
 // Replay
 // ---------------------------------------------------------------------------
 
@@ -657,23 +823,16 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   const snapshot = parseFitSnapshot(JSON.parse(readFileSync(snapshotPath, "utf8")));
   const model = loadModel(args.model);
 
-  // 14.3-01: with --osm every row gets a sun record from the building footprint BEFORE the ranking,
-  // so the "Sol" column fills; the extract is only read. Without it the column prints "-".
+  // Phase 14.3: every row gets its sun fact from the map BEFORE ranking, so taste, the table and the coverage see it.
+  // A replay never downloads: with no usable map the snapshot's stored sun is kept and the line says so.
+  const source: SunSourceChoice = args.osm !== null ? { kind: "file", path: args.osm } : { kind: "cache" };
+  const sunLoad = loadSunIndex(source);
+  const solLines: string[] = [sunSourceLine(source, sunLoad, "replay", new Date())];
   let rows = snapshot.rows;
-  let solLine: string | null = null;
-  if (args.osm !== null) {
-    const osmPath = resolve(args.osm);
-    if (!existsSync(osmPath)) {
-      console.error(`OSM-utdrag saknas: ${args.osm}`);
-      process.exit(1);
-    }
-    const index = buildOsmIndex(parseOsmExtract(JSON.parse(readFileSync(osmPath, "utf8"))));
-    rows = snapshot.rows.map((row) => {
-      const c = row.candidate;
-      const result = inferStreetFacade(index, { lat: c.latitude, lng: c.longitude, address: c.address, floor: c.floor ?? row.facts?.floor ?? null });
-      return { ...row, sun: sunFactFromFootprint(result) };
-    });
-    solLine = `Sol: OSM-utdrag ${args.osm} (${index.buildings.length} byggnader, ${index.roadsByName.size} gator)`;
+  if (sunLoad.index !== null) {
+    const stage = makeSunStage(sunLoad.index, sunLoad.buildMs);
+    rows = snapshot.rows.map((row) => ({ ...row, sun: stage.sunOf(row) }));
+    solLines.push(stage.timingLine());
   }
 
   const ranking = rankFit(rows, model);
@@ -687,7 +846,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   console.log(
     `Snapshot per ${snapshot.asOf}: ${rows.length} rader, ${ranking.ranked.length} jämförbara, ${ranking.notComparable.length} ej jämförbara (förrank räknat om från snapshoten)`,
   );
-  if (solLine !== null) console.log(solLine);
+  for (const line of solLines) console.log(line);
   console.log("");
   const reasonsOf = makeReasonsOf(rows, ranking.ranked);
   const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });
@@ -844,10 +1003,44 @@ async function runLive(args: Args): Promise<void> {
     printMailEnvState();
     if (args.dryRun) printWatchDryRun(statePath, args.state ?? WATCH_STATE_PATH);
   }
+  // Phase 14.3 (SUN-05, R-05): the weekly run goes to Overpass only when the map is missing or 31 days old.
+  // A dry run prints the decision and never downloads.
+  const sunSource: SunSourceChoice = args.osm !== null ? { kind: "file", path: args.osm } : { kind: "cache" };
+  const osmMeta = sunSource.kind === "cache" ? readOsmCacheMeta(OSM_CACHE_PATH) : null;
+  const osmDecisionAt = new Date();
+  const osmNeedsRefresh = sunSource.kind === "cache" && osmCacheNeedsRefresh(osmMeta, osmDecisionAt);
   if (args.dryRun) {
+    if (sunSource.kind === "file") console.log(`OSM-utdrag: ${sunSource.path}, ingen hämtning`);
+    else if (osmNeedsRefresh) console.log(`OSM-cache: ${osmCacheDescribe(osmMeta, osmDecisionAt)}, hämtas vid riktig körning (gratis)`);
+    else console.log(renderOsmCacheLine({ action: "fresh", ageDays: cacheAgeDays(osmMeta, osmDecisionAt), meta: osmMeta }));
     console.log(localMode ? "--dry-run: förkontrollerna är klara, ingen webbläsare startades." : "--dry-run: förkontrollerna är klara, ingen betald körning startades.");
     return;
   }
+
+  if (sunSource.kind === "cache") {
+    if (osmNeedsRefresh) {
+      // The one place the Overpass client is loaded (a replay and a dry run never get here).
+      const overpass = await import("@/lib/discovery/osm-overpass");
+      const refreshed = await refreshOsmCacheIfStale({
+        path: OSM_CACHE_PATH,
+        now: new Date(),
+        force: false,
+        download: () =>
+          overpass.downloadOsmExtract({
+            fetchImpl: (url, init) => globalThis.fetch(url, init),
+            sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+            now: () => new Date(),
+            log: (line) => console.log(line),
+          }),
+      });
+      console.log(refreshed.message);
+    } else {
+      console.log(renderOsmCacheLine({ action: "fresh", ageDays: cacheAgeDays(osmMeta, osmDecisionAt), meta: osmMeta }));
+    }
+  }
+  const sunLoad = loadSunIndex(sunSource);
+  console.log(sunSourceLine(sunSource, sunLoad, "live", new Date()));
+  const sunStage = makeSunStage(sunLoad.index, sunLoad.index === null ? 0 : sunLoad.buildMs);
 
   const { fetchAreaListings, HEADLESS_MAX_AREA_PAGES } = await import("@/lib/booli/client");
   const { enrichAllCandidates } = await import("@/lib/discovery/watch-enrich");
@@ -944,6 +1137,8 @@ async function runLive(args: Args): Promise<void> {
           return run.candidates;
         }
       : async (candidates) => candidates,
+    // Phase 14.3: the sun fact for every row, from the cached map, before ranking.
+    sunOf: sunStage.sunOf,
   };
 
   // The run lock next to the memory, before anything is scraped (exit 3 when another run holds it).
@@ -1002,6 +1197,7 @@ async function runLive(args: Args): Promise<void> {
     console.log(
       `\nAnnonser: ${result.counts.scraped} hämtade, ${result.counts.deduped} efter dubblettstädning, ${result.counts.filtered} efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); ${result.ranking.ranked.length} jämförbara, ${result.ranking.notComparable.length} ej jämförbara`,
     );
+    console.log(sunStage.timingLine());
     console.log(`\n${renderWindowReport(result)}`);
     const reasonsOf = makeReasonsOf(result.snapshot.rows, result.ranking.ranked);
     const tableRows = toFitTableRows(result.ranking, result.preRankPositions, { reasonsOf });
@@ -1061,6 +1257,11 @@ async function main(): Promise<void> {
   }
   if (args.district !== null && districtOf(args.district) === null) {
     console.error(`--district måste vara ett av: ${INNERSTAN_DISTRICTS.join(", ")} (fick "${args.district}")`);
+    process.exit(1);
+  }
+  // 14.3: an --osm file is read in both modes, so a wrong path stops the run before anything else happens.
+  if (args.osm !== null && !existsSync(resolve(args.osm))) {
+    console.error(`OSM-utdrag saknas: ${args.osm}`);
     process.exit(1);
   }
   if (args.replay !== null) await runReplay(args);

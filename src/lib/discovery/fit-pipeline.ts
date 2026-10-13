@@ -50,7 +50,7 @@ import {
 import type { HedonicModel, InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
-import { formatSolCell } from "@/lib/discovery/sun-fact";
+import { formatSolCell, type SunFact } from "@/lib/discovery/sun-fact";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
 // ---------------------------------------------------------------------------
@@ -144,6 +144,13 @@ export interface FitPipelineDeps {
     candidates: DiscoveryCandidate[],
     opts: { brokerImagesOf: (candidate: DiscoveryCandidate, index: number) => BrokerImageBytes[] },
   ): Promise<DiscoveryCandidate[]>;
+  /**
+   * Phase 14.3: what the sun spike works out for one flat (facade, source, confidence, hours). Pure and
+   * offline (the cached OSM map, never a request). Applied to every row (window, outside and not
+   * comparable) BEFORE ranking, so taste, the table and the coverage all see the same fact. Absent:
+   * every row keeps `sun: null`.
+   */
+  sunOf?: (row: FitInputRow) => SunFact | null;
 }
 
 export interface FitWindowStats {
@@ -276,15 +283,22 @@ export async function runFitPipeline(
     candidate: afterVision[i] ?? forVision[i],
     // Card facts, with the detail page's on top when it was read (R-08).
     facts: combineFacts(p.row.facts, detailFetched[i] ? (enrichment.facts?.get(i) ?? null) : null),
-    sun: null, // the live sun stage arrives in plan 14.3-07
+    sun: null, // set below by deps.sunOf, once the window row is complete
   }));
   const outsideRows: FitInputRow[] = outside.map((p) => p.row);
   const comparableRows = new Set(pre.ranked.map((p) => p.row));
   const notComparableRows: FitInputRow[] = baseRows.filter((r) => !comparableRows.has(r));
 
-  const allRows = [...windowRows, ...outsideRows, ...notComparableRows];
+  // Phase 14.3 (SUN-01, SUN-03): the sun fact is attached to every row before ranking, so taste sees it.
+  // Window rows have their final candidate and facts by now; the others keep what the card said.
+  const withSun = (row: FitInputRow): FitInputRow => (deps.sunOf === undefined ? row : { ...row, sun: deps.sunOf(row) });
+  const windowRowsSun = windowRows.map(withSun);
+  const outsideRowsSun = outsideRows.map(withSun);
+  const notComparableRowsSun = notComparableRows.map(withSun);
+
+  const allRows = [...windowRowsSun, ...outsideRowsSun, ...notComparableRowsSun];
   const ranking = rankFit(allRows, model);
-  const coverage = computeCoverage([...windowRows, ...outsideRows]);
+  const coverage = computeCoverage([...windowRowsSun, ...outsideRowsSun]);
 
   const visionSkipped: Record<string, number> = {};
   let visionSek = 0;

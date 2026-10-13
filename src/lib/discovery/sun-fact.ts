@@ -20,7 +20,9 @@
  */
 
 import { z } from "zod/v4";
-import { angularDistance, bearingToFacade, type FootprintOk, type FootprintResult } from "@/lib/discovery/sun-facade";
+import { wallsNear, type OsmIndex } from "@/lib/discovery/osm-buildings";
+import { angularDistance, bearingToFacade, inferStreetFacade, type FootprintOk, type FootprintResult } from "@/lib/discovery/sun-facade";
+import { SUN_HOURS_PARAMS, flatHeightM, sideHours } from "@/lib/discovery/sun-hours";
 import type { Facade } from "@/lib/discovery/sun-path";
 
 /** D-01 labels, as printed in the Sol cell. */
@@ -346,6 +348,60 @@ export function resolveSunFact(input: {
   }
 
   return footprint === null ? fact : { ...fact, footprint: footprintDiagnostics(footprint) };
+}
+
+// ---------------------------------------------------------------------------
+// The whole stage for one flat (SUN-01, SUN-03)
+// ---------------------------------------------------------------------------
+
+/** What the sun stage needs to know about one flat; plain values, so this module does not import fit-score.ts. */
+export interface SunFactInput {
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly address: string | null;
+  /** The Booli floor, null when unknown. */
+  readonly floor: number | null;
+  /** The candidate's stated orientation (`candidate.orientation`), if any. */
+  readonly candidateOrientation: { readonly facades: readonly Facade[] } | null;
+  /** The facts record's stated facades (`facts.orientationFacades`), if any. */
+  readonly factsFacades: readonly Facade[] | null;
+}
+
+/**
+ * One flat's whole sun fact from the cached map: the footprint (plan 01), the
+ * stated facades (plan 05), the precedence between them (plan 05), then the
+ * hours of every side that has a bearing (plan 04).
+ *
+ * A side with a window point and a known floor gets the walls within
+ * {@link SUN_HOURS_PARAMS.radiusM} around that point and the flat's height, so
+ * its hours come as a range with the neighbours in the way. A side without a
+ * point (a stated facade that matches neither footprint side) or a flat without
+ * a floor gets the theoretical hours only (no obstructed range). A flat that
+ * could not be placed (okänd) gets no hours. `opts.plan` is a floor-plan
+ * bearing, passed only while the floor-plan route is enabled.
+ *
+ * PURE: same input, same output; the index and the input are not changed.
+ */
+export function computeSunFact(index: OsmIndex, input: SunFactInput, opts: { plan: PlanBearing | null }): SunFact {
+  const footprint = inferStreetFacade(index, { lat: input.lat, lng: input.lng, address: input.address, floor: input.floor });
+  const fact = resolveSunFact({
+    stated: statedFacadesOf(input.candidateOrientation, input.factsFacades),
+    plan: opts.plan,
+    footprint,
+  });
+  if (fact.source === "okänd") return fact;
+
+  const z = flatHeightM(input.floor);
+  const booli = input.lat !== null && input.lng !== null && Number.isFinite(input.lat) && Number.isFinite(input.lng) ? { lat: input.lat, lng: input.lng } : null;
+  const sides = fact.sides.map((side): SunSide => {
+    if (side.bearingDeg === null) return side;
+    const origin = side.point ?? booli;
+    if (origin === null) return side;
+    const located = side.point !== null && z !== null;
+    const walls = located ? wallsNear(index, origin.lat, origin.lng, SUN_HOURS_PARAMS.radiusM) : [];
+    return { ...side, hours: sideHours({ lat: origin.lat, lng: origin.lng, bearingDeg: side.bearingDeg, z: located ? z : null, walls }) };
+  });
+  return { ...fact, sides };
 }
 
 /** Two decimals with a decimal comma: 0.9 prints "0,90". */
