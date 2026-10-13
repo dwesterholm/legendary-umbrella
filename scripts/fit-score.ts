@@ -29,8 +29,15 @@
  *   "Täckning (N annonser): ..." line says how much of balcony, condition,
  *   description, sun, avgift and tenure is actually known.
  *
+ *   Picture reading (Phase 14.2, D-06, R-09): every candidate in the window is read
+ *   in 3 parallel lanes (index mod 3), each capped at 20 SEK, so one run can never
+ *   pass 60 SEK (src/lib/discovery/vision-cache.ts; the in-app cap of 25 SEK is a
+ *   different number and is not touched). A flat already read with the same picture
+ *   set comes from .planning/calibration/data/vision-cache.json (gitignored) and
+ *   costs nothing. One line sums it up: "Bildtolkning: N anrop, N från cache, N
+ *   hoppades över, X,XX kr av tak 60 kr (delar: a/b/c kandidater)".
  *   --no-vision prints "Bildtolkning: avstängd (--no-vision)" and makes no
- *   Anthropic call. Picture reading for every candidate arrives in a later plan.
+ *   Anthropic call.
  *
  *   Renderer (Phase 14.2, D-03, R-03): Booli pages are read by a headed
  *   Chromium on this Mac by default (BOOLI_RENDERER or --renderer override;
@@ -60,8 +67,8 @@
  *
  * Secret posture: environment variables are reported as satt/saknas only.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve, sep } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { toCandidate } from "@/lib/discovery/candidate";
@@ -100,8 +107,19 @@ import {
   type ModelHealth,
 } from "@/lib/discovery/fit-score";
 import { INNERSTAN_DISTRICTS, parseHedonicModel, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
+import { guardedDataPath, writeJsonAtomic } from "@/lib/discovery/json-store";
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
+import {
+  HEADLESS_VISION_CAP_SEK,
+  HEADLESS_VISION_CHUNKS,
+  VISION_CACHE_PATH,
+  loadVisionCache,
+  renderVisionLine,
+  runVisionChunks,
+  saveVisionCache,
+  type VisionChunksResult,
+} from "@/lib/discovery/vision-cache";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
 const DEFAULT_TRACK_ID = 150148;
@@ -132,6 +150,8 @@ const USAGE = `Användning:
                      ${FIT_VISION_WINDOW} med Apify. "all" kräver --renderer local; <n> är 0-${MAX_WINDOW}
   --district <namn>  Live: läs bara ett område (${INNERSTAN_DISTRICTS.join(", ")})
   --no-vision        Live: ingen bildtolkning och inget Anthropic-anrop (detaljsidor och mäklartext läses ändå)
+                     Utan den läses bilderna för alla annonser i fönstret: 3 parallella delar, högst 60 kr per körning (20 kr per del),
+                     redan lästa annonser hämtas ur ${VISION_CACHE_PATH}; raden "Bildtolkning: ..." visar kostnaden
   --budget-usd <n>   Live: kan bara höja det Apify-utrymme som krävs, aldrig sänka det under värsta-fall-uppskattningen
   --out <fil>        Live: snapshot att skriva, standard ${DATA_DIR}/forsale-snapshot-<datum>.json (måste ligga under ${DATA_DIR}/)
   --dry-run          Live: gör förkontrollerna (med Apify även utrymmeskontrollen), avsluta sedan innan första sidan hämtas
@@ -218,19 +238,14 @@ function parseArgs(argv: string[]): Args | null {
   return out;
 }
 
-/** The absolute --out path when it lies inside the gitignored data directory, else null (T-14.1-12). */
-function guardedOutPath(path: string): string | null {
-  const dir = resolve(DATA_DIR);
-  const abs = resolve(path);
-  return abs.startsWith(dir + sep) && abs.endsWith(".json") ? abs : null;
-}
-
-/** Atomic write: a temp file in the same directory, then rename. */
-function writeJsonAtomic(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(tmp, path);
+/** The listing path of a Booli URL (the vision cache key), or null when there is no parseable URL. */
+function listingPathOf(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -407,6 +422,7 @@ async function printSpend(
   result: FitPipelineResult,
   transport: Pick<typeof import("@/lib/booli/transport"), "apifySpendSince" | "formatApifyRunsLine" | "waitForLedgerSettle">,
   local: LocalLedger | null,
+  visionLine: string | null,
 ): Promise<void> {
   console.log("\nKostnad:");
   if (local) {
@@ -434,6 +450,7 @@ async function printSpend(
   } else {
     console.log(transport.formatApifyRunsLine(null, `${APIFY_ENV} saknas`));
   }
+  if (visionLine !== null) console.log(visionLine);
   console.log(`  Anthropic (bildtolkning): ${result.visionSek.toFixed(2)} kr`);
   console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + result.visionSek)} kr`);
 }
@@ -456,7 +473,10 @@ async function runLive(args: Args): Promise<void> {
   }
   const window: number | "all" = args.window ?? (localMode ? "all" : FIT_VISION_WINDOW);
 
-  const outPath = guardedOutPath(args.out ?? `${DATA_DIR}/forsale-snapshot-${new Date().toISOString().slice(0, 10)}.json`);
+  const outPath = guardedDataPath(args.out ?? `${DATA_DIR}/forsale-snapshot-${new Date().toISOString().slice(0, 10)}.json`, {
+    dir: DATA_DIR,
+    ext: ".json",
+  });
   if (outPath === null) {
     console.error(`--out måste vara en .json-fil under ${DATA_DIR}/`);
     process.exit(1);
@@ -511,6 +531,13 @@ async function runLive(args: Args): Promise<void> {
   const vision = await import("@/lib/discovery/vision");
 
   const asOf = new Date().toISOString().slice(0, 10);
+  const visionActive = anthropicState === "satt" && !args.noVision;
+  // The cache is read only when pictures will be read (a --no-vision run never touches the file).
+  const loadedCache = visionActive ? loadVisionCache(VISION_CACHE_PATH) : null;
+  if (loadedCache?.warning) console.log(`OBS: ${loadedCache.warning}`);
+  const visionCache = loadedCache?.cache ?? { version: 1 as const, entries: {} };
+  let visionStats: VisionChunksResult | null = null;
+  let cacheSaveError: string | null = null;
   const deps: FitPipelineDeps = {
     scrape: async () => {
       const targets: { name: string; district: InnerstanDistrict | null; areaId: string | null }[] = [];
@@ -571,11 +598,29 @@ async function runLive(args: Args): Promise<void> {
     },
     // Detail page, broker page and facts for every candidate (D-06); broker photos only when something will read them.
     enrich: (candidates, limit, opts) => enrichAllCandidates(candidates, limit, { ...opts, asOf, fetchBrokerImages: !args.noVision }),
-    // Vision stays as 14.1 wired it (in-app cap); --no-vision turns it off entirely.
-    vision:
-      anthropicState === "satt" && !args.noVision
-        ? (candidates, opts) => vision.runVisionPass(candidates, opts)
-        : async (candidates) => candidates,
+    // Picture reading for every candidate (D-06, R-09): 3 parallel lanes of at most 60 / 3 SEK each, flats already
+    // read with the same picture set come from the cache. --no-vision (or no key) turns it off entirely.
+    vision: visionActive
+      ? async (candidates, opts) => {
+          const run = await runVisionChunks(candidates, {
+            brokerImagesOf: opts.brokerImagesOf,
+            cache: visionCache,
+            runPass: (cs, o) => vision.runVisionPass(cs, o),
+            capSekTotal: HEADLESS_VISION_CAP_SEK,
+            chunks: HEADLESS_VISION_CHUNKS,
+            keyOf: (c) => listingPathOf(c.sourceListingUrl),
+            today: asOf,
+          });
+          visionStats = run;
+          // Saved right here, before ranking and printing, so a paid result survives any later failure.
+          try {
+            saveVisionCache(VISION_CACHE_PATH, run.cacheNext);
+          } catch (e) {
+            cacheSaveError = e instanceof Error ? e.message : String(e);
+          }
+          return run.candidates;
+        }
+      : async (candidates) => candidates,
   };
 
   // Local mode: install the headed-Chromium renderer into transport.ts. From here every Booli read in
@@ -586,6 +631,18 @@ async function runLive(args: Args): Promise<void> {
     : null;
   const disposeSignals = handle ? localBrowser.closeOnSignals(handle) : null;
   const ledger = (): LocalLedger | null => (handle ? { stats: handle.stats(), apifyMaxRenders: args.apifyMaxRenders } : null);
+  /** The pinned spend line; null when pictures were not read this run. With no candidate at all it is the zero line. */
+  const visionLineOf = (): string | null => {
+    if (!visionActive) return null;
+    const v = visionStats as VisionChunksResult | null;
+    return renderVisionLine({
+      calls: v?.calls ?? 0,
+      cacheHits: v?.cacheHits ?? 0,
+      skipped: v?.skipped ?? 0,
+      spentSek: v?.spentSek ?? 0,
+      chunkSizes: v?.chunkSizes ?? Array.from({ length: HEADLESS_VISION_CHUNKS }, () => 0),
+    });
+  };
 
   try {
     const t0 = new Date();
@@ -597,7 +654,7 @@ async function runLive(args: Args): Promise<void> {
     const everyDistrictFailed = result.areas.length > 0 && result.areas.every((a) => !a.ok);
     if (everyDistrictFailed) {
       console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
-      await printSpend(t0, result, transport, ledger());
+      await printSpend(t0, result, transport, ledger(), visionLineOf());
       process.exitCode = 1;
       return;
     }
@@ -618,7 +675,11 @@ async function runLive(args: Args): Promise<void> {
     console.log(`\n${renderCoverage(result.coverage)}`);
     console.log("");
     printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track);
-    await printSpend(t0, result, transport, ledger());
+    await printSpend(t0, result, transport, ledger(), visionLineOf());
+    if (cacheSaveError !== null) {
+      console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);
+      process.exitCode = 1;
+    }
     if (writeError === null) {
       console.log(`\nSnapshot skriven: ${outPath}`);
     } else {
