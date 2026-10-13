@@ -1,0 +1,21 @@
+# 14.4-02 task 3: sålda sidor, 1 200-radersbatchen (stratifierad, lokal webbläsare, utan --allow-apify)
+# Körd 2026-10-13 21:00 lokal tid. Stoppad av D-04-regeln efter 50 försök (exit 2). Föreningspasset kördes inte (stoppregeln: ingen ny körning samma dag).
+# Kommando: caffeinate -i npx tsx scripts/pull-slutpriser.ts --enrich-sample 1200 --enrich-max 1200 --enrich-since 2025-10-01 --re-enrich --stratify --renderer local --concurrency 2 --max-minutes 150
+Renderare: lokal webbläsare
+Berikning: 1195 av 7431 rader väljs (frö "14.1", sålda från 2025-10-01, äldre poster läses om, stratifierat urval, 5 redan berikade i v2), render-tak 1200, budget 25.00 USD, samtidighet 2, tidsgräns 150 min
+APIFY_API_TOKEN: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+Start: 2026-10-13T19:00:14.308Z
+...
+Berikning klar. Renders: 50 (lyckade 50, misslyckade 0). Berikade rader: 47, misslyckade: 3.
+Rader med berikning i cachen: 52. Byggår 49 (94.2 %), balkong angiven 24, ingen balkong angiven 28, utgångspris 27 (51.9 %).
+Rader i v2: 52. Avgift 52 (100.0 %), förenings-id 51 (98.1 %), upplåtelseform 52 (100.0 %), dagar ute 51 (98.1 %), bild-id 22 (42.3 %).
+Sekunder per sida: 1,5 (73 s för 50 renderingar)
+
+=== KOSTNAD ===
+Lokal webbläsare: 50 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
+Apify-reserv: 0 renderingar (tak 10)
+Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T19:00:14.308Z och kan inkludera andra körningar.
+Stopp: 6,0 % misslyckade efter 50 försök (gräns 5 %) - körningen avbröts (D-04).
+Utgångskod: 2

@@ -1,0 +1,10 @@
+=== BERIKNINGSRAPPORT (14.4-02) ===
+Berikade (v2): 52 av 5746 sålda från 2025-10-01
+Avgift: 52 (100,0 %)
+Förenings-id: 51 (98,1 %), distinkta föreningar 49
+Upplåtelseform: Bostadsrätt: 52
+Dagar ute: 51 (98,1 %)
+Bild-id: 22 rader med minst ett (42,3 %)
+Bild-id och utgångspris: 9 rader
+Föreningar lästa: 5 av 49, med skuld/kvm 3
+Misslyckade enligt loggboken: sålda 3, föreningar 0
