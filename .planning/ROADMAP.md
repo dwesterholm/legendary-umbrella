@@ -67,11 +67,11 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
   3. A long run visibly progresses within the window (area work parallelized / partial results surfaced / per-page render retries capped) rather than appearing to hang until a manual refresh.
 
 **Notes**: Respect `DISCOVERY_ENABLED` fail-closed + cost caps (`CAP_VISION_SEK_MAX=10`, `VISION_ENRICH_LIMIT=8`, `CAP_CANDIDATES_MAX=25`) — every run is real Apify + Anthropic spend. Client tick is the primary job driver; the sweep cron is only an orphan-resume net.
-**Plans**: 5 plans
+**Plans**: 5/5 plans executed
 
 - [x] 13-01-PLAN.md — Parallelize area scrapes in runSlice + scoped area-page waitSecs override (DXUX-01 backend throughput; D-01/D-02/D-03)
 - [x] 13-02-PLAN.md — Two-tier poll timeout (calm soft-notice, keep polling) + complete Swedish STATUS_LABELS (DXUX-01 client UX + DXUX-02; D-04/D-05/D-06/D-07)
-- [ ] 13-03-PLAN.md — Live-smoke checkpoint: large multi-area run completes in-window; calibrate timing constants (DXUX-01 phase gate)
+- [x] 13-03-PLAN.md — Live-smoke checkpoint: large multi-area run completes in-window; calibrate timing constants (DXUX-01 phase gate)
 - [x] 13-04-PLAN.md — Close live-smoke gaps: decouple status read from tick, incremental processed_count writes, bound vision detail-fetch render (DXUX-01 visible in-window progress)
 - [x] 13-05-PLAN.md — Fix the "annonser analyserade" counter (analyzed/found = candidate_count denominator, monotonic numerator, N av N at done) + revert the 13-04 processed_count overwrite regression (DXUX-01 counter correctness; gap from the 13-03 re-smoke)
 
@@ -123,7 +123,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 **Calibration**: Booli `/bostad/150148` (Folkungagatan 61, 5tr — `.planning/calibration/folkungagatan-61-5tr.md`) must land in the top quarter of a Södermalm run and never below a clearly worse flat; it is NOT required to be #1 (a reno object at a better address or with a healthier BRF may beat it).
 **Requirements**: FIT-01, FIT-02, FIT-03, FIT-04, FIT-05, FIT-06
 **Depends on:** Phase 14 (comps, flip-economics, vision pass all merged)
-**Plans:** 9/10 plans executed
+**Plans:** 10/10 plans executed
 
 Plans:
 **Wave 1**
@@ -152,7 +152,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 14.1-10-PLAN.md — Live innerstan run, Folkungagatan 61 readout, in-app smoke closing 13-03 and 14-UAT test 1
+- [x] 14.1-10-PLAN.md — Live innerstan run, Folkungagatan 61 readout, in-app smoke closing 13-03 and 14-UAT test 1
 
 ### Phase 14.2: Daily Watch by Email (INSERTED)
 
@@ -237,7 +237,7 @@ Plans:
 | 10. Niche Ranking | v1.1 | 2/2 | Complete | 2026-07-07 |
 | 11. Gallery Condition Vision | v1.1 | 3/3 | Complete | 2026-07-07 |
 | 12. Floor-Plan & Sun-Path | v1.1 | 4/4 | Complete | 2026-07-07 |
-| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 4/5 | In Progress|  |
+| 13. Discovery UX / Poll-Timeout Fix | v1.2 | 5/5 | In Progress|  |
 | 14. Holistic Analysis Brain | v1.2 | 10/10 | Complete    | 2026-08-10 |
 | 15. ROI-Aware Opportunity Brief | v1.2 | 0/TBD | Not started | - |
 | 16. Value-Gap Scoring & Ranking | v1.2 | 0/TBD | Not started | - |

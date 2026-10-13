@@ -3,7 +3,7 @@ status: testing
 phase: 14-holistic-analysis-brain
 source: [14-VERIFICATION.md]
 started: 2026-08-10T14:20:00Z
-updated: 2026-08-11T00:00:00Z
+updated: 2026-10-13T01:12:01Z
 deferral:
   reason: >
     All four items require a live discovery run against real Apify/Allabrf, which
@@ -54,7 +54,22 @@ awaiting: operator to run the live smoke (no environment blocker — Supabase is
 ### 1. Live end-to-end discovery run: real comps + BRF fetched and folded into a real multi-area job, within the CAP_VISION_SEK_MAX cost cap and inside the tick window.
 expected: Comps fetched once per distinct area, BRF attempted only for top-N, cost_sek_total stays within cap, no tick timeout, every candidate shows >=1 actionable item.
 why_human: No mocked test can observe real Apify/Allabrf latency, real spend accounting, or true end-to-end wall-clock inside the ~300s ceiling. (Runnable now — the previously-recorded Supabase-paused and operator-IP-blocked blockers were both incorrect; see corrected_2026_08_11 in the frontmatter.)
-result: [pending]
+result: issue
+observed_2026_10_13: >
+  Run by Claude in the browser pane (Daniel's standing rule), local dev server + local Supabase,
+  job d32ae1fe, query "Lägenheter i innerstan under 4 miljoner, minst 35 kvm". Submitted 02:44:20,
+  scrape done 02:50:54 (703 listings, 60 kept, cap reached, failed_areas []), vision pass done
+  03:10:58, i.e. 26.6 min wall-clock. Results rendered WITHOUT a reload.
+  PASS parts: comps fetched per distinct area (12 labels, per-pass cap 8 → 4 skipped, 3 sub-areas
+  AREA_UNRESOLVED, non-fatal) and attached to 52/60; vision ran on 60/60 (54 with claims, 6 with
+  the data-only holistic brief) → 60/60 candidates carry ≥1 actionable item; Kungsholmen present
+  (26 incl. sub-areas); cost_sek_total 1.573 ≤ cap_sek 5 (scrape ledger; vision SEK is not
+  surfaced in the row or the server log — gap).
+  ISSUE parts: BRF attached to 0/60 (Allabrf source is dead, memory allabrf-auto-fetch-never-worked);
+  the client hit ABSOLUTE_CEILING_MS (15 min) at ~02:59 and showed "Det tar längre tid än väntat.
+  Försök igen." while the server tick was still running correctly — a false failure prompt, the
+  exact thing 13-03 truth 2 forbids. No tick timeout server-side.
+  Evidence: .planning/calibration/data/evidence/14.1-10-inapp-0{2,3,4}-*.jpg (gitignored).
 
 ### 2. Confirm genitive kommun corroboration reaches resolveOrgNr confidence 'high' against the live Allabrf registry for unambiguous single-name matches.
 expected: 'high' confidence reached for real BRF names, unblocking the BRF top-N lookup in production (today gated to 'high' only, per D-14-09's explicit rejection of relaxing to 'low').
@@ -75,8 +90,8 @@ result: [pending]
 
 total: 4
 passed: 0
-issues: 0
-pending: 4
+issues: 1
+pending: 3
 skipped: 0
 blocked: 0
 
