@@ -45,13 +45,14 @@ function row(
 }
 
 describe("REASON_THRESHOLDS", () => {
-  it("holds the eight values of the plan in one table", () => {
+  it("holds the nine values (the plan's eight plus the R-14 rooms guard) in one table", () => {
     expect(REASON_THRESHOLDS).toEqual({
       daysOnMarketMin: 60,
       avgiftHighRatio: 1.25,
       brfDebtHighPerSqm: 10_000,
       sqmPerRoomMin: 14,
       sqmPerRoomMax: 30,
+      sqmPerRoomMinRooms: 2,
       minRowsForMedian: 5,
       priceCutMinSek: 1,
       noElevatorFloorMin: 4,
@@ -131,6 +132,18 @@ describe("boundaries", () => {
     [28, 2, []], // exactly 14 with two rooms
   ])("living area %d over %d rooms", (area, rooms, expected) => {
     expect(reasonsFor(row({ livingArea: area, rooms }), NO_MEDIANS)).toEqual(expected);
+  });
+  it.each([
+    [35, 1], // 35 per room
+    [44, 1], // 44 per room
+    [10, 1], // 10 per room would be "too small" with 2 rooms, still no reason with 1 (R-14)
+    [20, 1.5], // below the 2-room floor: no layout reason
+  ])("R-14: %d kvm with %d room(s) never gets the layout reason", (area, rooms) => {
+    expect(reasonsFor(row({ livingArea: area, rooms }), NO_MEDIANS)).toEqual([]);
+  });
+  it("R-14: the rule starts at exactly 2 rooms", () => {
+    expect(reasonsFor(row({ livingArea: 27.9, rooms: 2 }), NO_MEDIANS)).toEqual(["ovanlig planlösning"]);
+    expect(reasonsFor(row({ livingArea: 61, rooms: 2 }), NO_MEDIANS)).toEqual(["ovanlig planlösning"]);
   });
   it("missing rooms or area gives no layout reason", () => {
     expect(reasonsFor(row({ rooms: null }), NO_MEDIANS)).toEqual([]);

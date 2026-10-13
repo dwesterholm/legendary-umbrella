@@ -40,7 +40,7 @@
  * {@link REASON_THRESHOLDS} is a GUESS (research assumption A5) - a common rule of
  * thumb, not a Booli figure and not fitted to data: 60 days on market, an avgift
  * per kvm 25 % above the district median, 10 000 kr of association debt per kvm, a
- * flat of less than 14 or more than 30 kvm per room, a high floor from the 4th. Tune
+ * flat of less than 14 or more than 30 kvm per room (only with 2 rooms or more, R-14), a high floor from the 4th. Tune
  * them only on printed distributions (the smoke run prints how often each fires),
  * never to make a row look explained.
  *
@@ -64,6 +64,11 @@ export const REASON_THRESHOLDS: {
   readonly sqmPerRoomMin: 14;
   /** More kvm per room than this: "ovanlig planlösning". */
   readonly sqmPerRoomMax: 30;
+  /**
+   * The kvm-per-room rule applies only from this many rooms up (R-14). A 1-room flat of 35-44 kvm is an
+   * ordinary studio, not an odd layout; before this guard the rule fired on 10 of 35 rows, all of them 1-room.
+   */
+  readonly sqmPerRoomMinRooms: 2;
   /** A district needs this many rows with a known avgift before it has a median. */
   readonly minRowsForMedian: 5;
   /** The asking price went down by at least this many kronor: "prissänkt". */
@@ -76,6 +81,7 @@ export const REASON_THRESHOLDS: {
   brfDebtHighPerSqm: 10_000,
   sqmPerRoomMin: 14,
   sqmPerRoomMax: 30,
+  sqmPerRoomMinRooms: 2,
   minRowsForMedian: 5,
   priceCutMinSek: 1,
   noElevatorFloorMin: 4,
@@ -242,7 +248,7 @@ export function reasonsFor(row: ReasonRow, ctx: ReasonContext): string[] {
   }
 
   const { livingArea, rooms } = row.candidate;
-  if (isNumber(livingArea) && livingArea > 0 && isNumber(rooms) && rooms > 0) {
+  if (isNumber(livingArea) && livingArea > 0 && isNumber(rooms) && rooms >= REASON_THRESHOLDS.sqmPerRoomMinRooms) {
     const sqmPerRoom = livingArea / rooms;
     if (sqmPerRoom < REASON_THRESHOLDS.sqmPerRoomMin || sqmPerRoom > REASON_THRESHOLDS.sqmPerRoomMax) {
       found.set("unusualLayout", "ovanlig planlösning");
