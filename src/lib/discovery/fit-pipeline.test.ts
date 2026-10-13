@@ -10,20 +10,26 @@ import {
   FIT_ENRICH_CONCURRENCY,
   FIT_ENRICH_DEADLINE_MS,
   FIT_PRICE_MAX,
+  FIT_PRICE_SECTION_SPLIT,
   FIT_RENDERS_PER_WINDOW_ROW_MAX,
+  FIT_SECTION_TITLES,
   FIT_SIZE_MIN,
+  FIT_TABLE_HEADER,
   FIT_TABLE_MAX_ROWS,
   checkApifyHeadroom,
   estimateFitRunUsd,
   fitRowKey,
   renderAreaReport,
+  renderFitSections,
   renderFitTable,
   renderWindowReport,
   runFitPipeline,
+  splitFitSections,
   toFitTableRows,
   type AreaReport,
   type EnrichmentLike,
   type FitPipelineDeps,
+  type FitTableRow,
   type ScrapedRow,
 } from "@/lib/discovery/fit-pipeline";
 import {
@@ -317,7 +323,7 @@ describe("table rows and rendering (FIT-03)", () => {
     const rows = toFitTableRows({ ranked: sample }, new Map());
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) {
-      for (const v of [r.askingKr, r.expectedFinalKr, r.resaleKr, r.renoMidKr, r.renoLowKr, r.renoHighKr, r.profitKr, r.tasteKr]) {
+      for (const v of [r.askingKr, r.expectedFinalKr, r.resaleKr, r.gapKr, r.creditKr, r.renoMidKr, r.renoLowKr, r.renoHighKr, r.profitKr, r.tasteKr]) {
         expect(Number.isInteger(v)).toBe(true);
       }
     }
@@ -330,6 +336,30 @@ describe("table rows and rendering (FIT-03)", () => {
     );
     expect(a.profitKr).toBe(1235);
     expect(b.profitKr).toBe(-1234);
+  });
+
+  it("the uncapped gap and the credited amount are whole kronor; a capped row shows gap above credit, null stays null (D-11)", () => {
+    const capped: FitScoreResult = { ...sample[0], gapSek: 1_234_567.5, creditSek: 800_000.4 };
+    const uncapped: FitScoreResult = { ...sample[1], gapSek: 300_000.2, creditSek: 300_000.2 };
+    const missing: FitScoreResult = { ...sample[2], gapSek: null, creditSek: null };
+    const [a, b, c] = toFitTableRows({ ranked: [capped, uncapped, missing] }, new Map());
+    expect(a.gapKr).toBe(1_234_568);
+    expect(a.creditKr).toBe(800_000);
+    expect(a.gapKr as number).toBeGreaterThan(a.creditKr as number);
+    expect(b.gapKr).toBe(b.creditKr);
+    expect(c.gapKr).toBeNull();
+    expect(c.creditKr).toBeNull();
+  });
+
+  it("the header puts 'Okapad skillnad | Krediterad' right after 'Värde renoverad' and every row prints both", () => {
+    expect(FIT_TABLE_HEADER).toContain("Värde renoverad | Okapad skillnad | Krediterad | Reno");
+    const capped: FitScoreResult = { ...sample[0], gapSek: 1_234_567, creditSek: 800_000 };
+    const text = renderFitTable(toFitTableRows({ ranked: [capped] }, new Map()));
+    const cells = text.split("\n")[1].split(" | ");
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    expect(cells).toHaveLength(headerCells.length);
+    expect(cells[headerCells.indexOf("Okapad skillnad")]).toBe((1_234_567).toLocaleString("sv-SE"));
+    expect(cells[headerCells.indexOf("Krediterad")]).toBe((800_000).toLocaleString("sv-SE"));
   });
 
   it("looks up the pre-rank position by listing URL", () => {
@@ -353,6 +383,75 @@ describe("table rows and rendering (FIT-03)", () => {
     const flagged: FitScoreResult = { ...sample[0], flags: ["utanförModellensStorlek"] };
     const text = renderFitTable(toFitTableRows({ ranked: [flagged] }, new Map()));
     expect(text).toContain("storlek utanför modellen");
+  });
+});
+
+describe("two price sections (D-12, WATCH-04)", () => {
+  const base = toFitTableRows({ ranked: rankFit(snapshot.rows, model).ranked.slice(0, 1) }, new Map())[0];
+  const row = (rank: number, expectedFinalKr: number | null): FitTableRow => ({
+    ...base,
+    rank,
+    address: `Testgatan ${rank}`,
+    expectedFinalKr,
+  });
+
+  it("the split is a constant at 4 000 000 and the titles are the two Swedish headings", () => {
+    expect(FIT_PRICE_SECTION_SPLIT).toBe(4_000_000);
+    expect(FIT_SECTION_TITLES).toEqual({ under: "Förväntat under 4 M", over: "Över 4 M förväntat" });
+  });
+
+  it("4 000 000 and 3 999 999 go to under, 4 000 001 and a missing expected final go to over", () => {
+    const { under, over } = splitFitSections([row(1, 4_000_001), row(2, 4_000_000), row(3, null), row(4, 3_999_999)]);
+    expect(under.map((r) => r.rank)).toEqual([2, 4]);
+    expect(over.map((r) => r.rank)).toEqual([1, 3]);
+  });
+
+  it("keeps the input order inside each section and never renumbers '#'", () => {
+    const rows = [row(1, 4_500_000), row(2, 3_900_000), row(3, 4_100_000), row(4, 3_000_000), row(5, 4_000_000)];
+    const { under, over } = splitFitSections(rows);
+    expect(under.map((r) => r.rank)).toEqual([2, 4, 5]);
+    expect(over.map((r) => r.rank)).toEqual([1, 3]);
+    const text = renderFitSections(rows);
+    const numbered = text.split("\n").filter((l) => /^\d+ \| /.test(l)).map((l) => Number(l.split(" | ")[0]));
+    expect(numbered).toEqual([2, 4, 5, 1, 3]);
+  });
+
+  it("prints the under section first with counts, then the over section, each with the table header", () => {
+    const text = renderFitSections([row(1, 4_500_000), row(2, 3_900_000), row(3, 3_800_000)]);
+    const lines = text.split("\n");
+    expect(lines[0]).toBe("Förväntat under 4 M (2 annonser)");
+    expect(lines[1]).toBe(FIT_TABLE_HEADER);
+    const overAt = lines.indexOf("Över 4 M förväntat (1 annonser)");
+    expect(overAt).toBeGreaterThan(1);
+    expect(lines[overAt + 1]).toBe(FIT_TABLE_HEADER);
+    expect(lines[overAt + 2].startsWith("1 | ")).toBe(true);
+  });
+
+  it("an empty section prints its heading with (0 annonser), the header and '0 kandidater'", () => {
+    const onlyOver = renderFitSections([row(1, 4_500_000)]);
+    expect(onlyOver).toContain(`Förväntat under 4 M (0 annonser)\n${FIT_TABLE_HEADER}\n0 kandidater`);
+    const onlyUnder = renderFitSections([row(1, 3_000_000)]);
+    expect(onlyUnder.endsWith(`Över 4 M förväntat (0 annonser)\n${FIT_TABLE_HEADER}\n0 kandidater`)).toBe(true);
+    const none = renderFitSections([]);
+    expect(none.match(/\(0 annonser\)/g)).toHaveLength(2);
+    expect(none.match(/0 kandidater/g)).toHaveLength(2);
+  });
+
+  it("maxRows applies per section and the rest line is printed inside the section", () => {
+    const many = Array.from({ length: 5 }, (_, i) => row(i + 1, 3_000_000));
+    const text = renderFitSections(many, { maxRows: 2 });
+    expect(text).toContain("Förväntat under 4 M (5 annonser)");
+    expect(text).toContain("+3 till (se snapshot)");
+    expect(text.split("\n").filter((l) => /^\d+ \| /.test(l))).toHaveLength(2);
+  });
+
+  it("the split does not change the ranking order: concatenated sections are the profit order restricted to each side", () => {
+    const rows = toFitTableRows({ ranked: rankFit(snapshot.rows, model).ranked }, new Map());
+    const { under, over } = splitFitSections(rows);
+    expect(under.length + over.length).toBe(rows.length);
+    const ranks = (rs: readonly FitTableRow[]) => rs.map((r) => r.rank);
+    expect(ranks(under)).toEqual([...ranks(under)].sort((a, b) => a - b));
+    expect(ranks(over)).toEqual([...ranks(over)].sort((a, b) => a - b));
   });
 });
 

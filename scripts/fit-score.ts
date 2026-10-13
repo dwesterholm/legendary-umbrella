@@ -26,6 +26,12 @@
  *   the headroom is smaller (R-13). `--dry-run` stops right after the checks,
  *   before the first page is read.
  *
+ * The printed table is two sections (Phase 14.2, D-12): "Förväntat under 4 M"
+ * (expected final price 4 000 000 kr or less) first, then "Över 4 M förväntat";
+ * ordering inside each is the profit order and '#' stays the innerstan rank.
+ * Every row shows the uncapped gap ("Okapad skillnad", D-11) beside the credited
+ * amount ("Krediterad", capped at 20 % of the value).
+ *
  * The orchestration (order of paid calls, filters, table) lives in
  * src/lib/discovery/fit-pipeline.ts so the Phase 14.2 email can reuse it.
  *
@@ -43,14 +49,16 @@ import { seedResolve } from "@/lib/discovery/area-seed";
 import { toCandidate } from "@/lib/discovery/candidate";
 import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
 import {
+  FIT_SECTION_TITLES,
   FIT_TABLE_MAX_ROWS,
   checkApifyHeadroom,
   estimateFitRunUsd,
   fitRowKey,
   renderAreaReport,
-  renderFitTable,
+  renderFitSections,
   renderWindowReport,
   runFitPipeline,
+  splitFitSections,
   toFitTableRows,
   FIT_FLAG_LABELS,
   type AreaReport,
@@ -89,6 +97,9 @@ const USAGE = `Användning:
     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
     npx tsx scripts/fit-score.ts [--window ${FIT_VISION_WINDOW}] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+
+  Tabellen har två avsnitt: "Förväntat under 4 M" (förväntat slutpris högst 4 000 000 kr) och "Över 4 M förväntat".
+  "Okapad skillnad" är värde minus slutpris före 20 %-taket; "Krediterad" är den del som räknas in i vinsten.
 
   --replay <fil>     Spela upp en sparad snapshot av bostäder till salu (inga nätverksanrop)
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
@@ -243,8 +254,11 @@ function printTracked(
   console.log(`  Modellpris:         ${orDash(r.predKrPerSqm, sek)} kr/kvm, utgångspris/modell ${orDash(r.askToPred, pct)}`);
   console.log(`  Förv. överbud:      ${orDash(r.overbidPct, pct)}`);
   console.log(`  Förv. slutpris:     ${orDash(r.purchaseSek, sek)} kr`);
+  // Same split function and same rounding as the table, so the line always matches the section the row was printed in.
+  const inUnder = splitFitSections(toFitTableRows({ ranked: [r] }, new Map())).under.length === 1;
+  console.log(`  Sektion:            ${inUnder ? FIT_SECTION_TITLES.under : FIT_SECTION_TITLES.over}`);
   console.log(`  Värde renoverad:    ${orDash(r.resaleSek, sek)} kr`);
-  console.log(`  Skillnad (värde - slutpris): ${orDash(r.gapSek, sek)} kr`);
+  console.log(`  Okapad skillnad (värde - slutpris): ${orDash(r.gapSek, sek)} kr`);
   console.log(`  Kredit (max ${pct(MAX_CREDIT_PCT)} av värdet): ${orDash(r.creditSek, sek)} kr`);
   console.log(`  Reno:               ${renoText(r)}; kök ${r.renoStates.kitchen}, badrum ${r.renoStates.bathroom}, helhet ${r.renoStates.overall}`);
   console.log(`  Försäljningskostnad: ${sek(r.salesCostsSek)} kr`);
@@ -282,7 +296,7 @@ function printRanking(
   preRankPositions: ReadonlyMap<string, number>,
   trackId: number,
 ): void {
-  console.log(renderFitTable(toFitTableRows(ranking, preRankPositions), { maxRows: FIT_TABLE_MAX_ROWS }));
+  console.log(renderFitSections(toFitTableRows(ranking, preRankPositions), { maxRows: FIT_TABLE_MAX_ROWS }));
   printTracked(trackId, ranking, rows, preRankPositions);
   printNotComparable(ranking.notComparable);
   printHealth(ranking.health);

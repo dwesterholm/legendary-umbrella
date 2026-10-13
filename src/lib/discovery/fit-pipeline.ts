@@ -287,6 +287,10 @@ export interface FitTableRow {
   readonly askingKr: number | null;
   readonly expectedFinalKr: number | null;
   readonly resaleKr: number | null;
+  /** D-11: resale minus expected final BEFORE the 20 % credit cap ("Okapad skillnad"). */
+  readonly gapKr: number | null;
+  /** The part of the gap the credit cap lets into the profit ("Krediterad"); at most gapKr. */
+  readonly creditKr: number | null;
   readonly renoTier: string;
   readonly renoMidKr: number;
   readonly renoLowKr: number;
@@ -302,7 +306,8 @@ const roundOrNull = (n: number | null): number | null => (n === null ? null : ro
 
 /**
  * The ranked results as printable rows. This is the one place money is rounded
- * (Math.round, half towards +infinity: 1234.5 gives 1235, -1234.5 gives -1234).
+ * (Math.round, half towards +infinity: 1234.5 gives 1235, -1234.5 gives -1234),
+ * the uncapped gap (gapKr) and the credited amount (creditKr) included.
  */
 export function toFitTableRows(
   ranking: { readonly ranked: readonly FitScoreResult[] },
@@ -318,6 +323,8 @@ export function toFitTableRows(
     askingKr: roundOrNull(r.askingSek),
     expectedFinalKr: roundOrNull(r.purchaseSek),
     resaleKr: roundOrNull(r.resaleSek),
+    gapKr: roundOrNull(r.gapSek),
+    creditKr: roundOrNull(r.creditSek),
     renoTier: r.renoTier,
     renoMidKr: roundKr(r.renoSek),
     renoLowKr: roundKr(r.renoLowSek),
@@ -330,7 +337,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -355,6 +362,8 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         orDash(r.askingKr),
         orDash(r.expectedFinalKr),
         orDash(r.resaleKr),
+        orDash(r.gapKr),
+        orDash(r.creditKr),
         `${r.renoTier} ${kr(r.renoMidKr)} (${kr(r.renoLowKr)}–${kr(r.renoHighKr)})`,
         orDash(r.profitKr),
         kr(r.tasteKr),
@@ -365,6 +374,44 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
   }
   if (rows.length > maxRows) lines.push(`+${rows.length - maxRows} till (se snapshot)`);
   return lines.join("\n");
+}
+
+/**
+ * D-12: the table is split on the expected final price. A row whose printed
+ * expectedFinalKr is at or under this goes to the first section (4 000 000
+ * included). Compared on the printed whole-kronor number, so the section always
+ * matches the figure the reader sees.
+ */
+export const FIT_PRICE_SECTION_SPLIT = 4_000_000;
+
+/** The two section headings (D-12), in print order: under first. */
+export const FIT_SECTION_TITLES = { under: "Förväntat under 4 M", over: "Över 4 M förväntat" } as const;
+
+/**
+ * Splits rows on {@link FIT_PRICE_SECTION_SPLIT}. A row with no expected final
+ * goes to the over section. Order inside each section is the input order, so the
+ * profit ranking is unchanged and each row keeps its innerstan '#'.
+ */
+export function splitFitSections(rows: readonly FitTableRow[]): { under: FitTableRow[]; over: FitTableRow[] } {
+  const under: FitTableRow[] = [];
+  const over: FitTableRow[] = [];
+  for (const r of rows) {
+    if (r.expectedFinalKr !== null && r.expectedFinalKr <= FIT_PRICE_SECTION_SPLIT) under.push(r);
+    else over.push(r);
+  }
+  return { under, over };
+}
+
+/**
+ * Prints the two sections (D-12): each is a heading with its count, then
+ * {@link renderFitTable} of its rows (`maxRows` applies per section). An empty
+ * section still prints its heading with "(0 annonser)", the header and "0 kandidater".
+ */
+export function renderFitSections(rows: readonly FitTableRow[], opts: { maxRows?: number } = {}): string {
+  const { under, over } = splitFitSections(rows);
+  const block = (title: string, part: readonly FitTableRow[]): string =>
+    `${title} (${part.length} annonser)\n${renderFitTable(part, opts)}`;
+  return [block(FIT_SECTION_TITLES.under, under), block(FIT_SECTION_TITLES.over, over)].join("\n\n");
 }
 
 // ---------------------------------------------------------------------------
