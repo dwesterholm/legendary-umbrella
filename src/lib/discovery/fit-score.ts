@@ -67,6 +67,7 @@ import {
   expectedOverbid,
   predictKrPerSqm,
   renovatedCapKrPerSqm,
+  type HedonicInput,
   type HedonicModel,
   type InnerstanDistrict,
 } from "@/lib/discovery/hedonic-model";
@@ -288,6 +289,32 @@ export function cappedTasteSek(tastePct: number, resaleSek: number): number {
 }
 
 /**
+ * What the hedonic model is told about one for-sale row (D-01, 14.4). Besides the
+ * candidate's own fields it passes the three inputs the sold side trains on, built
+ * the same way: avgift per m2 and month from the listing's avgift, the association's
+ * debt per m2, and tomträtt from the stated land lease. An unknown value stays null
+ * (never a made-up number), so the model marginalises it and names it in `imputed`.
+ */
+export function hedonicInputOf(row: FitInputRow, area: number): HedonicInput {
+  const c = row.candidate;
+  const facts = row.facts;
+  const avgift = facts?.avgiftMonthlySek ?? null;
+  const debt = facts?.brf?.debtPerSqm ?? null;
+  return {
+    district: row.district,
+    latitude: c.latitude,
+    longitude: c.longitude,
+    floor: c.floor,
+    livingArea: area,
+    balcony: c.balcony,
+    constructionYear: c.constructionYear,
+    avgiftPerSqmMonth: avgift !== null && Number.isFinite(avgift) && avgift > 0 && area > 0 ? avgift / area : null,
+    brfDebtPerSqm: debt !== null && Number.isFinite(debt) && debt >= 0 ? debt : null,
+    tomtratt: facts?.landLease ?? null,
+  };
+}
+
+/**
  * Scores one row. Never throws on missing data: it returns a not-comparable
  * result instead.
  */
@@ -368,15 +395,7 @@ export function fitScore(
     };
   }
 
-  const { krPerSqm: pred, imputed } = predictKrPerSqm(model, {
-    district: row.district,
-    latitude: c.latitude,
-    longitude: c.longitude,
-    floor: c.floor,
-    livingArea: area,
-    balcony: c.balcony,
-    constructionYear: c.constructionYear,
-  });
+  const { krPerSqm: pred, imputed } = predictKrPerSqm(model, hedonicInputOf(row, area));
   const askingPerSqm = price / area;
   const overbid = expectedOverbid(model, row.district, askingPerSqm, pred);
 

@@ -41,7 +41,13 @@ import {
   type InnerstanDistrict,
   type TrainingPoint,
 } from "@/lib/discovery/hedonic-model";
-import { slutprisCacheSchema, subtractMonthsIso, SLUTPRIS_SIZE_BANDS, type SoldRow } from "@/lib/booli/slutpriser";
+import {
+  slutprisCacheSchema,
+  subtractMonthsIso,
+  SLUTPRIS_SIZE_BANDS,
+  type BrfEntry,
+  type SoldRow,
+} from "@/lib/booli/slutpriser";
 
 const CWD = process.cwd();
 const DEFAULT_CACHE = join(CWD, ".planning", "calibration", "data", "slutpriser-cache.json");
@@ -133,7 +139,25 @@ function isCalibrationListing(row: SoldRow): boolean {
   );
 }
 
-function toTrainingRow(row: SoldRow): HedonicTrainingRow {
+/**
+ * Tomträtt from the sold page's tenure text: a text with "tomträtt" is true, exactly
+ * "Bostadsrätt" is false, anything else (missing, "Äganderätt") is unknown (R-02).
+ */
+function tomtrattOf(tenureForm: string | null | undefined): boolean | null {
+  if (tenureForm === null || tenureForm === undefined) return null;
+  if (/tomträtt/i.test(tenureForm)) return true;
+  if (tenureForm.trim().toLowerCase() === "bostadsrätt") return false;
+  return null;
+}
+
+/**
+ * `brf` is the cache's one-debt-figure-per-association table (14.4-02). The debt is the
+ * association's LATEST annual report, not the figure at the sale date (RESEARCH Pitfall 14).
+ */
+function toTrainingRow(row: SoldRow, brf: Readonly<Record<string, BrfEntry>>): HedonicTrainingRow {
+  const e = row.enriched;
+  const rent = e?.rentSek ?? null;
+  const debt = e?.brfId != null ? (brf[e.brfId]?.debtPerSqm ?? null) : null;
   return {
     district: row.district,
     lat: row.lat,
@@ -148,6 +172,9 @@ function toTrainingRow(row: SoldRow): HedonicTrainingRow {
     balcony: row.enriched?.balcony ?? null,
     buildYear: row.enriched?.buildYear ?? null,
     enriched: row.enriched != null,
+    avgiftPerSqmMonth: rent !== null && rent > 0 ? rent / row.livingArea : null,
+    brfDebtPerSqm: debt !== null && Number.isFinite(debt) && debt >= 0 ? debt : null,
+    tomtratt: tomtrattOf(e?.tenureForm),
   };
 }
 
@@ -184,6 +211,9 @@ function sizeCheck(rows: readonly HedonicTrainingRow[], asOf: string, since: str
     livingArea: r.livingArea,
     y: Math.log(r.soldPrice / r.livingArea),
     monthsAgo: monthsBetweenIso(r.soldDate, asOf),
+    avgiftPerSqmMonth: r.avgiftPerSqmMonth,
+    brfDebtPerSqm: r.brfDebtPerSqm,
+    tomtratt: r.tomtratt,
   }));
   const medians = {} as Record<InnerstanDistrict, number>;
   const overall = median(points.map((p) => p.y)) ?? 0;
@@ -251,7 +281,8 @@ function main(): void {
 
   // Training rows; the calibration listing is kept out (Pitfall 10).
   const excluded = cache.rows.filter(isCalibrationListing);
-  const training = cache.rows.filter((r) => !isCalibrationListing(r)).map(toTrainingRow);
+  const brfTable = cache.brf ?? {};
+  const training = cache.rows.filter((r) => !isCalibrationListing(r)).map((r) => toTrainingRow(r, brfTable));
   const enrichedRows = training.filter((r) => r.enriched);
 
   console.log("=== MODELLANPASSNING (offline, inga nätverksanrop) ===");

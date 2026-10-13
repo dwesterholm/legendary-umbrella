@@ -18,6 +18,7 @@ import {
   compareFinal,
   comparePreRank,
   fitScore,
+  hedonicInputOf,
   inferredSunForTaste,
   modelHealth,
   parseFitSnapshot,
@@ -291,6 +292,9 @@ function modelPriceSek(spec: FlatSpec, m: HedonicModel = model): number {
     livingArea: area,
     balcony: spec.balcony === undefined ? false : spec.balcony,
     constructionYear: null,
+    avgiftPerSqmMonth: null,
+    brfDebtPerSqm: null,
+    tomtratt: null,
   });
   return krPerSqm * area;
 }
@@ -1189,5 +1193,71 @@ describe("snapshot row sun (R-08, Phase 14.3)", () => {
     const a = rankFit(snapshot.rows, model);
     const b = rankFit(snapshot.rows.map((r) => ({ ...r, sun })), model);
     expect(b.ranked.map((r) => [r.booliId, r.profitSek])).toEqual(a.ranked.map((r) => [r.booliId, r.profitSek]));
+  });
+});
+
+describe("hedonicInputOf: the candidate-side inputs of the 14.4 features (D-01)", () => {
+  const base = snapshot.rows[0];
+
+  it("fills avgift per m2, the association's debt per m2 and tomträtt from the row's facts", () => {
+    const facts = candidateFactsSchema.parse({
+      avgiftMonthlySek: 2232,
+      brf: { loanSek: 1_000_000, areaSqm: 200, reportYear: 2025, debtPerSqm: 5000 },
+      landLease: true,
+      detailFetched: true,
+    });
+    const input = hedonicInputOf({ ...base, facts }, 35);
+    expect(input.avgiftPerSqmMonth).toBeCloseTo(2232 / 35, 12);
+    expect(input.brfDebtPerSqm).toBe(5000);
+    expect(input.tomtratt).toBe(true);
+    expect(input.livingArea).toBe(35);
+  });
+
+  it("a row without facts gives null for all three: nothing is made up", () => {
+    const input = hedonicInputOf({ ...base, facts: null }, 35);
+    expect(input.avgiftPerSqmMonth).toBeNull();
+    expect(input.brfDebtPerSqm).toBeNull();
+    expect(input.tomtratt).toBeNull();
+  });
+
+  it("an avgift of zero, a negative debt and an unstated land lease stay unknown; a debt of zero is a real value", () => {
+    const zeroAvgift = candidateFactsSchema.parse({ avgiftMonthlySek: 0, brf: { debtPerSqm: -5 } });
+    const a = hedonicInputOf({ ...base, facts: zeroAvgift }, 40);
+    expect(a.avgiftPerSqmMonth).toBeNull();
+    expect(a.brfDebtPerSqm).toBeNull();
+    const debtFree = candidateFactsSchema.parse({ brf: { debtPerSqm: 0 }, landLease: false });
+    const b = hedonicInputOf({ ...base, facts: debtFree }, 40);
+    expect(b.brfDebtPerSqm).toBe(0);
+    expect(b.tomtratt).toBe(false);
+  });
+
+  it("a flat's known avgift and debt reach its predicted price; unknown ones are named in featuresImputed", () => {
+    const priced = structuredClone(model);
+    for (const f of priced.features) {
+      if (f.name === "avgiftPerSqmMonth") {
+        f.mean = 70;
+        f.beta = -0.004;
+        f.source = "fit";
+      }
+      if (f.name === "brfDebtPerSqm") {
+        f.mean = 6000;
+        f.beta = -0.00002;
+        f.source = "fit";
+      }
+    }
+    const known = candidateFactsSchema.parse({
+      avgiftMonthlySek: 40 * 90,
+      brf: { debtPerSqm: 10_000 },
+      detailFetched: true,
+    });
+    const withFacts = { ...base, facts: known, candidate: { ...base.candidate, livingArea: 40, price: 4_000_000 } };
+    const without = { ...withFacts, facts: null };
+    const a = fitScore(withFacts, priced);
+    const b = fitScore(without, priced);
+    // 20 kr more avgift per m2 and 4 000 kr more debt per m2 than the mean: exp(-0.08 - 0.08) lower.
+    expect(a.predKrPerSqm! / b.predKrPerSqm!).toBeCloseTo(Math.exp(-0.004 * 20 - 0.00002 * 4000), 9);
+    expect(a.featuresImputed).not.toContain("avgiftPerSqmMonth");
+    expect(a.featuresImputed).not.toContain("brfDebtPerSqm");
+    expect(b.featuresImputed).toEqual(expect.arrayContaining(["avgiftPerSqmMonth", "brfDebtPerSqm"]));
   });
 });

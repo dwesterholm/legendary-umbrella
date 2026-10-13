@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "fittedAt": "2026-10-12T00:00:00Z",
   "asOf": "2026-10-12",
   "n": 400,
@@ -53,6 +53,30 @@
       "beta": -0.04,
       "se": 0.01,
       "source": "fit"
+    },
+    {
+      "name": "avgiftPerSqmMonth",
+      "mean": 0,
+      "beta": 0,
+      "se": null,
+      "source": "zeroed",
+      "note": "syntetisk: ingen effekt"
+    },
+    {
+      "name": "brfDebtPerSqm",
+      "mean": 0,
+      "beta": 0,
+      "se": null,
+      "source": "zeroed",
+      "note": "syntetisk: ingen effekt"
+    },
+    {
+      "name": "tomtratt",
+      "mean": 0,
+      "beta": 0,
+      "se": null,
+      "source": "zeroed",
+      "note": "syntetisk: ingen effekt"
     }
   ],
   "kernel": {
@@ -145,7 +169,11 @@
       "flat": 0.05,
       "slope": null
     },
-    "nullLabelShare": 0.2
+    "nullLabelShare": 0.2,
+    "terms": {
+      "dom": null,
+      "condition": null
+    }
   },
   "fallbacks": [],
   "note": "synthetic test model, not fitted on real sales"

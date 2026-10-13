@@ -32,7 +32,11 @@ import { z } from "zod/v4";
 export const INNERSTAN_DISTRICTS = ["Södermalm", "Kungsholmen", "Vasastan", "Östermalm"] as const;
 export type InnerstanDistrict = (typeof INNERSTAN_DISTRICTS)[number];
 
-/** The six regression features, in the order the model file lists them. */
+/**
+ * The nine regression features, in the order the model file lists them. The first
+ * six are Phase 14.1's; the last three (14.4, D-01) are avgift in kr per m2 and
+ * month, the association's debt in kr per m2, and tomträtt (0/1).
+ */
 export const HEDONIC_FEATURES = [
   "nbLevel",
   "floor",
@@ -40,8 +44,18 @@ export const HEDONIC_FEATURES = [
   "lnArea",
   "monthsAgo",
   "centralityKm",
+  "avgiftPerSqmMonth",
+  "brfDebtPerSqm",
+  "tomtratt",
 ] as const;
 export type HedonicFeature = (typeof HEDONIC_FEATURES)[number];
+
+/**
+ * The features whose value can be unknown for a sold flat or a candidate, and is then
+ * marginalised at the mean of the known values (the honesty rule). Sold pages read
+ * before 14.4 carry none of them.
+ */
+export const OPTIONAL_14_4_FEATURES = ["avgiftPerSqmMonth", "brfDebtPerSqm", "tomtratt"] as const;
 
 /** Floors above this are treated as this floor (view/quiet saturates; thin data above). */
 export const FLOOR_CLIP_MAX = 6;
@@ -89,6 +103,36 @@ const featureSchema = z.object({
   se: num.nullable(),
   source: z.enum(["fit", "prior", "zeroed"]),
   note: z.string().optional(),
+  /**
+   * The training 1st and 99th percentile of a continuous feature's known values (14.4).
+   * A value outside [lo, hi] is clamped at fit AND at prediction, so an extreme avgift
+   * or debt cannot extrapolate. Stored here, never invented at prediction time.
+   */
+  lo: num.optional(),
+  hi: num.optional(),
+});
+
+/**
+ * Bid-premium term slots (14.4). Version 2 carries them empty; plan 04 fills `dom`
+ * (days on market) and plan 10 fills `condition`.
+ */
+const domTermSchema = z.object({
+  beta: num,
+  /** Training mean of ln(1 + days on market); the term is beta x (ln(1 + days) - mean). */
+  mean: num,
+  n: num.min(0),
+  kept: z.boolean(),
+  cvRmse: z.object({ without: num, with: num }),
+  note: z.string(),
+});
+
+const conditionTermSchema = z.object({
+  beta: num,
+  source: z.enum(["fit", "prior"]),
+  kept: z.boolean(),
+  n: num.min(0),
+  cvRmse: z.object({ without: num, with: num }).nullable(),
+  note: z.string(),
 });
 
 /**
@@ -98,7 +142,7 @@ const featureSchema = z.object({
  */
 export const hedonicModelSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     fittedAt: z.string().min(1),
     /** "YYYY-MM-DD"; predictions are for monthsAgo = 0 at this date. */
     asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -145,6 +189,10 @@ export const hedonicModelSchema = z
       overallA: num,
       cvRmse: z.object({ flat: num, slope: num.nullable() }),
       nullLabelShare: num,
+      terms: z.object({
+        dom: domTermSchema.nullable(),
+        condition: conditionTermSchema.nullable(),
+      }),
     }),
     fallbacks: z.array(
       z.object({
@@ -163,13 +211,23 @@ export const hedonicModelSchema = z
   .refine(
     (m) =>
       HEDONIC_FEATURES.every((name) => m.features.filter((f) => f.name === name).length === 1),
-    { message: "features must list each of the six features exactly once", path: ["features"] },
+    { message: "features must list each of the nine features exactly once", path: ["features"] },
   );
 
 export type HedonicModel = z.infer<typeof hedonicModelSchema>;
 
+/** The model file version this code reads and writes (D-01: a pre-14.4 file is refused). */
+export const HEDONIC_MODEL_VERSION = 2;
+
 /** Parses an untrusted JSON value into a model, or throws one readable Error. */
 export function parseHedonicModel(json: unknown): HedonicModel {
+  // A file from before 14.4 lacks the nine-feature layout; name the version instead of
+  // listing whatever else happens to be missing, and never read it as a current model.
+  if (typeof json === "object" && json !== null && "version" in json && (json as { version: unknown }).version !== HEDONIC_MODEL_VERSION) {
+    throw new Error(
+      `Invalid hedonic model: version ${String((json as { version: unknown }).version)} stöds inte (koden läser version ${HEDONIC_MODEL_VERSION}); passa om modellen med scripts/fit-hedonic.ts`,
+    );
+  }
   const result = hedonicModelSchema.safeParse(json);
   if (result.success) return result.data;
   const issues = result.error.issues
@@ -254,6 +312,12 @@ export interface HedonicInput {
   readonly livingArea: number;
   readonly balcony: boolean | null;
   readonly constructionYear: number | null;
+  /** Monthly avgift in kr divided by living area; null = unknown (marginalised at the training mean). */
+  readonly avgiftPerSqmMonth: number | null;
+  /** The association's debt in kr per m2 of its area; null = unknown. */
+  readonly brfDebtPerSqm: number | null;
+  /** true = tomträtt (leasehold land), false = ruled out, null = unknown. */
+  readonly tomtratt: boolean | null;
 }
 
 export interface FeatureRow {
@@ -276,7 +340,7 @@ function meanOf(model: HedonicModel, name: HedonicFeature): number {
 export interface FeatureContext {
   readonly kernel: HedonicModel["kernel"];
   readonly districtLnMedian: Readonly<Record<InnerstanDistrict, number>>;
-  /** Only floor, groundOrBelow and centralityKm are read (the imputable inputs). */
+  /** Only floor, groundOrBelow, centralityKm and the three 14.4 features are read (the imputable inputs). */
   readonly means: Readonly<Record<HedonicFeature, number>>;
 }
 
@@ -327,6 +391,31 @@ export function buildFeatureRowFromContext(
     imputed.push("centralityKm");
   }
 
+  // The three 14.4 inputs follow the floor pattern: unknown = the mean of the known
+  // values (contributes exactly nothing) and the name goes into `imputed`.
+  const known = (v: number | null): v is number => v !== null && Number.isFinite(v);
+  let avgiftPerSqmMonth: number;
+  if (known(input.avgiftPerSqmMonth)) {
+    avgiftPerSqmMonth = input.avgiftPerSqmMonth;
+  } else {
+    avgiftPerSqmMonth = ctx.means.avgiftPerSqmMonth;
+    imputed.push("avgiftPerSqmMonth");
+  }
+  let brfDebtPerSqm: number;
+  if (known(input.brfDebtPerSqm)) {
+    brfDebtPerSqm = input.brfDebtPerSqm;
+  } else {
+    brfDebtPerSqm = ctx.means.brfDebtPerSqm;
+    imputed.push("brfDebtPerSqm");
+  }
+  let tomtratt: number;
+  if (input.tomtratt === null) {
+    tomtratt = ctx.means.tomtratt;
+    imputed.push("tomtratt");
+  } else {
+    tomtratt = input.tomtratt ? 1 : 0;
+  }
+
   return {
     x: {
       nbLevel,
@@ -335,6 +424,9 @@ export function buildFeatureRowFromContext(
       lnArea: Math.log(input.livingArea),
       monthsAgo: 0,
       centralityKm,
+      avgiftPerSqmMonth,
+      brfDebtPerSqm,
+      tomtratt,
     },
     imputed,
   };
@@ -353,6 +445,9 @@ export function buildFeatureRow(model: HedonicModel, input: HedonicInput): Featu
         lnArea: meanOf(model, "lnArea"),
         monthsAgo: meanOf(model, "monthsAgo"),
         centralityKm: meanOf(model, "centralityKm"),
+        avgiftPerSqmMonth: meanOf(model, "avgiftPerSqmMonth"),
+        brfDebtPerSqm: meanOf(model, "brfDebtPerSqm"),
+        tomtratt: meanOf(model, "tomtratt"),
       },
     },
     input,
@@ -645,6 +740,12 @@ export const EXPECTED_SIGNS: Record<HedonicFeature, 1 | -1 | 0> = {
   lnArea: 0,
   centralityKm: -1,
   monthsAgo: 0,
+  // 14.4 (D-01): a higher avgift or a more indebted association should lower the price,
+  // and leasehold land should too. A wrong-signed or unstable estimate is zeroed by the
+  // guard (no prior exists), and the fit report says so.
+  avgiftPerSqmMonth: -1,
+  brfDebtPerSqm: -1,
+  tomtratt: -1,
 };
 
 /**
@@ -670,6 +771,9 @@ const FEATURE_LABEL_SV: Record<HedonicFeature, string> = {
   lnArea: "storlek",
   monthsAgo: "tidstrend",
   centralityKm: "avstånd till centrum",
+  avgiftPerSqmMonth: "avgift kr/kvm/mån",
+  brfDebtPerSqm: "föreningsskuld kr/kvm",
+  tomtratt: "tomträtt",
 };
 
 // ---------------------------------------------------------------------------
@@ -790,6 +894,12 @@ export interface HedonicTrainingRow {
   buildYear: number | null;
   /** True when balcony and build year came from the sold detail page. */
   enriched: boolean;
+  /** Avgift in kr per m2 and month (sold page rent / living area); null = not read. */
+  avgiftPerSqmMonth: number | null;
+  /** The association's debt in kr per m2 (its latest annual report); null = not read. */
+  brfDebtPerSqm: number | null;
+  /** true = tomträtt, false = Bostadsrätt on the sold page, null = not read or another tenure. */
+  tomtratt: boolean | null;
 }
 
 /** A row reduced to the numbers the stage-1 regression uses. lat/lng are already rounded. */
@@ -802,6 +912,9 @@ export interface TrainingPoint {
   /** ln(soldPrice / livingArea) */
   readonly y: number;
   readonly monthsAgo: number;
+  readonly avgiftPerSqmMonth: number | null;
+  readonly brfDebtPerSqm: number | null;
+  readonly tomtratt: boolean | null;
 }
 
 function pointInput(p: TrainingPoint): HedonicInput {
@@ -813,7 +926,17 @@ function pointInput(p: TrainingPoint): HedonicInput {
     livingArea: p.livingArea,
     balcony: null,
     constructionYear: null,
+    avgiftPerSqmMonth: p.avgiftPerSqmMonth,
+    brfDebtPerSqm: p.brfDebtPerSqm,
+    tomtratt: p.tomtratt,
   };
+}
+
+/** How many known values a 14.4 feature has in a training set, and their range (for the zero-spread branch). */
+export interface KnownStats {
+  readonly n: number;
+  readonly min: number;
+  readonly max: number;
 }
 
 /**
@@ -827,11 +950,29 @@ function pointInput(p: TrainingPoint): HedonicInput {
 export function trainingFeatureMatrix(
   points: readonly TrainingPoint[],
   districtLnMedian: Readonly<Record<InnerstanDistrict, number>>,
-): { X: number[][]; kernel: HedonicModel["kernel"]; ctx: FeatureContext; colMeans: number[] } {
+): {
+  X: number[][];
+  kernel: HedonicModel["kernel"];
+  ctx: FeatureContext;
+  colMeans: number[];
+  /** Known-value counts and ranges of the three 14.4 features. */
+  knownStats: Record<(typeof OPTIONAL_14_4_FEATURES)[number], KnownStats>;
+} {
   const known = points.filter((p) => p.floor !== null);
   const floorMean = meanOfValues(known.map((p) => Math.min(Math.max(p.floor as number, 0), FLOOR_CLIP_MAX)));
   const groundMean = meanOfValues(known.map((p) => ((p.floor as number) <= 0 ? 1 : 0)));
   const centralityMean = meanOfValues(points.map((p) => nearestHubKm(p.lat, p.lng)));
+  // The 14.4 features: means over the KNOWN values only, exactly as the floor mean is.
+  const finiteOnly = (values: ReadonlyArray<number | null>): number[] =>
+    values.filter((v): v is number => v !== null && Number.isFinite(v));
+  const avgiftKnown = finiteOnly(points.map((p) => p.avgiftPerSqmMonth));
+  const debtKnown = finiteOnly(points.map((p) => p.brfDebtPerSqm));
+  const tomtrattKnown = points.flatMap((p) => (p.tomtratt === null ? [] : [p.tomtratt ? 1 : 0]));
+  const statsOf = (values: readonly number[]): KnownStats => ({
+    n: values.length,
+    min: values.length === 0 ? 0 : Math.min(...values),
+    max: values.length === 0 ? 0 : Math.max(...values),
+  });
   const kernel: HedonicModel["kernel"] = {
     bandwidthM: KERNEL_BANDWIDTH_M,
     cutoffM: KERNEL_CUTOFF_M,
@@ -848,6 +989,9 @@ export function trainingFeatureMatrix(
       lnArea: 0,
       monthsAgo: 0,
       centralityKm: centralityMean,
+      avgiftPerSqmMonth: meanOfValues(avgiftKnown),
+      brfDebtPerSqm: meanOfValues(debtKnown),
+      tomtratt: meanOfValues(tomtrattKnown),
     },
   };
   const X = points.map((p, i) => {
@@ -855,7 +999,17 @@ export function trainingFeatureMatrix(
     return HEDONIC_FEATURES.map((name) => (name === "monthsAgo" ? p.monthsAgo : row.x[name]));
   });
   const colMeans = HEDONIC_FEATURES.map((_, j) => meanOfValues(X.map((row) => row[j])));
-  return { X, kernel, ctx, colMeans };
+  return {
+    X,
+    kernel,
+    ctx,
+    colMeans,
+    knownStats: {
+      avgiftPerSqmMonth: statsOf(avgiftKnown),
+      brfDebtPerSqm: statsOf(debtKnown),
+      tomtratt: statsOf(tomtrattKnown),
+    },
+  };
 }
 
 /** Median ln(kr/m2) per district; a district under MIN_DISTRICT_N rows borrows the overall median. */
@@ -875,8 +1029,27 @@ function districtMedians(points: readonly TrainingPoint[]): {
 interface Replacement {
   readonly beta: number;
   readonly source: "prior" | "zeroed";
-  readonly reason: "wrong-sign" | "unstable";
+  readonly reason: "wrong-sign" | "unstable" | "absent";
   readonly detail: string;
+}
+
+/**
+ * R-02: a 14.4 feature the data cannot estimate (too few known values, or no spread among
+ * them) is recorded as zero with the TRUE reason, not run through the guard, which would
+ * call it "osäker uppskattning". Null when the feature is estimable.
+ */
+function absentReplacement(name: HedonicFeature, stats: KnownStats): Replacement | null {
+  const label = FEATURE_LABEL_SV[name];
+  let detail: string | null = null;
+  if (stats.n < MIN_FIT_ROWS) {
+    detail = `${label}: för få kända värden i underlaget (${stats.n}; minst ${MIN_FIT_ROWS} krävs).`;
+  } else if (stats.max - stats.min < 1e-12) {
+    detail =
+      name === "tomtratt" && stats.max === 0
+        ? "tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)"
+        : `${label}: ingen variation i underlaget (${stats.n} kända värden, alla lika).`;
+  }
+  return detail === null ? null : { beta: 0, source: "zeroed", reason: "absent", detail };
 }
 
 interface Stage1Fit {
@@ -908,10 +1081,13 @@ interface Stage1Fit {
  */
 function fitStage1(points: readonly TrainingPoint[], lambda: number, guard: boolean): Stage1Fit {
   const { medians, counts, overall } = districtMedians(points);
-  const { X, kernel, ctx, colMeans } = trainingFeatureMatrix(points, medians);
+  const { X, kernel, ctx, colMeans, knownStats } = trainingFeatureMatrix(points, medians);
   const y = points.map((p) => p.y);
   const k = HEDONIC_FEATURES.length;
   const replacements: Array<Replacement | null> = new Array<Replacement | null>(k).fill(null);
+  for (const name of OPTIONAL_14_4_FEATURES) {
+    replacements[HEDONIC_FEATURES.indexOf(name)] = absentReplacement(name, knownStats[name]);
+  }
 
   let active: number[] = [];
   let fit: RidgeFit;
@@ -1134,6 +1310,7 @@ export function fitBidPremium(
       overallA: slope.overallA,
       cvRmse: { flat: cvFlat, slope: cvSlope },
       nullLabelShare,
+      terms: { dom: null, condition: null },
     };
   }
   return {
@@ -1143,6 +1320,7 @@ export function fitBidPremium(
     overallA: flat.overallA,
     cvRmse: { flat: cvFlat, slope: cvSlope },
     nullLabelShare,
+    terms: { dom: null, condition: null },
   };
 }
 
@@ -1318,6 +1496,9 @@ export function fitHedonicModel(
       livingArea: r.livingArea,
       y: Math.log(r.soldPrice / r.livingArea),
       monthsAgo,
+      avgiftPerSqmMonth: r.avgiftPerSqmMonth,
+      brfDebtPerSqm: r.brfDebtPerSqm,
+      tomtratt: r.tomtratt,
     };
   });
   if (prepared.length < MIN_FIT_ROWS) {
@@ -1419,7 +1600,7 @@ export function fitHedonicModel(
 
   const areas = kept.map((p) => p.livingArea);
   const model: HedonicModel = {
-    version: 1,
+    version: HEDONIC_MODEL_VERSION,
     fittedAt: opts.fittedAt,
     asOf: opts.asOf,
     n: kept.length,
@@ -1499,6 +1680,26 @@ export function describeModel(model: HedonicModel): string[] {
     `10 % större yta ≈ ${svPct(Math.exp(area.beta * Math.log(1.1)) - 1)} på kvadratmeterpriset${area.se === null ? "" : ` (SE ${sv(area.se * Math.log(1.1) * 100, 1)} %)`}, källa: ${svSource(area.source)}.`,
   );
   lines.push(`${effect("centralityKm", "Varje km längre från närmaste centrumpunkt")}.`);
+  // The 14.4 features: an item the data could not estimate says so instead of printing a zero effect.
+  const notEstimable = (name: HedonicFeature): boolean =>
+    model.fallbacks.some((f) => f.item === name && f.reason === "absent");
+  const avgift = feature("avgiftPerSqmMonth");
+  lines.push(
+    notEstimable("avgiftPerSqmMonth")
+      ? "Avgift per kvm och månad: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll."
+      : `10 kr högre avgift per kvm och månad ≈ ${svPct(Math.exp(10 * avgift.beta) - 1)}${avgift.se === null ? "" : ` (SE ${sv(avgift.se * 10 * 100, 1)} %)`}, källa: ${svSource(avgift.source)}.`,
+  );
+  const debt = feature("brfDebtPerSqm");
+  lines.push(
+    notEstimable("brfDebtPerSqm")
+      ? "Föreningsskuld per kvm: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll."
+      : `1 000 kr mer föreningsskuld per kvm ≈ ${svPct(Math.exp(1000 * debt.beta) - 1)}${debt.se === null ? "" : ` (SE ${sv(debt.se * 1000 * 100, 1)} %)`}, källa: ${svSource(debt.source)}.`,
+  );
+  lines.push(
+    notEstimable("tomtratt")
+      ? "Tomträtt: kan inte skattas (inga tomträttsförsäljningar i underlaget); effekten sätts till noll och ligger inte i värderingen."
+      : `${effect("tomtratt", "Tomträtt")}.`,
+  );
   // monthsAgo is months BEFORE asOf: a negative coefficient means older sales were cheaper, i.e. rising prices.
   lines.push(`${effect("monthsAgo", "Prisutveckling per månad", -1)}; priset avser ${model.asOf}.`);
 

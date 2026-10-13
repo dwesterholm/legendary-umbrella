@@ -9,6 +9,7 @@ import {
   HEDONIC_PRIORS,
   KERNEL_CUTOFF_M,
   MIN_DISTRICT_N,
+  OPTIONAL_14_4_FEATURES,
   STAGE2_CAP_PCT,
   buildFeatureRow,
   choleskySolve,
@@ -56,6 +57,9 @@ const FOLKUNGAGATAN: HedonicInput = {
   livingArea: 35,
   balcony: false,
   constructionYear: null,
+  avgiftPerSqmMonth: null,
+  brfDebtPerSqm: null,
+  tomtratt: null,
 };
 
 describe("hedonicModelSchema / parseHedonicModel (T-14.1-06)", () => {
@@ -96,7 +100,7 @@ describe("hedonicModelSchema / parseHedonicModel (T-14.1-06)", () => {
     expect(() => parseHedonicModel(broken((m) => (m.maxLivingArea = 30)))).toThrow(/maxLivingArea/);
   });
 
-  it("rejects a model that leaves out one of the six features", () => {
+  it("rejects a model that leaves out one of the nine features", () => {
     const bad = broken((m) => {
       m.features = (m.features as { name: string }[]).filter((f) => f.name !== "lnArea");
     });
@@ -112,6 +116,39 @@ describe("hedonicModelSchema / parseHedonicModel (T-14.1-06)", () => {
 
   it("rejects something that is not an object", () => {
     expect(() => parseHedonicModel(null)).toThrow(/Invalid hedonic model/);
+  });
+
+  it("the synthetic fixture is version 2 with all nine features and empty bid-premium term slots (D-01)", () => {
+    expect(model.version).toBe(2);
+    expect(model.features.map((f) => f.name)).toEqual([...HEDONIC_FEATURES]);
+    expect(model.features).toHaveLength(9);
+    expect(model.bidPremium.terms).toEqual({ dom: null, condition: null });
+  });
+
+  it("rejects a version-1 file with an error that names the version, never mis-reads it (T-14.4-11)", () => {
+    const v1 = broken((m) => {
+      m.version = 1;
+      m.features = (m.features as { name: string }[]).slice(0, 6);
+      delete (m.bidPremium as Record<string, unknown>).terms;
+    });
+    expect(() => parseHedonicModel(v1)).toThrow(/version/);
+    expect(() => parseHedonicModel(v1)).toThrow(/Invalid hedonic model/);
+    // Even a v1 file that otherwise happens to list nine features is refused on its version alone.
+    expect(() => parseHedonicModel(broken((m) => (m.version = 1)))).toThrow(/version/);
+  });
+
+  it("accepts the term slots when filled and refuses a malformed term", () => {
+    const filled = broken((m) => {
+      (m.bidPremium as Record<string, unknown>).terms = {
+        dom: { beta: -0.05, mean: 2.5, n: 900, kept: true, cvRmse: { without: 0.075, with: 0.073 }, note: "x" },
+        condition: { beta: 0.02, source: "prior", kept: true, n: 0, cvRmse: null, note: "antagen" },
+      };
+    });
+    expect(parseHedonicModel(filled).bidPremium.terms.dom?.beta).toBe(-0.05);
+    const bad = broken((m) => {
+      (m.bidPremium as Record<string, unknown>).terms = { dom: { beta: "x" }, condition: null };
+    });
+    expect(() => parseHedonicModel(bad)).toThrow();
   });
 });
 
@@ -455,6 +492,13 @@ interface GenOptions {
   nullLabelShare?: number;
   /** Probability that a labelled row also carries an asking price (default 1). */
   askingShare?: number;
+  /**
+   * 14.4 features. Absent = every row has avgift, debt and tomträtt unknown (null), which also
+   * leaves the random sequence of the older tests untouched. `knownShare` of the rows carry
+   * avgift kr/m2/month (uniform 40..120) and debt kr/m2 (uniform 0..15 000), never tomträtt;
+   * the effects are ln price per unit.
+   */
+  newFeatures?: { knownShare: number; avgiftEffect?: number; debtEffect?: number };
 }
 
 function nearestHubKm(lat: number, lng: number): number {
@@ -484,6 +528,19 @@ function generateRows(opts: GenOptions): HedonicTrainingRow[] {
   for (const district of Object.keys(CENTRES) as District[]) {
     const c = CENTRES[district];
     for (let i = 0; i < counts[district]; i++) {
+      let avgiftPerSqmMonth: number | null = null;
+      let brfDebtPerSqm: number | null = null;
+      let tomtratt: boolean | null = null;
+      if (opts.newFeatures) {
+        const known = g.uniform() < opts.newFeatures.knownShare;
+        const a = 40 + g.uniform() * 80;
+        const d = g.uniform() * 15_000;
+        if (known) {
+          avgiftPerSqmMonth = Math.round(a * 10) / 10;
+          brfDebtPerSqm = Math.round(d);
+          tomtratt = false;
+        }
+      }
       const lat = Math.round((c.lat + (g.uniform() - 0.5) * 0.016) * 1000) / 1000;
       const lng = Math.round((c.lng + (g.uniform() - 0.5) * 0.028) * 1000) / 1000;
       const floor = Math.floor(g.uniform() * 7);
@@ -502,7 +559,12 @@ function generateRows(opts: GenOptions): HedonicTrainingRow[] {
         (floor === 0 ? groundEffect : 0) +
         areaEffect * (Math.log(livingArea) - Math.log(60)) +
         centralityEffect * (nearestHubKm(lat, lng) - 0.5);
-      const y = truth + (opts.balconyEffect ?? 0) * (balcony ? 1 : 0) + noise * g.normal();
+      const y =
+        truth +
+        (opts.balconyEffect ?? 0) * (balcony ? 1 : 0) +
+        (opts.newFeatures?.avgiftEffect ?? 0) * ((avgiftPerSqmMonth ?? 80) - 80) +
+        (opts.newFeatures?.debtEffect ?? 0) * ((brfDebtPerSqm ?? 7500) - 7500) +
+        noise * g.normal();
       const soldPrice = Math.round(Math.exp(y) * livingArea);
       const hasLabel = g.uniform() >= (opts.nullLabelShare ?? 0);
       const z = DISTRICT_A[district] + 0.03 * g.normal();
@@ -521,6 +583,9 @@ function generateRows(opts: GenOptions): HedonicTrainingRow[] {
         balcony: enriched ? balcony : null,
         buildYear: enriched ? buildYear : null,
         enriched,
+        avgiftPerSqmMonth,
+        brfDebtPerSqm,
+        tomtratt,
       };
       TRUTH.set(row, truth);
       rows.push(row);
@@ -550,7 +615,7 @@ describe("monthsBetweenIso", () => {
 });
 
 describe("constants and priors", () => {
-  it("expected signs follow D-02, minus size (D-10): monthsAgo and lnArea have no expectation", () => {
+  it("expected signs follow D-02, minus size (D-10): monthsAgo and lnArea have no expectation; the 14.4 features are all expected to lower the price (D-01)", () => {
     expect(EXPECTED_SIGNS).toEqual({
       nbLevel: 1,
       floor: 1,
@@ -558,6 +623,9 @@ describe("constants and priors", () => {
       lnArea: 0,
       centralityKm: -1,
       monthsAgo: 0,
+      avgiftPerSqmMonth: -1,
+      brfDebtPerSqm: -1,
+      tomtratt: -1,
     });
   });
 
@@ -579,6 +647,9 @@ describe("trainingFeatureMatrix: leave-one-out neighbour level (FIT-02)", () => 
     livingArea: 50,
     y,
     monthsAgo: 0,
+    avgiftPerSqmMonth: null,
+    brfDebtPerSqm: null,
+    tomtratt: null,
   });
 
   it("a row never sees its own price: with two co-located sales each gets the other's", () => {
@@ -686,6 +757,9 @@ describe("fitHedonicModel: recovers known coefficients (FIT-02, D-02, D-18)", ()
         livingArea: r.livingArea,
         balcony: null,
         constructionYear: null,
+        avgiftPerSqmMonth: r.avgiftPerSqmMonth,
+        brfDebtPerSqm: r.brfDebtPerSqm,
+        tomtratt: r.tomtratt,
       });
       expect(Math.abs(krPerSqm / Math.exp(TRUTH.get(r)!) - 1)).toBeLessThan(0.05);
     }
@@ -705,6 +779,9 @@ describe("fitHedonicModel: size range (R-12)", () => {
       balcony: null,
       buildYear: null,
       enriched: false,
+      avgiftPerSqmMonth: null,
+      brfDebtPerSqm: null,
+      tomtratt: null,
     };
     const { model, report } = fitHedonicModel([...base, outlier], OPTS);
     expect(report.droppedOutliers).toBeGreaterThanOrEqual(1);
@@ -812,8 +889,13 @@ describe("fitHedonicModel: sign and stability guard (D-18, T-14.1-13)", () => {
   it("clean data triggers no guard on anything but the redundant hub distance", () => {
     const { model } = fitHedonicModel(generateRows({ seed: 2026, centralityEffect: 0 }), OPTS);
     for (const f of model.features) {
-      if (f.name !== "centralityKm") expect(f.source, f.name).toBe("fit");
+      // The three 14.4 columns have no known value in this data: "absent", not guarded (see their own tests).
+      if (f.name !== "centralityKm" && !(OPTIONAL_14_4_FEATURES as readonly string[]).includes(f.name)) {
+        expect(f.source, f.name).toBe("fit");
+      }
     }
+    const guarded = model.fallbacks.filter((f) => f.reason === "wrong-sign" || f.reason === "unstable");
+    expect(guarded.filter((f) => f.item !== "centralityKm")).toEqual([]);
   });
 
   it("a smooth location effect is carried by the neighbour level, so predictions stay right even if hub distance is zeroed", () => {
@@ -829,6 +911,9 @@ describe("fitHedonicModel: sign and stability guard (D-18, T-14.1-13)", () => {
         livingArea: r.livingArea,
         balcony: null,
         constructionYear: null,
+        avgiftPerSqmMonth: r.avgiftPerSqmMonth,
+        brfDebtPerSqm: r.brfDebtPerSqm,
+        tomtratt: r.tomtratt,
       });
       expect(Math.abs(krPerSqm / Math.exp(TRUTH.get(r)!) - 1)).toBeLessThan(0.06);
     }
@@ -1057,6 +1142,9 @@ describe("fitHedonicModel: cross-validation does not leak (T-14.1-13)", () => {
         balcony: null,
         buildYear: null,
         enriched: false,
+        avgiftPerSqmMonth: null,
+        brfDebtPerSqm: null,
+        tomtratt: null,
       });
     }
     const rows = [...first, ...first.map((r) => ({ ...r }))];
@@ -1097,6 +1185,9 @@ describe("fitHedonicModel: inputs", () => {
       livingArea: 50,
       balcony: null,
       constructionYear: null,
+      avgiftPerSqmMonth: null,
+      brfDebtPerSqm: null,
+      tomtratt: null,
     });
     expect(Number.isFinite(krPerSqm)).toBe(true);
     expect(krPerSqm).toBeGreaterThan(50_000);
@@ -1178,5 +1269,187 @@ describe("describeModel (D-18 plain language)", () => {
   it("works on the synthetic fixture model too", () => {
     expect(describeModel(model).length).toBeGreaterThanOrEqual(6);
     expect(describeModel(parseHedonicModel(modelJson)).length).toBeGreaterThanOrEqual(6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14.4-03: avgift, BRF debt and tomträtt through the one feature seam (D-01, R-02)
+// ---------------------------------------------------------------------------
+
+describe("buildFeatureRow: the three 14.4 inputs (D-01 honesty rule)", () => {
+  /** A copy of the fixture whose three new features have non-zero training means. */
+  const withMeans = structuredClone(modelJson) as unknown as HedonicModel;
+  for (const f of withMeans.features) {
+    if (f.name === "avgiftPerSqmMonth") f.mean = 77;
+    if (f.name === "brfDebtPerSqm") f.mean = 6300;
+    if (f.name === "tomtratt") f.mean = 0;
+  }
+
+  it("known values enter as they are; a tomträtt flag becomes 0 or 1; nothing new is imputed", () => {
+    const row = buildFeatureRow(withMeans, {
+      ...FOLKUNGAGATAN,
+      avgiftPerSqmMonth: 80,
+      brfDebtPerSqm: 5000,
+      tomtratt: false,
+    });
+    expect(row.x.avgiftPerSqmMonth).toBe(80);
+    expect(row.x.brfDebtPerSqm).toBe(5000);
+    expect(row.x.tomtratt).toBe(0);
+    expect(row.imputed).not.toContain("avgiftPerSqmMonth");
+    expect(row.imputed).not.toContain("brfDebtPerSqm");
+    expect(row.imputed).not.toContain("tomtratt");
+    expect(buildFeatureRow(withMeans, { ...FOLKUNGAGATAN, tomtratt: true }).x.tomtratt).toBe(1);
+  });
+
+  it("null values take the training mean and are named in imputed", () => {
+    const row = buildFeatureRow(withMeans, {
+      ...FOLKUNGAGATAN,
+      avgiftPerSqmMonth: null,
+      brfDebtPerSqm: null,
+      tomtratt: null,
+    });
+    expect(row.x.avgiftPerSqmMonth).toBe(77);
+    expect(row.x.brfDebtPerSqm).toBe(6300);
+    expect(row.x.tomtratt).toBe(0);
+    expect(row.imputed).toEqual(expect.arrayContaining(["avgiftPerSqmMonth", "brfDebtPerSqm", "tomtratt"]));
+  });
+
+  it("a null input adds exactly nothing to the prediction, a known one adds beta x (x - mean)", () => {
+    const m = structuredClone(withMeans);
+    for (const f of m.features) {
+      if (f.name === "avgiftPerSqmMonth") f.beta = -0.004;
+      if (f.name === "brfDebtPerSqm") f.beta = -0.00002;
+    }
+    const base = predictLnKrPerSqm(m, FOLKUNGAGATAN).lnKrPerSqm;
+    const known = predictLnKrPerSqm(m, { ...FOLKUNGAGATAN, avgiftPerSqmMonth: 97, brfDebtPerSqm: 10300 }).lnKrPerSqm;
+    expect(known - base).toBeCloseTo(-0.004 * 20 + -0.00002 * 4000, 9);
+  });
+});
+
+describe("trainingFeatureMatrix: the 14.4 columns (D-01)", () => {
+  const medians = { Södermalm: 11.5, Kungsholmen: 11.5, Vasastan: 11.5, Östermalm: 11.5 };
+  const point = (i: number, extra: Partial<TrainingPoint>): TrainingPoint => ({
+    district: "Södermalm",
+    lat: 59.3 + i * 0.01,
+    lng: 18.07,
+    floor: 2,
+    livingArea: 50,
+    y: 11.5,
+    monthsAgo: 0,
+    avgiftPerSqmMonth: null,
+    brfDebtPerSqm: null,
+    tomtratt: null,
+    ...extra,
+  });
+  const col = (name: (typeof HEDONIC_FEATURES)[number]) => HEDONIC_FEATURES.indexOf(name);
+
+  it("means are over the KNOWN values: 30 rows with avgift 60 and 70 rows with none give mean 60", () => {
+    const points = [
+      ...Array.from({ length: 30 }, (_, i) => point(i, { avgiftPerSqmMonth: 60 })),
+      ...Array.from({ length: 70 }, (_, i) => point(30 + i, {})),
+    ];
+    const { ctx, X, colMeans } = trainingFeatureMatrix(points, medians);
+    expect(ctx.means.avgiftPerSqmMonth).toBe(60);
+    expect(X[99][col("avgiftPerSqmMonth")]).toBe(60);
+    expect(colMeans[col("avgiftPerSqmMonth")]).toBeCloseTo(60, 9);
+  });
+
+  it("tomträtt: known true/false give a 0/1 column whose mean is over the known values only", () => {
+    const points = [
+      point(0, { tomtratt: true }),
+      point(1, { tomtratt: false }),
+      point(2, { tomtratt: false }),
+      point(3, { tomtratt: false }),
+      point(4, {}),
+    ];
+    const { ctx, X } = trainingFeatureMatrix(points, medians);
+    expect(ctx.means.tomtratt).toBeCloseTo(0.25, 12);
+    expect(X.map((r) => r[col("tomtratt")])).toEqual([1, 0, 0, 0, 0.25]);
+  });
+
+  it("train/serve parity: the same input gives the same new feature values on both sides", () => {
+    const g = lcg(77);
+    const points = Array.from({ length: 60 }, (_, i) =>
+      point(i, {
+        avgiftPerSqmMonth: i % 3 === 0 ? null : 50 + g.uniform() * 60,
+        brfDebtPerSqm: i % 4 === 0 ? null : Math.round(g.uniform() * 12_000),
+        tomtratt: i % 5 === 0 ? null : i % 7 === 0,
+      }),
+    );
+    const { X, colMeans, kernel } = trainingFeatureMatrix(points, medians);
+    const served = structuredClone(modelJson) as unknown as HedonicModel;
+    served.kernel = kernel;
+    served.features.forEach((f) => (f.mean = colMeans[HEDONIC_FEATURES.indexOf(f.name)]));
+    points.forEach((p, i) => {
+      const row = buildFeatureRow(served, {
+        district: p.district,
+        latitude: p.lat,
+        longitude: p.lng,
+        floor: p.floor,
+        livingArea: p.livingArea,
+        balcony: null,
+        constructionYear: null,
+        avgiftPerSqmMonth: p.avgiftPerSqmMonth,
+        brfDebtPerSqm: p.brfDebtPerSqm,
+        tomtratt: p.tomtratt,
+      });
+      for (const name of ["avgiftPerSqmMonth", "brfDebtPerSqm", "tomtratt"] as const) {
+        expect(row.x[name], `${name} row ${i}`).toBeCloseTo(X[i][col(name)], 9);
+      }
+    });
+  });
+});
+
+describe("fitHedonicModel: avgift and BRF debt as fitted features (D-01)", () => {
+  const rows = generateRows({
+    seed: 14_4,
+    centralityEffect: 0,
+    newFeatures: { knownShare: 0.5, avgiftEffect: -0.004, debtEffect: -0.00002 },
+  });
+  const { model } = fitHedonicModel(rows, OPTS);
+
+  it("lists exactly nine features, version 2, in the shared order", () => {
+    expect(model.version).toBe(2);
+    expect(model.features.map((f) => f.name)).toEqual([...HEDONIC_FEATURES]);
+    expect(hedonicModelSchema.safeParse(model).success).toBe(true);
+    expect(model.bidPremium.terms).toEqual({ dom: null, condition: null });
+  });
+
+  it("recovers a negative avgift coefficient with a finite standard error", () => {
+    const f = featureOf(model, "avgiftPerSqmMonth");
+    expect(f.source).toBe("fit");
+    expect(Math.abs(f.beta - -0.004)).toBeLessThan(0.001);
+    expect(f.se).not.toBeNull();
+    expect(Number.isFinite(f.se!)).toBe(true);
+    expect(f.se!).toBeGreaterThan(0);
+  });
+
+  it("recovers a negative BRF-debt coefficient", () => {
+    const f = featureOf(model, "brfDebtPerSqm");
+    expect(f.source).toBe("fit");
+    expect(Math.abs(f.beta - -0.00002)).toBeLessThan(0.000005);
+  });
+
+  it("the stored mean of each new feature is the mean of the KNOWN values", () => {
+    const known = rows.filter((r) => r.avgiftPerSqmMonth !== null).map((r) => r.avgiftPerSqmMonth as number);
+    const knownMean = known.reduce((a, b) => a + b, 0) / known.length;
+    expect(Math.abs(featureOf(model, "avgiftPerSqmMonth").mean - knownMean)).toBeLessThan(1.5);
+  });
+
+  it("a flat with a higher avgift is predicted cheaper, one with an unknown avgift sits in between and is flagged", () => {
+    const at = (avgift: number | null) =>
+      predictKrPerSqm(model, { ...FOLKUNGAGATAN, floor: 3, livingArea: 50, avgiftPerSqmMonth: avgift, brfDebtPerSqm: null, tomtratt: null });
+    expect(at(110).krPerSqm).toBeLessThan(at(null).krPerSqm);
+    expect(at(null).krPerSqm).toBeLessThan(at(45).krPerSqm);
+    expect(at(null).imputed).toContain("avgiftPerSqmMonth");
+    expect(at(80).imputed).not.toContain("avgiftPerSqmMonth");
+  });
+
+  it("the older coefficients do not move when the new columns are all unknown", () => {
+    const plain = generateRows({ seed: 2026, centralityEffect: 0 });
+    const { model: m } = fitHedonicModel(plain, OPTS);
+    expect(featureOf(m, "avgiftPerSqmMonth").beta).toBe(0);
+    expect(featureOf(m, "brfDebtPerSqm").beta).toBe(0);
+    expect(featureOf(m, "tomtratt").beta).toBe(0);
   });
 });
