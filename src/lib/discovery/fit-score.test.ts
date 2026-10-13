@@ -34,6 +34,7 @@ import {
   type InnerstanDistrict,
 } from "@/lib/discovery/hedonic-model";
 import { CGT_EFFECTIVE_RATE, RENO_COST_MATRIX } from "@/lib/discovery/flip-economics";
+import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import { RENO_BAND, UNKNOWN_RENO_STATES, renoBundle } from "@/lib/discovery/reno-tier";
 import { LOVED_HUBS, tasteBonus } from "@/lib/discovery/taste";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
@@ -976,5 +977,44 @@ describe("purity of the scoring modules (item P)", () => {
 
   it("fit-score.ts has no fixed-decimal string formatting", () => {
     expect(code("src/lib/discovery/fit-score.ts")).not.toMatch(/\.toFixed\(/);
+  });
+});
+
+describe("snapshot row facts (R-08, Phase 14.2)", () => {
+  it("the committed pre-14.2 fixture parses unchanged: every row reads as 'no facts'", () => {
+    expect(snapshot.rows.length).toBeGreaterThan(0);
+    for (const row of snapshot.rows) expect(row.facts).toBeNull();
+  });
+
+  it("a row with a facts record round-trips through JSON and keeps its values", () => {
+    const facts = candidateFactsSchema.parse({
+      tenureForm: "Bostadsrätt",
+      avgiftMonthlySek: 4100,
+      balcony: true,
+      sunPhrases: ["kvällssol"],
+      descriptionRead: true,
+      detailFetched: true,
+    });
+    const withFacts = { ...snapshot, rows: snapshot.rows.map((r, i) => (i === 0 ? { ...r, facts } : r)) };
+    const reparsed = parseFitSnapshot(JSON.parse(JSON.stringify(withFacts)));
+    expect(reparsed.rows[0].facts).toEqual(facts);
+    expect(reparsed.rows[1].facts).toBeNull();
+  });
+
+  it("a facts record with a missing key parses, the key reads null, and free text cannot ride along", () => {
+    const raw = JSON.parse(JSON.stringify(snapshot));
+    raw.rows[0].facts = { tenureForm: "Bostadsrätt", description: "Ring säljaren på 070-123 45 67" };
+    const parsed = parseFitSnapshot(raw);
+    expect(parsed.rows[0].facts?.tenureForm).toBe("Bostadsrätt");
+    expect(parsed.rows[0].facts?.avgiftMonthlySek).toBeNull();
+    expect(parsed.rows[0].facts?.detailFetched).toBe(false);
+    expect(JSON.stringify(parsed.rows[0].facts)).not.toContain("070-123");
+  });
+
+  it("scoring ignores facts: the same ranking with and without them", () => {
+    const facts = candidateFactsSchema.parse({ tenureForm: "Bostadsrätt", detailFetched: true });
+    const a = rankFit(snapshot.rows, model);
+    const b = rankFit(snapshot.rows.map((r) => ({ ...r, facts })), model);
+    expect(b.ranked.map((r) => [r.booliId, r.profitSek])).toEqual(a.ranked.map((r) => [r.booliId, r.profitSek]));
   });
 });

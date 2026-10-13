@@ -61,6 +61,7 @@ import { z } from "zod/v4";
 import { discoveryCandidateSchema, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { MAX_CONDITION_EXPLAINED_PCT } from "@/lib/discovery/confounder-guard";
 import { taxLines, valueGap, type ValueGapInput } from "@/lib/discovery/flip-economics";
+import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import {
   INNERSTAN_DISTRICTS,
   expectedOverbid,
@@ -127,6 +128,13 @@ const fitRowSchema = z.object({
   sunPhrases: sunPhrasesSchema.nullable(),
   /** Re-parsed with the app's own schema, which re-applies the image-host allowlist. */
   candidate: discoveryCandidateSchema,
+  /**
+   * R-08 (Phase 14.2): what Booli's payloads said beyond the 24 candidate fields (tenure,
+   * avgift, listing age, stated sun, ...), beside the candidate and never inside it.
+   * `.nullable().default(null)`: a snapshot written before 14.2 still parses and its rows
+   * read as "no facts".
+   */
+  facts: candidateFactsSchema.nullable().default(null),
 });
 
 export const fitSnapshotSchema = z.object({

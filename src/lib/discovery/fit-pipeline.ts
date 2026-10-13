@@ -187,6 +187,7 @@ export async function runFitPipeline(
     inVisionWindow: false,
     sunPhrases: null,
     candidate: r.candidate,
+    facts: null,
   }));
 
   const counts = { scraped: scraped.rows.length, deduped: deduped.length, filtered: filtered.length };
@@ -223,6 +224,7 @@ export async function runFitPipeline(
     inVisionWindow: true,
     sunPhrases: enrichment.sunPhrases.get(i) ?? null,
     candidate: afterVision[i] ?? forVision[i],
+    facts: null,
   }));
   const outsideRows: FitInputRow[] = outside.map((p) => p.row);
   const comparableRows = new Set(pre.ranked.map((p) => p.row));

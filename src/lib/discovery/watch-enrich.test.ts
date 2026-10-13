@@ -1,0 +1,409 @@
+// @vitest-environment node
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { apifyClientMockFactory } from "@/lib/booli/__mocks__/apify-client";
+import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
+import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
+import { parseFitSnapshot } from "@/lib/discovery/fit-score";
+import { enrichAllCandidates, type WatchEnrichDeps } from "@/lib/discovery/watch-enrich";
+
+vi.mock("apify-client", () => apifyClientMockFactory());
+
+/**
+ * watch-enrich.test.ts - the headless "read every candidate" loop, with injected
+ * fakes for the three network edges (no module mocks beyond the Apify client
+ * constructor, which is never called). Proves the enrichCandidateImages contract
+ * that fit-pipeline relies on: input order, identity on failure, card-versus-
+ * detail precedence, never throws, deadline, concurrency, and the PII rule.
+ */
+
+const AS_OF = "2026-10-13";
+const base = parseFitSnapshot(snapshotJson).rows[0].candidate;
+
+function candidate(id: number, patch: Partial<DiscoveryCandidate> = {}): DiscoveryCandidate {
+  return {
+    ...base,
+    sourceListingUrl: `https://www.booli.se/bostad/${id}`,
+    address: `Testgatan ${id}`,
+    imageUrls: null,
+    floor: null,
+    constructionYear: null,
+    orientation: null,
+    balcony: null,
+    vision: null,
+    visionSkippedReason: null,
+    ...patch,
+  };
+}
+
+const idOf = (url: string): number => Number(url.split("/").pop());
+
+/** A detail entity as `fetchListing` returns it (reshaped), with the keys the facts builder reads. */
+function rawDetail(patch: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    imageUrls: ["https://bcdn.se/images/cache/detail_1440x0.webp"],
+    floor: 2,
+    constructionYear: 1932,
+    balcony: false,
+    amenities: [{ key: "elevator" }],
+    rent: 4100,
+    tenureForm: "Bostadsrätt",
+    published: "2026-09-01 10:00:00",
+    ...patch,
+  };
+}
+
+interface Fakes {
+  deps: WatchEnrichDeps;
+  fetchListing: ReturnType<typeof vi.fn>;
+  fetchBrokerListingPage: ReturnType<typeof vi.fn>;
+  fetchBrokerImageBytes: ReturnType<typeof vi.fn>;
+}
+
+function fakes(overrides: Partial<Fakes> = {}): Fakes {
+  const fetchListing = overrides.fetchListing ?? vi.fn(async () => rawDetail());
+  const fetchBrokerListingPage = overrides.fetchBrokerListingPage ?? vi.fn(async () => null);
+  const fetchBrokerImageBytes = overrides.fetchBrokerImageBytes ?? vi.fn(async () => []);
+  return {
+    deps: {
+      fetchListing: fetchListing as unknown as WatchEnrichDeps["fetchListing"],
+      fetchBrokerListingPage: fetchBrokerListingPage as unknown as WatchEnrichDeps["fetchBrokerListingPage"],
+      fetchBrokerImageBytes: fetchBrokerImageBytes as unknown as WatchEnrichDeps["fetchBrokerImageBytes"],
+    },
+    fetchListing,
+    fetchBrokerListingPage,
+    fetchBrokerImageBytes,
+  };
+}
+
+const opts = (deps: WatchEnrichDeps, extra: object = {}) => ({
+  deadlineMs: 60_000,
+  concurrency: 2,
+  asOf: AS_OF,
+  deps,
+  ...extra,
+});
+
+describe("enrichAllCandidates: every candidate is read", () => {
+  it("5 candidates, all fetches succeed: 5 fetches, every entry replaced, facts say detailFetched", async () => {
+    const input = [1, 2, 3, 4, 5].map((n) => candidate(n));
+    const f = fakes();
+    const result = await enrichAllCandidates(input, input.length, opts(f.deps));
+
+    expect(f.fetchListing).toHaveBeenCalledTimes(5);
+    expect(result.candidates).toHaveLength(5);
+    result.candidates.forEach((c, i) => {
+      expect(c).not.toBe(input[i]);
+      expect(c.sourceListingUrl).toBe(input[i].sourceListingUrl);
+      expect(result.facts.get(i)?.detailFetched).toBe(true);
+    });
+    expect(input[0].imageUrls).toBeNull();
+  });
+
+  it("limit caps the number of reads, in input order; candidates without a URL are never read", async () => {
+    const input = [candidate(1), candidate(2, { sourceListingUrl: null }), candidate(3), candidate(4)];
+    const f = fakes();
+    const result = await enrichAllCandidates(input, 2, opts(f.deps));
+
+    expect(f.fetchListing).toHaveBeenCalledTimes(2);
+    expect(result.candidates[0]).not.toBe(input[0]);
+    expect(result.candidates[1]).toBe(input[1]);
+    expect(result.candidates[2]).not.toBe(input[2]);
+    expect(result.candidates[3]).toBe(input[3]);
+    expect(result.facts.has(1)).toBe(false);
+    expect(result.facts.has(3)).toBe(false);
+  });
+
+  it("uses the bounded detail envelope, never the unbounded default", async () => {
+    const f = fakes();
+    await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const o = f.fetchListing.mock.calls[0][1] as { waitSecs: number; maxRequestRetries: number };
+    expect(o.waitSecs).toBeLessThan(240);
+    expect(o.maxRequestRetries).toBeLessThan(3);
+  });
+});
+
+describe("failure keeps identity (the pipeline's detailFetched test)", () => {
+  it("a detail fetch that throws leaves that entry the very same object, no detail facts, others fine, no throw", async () => {
+    const input = [1, 2, 3].map((n) => candidate(n));
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => {
+        if (idOf(url) === 2) throw new Error("blocked https://www.booli.se/bostad/2 secret-token-123");
+        return rawDetail();
+      }),
+    });
+    const result = await enrichAllCandidates(input, 3, opts(f.deps));
+
+    expect(result.candidates[1]).toBe(input[1]);
+    expect(result.facts.has(1)).toBe(false);
+    expect(result.candidates[0]).not.toBe(input[0]);
+    expect(result.candidates[2]).not.toBe(input[2]);
+    // One log line per failure, by error name only: the message (a URL, a token) is never printed.
+    expect(err).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(err.mock.calls)).not.toContain("secret-token-123");
+    expect(JSON.stringify(err.mock.calls)).not.toContain("booli.se");
+    err.mockRestore();
+  });
+
+  it("a thrown broker leg does not undo a good detail read", async () => {
+    const f = fakes({
+      fetchListing: vi.fn(async () => rawDetail({ agencyListingUrl: "https://maklare.example/objekt/1" })),
+      fetchBrokerListingPage: vi.fn(async () => {
+        throw new Error("dns");
+      }),
+    });
+    const input = [candidate(1)];
+    const result = await enrichAllCandidates(input, 1, opts(f.deps));
+    expect(result.candidates[0]).not.toBe(input[0]);
+    expect(result.facts.get(0)?.detailFetched).toBe(true);
+    expect(result.facts.get(0)?.descriptionRead).toBe(false);
+  });
+
+  it("a detail entity toCandidate cannot read still never throws", async () => {
+    const f = fakes({ fetchListing: vi.fn(async () => null as unknown as Record<string, unknown>) });
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const input = [candidate(1)];
+    const result = await enrichAllCandidates(input, 1, opts(f.deps));
+    expect(result.candidates[0]).toBe(input[0]);
+    err.mockRestore();
+  });
+});
+
+describe("card-versus-detail precedence (job.ts rules)", () => {
+  it("card floor 3 beats detail floor 4; card year beats detail year", async () => {
+    const f = fakes({ fetchListing: vi.fn(async () => rawDetail({ floor: 4, constructionYear: 1900 })) });
+    const result = await enrichAllCandidates([candidate(1, { floor: 3, constructionYear: 1950 })], 1, opts(f.deps));
+    expect(result.candidates[0].floor).toBe(3);
+    expect(result.candidates[0].constructionYear).toBe(1950);
+  });
+
+  it("detail fills a null card floor and year", async () => {
+    const f = fakes({ fetchListing: vi.fn(async () => rawDetail({ floor: 4, constructionYear: 1900 })) });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    expect(result.candidates[0].floor).toBe(4);
+    expect(result.candidates[0].constructionYear).toBe(1900);
+  });
+
+  it("card balcony false and detail balcony true gives true (R-04b); a detail false keeps the card value", async () => {
+    const yes = fakes({ fetchListing: vi.fn(async () => rawDetail({ balcony: true })) });
+    const a = await enrichAllCandidates([candidate(1, { balcony: false })], 1, opts(yes.deps));
+    expect(a.candidates[0].balcony).toBe(true);
+
+    const no = fakes({ fetchListing: vi.fn(async () => rawDetail({ balcony: false })) });
+    const b = await enrichAllCandidates([candidate(1, { balcony: true })], 1, opts(no.deps));
+    expect(b.candidates[0].balcony).toBe(true);
+    const c = await enrichAllCandidates([candidate(1, { balcony: null })], 1, opts(no.deps));
+    expect(c.candidates[0].balcony).toBe(false);
+  });
+
+  it("card orientation null and broker text 'balkong i söderläge' derives the orientation; a card orientation wins", async () => {
+    const f = fakes({
+      fetchListing: vi.fn(async () => rawDetail({ agencyListingUrl: "https://maklare.example/objekt/1" })),
+      fetchBrokerListingPage: vi.fn(async () => ({
+        renovationStatus: null,
+        description: "Ljus lägenhet med balkong i söderläge.",
+        images: [],
+      })),
+    });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    expect(result.candidates[0].orientation?.facades).toContain("south");
+    expect(result.facts.get(0)?.orientationFacades).toContain("south");
+
+    const fromCard = await enrichAllCandidates(
+      [candidate(1, { orientation: { facades: ["north"], confidence: 0.9 } })],
+      1,
+      opts(f.deps),
+    );
+    expect(fromCard.candidates[0].orientation?.facades).toEqual(["north"]);
+  });
+});
+
+describe("facts from the description", () => {
+  const brokerFakes = (description: string | null, images: string[] = []) =>
+    fakes({
+      fetchListing: vi.fn(async () => rawDetail({ agencyListingUrl: "https://maklare.example/objekt/1" })),
+      fetchBrokerListingPage: vi.fn(async () => ({ renovationStatus: null, description, images })),
+    });
+
+  it("'Balkong med kvällssol. Föreningen äger marken.' gives sunPhrases [kvällssol], landLease false, descriptionRead true", async () => {
+    const f = brokerFakes("Balkong med kvällssol. Föreningen äger marken.");
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.sunPhrases).toEqual(["kvällssol"]);
+    expect(facts?.landLease).toBe(false);
+    expect(facts?.descriptionRead).toBe(true);
+    expect(result.sunPhrases.get(0)).toEqual({ allDaySun: false, throughFlat: false });
+  });
+
+  it("no description text is stored in the facts, the candidate or anywhere that is persisted", async () => {
+    const secret = "Kontakta mäklare Svensson på 070-123 45 67 eller svensson@maklare.example. Balkong med kvällssol.";
+    const f = brokerFakes(secret);
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const stored = JSON.stringify({
+      facts: [...result.facts.values()],
+      candidates: result.candidates,
+      sun: [...result.sunPhrases.values()],
+    });
+    expect(stored).not.toContain("Svensson");
+    expect(stored).not.toContain("070-123");
+    expect(stored).not.toContain("maklare.example");
+    expect(stored).not.toContain("Kontakta");
+    // The facts record survives its own schema (unknown keys would be stripped).
+    expect(candidateFactsSchema.parse(result.facts.get(0))).toEqual(result.facts.get(0));
+  });
+
+  it("falls back to the Booli detail description when there is no broker URL", async () => {
+    const f = fakes({ fetchListing: vi.fn(async () => rawDetail({ description: "Sol hela dagen i vardagsrummet." })) });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    expect(f.fetchBrokerListingPage).not.toHaveBeenCalled();
+    expect(result.facts.get(0)?.descriptionRead).toBe(true);
+    expect(result.facts.get(0)?.sunPhrases).toEqual(["sol hela dagen"]);
+    expect(result.sunPhrases.get(0)).toEqual({ allDaySun: true, throughFlat: false });
+  });
+
+  it("the broker description beats the Booli description", async () => {
+    const f = fakes({
+      fetchListing: vi.fn(async () =>
+        rawDetail({ description: "Tomträtt.", agencyListingUrl: "https://maklare.example/objekt/1" }),
+      ),
+      fetchBrokerListingPage: vi.fn(async () => ({ renovationStatus: null, description: "Friköpt tomt, morgonsol.", images: [] })),
+    });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    expect(result.facts.get(0)?.landLease).toBe(false);
+    expect(result.facts.get(0)?.sunPhrases).toEqual(["morgonsol"]);
+  });
+
+  it("no broker URL and no Booli description: descriptionRead false, sunPhrases null, landLease null", async () => {
+    const f = fakes();
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.descriptionRead).toBe(false);
+    expect(facts?.sunPhrases).toBeNull();
+    expect(facts?.landLease).toBeNull();
+    expect(result.sunPhrases.has(0)).toBe(false);
+  });
+
+  it("detail facts carry tenure, avgift and listing age from the detail page", async () => {
+    const f = fakes();
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.tenureForm).toBe("Bostadsrätt");
+    expect(facts?.avgiftMonthlySek).toBe(4100);
+    expect(facts?.daysOnMarket).toBe(42);
+    expect(facts?.balcony).toBe(false);
+  });
+});
+
+describe("broker photos", () => {
+  const photoFakes = () =>
+    fakes({
+      fetchListing: vi.fn(async () => rawDetail({ agencyListingUrl: "https://maklare.example/objekt/1" })),
+      fetchBrokerListingPage: vi.fn(async () => ({
+        renovationStatus: null,
+        description: null,
+        images: ["https://cdn.maklare.example/1.jpg", "https://cdn.maklare.example/2.jpg"],
+      })),
+      fetchBrokerImageBytes: vi.fn(async (urls: string[]) => urls.map((u) => ({ mediaType: "image/jpeg", data: u }))),
+    });
+
+  it("up to 4 photos per candidate, with the job.ts broker bounds", async () => {
+    const f = photoFakes();
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    expect(result.brokerImages.get(0)).toHaveLength(2);
+    expect(f.fetchBrokerImageBytes.mock.calls[0][1]).toBe(4);
+    expect((f.fetchBrokerImageBytes.mock.calls[0][2] as { timeoutMs: number }).timeoutMs).toBe(10_000);
+    const page = f.fetchBrokerListingPage.mock.calls[0][1] as {
+      directTimeoutMs: number;
+      render: { waitSecs: number; maxRequestRetries: number };
+    };
+    expect(page.directTimeoutMs).toBe(15_000);
+    expect(page.render).toEqual({ waitSecs: 45, maxRequestRetries: 1 });
+  });
+
+  it("fetchBrokerImages false reads the broker text but fetches no photo bytes", async () => {
+    const f = photoFakes();
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps, { fetchBrokerImages: false }));
+    expect(f.fetchBrokerListingPage).toHaveBeenCalledTimes(1);
+    expect(f.fetchBrokerImageBytes).not.toHaveBeenCalled();
+    expect(result.brokerImages.size).toBe(0);
+  });
+
+  it("keeps each map index aligned with the input index under concurrency", async () => {
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => rawDetail({ agencyListingUrl: `https://maklare.example/objekt/${idOf(url)}` })),
+      fetchBrokerListingPage: vi.fn(async (url: string) => ({
+        renovationStatus: null,
+        description: null,
+        images: [`https://cdn.maklare.example/${idOf(url)}.jpg`],
+      })),
+      fetchBrokerImageBytes: vi.fn(async (urls: string[]) => [{ mediaType: "image/jpeg", data: urls[0] }]),
+    });
+    const input = [10, 11, 12, 13, 14].map((n) => candidate(n));
+    const result = await enrichAllCandidates(input, 5, opts(f.deps, { concurrency: 3 }));
+    input.forEach((c, i) => {
+      expect(result.candidates[i].sourceListingUrl).toBe(c.sourceListingUrl);
+      expect(result.brokerImages.get(i)).toEqual([{ mediaType: "image/jpeg", data: `https://cdn.maklare.example/${10 + i}.jpg` }]);
+    });
+  });
+});
+
+describe("deadline and concurrency", () => {
+  it("after 2 reads the injected clock is past the deadline: the rest are untouched and never fetched", async () => {
+    let clock = 0;
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const f = fakes({
+      fetchListing: vi.fn(async () => {
+        clock += 30_000;
+        return rawDetail();
+      }),
+    });
+    const input = [1, 2, 3, 4, 5].map((n) => candidate(n));
+    const result = await enrichAllCandidates(input, 5, {
+      deadlineMs: 60_000,
+      concurrency: 1,
+      asOf: AS_OF,
+      deps: f.deps,
+      now: () => clock,
+    });
+
+    expect(f.fetchListing).toHaveBeenCalledTimes(2);
+    expect(result.candidates[0]).not.toBe(input[0]);
+    expect(result.candidates[1]).not.toBe(input[1]);
+    for (const i of [2, 3, 4]) {
+      expect(result.candidates[i]).toBe(input[i]);
+      expect(result.facts.has(i)).toBe(false);
+    }
+    expect(err).toHaveBeenCalledTimes(1);
+    err.mockRestore();
+  });
+
+  it("never has more reads in flight than opts.concurrency, and does use the allowance", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const f = fakes({
+      fetchListing: vi.fn(async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+        return rawDetail();
+      }),
+    });
+    const input = Array.from({ length: 9 }, (_, i) => candidate(i + 1));
+    await enrichAllCandidates(input, 9, opts(f.deps, { concurrency: 3 }));
+    expect(peak).toBeLessThanOrEqual(3);
+    expect(peak).toBeGreaterThan(1);
+  });
+});
+
+describe("module hygiene (D-02)", () => {
+  it("watch-enrich.ts does not import job.ts at run time, and job.ts does not import watch-enrich", () => {
+    const watch = readFileSync(join(process.cwd(), "src/lib/discovery/watch-enrich.ts"), "utf-8");
+    const job = readFileSync(join(process.cwd(), "src/lib/discovery/job.ts"), "utf-8");
+    expect(watch).not.toMatch(/from "@\/lib\/discovery\/job"/);
+    expect(job).not.toContain("watch-enrich");
+  });
+});

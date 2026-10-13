@@ -193,7 +193,7 @@ describe("the vision window (D-10, R-03)", () => {
   // The first 26 fixture rows; at least 25 are comparable on the fixture model.
   const rows26 = fixtureScraped.slice(0, 26);
   const comparableCount = preRank(
-    rows26.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate })),
+    rows26.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null })),
     model,
   ).ranked.length;
 
