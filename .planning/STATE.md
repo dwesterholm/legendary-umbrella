@@ -4,17 +4,17 @@ milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 current_phase: "14.3"
 current_phase_name: Sun & Orientation
-status: executing
-stopped_at: Completed 14.3-07-PLAN.md
-last_updated: "2026-10-13T16:05:37.007Z"
+status: verifying
+stopped_at: Completed 14.3-08-PLAN.md
+last_updated: "2026-10-13T16:20:06.710Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: ddc130d9abb3a91b230bb72c8c1c9d7374fc33e0
+state_head: cdfe63ce95e7cb1c5e615659f60f6a9b27e32c9c
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 42
-  completed_plans: 41
+  completed_plans: 42
   percent: 13
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 Phase: 14.3 (Sun & Orientation) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-13 — Phase 14.3 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
 
@@ -103,6 +103,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.3 P05 | 5 min | 2 tasks | 2 files |
 | Phase 14.3 P06 | 4 min | 2 tasks | 4 files |
 | Phase 14.3 P07 | 24 min | 3 tasks | 7 files |
+| Phase 14.3 P08 | 20 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -261,6 +262,7 @@ Recent decisions affecting current work:
 - [Phase 14.3]: 14.3-04: wallsNear and the neighbour median share one 150 m bounding-box grid; heights are lazy and memoised per building — A centroid-only grid would miss long buildings; all 15 415 heights resolve in 49 ms
 - [Phase 14.3]: 14.3-05: stated 1,00 > planritning > fastighet/gata; konflikt strictly above 90 degrees halves confidence; footprint-only conflicts need non-opposite sides
 - [Phase 14.3]: 14.3-06: sun taste = best-side facade weight x March obstruction factor x confidence, halved (streetOnlyFactor 0.5, assumption A4) when only the footprint is known; stated keeps 1.0; 3 % cap unchanged
+- [Phase 14.3]: 14.3-08: 14.2 D-17 sun clause met - live sol härledd 74 av 76 (97,4 %), replay 75 av 77 (97,4 %); street-side factor 0,5 left as shipped (mean taste move 24 931 kr, max 79 273 kr between 0,5 and 1,0)
 
 ### Pending Todos
 
@@ -292,8 +294,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T16:05:36.862Z
-Stopped at: Completed 14.3-07-PLAN.md
+Last session: 2026-10-13T16:20:06.574Z
+Stopped at: Completed 14.3-08-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
