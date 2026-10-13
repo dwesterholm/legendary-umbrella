@@ -69,10 +69,68 @@ describe("classifyClaimText: negation first (FIT-04, T-14.1-15)", () => {
     expect(classifyClaimText("Ej synliga skador. Nyrenoverat kök")).toBe("fresh");
   });
 
-  it("'inget renoveringsbehov' is matched by the no-need regex, which wins over the dated word 'renoveringsbehov'", () => {
+  it("'inget renoveringsbehov' is matched by the no-need regex, which is stripped before the dated words are tested", () => {
     expect(NO_RENOVATION_NEED.test("inget uppenbart renoveringsbehov")).toBe(true);
     expect(NO_RENOVATION_NEED.test("Stort renoveringsbehov")).toBe(false);
     expect(classifyClaimText("Stort renoveringsbehov")).toBe("dated");
+  });
+});
+
+// 14.1 review WR-01 / WR-02, fixed in 14.2-03 (D-07). Every row is a string the
+// reviewer reproduced against the shipped regexes.
+describe("classifyClaimText: a negation only counts when it governs the verb (WR-01)", () => {
+  it.each([
+    // The negation is about something else, or ends at a clause joiner: the renovation is real.
+    ["Ej synliga skador och nyrenoverat kök", "fresh"],
+    ["Inte bara fräscht utan helrenoverat kök", "fresh"],
+    ["Köket är inte gammalt, nyrenoverat 2023", "fresh"],
+    ["Ej synliga skador. Nyrenoverat kök", "fresh"],
+    // The negation governs the verb: not renovated.
+    ["Ej renoverat badrum", "dated"],
+    ["Köket har inte renoverats sedan 1990", "dated"],
+    ["Verkar inte vara renoverat", "dated"],
+    ["orenoverat kök", "dated"],
+  ] as const)("%s -> %s", (text, expected) => {
+    expect(classifyClaimText(text)).toBe(expected);
+  });
+
+  it("the negation regex itself refuses to cross a clause joiner or an unrelated word", () => {
+    for (const text of [
+      "Ej synliga skador och nyrenoverat kök",
+      "Inte bara fräscht utan helrenoverat kök",
+      "inte gammalt, nyrenoverat",
+      "inte fint men renoverat",
+    ]) {
+      expect(NEGATED_RENOVATION.test(text), text).toBe(false);
+    }
+    for (const text of ["ej renoverat badrum", "har inte renoverats", "verkar inte vara renoverat", "ser inte ut att vara renoverat"]) {
+      expect(NEGATED_RENOVATION.test(text), text).toBe(true);
+    }
+  });
+});
+
+describe("classifyClaimText: negated dated words and the no-need phrase (WR-02)", () => {
+  it.each([
+    // A negated dated word is not dated.
+    ["Köket är inte gammalt", "ok"],
+    ["Köket är ej daterat", "ok"],
+    // The no-need phrase only removes itself; dated words elsewhere in the claim still count.
+    ["Gammalt kök, inget uppenbart renoveringsbehov", "dated"],
+    ["Daterat badrum men inget renoveringsbehov", "dated"],
+    ["Inget renoveringsbehov", "ok"],
+    // Unchanged: a bare dated word, and a negation that does not reach a dated word across a comma.
+    ["Stort renoveringsbehov", "dated"],
+    ["Inte fräscht, gammalt kök", "dated"],
+  ] as const)("%s -> %s", (text, expected) => {
+    expect(classifyClaimText(text)).toBe(expected);
+  });
+
+  it("a kitchen read as 'not old' no longer prices the 200 000 kr full kitchen", () => {
+    const e = renoEstimateFromVision(vision([claim("kitchen", "Köket är inte gammalt")]));
+    expect(e.states.kitchen).toBe("ok");
+    const dated = renoEstimateFromVision(vision([claim("kitchen", "Gammalt kök, inget uppenbart renoveringsbehov")]));
+    expect(dated.states.kitchen).toBe("dated");
+    expect(dated.midSek - e.midSek).toBe(mid("kitchen-full") - mid("kitchen-cosmetic"));
   });
 });
 

@@ -153,21 +153,45 @@ export function renoBundle(
 
 /**
  * Negated renovation: "orenoverat", "ej renoverat", "inte renoverat", "verkar
- * inte renoverat", "inte ut att vara renoverat". Up to three words may sit
- * between the negation and the verb, but never a sentence boundary, so
- * "Ej synliga skador. Nyrenoverat kök" is not negated. Checked BEFORE the
- * shared RENOVATED regex, which would read the "renoverat" inside as fresh.
+ * inte vara renoverat", "har inte renoverats", "ser inte ut att vara renoverat".
+ * Checked BEFORE the shared RENOVATED regex, which would read the "renoverat"
+ * inside as fresh.
+ *
+ * The negation must govern the verb (14.1 review WR-01, D-07): between the
+ * negation and "renoverat" only a fixed list of auxiliaries and adverbs may
+ * sit (alls, längre, nyligen, helt, nyss, vara, varit, blivit, har, är, verkar,
+ * ut, att). Any other word, a clause joiner (och, utan, men, samt) or
+ * punctuation ends the reach, so "Ej synliga skador och nyrenoverat kök",
+ * "Inte bara fräscht utan helrenoverat kök" and "Köket är inte gammalt,
+ * nyrenoverat 2023" are NOT negated, and neither is
+ * "Ej synliga skador. Nyrenoverat kök". The old window of any three words made
+ * all of those "dated", which swung one kitchen from 0 to 200 000 kr.
  */
 export const NEGATED_RENOVATION: RegExp =
-  /\borenover(?:at|ad|ade)|\b(?:ej|inte|icke|aldrig)\s+(?:[^\s.,;:!?]+\s+){0,3}\S*?renover(?:at|ad|ade|ats)/i;
+  /\borenover(?:at|ad|ade)|\b(?:ej|inte|icke|aldrig)\s+(?:(?:alls|längre|nyligen|helt|nyss|vara|varit|blivit|har|är|verkar|ut|att)\s+){0,4}\S*?renover(?:at|ad|ade|ats)/i;
 
 /**
  * "No renovation need": "inget (uppenbart) renoveringsbehov", "utan
- * renoveringsbehov", "ej något renoveringsbehov". Checked first because the
- * shared DATED regex treats the bare word "renoveringsbehov" as dated.
+ * renoveringsbehov", "ej något renoveringsbehov". The shared DATED regex treats
+ * the bare word "renoveringsbehov" as dated, so {@link classifyClaimText}
+ * strips this phrase out before testing. Stripping, not an early "ok", so a
+ * claim that also carries a dated word stays dated (WR-02, D-07).
  */
 export const NO_RENOVATION_NEED: RegExp =
   /\b(?:inget|ingen|inga|utan|(?:inte|ej)(?:\s+(?:något|några))?)\s+(?:[^\s.,;:!?]+\s+)?renoveringsbehov/i;
+
+/**
+ * A negated dated word: "inte gammalt", "ej daterat", "inte alls slitet". A
+ * negation plus at most one word (no punctuation, no clause joiner) and then a
+ * dated word. Stripped before the dated words are tested, because the shared
+ * DATED regex has no negation handling (WR-02, D-07). Module-private on purpose.
+ */
+const NEGATED_DATED =
+  /\b(?:ej|inte|icke|aldrig)\s+(?:(?!(?:och|utan|men|samt)\b)[^\s.,;:!?]+\s+)?(?:gammal\w*|daterad\w*|daterat|slit\w+|omodern\w*)/i;
+
+/** Global copies for {@link String.replace}; the exported regexes stay stateless for `.test`. */
+const NO_RENOVATION_NEED_ALL = new RegExp(NO_RENOVATION_NEED.source, "gi");
+const NEGATED_DATED_ALL = new RegExp(NEGATED_DATED.source, "gi");
 
 /**
  * Inflected forms of the dated vocabulary that the shared DATED regex (written
@@ -176,12 +200,21 @@ export const NO_RENOVATION_NEED: RegExp =
  */
 const DATED_EXTRA = /slitna|nedslitna|utslitna|daterade|omoderna|ursprungliga/i;
 
-/** One claim's text as fresh / ok / dated. Order: no-need, negation, dated, renovated, else ok. */
+/**
+ * One claim's text as fresh / ok / dated.
+ *
+ * Order (WR-01 / WR-02, D-07): first strip the "no renovation need" phrase and
+ * any negated dated word ("inte gammalt") from the text, then test negated
+ * renovation (dated), DATED / DATED_EXTRA (dated), RENOVATED (fresh), else ok.
+ * Stripping instead of short-circuiting keeps the worst-state-wins rule honest:
+ * "Gammalt kök, inget uppenbart renoveringsbehov" is dated because the phrase
+ * only cancels its own "renoveringsbehov", not the "gammalt" beside it.
+ */
 export function classifyClaimText(text: string): Exclude<RenoState, "unknown"> {
-  if (NO_RENOVATION_NEED.test(text)) return "ok";
-  if (NEGATED_RENOVATION.test(text)) return "dated";
-  if (DATED.test(text) || DATED_EXTRA.test(text)) return "dated";
-  if (RENOVATED.test(text)) return "fresh";
+  const cleaned = text.replace(NO_RENOVATION_NEED_ALL, " ").replace(NEGATED_DATED_ALL, " ");
+  if (NEGATED_RENOVATION.test(cleaned)) return "dated";
+  if (DATED.test(cleaned) || DATED_EXTRA.test(cleaned)) return "dated";
+  if (RENOVATED.test(cleaned)) return "fresh";
   return "ok";
 }
 
