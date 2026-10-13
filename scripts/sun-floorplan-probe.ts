@@ -16,6 +16,9 @@
  *   probe     Reads the first picture of the n lowest Booli ids of the snapshot, writes the cache and the evidence
  *             JSON (counts and verdict, never a URL).
  *
+ * The 2 kr cap is for the WHOLE probe over all runs, smoke included: what earlier runs paid is kept in the cache file
+ * (`spentSekTotal`) and counts against the next run, so a rerun or a `--smoke` cannot spend another 2 kr.
+ *
  * Gate: without RUN_LLM_EVALS=1 the script prints "Hoppar över: RUN_LLM_EVALS=1 krävs för betalda anrop" and exits 0
  * before any client exists. With it, a missing ANTHROPIC_API_KEY exits 1 (presence only is printed, never a value).
  *
@@ -30,10 +33,15 @@ import { writeJsonAtomic } from "@/lib/discovery/json-store";
 import {
   FLOORPLAN_CACHE_PATH,
   FLOORPLAN_CAP_SEK,
+  FLOORPLAN_EST_SEK_PER_CALL,
   FLOORPLAN_MODEL,
   FLOORPLAN_SYSTEM_PROMPT,
   FloorPlanCallError,
+  addFloorPlanSpend,
+  asBilledFailure,
+  canAffordFloorPlanCall,
   floorPlanCompassSchema,
+  floorPlanSpentSek,
   formatPct,
   formatSek,
   loadFloorPlanCache,
@@ -104,14 +112,20 @@ function toClaudeUsage(usage: {
 /** The injected call: the vision.ts call shape (messages.parse + zodOutputFormat), one picture, the slim schema. */
 function makeCall(client: Anthropic): FloorPlanCallFn {
   return async (image: FloorPlanImageBlock) => {
-    const message = await client.beta.messages.parse({
-      model: FLOORPLAN_MODEL,
-      max_tokens: 200,
-      temperature: 0,
-      system: FLOORPLAN_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: [image, { type: "text", text: USER_INSTRUCTION }] }],
-      output_config: { format: zodOutputFormat(floorPlanCompassSchema) },
-    });
+    let message;
+    try {
+      message = await client.beta.messages.parse({
+        model: FLOORPLAN_MODEL,
+        max_tokens: 200,
+        temperature: 0,
+        system: FLOORPLAN_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: [image, { type: "text", text: USER_INSTRUCTION }] }],
+        output_config: { format: zodOutputFormat(floorPlanCompassSchema) },
+      });
+    } catch (error) {
+      // parse() throws AFTER a billed answer when the output does not fit the schema; the cap must see that money (WR-04).
+      throw asBilledFailure(error, (e) => e instanceof Anthropic.APIError, FLOORPLAN_EST_SEK_PER_CALL);
+    }
     // The call completed, so it is billed whatever its stop_reason turns out to be.
     const billed = costSek(toClaudeUsage(message.usage));
     if (message.stop_reason === "refusal") throw new FloorPlanCallError("CLAUDE_REFUSAL", billed);
@@ -158,32 +172,46 @@ async function smoke(call: FloorPlanCallFn, snapshotPath: string, today: string)
   if (realRead?.result) {
     ok += 1;
     console.log(`Smoke ${realRead.booliId}: ${describeRead(realRead.result)}`);
-    saveFloorPlanCache(FLOORPLAN_CACHE_PATH, real.cacheNext);
   } else {
     errors.push(realRead?.error ?? realRead?.status ?? "tomt prov");
     console.log(`Smoke ${realRead?.booliId ?? "?"}: ingen tolkning (${realRead?.status ?? "tomt prov"}${realRead?.error ? `, ${realRead.error}` : ""})`);
   }
+  // Saved whatever happened: a billed-and-failed call must stay in the running total.
+  let ledger = real.cacheNext;
+  saveFloorPlanCache(FLOORPLAN_CACHE_PATH, ledger);
 
   // 2) The synthetic plan (north arrow up, balcony label on the bottom side, a door arrow on the left wall).
-  try {
-    const data = readFileSync(SYNTHETIC_PLAN).toString("base64");
-    const synth = await call({ type: "image", source: { type: "base64", media_type: "image/png", data } });
-    spent += synth.costSek;
-    ok += 1;
-    console.log(`Smoke syntetisk: ${describeRead(synth.result)}`);
-    const sees = synth.result.isFloorPlan && synth.result.northArrowPresent;
-    const northUp = Math.abs(((synth.result.northBearingDeg % 360) + 360) % 360) < 20 || Math.abs((((synth.result.northBearingDeg % 360) + 360) % 360) - 360) < 20;
-    console.log(
-      `Smoke syntetisk norrpil sedd: ${yesNo(sees)} (väntat: ja, norr 0°, balkong ned; norr uppåt ${yesNo(sees && northUp)}, balkong ned ${yesNo(synth.result.balconySide === "ned")})`,
-    );
-  } catch (error) {
-    if (error instanceof FloorPlanCallError) spent += error.billedSek;
-    errors.push(safeError(error));
-    console.log(`Smoke syntetisk: ingen tolkning (${safeError(error)})`);
+  //    It is outside the runner, so the cap is checked here against the same cumulative total and its cost is recorded.
+  if (!canAffordFloorPlanCall(ledger, FLOORPLAN_CAP_SEK)) {
+    errors.push("cost_cap");
+    console.log(`Smoke syntetisk: hoppas över, taket ${formatSek(FLOORPLAN_CAP_SEK)} kr är nått (hittills ${formatSek(floorPlanSpentSek(ledger))} kr)`);
+  } else {
+    try {
+      const data = readFileSync(SYNTHETIC_PLAN).toString("base64");
+      const synth = await call({ type: "image", source: { type: "base64", media_type: "image/png", data } });
+      const paid = Number.isFinite(synth.costSek) && synth.costSek > 0 ? synth.costSek : FLOORPLAN_EST_SEK_PER_CALL;
+      spent += paid;
+      ledger = addFloorPlanSpend(ledger, paid);
+      ok += 1;
+      console.log(`Smoke syntetisk: ${describeRead(synth.result)}`);
+      const sees = synth.result.isFloorPlan && synth.result.northArrowPresent;
+      const northUp = Math.abs(((synth.result.northBearingDeg % 360) + 360) % 360) < 20 || Math.abs((((synth.result.northBearingDeg % 360) + 360) % 360) - 360) < 20;
+      console.log(
+        `Smoke syntetisk norrpil sedd: ${yesNo(sees)} (väntat: ja, norr 0°, balkong ned; norr uppåt ${yesNo(sees && northUp)}, balkong ned ${yesNo(synth.result.balconySide === "ned")})`,
+      );
+    } catch (error) {
+      if (error instanceof FloorPlanCallError) {
+        spent += error.billedSek;
+        ledger = addFloorPlanSpend(ledger, error.billedSek);
+      }
+      errors.push(safeError(error));
+      console.log(`Smoke syntetisk: ingen tolkning (${safeError(error)})`);
+    }
+    saveFloorPlanCache(FLOORPLAN_CACHE_PATH, ledger);
   }
 
   if (ok === 2) {
-    console.log(`Smoke: 2 av 2 tolkade, ${formatSek(spent)} kr`);
+    console.log(`Smoke: 2 av 2 tolkade, ${formatSek(spent)} kr (totalt ${formatSek(floorPlanSpentSek(ledger))} kr av tak ${formatSek(FLOORPLAN_CAP_SEK)} kr)`);
     return 0;
   }
   console.log(`Smoke: ${ok} av 2 tolkade, fel: ${errors.join(", ")}, ${formatSek(spent)} kr`);
@@ -205,7 +233,9 @@ async function probe(call: FloorPlanCallFn, snapshotPath: string, n: number, cap
 
   const counts = summariseReads(out.reads.flatMap((r) => (r.result ? [r.result] : [])));
   const verdict = probeVerdict(counts);
-  console.log(`Planritningsprobe: ${out.calls} anrop, ${out.cacheHits} från cache, ${formatSek(out.spentSek)} kr av tak ${formatSek(capSek)} kr`);
+  console.log(
+    `Planritningsprobe: ${out.calls} anrop, ${out.cacheHits} från cache, ${formatSek(out.spentSek)} kr denna körning, ${formatSek(out.totalSpentSek)} kr totalt av tak ${formatSek(capSek)} kr`,
+  );
   console.log(
     `Planer: ${counts.floorPlans} av ${items.length}, med kompass: ${counts.withCompass} (${formatPct(counts.withCompass, counts.floorPlans)} %), beslut: ${verdict === "go" ? "go" : "väg stängd"}`,
   );
@@ -219,6 +249,7 @@ async function probe(call: FloorPlanCallFn, snapshotPath: string, n: number, cap
     prevalencePct: Number(formatPct(counts.withCompass, counts.floorPlans).replace(",", ".")),
     verdict,
     spentSek: Number(out.spentSek.toFixed(4)),
+    spentSekTotal: Number(out.totalSpentSek.toFixed(4)),
     calls: out.calls,
     cacheHits: out.cacheHits,
     model: FLOORPLAN_MODEL,

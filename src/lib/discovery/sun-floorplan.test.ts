@@ -13,9 +13,13 @@ import {
   FLOORPLAN_ROUTE_ENABLED,
   FLOORPLAN_SYSTEM_PROMPT,
   FloorPlanCallError,
+  addFloorPlanSpend,
+  asBilledFailure,
+  canAffordFloorPlanCall,
   floorPlanCompassSchema,
   floorPlanImageId,
   floorPlanProbeVersion,
+  floorPlanSpentSek,
   loadFloorPlanCache,
   pickProbeSample,
   planBearingOf,
@@ -222,6 +226,136 @@ describe("runFloorPlanProbe", () => {
   });
 });
 
+describe("the 2 kr cap is cumulative and cannot be defeated (14.3 review WR-04)", () => {
+  const entry = (id: string, costSek: number, promptVersion = FLOORPLAN_PROBE_VERSION) => ({
+    imageId: id,
+    promptVersion,
+    storedAt: "2026-10-01",
+    costSek,
+    result: read(),
+  });
+  const two = [1, 2].map((n) => ({ booliId: String(n), imageUrl: url(n) }));
+
+  it("counts what earlier runs paid: a recorded total of 1,98 kr leaves room for no 0,05 kr call under a 2 kr cap", async () => {
+    const { call, seen } = fakeCall();
+    const out = await runFloorPlanProbe(two, { call, cache: { ...emptyCache(), spentSekTotal: 1.98 }, capSek: 2, today: "2026-10-13" });
+    expect(seen).toEqual([]);
+    expect(out.reads.map((r) => r.status)).toEqual(["cost_cap", "cost_cap"]);
+    expect(out.spentSek).toBe(0);
+    expect(out.totalSpentSek).toBeCloseTo(1.98, 10);
+  });
+
+  it("lets a rerun spend only what is left: the second run on the first run's cache stops after one more call", async () => {
+    const first = fakeCall(0.05);
+    const run1 = await runFloorPlanProbe(two, { call: first.call, cache: emptyCache(), capSek: 0.15, today: "2026-10-13" });
+    expect(run1.calls).toBe(2);
+    expect(run1.cacheNext.spentSekTotal).toBeCloseTo(0.1, 10);
+    const second = fakeCall(0.05);
+    const more = [3, 4].map((n) => ({ booliId: String(n), imageUrl: url(n) }));
+    const run2 = await runFloorPlanProbe(more, { call: second.call, cache: run1.cacheNext, capSek: 0.15, today: "2026-10-14" });
+    expect(run2.reads.map((r) => r.status)).toEqual(["read", "cost_cap"]);
+    expect(run2.totalSpentSek).toBeCloseTo(0.15, 10);
+    expect(run2.cacheNext.spentSekTotal).toBeCloseTo(0.15, 10);
+  });
+
+  it("reads a cache file from before the total existed as the sum of its stored reads", async () => {
+    const cache = emptyCache();
+    for (let i = 100; i < 140; i++) cache.entries[String(i)] = entry(String(i), 0.05);
+    expect(floorPlanSpentSek(cache)).toBeCloseTo(2, 10);
+    const { call, seen } = fakeCall();
+    const out = await runFloorPlanProbe(two, { call, cache, capSek: 2, today: "2026-10-13" });
+    expect(seen).toEqual([]);
+    expect(out.reads[0].status).toBe("cost_cap");
+  });
+
+  it("keeps the money of reads that are dropped from the next cache (another prompt version) in the total", async () => {
+    const cache = { ...emptyCache(), entries: { "98": entry("98", 0.4, "stale") } };
+    const { call } = fakeCall(0.05);
+    const out = await runFloorPlanProbe([{ booliId: "a", imageUrl: url(5) }], { call, cache, capSek: 2, today: "2026-10-13" });
+    expect(Object.keys(out.cacheNext.entries)).toEqual(["5"]);
+    expect(out.cacheNext.spentSekTotal).toBeCloseTo(0.45, 10);
+  });
+
+  it("counts a call that returns a NaN cost at the estimate, so the cap still trips (old code: spent became NaN and the cap never tripped again)", async () => {
+    const { call, seen } = fakeCall(Number.NaN);
+    const items = [1, 2, 3].map((n) => ({ booliId: String(n), imageUrl: url(n) }));
+    const out = await runFloorPlanProbe(items, { call, cache: emptyCache(), capSek: 0.1, today: "2026-10-13" });
+    expect(seen).toHaveLength(2);
+    expect(out.reads.map((r) => r.status)).toEqual(["read", "read", "cost_cap"]);
+    expect(Number.isFinite(out.spentSek)).toBe(true);
+    expect(out.spentSek).toBeCloseTo(0.1, 10);
+    expect(out.cacheNext.entries["1"].costSek).toBeCloseTo(0.05, 10);
+    expect(Number.isFinite(out.cacheNext.spentSekTotal)).toBe(true);
+  });
+
+  it.each([
+    ["a negative cost", -1],
+    ["a zero cost", 0],
+    ["an infinite cost", Number.POSITIVE_INFINITY],
+  ])("counts %s at the estimate instead of letting it lower or break the total", async (_name, cost) => {
+    const { call } = fakeCall(cost);
+    const out = await runFloorPlanProbe(two, { call, cache: emptyCache(), capSek: 2, today: "2026-10-13" });
+    expect(out.spentSek).toBeCloseTo(0.1, 10);
+    expect(out.reads[0].costSek).toBeCloseTo(0.05, 10);
+  });
+
+  it("makes no call at all under a NaN or infinite-negative cap", async () => {
+    for (const capSek of [Number.NaN, Number.NEGATIVE_INFINITY, -1]) {
+      const { call, seen } = fakeCall();
+      const out = await runFloorPlanProbe(two, { call, cache: emptyCache(), capSek, today: "2026-10-13" });
+      expect(seen).toEqual([]);
+      expect(out.reads.map((r) => r.status)).toEqual(["cost_cap", "cost_cap"]);
+    }
+  });
+
+  it("counts a parse failure (answer arrived, output unusable) as billed at the estimate", async () => {
+    const call: FloorPlanCallFn = async () => {
+      throw asBilledFailure(new SyntaxError("Unexpected token"), () => false);
+    };
+    const out = await runFloorPlanProbe(two, { call, cache: emptyCache(), capSek: 0.05, today: "2026-10-13" });
+    expect(out.reads[0]).toMatchObject({ status: "failed", error: "CLAUDE_PARSE_FAILED", costSek: 0.05 });
+    expect(out.spentSek).toBeCloseTo(0.05, 10);
+    // the 0,05 kr already billed uses up the cap, so the second picture is not even tried
+    expect(out.reads[1].status).toBe("cost_cap");
+    expect(out.cacheNext.spentSekTotal).toBeCloseTo(0.05, 10);
+  });
+
+  describe("asBilledFailure", () => {
+    const transport = (e: unknown) => e instanceof RangeError;
+    it("bills a ZodError or a SyntaxError (the SDK threw after the answer arrived)", () => {
+      const billed = asBilledFailure(new z.ZodError([]), transport);
+      expect(billed).toBeInstanceOf(FloorPlanCallError);
+      expect(billed).toMatchObject({ code: "CLAUDE_PARSE_FAILED", billedSek: FLOORPLAN_EST_SEK_PER_CALL });
+      expect(asBilledFailure(new SyntaxError("x"), transport, 0.07)).toMatchObject({ billedSek: 0.07 });
+    });
+    it("passes a transport error (no answer, no bill) and an error that already carries its bill through unchanged", () => {
+      const http = new RangeError("HTTP 400");
+      expect(asBilledFailure(http, transport)).toBe(http);
+      const own = new FloorPlanCallError("CLAUDE_REFUSAL", 0.03);
+      expect(asBilledFailure(own, () => false)).toBe(own);
+    });
+  });
+
+  describe("floorPlanSpentSek, addFloorPlanSpend, canAffordFloorPlanCall", () => {
+    it("takes the larger of the recorded total and the stored reads, and ignores non-finite numbers", () => {
+      const cache = { ...emptyCache(), entries: { a: entry("a", 0.3) }, spentSekTotal: 0.1 };
+      expect(floorPlanSpentSek(cache)).toBeCloseTo(0.3, 10);
+      expect(floorPlanSpentSek({ ...cache, spentSekTotal: 0.9 })).toBeCloseTo(0.9, 10);
+      expect(floorPlanSpentSek({ ...emptyCache(), entries: { a: entry("a", Number.NaN) }, spentSekTotal: Number.NaN })).toBe(0);
+    });
+    it("adds only a finite positive amount", () => {
+      expect(addFloorPlanSpend(emptyCache(), 0.2).spentSekTotal).toBeCloseTo(0.2, 10);
+      expect(addFloorPlanSpend(emptyCache(), Number.NaN).spentSekTotal).toBe(0);
+      expect(addFloorPlanSpend(emptyCache(), -5).spentSekTotal).toBe(0);
+    });
+    it("allows a call that ends exactly on the cap and refuses one past it or under a non-finite cap", () => {
+      expect(canAffordFloorPlanCall({ ...emptyCache(), spentSekTotal: 1.95 }, 2)).toBe(true);
+      expect(canAffordFloorPlanCall({ ...emptyCache(), spentSekTotal: 1.96 }, 2)).toBe(false);
+      expect(canAffordFloorPlanCall(emptyCache(), Number.NaN)).toBe(false);
+    });
+  });
+});
+
 describe("probeVerdict (R-01, boundary inclusive)", () => {
   it("1 of 10 -> go", () => expect(probeVerdict({ floorPlans: 10, withCompass: 1 })).toBe("go"));
   it("1 of 11 -> dropped", () => expect(probeVerdict({ floorPlans: 11, withCompass: 1 })).toBe("dropped"));
@@ -340,6 +474,15 @@ describe("loadFloorPlanCache / saveFloorPlanCache", () => {
     cache.entries["7"] = { imageId: "7", promptVersion: FLOORPLAN_PROBE_VERSION, storedAt: "2026-10-13", costSek: 0.04, result: read() };
     saveFloorPlanCache(p, cache, { dir });
     expect(loadFloorPlanCache(p).cache).toEqual(cache);
+  });
+
+  it("keeps the recorded total through a save and a load, and reads a file without it", () => {
+    const p = join(dir, "total.json");
+    saveFloorPlanCache(p, { version: 1, entries: {}, spentSekTotal: 0.37 }, { dir });
+    expect(loadFloorPlanCache(p).cache.spentSekTotal).toBeCloseTo(0.37, 10);
+    const old = join(dir, "old.json");
+    writeFileSync(old, JSON.stringify({ version: 1, entries: {} }));
+    expect(loadFloorPlanCache(old)).toEqual({ cache: { version: 1, entries: {} }, warning: null });
   });
 
   it("refuses to save outside .planning/calibration/data/", () => {

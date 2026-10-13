@@ -51,7 +51,11 @@ export const FLOORPLAN_CACHE_DIR = ".planning/calibration/data";
 
 /** What one call is assumed to cost before it is made, SEK (the research measured 0,02 to 0,03). */
 export const FLOORPLAN_EST_SEK_PER_CALL = 0.05;
-/** The hard ceiling of the whole probe, smoke included, SEK. */
+/**
+ * The hard ceiling of the whole probe, smoke included, SEK. It is CUMULATIVE over every run: the money already spent is
+ * kept in the cache file (`spentSekTotal`, never below the sum of the stored reads' costs) and counts against the cap of
+ * the next run (14.3 review WR-04).
+ */
 export const FLOORPLAN_CAP_SEK = 2;
 /** A compass counts only at or above this confidence (R-01). */
 export const FLOORPLAN_MIN_CONFIDENCE = 0.6;
@@ -188,6 +192,11 @@ const floorPlanCacheEntrySchema = z.object({
 const floorPlanCacheSchema = z.object({
   version: z.literal(1),
   entries: z.record(z.string(), floorPlanCacheEntrySchema),
+  /**
+   * Everything this probe has ever paid, SEK, failed and dropped reads included. Optional: a file written before
+   * this field existed reads as the sum of its stored reads.
+   */
+  spentSekTotal: z.number().min(0).optional(),
 });
 
 export type FloorPlanCache = z.infer<typeof floorPlanCacheSchema>;
@@ -271,24 +280,67 @@ export interface FloorPlanProbeRead {
 export interface FloorPlanProbeResult {
   /** Same length and order as the items. */
   reads: FloorPlanProbeRead[];
+  /** What THIS run paid, SEK. */
   spentSek: number;
+  /** What the probe has paid in all runs so far including this one, SEK (the number the cap is checked against). */
+  totalSpentSek: number;
   /** Fresh model reads that came back usable. */
   calls: number;
   cacheHits: number;
-  /** The loaded cache plus this run's new reads; entries of another prompt version are dropped. */
+  /** The loaded cache plus this run's new reads; entries of another prompt version are dropped. Carries `spentSekTotal`. */
   cacheNext: FloorPlanCache;
 }
 
 const errorLabel = (error: unknown): string =>
   error instanceof FloorPlanCallError ? error.code : error instanceof Error ? error.name : "UNKNOWN";
 
+const isMoney = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
+
+/**
+ * Everything the probe has paid before this run, SEK: the recorded total, or the sum of the stored reads' costs when that
+ * is larger (a cache file from before the total existed, or one whose total was lost). Non-finite numbers count as 0.
+ */
+export function floorPlanSpentSek(cache: FloorPlanCache): number {
+  const fromEntries = Object.values(cache.entries).reduce((sum, e) => sum + (isMoney(e.costSek) ? e.costSek : 0), 0);
+  return Math.max(isMoney(cache.spentSekTotal) ? cache.spentSekTotal : 0, fromEntries);
+}
+
+/** The cache with `sek` more recorded as spent. A non-finite or non-positive amount changes nothing. */
+export function addFloorPlanSpend(cache: FloorPlanCache, sek: number): FloorPlanCache {
+  return { ...cache, spentSekTotal: floorPlanSpentSek(cache) + (isMoney(sek) ? sek : 0) };
+}
+
+/** True when one more call (at the estimate) still fits under the cumulative cap; equal is allowed. A non-finite cap allows nothing. */
+export function canAffordFloorPlanCall(cache: FloorPlanCache, capSek: number, estSekPerCall: number = FLOORPLAN_EST_SEK_PER_CALL): boolean {
+  if (!Number.isFinite(capSek)) return false;
+  // The 1e-9 only absorbs float noise from summing small SEK amounts: equal to the cap is allowed.
+  return floorPlanSpentSek(cache) + estSekPerCall <= capSek + 1e-9;
+}
+
+/**
+ * Turns an error thrown by the SDK call into one the cap can see. `messages.parse` is billed by the time it throws when the
+ * answer arrived but could not be turned into the schema (a ZodError, a JSON SyntaxError): nothing in the error says what it
+ * cost, so the estimate is counted. An error `isTransportError` recognises (an HTTP status or a connection error: no
+ * answer, no bill) and an error that already carries its bill pass through unchanged.
+ */
+export function asBilledFailure(
+  error: unknown,
+  isTransportError: (e: unknown) => boolean,
+  estSekPerCall: number = FLOORPLAN_EST_SEK_PER_CALL,
+): unknown {
+  if (error instanceof FloorPlanCallError || isTransportError(error)) return error;
+  return new FloorPlanCallError("CLAUDE_PARSE_FAILED", estSekPerCall);
+}
+
 /**
  * Reads the first picture of each item, within a hard ceiling and never paying twice.
  *
  *  - An item whose URL fails the host allowlist is skipped as "host" and never reaches `call` (SSRF).
  *  - A cache entry of the same picture id AND the current version is a free hit: no call.
- *  - Before every call: when `spent + estimate > cap` (strictly greater; equal is allowed) the item and every
- *    later uncached item are "cost_cap" and no call is made.
+ *  - Before every call: when `paid before + spent so far + estimate > cap` (strictly greater; equal is allowed) the item
+ *    and every later uncached item are "cost_cap" and no call is made. "Paid before" is what earlier runs spent
+ *    ({@link floorPlanSpentSek}), so the cap is the cap of the whole probe, not of one run.
+ *  - A call that comes back with a non-finite or non-positive cost is counted at the estimate, never as free or NaN.
  *  - A call that throws is "failed" with the error name only and the run goes on; money billed for an
  *    answered-and-failed call ({@link FloorPlanCallError}) still counts toward `spentSek`.
  *
@@ -299,6 +351,8 @@ export async function runFloorPlanProbe(
   opts: { call: FloorPlanCallFn; cache: FloorPlanCache; capSek: number; today: string; estSekPerCall?: number },
 ): Promise<FloorPlanProbeResult> {
   const estimate = opts.estSekPerCall ?? FLOORPLAN_EST_SEK_PER_CALL;
+  const priorSek = floorPlanSpentSek(opts.cache);
+  const capSek = Number.isFinite(opts.capSek) ? opts.capSek : 0;
   const reads: FloorPlanProbeRead[] = [];
   const fresh = new Map<string, FloorPlanCache["entries"][string]>();
   let spentSek = 0;
@@ -318,18 +372,19 @@ export async function runFloorPlanProbe(
       continue;
     }
     // The 1e-9 only absorbs float noise from summing small SEK amounts: equal to the cap is allowed.
-    if (spentSek + estimate > opts.capSek + 1e-9) {
+    if (priorSek + spentSek + estimate > capSek + 1e-9) {
       reads.push({ booliId: item.booliId, result: null, status: "cost_cap", costSek: 0 });
       continue;
     }
     try {
       const { result, costSek } = await opts.call({ type: "image", source: { type: "url", url: item.imageUrl } });
-      spentSek += costSek;
+      const paid = isMoney(costSek) ? costSek : estimate;
+      spentSek += paid;
       calls += 1;
-      reads.push({ booliId: item.booliId, result, status: "read", costSek });
-      fresh.set(imageId, { imageId, promptVersion: FLOORPLAN_PROBE_VERSION, storedAt: opts.today, costSek, result });
+      reads.push({ booliId: item.booliId, result, status: "read", costSek: paid });
+      fresh.set(imageId, { imageId, promptVersion: FLOORPLAN_PROBE_VERSION, storedAt: opts.today, costSek: paid, result });
     } catch (error) {
-      const billed = error instanceof FloorPlanCallError && Number.isFinite(error.billedSek) && error.billedSek > 0 ? error.billedSek : 0;
+      const billed = error instanceof FloorPlanCallError && isMoney(error.billedSek) ? error.billedSek : 0;
       spentSek += billed;
       reads.push({ booliId: item.booliId, result: null, status: "failed", costSek: billed, error: errorLabel(error) });
     }
@@ -341,7 +396,8 @@ export async function runFloorPlanProbe(
   }
   for (const [id, e] of fresh) entries[id] = e;
 
-  return { reads, spentSek, calls, cacheHits, cacheNext: { version: 1, entries } };
+  const totalSpentSek = priorSek + spentSek;
+  return { reads, spentSek, totalSpentSek, calls, cacheHits, cacheNext: { version: 1, entries, spentSekTotal: totalSpentSek } };
 }
 
 // ---------------------------------------------------------------------------
