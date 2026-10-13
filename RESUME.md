@@ -6,6 +6,29 @@
 
 ---
 
+## ▶️ STATUS 2026-10-13 (evening) — Phase 14.3 executed 8/8; review + verification running
+
+Sun coverage is solved without on-site visits: `sol härledd 74 av 76 (97,4 %)` live, 75/77 replay.
+- Facade source = OpenStreetMap building footprint + street-name match (`osm-buildings.ts`,
+  `sun-facade.ts`, `sun-fact.ts`); cache `.planning/calibration/data/osm/innerstan.json` (12,9 MB,
+  refreshed only when > 31 days old via `scripts/osm-download.ts`; endpoints rotate, main host 504s).
+- Floor-plan compass route CLOSED: the model "found" north arrows on 6/11 plans — all entrance-door
+  arrows (audit in 14.3 evidence/floorplan-probe.json). `FLOORPLAN_ROUTE_ENABLED=false`. 0,37 kr.
+- Sun hours (`sun-hours.ts`): theoretical + obstructed low/nominal/high (neighbours ±3 m, 250 m,
+  heights levels×3+2, 28 % estimated). Window 06–15. ±1 h share: Mar 97 %, Jun 82 %, Sep 99 %, Dec 89 %.
+- Taste: sun part = facade weight × confidence × 0.5 (street-only) × obstruction. Knob:
+  `streetOnlyFactor: 0.5` in `TASTE_WEIGHTS` (`taste.ts`). Folkungagatan 61: S street side, 8,8 h Mar /
+  8,0 Jun / 4,6 (0–5,5) Dec "usäker"; taste +51 401 kr.
+- Table + mail have three Sol columns; coverage line has `sol härledd`. 14.2's D-17 sun clause closed.
+- Spend this phase: 0 USD Apify, 0,37 kr vision. Tests 2 430 passed.
+
+Pending when written: 14.3-REVIEW.md and 14.3-VERIFICATION.md, then phase.complete.
+Daniel's one-time steps are unchanged (SMTP env, watch-state, launchctl, pmset — scripts/launchd/README.md).
+Open knobs for Daniel: streetOnlyFactor 0.5 vs 1.0; the two text-stated flats both face WEST on the
+courtyard side (supports keeping 0.5); Kungsbro Strand 19 has no floor → no shade check.
+
+---
+
 ## ▶️ STATUS 2026-10-13 (later) — Phase 14.2 executed 9/9; review + verification running
 
 All on `main` (ff-merged + pushed after every wave). `npm run test` 1 929 passed / 3 skipped; tsc + lint clean.
