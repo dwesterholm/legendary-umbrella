@@ -15,12 +15,17 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 
-/** Atomic write: a temp file in the same directory, then rename. */
-export function writeJsonAtomic(path: string, value: unknown): void {
+/** Atomic text write: a temp file in the same directory, then rename (the weekly HTML mail file uses it too). */
+export function writeTextAtomic(path: string, text: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  writeFileSync(tmp, text, "utf8");
   renameSync(tmp, path);
+}
+
+/** Atomic write of a JSON value: a temp file in the same directory, then rename. */
+export function writeJsonAtomic(path: string, value: unknown): void {
+  writeTextAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 /**

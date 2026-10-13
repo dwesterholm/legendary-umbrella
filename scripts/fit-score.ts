@@ -65,6 +65,20 @@
  * from Booli's public BRF page (one page per distinct association, local browser, free); the
  * line "BRF-sidor: <lästa> av <olika> lästa, <misslyckade> misslyckades" says how many were read.
  *
+ * Weekly e-mail and memory (Phase 14.2, WATCH-05, D-14, D-15, R-01): with --email the run remembers
+ * what it has shown in .planning/calibration/data/watch-state.json (gitignored; first-seen date, last
+ * asking price, price history per listing). The mail carries only flats that are new since the last run
+ * ("nya sedan förra veckan") or whose asking price changed ("prisändrad (gammalt → nytt)"); the very first
+ * run, or one with an empty memory, carries the top 15 rows of each section. A week with nothing new sends
+ * nothing and writes nothing ("inget nytt: 0 nya, 0 prisändrade, ingen e-post"). Delivery is SMTP through
+ * nodemailer from the environment (WATCH_SMTP_URL, WATCH_EMAIL_TO, optional WATCH_EMAIL_FROM; reported as
+ * satt/saknas only, never printed). Without both variables the same HTML is written to
+ * .planning/calibration/data/weekly-<date>.html instead and the run says so. The memory is written only after
+ * delivery succeeded (mail accepted, or the file written), so a rerun the same day finds nothing new.
+ * A lock file next to the memory (watch-state.lock) stops two runs from overlapping (exit 3);
+ * a failed send keeps the memory untouched (exit 4). --email also works with --replay (offline apart
+ * from the send itself).
+ *
  * The orchestration (order of paid calls, filters, table) lives in
  * src/lib/discovery/fit-pipeline.ts so the Phase 14.2 email can reuse it.
  *
@@ -76,7 +90,7 @@
  * Secret posture: environment variables are reported as satt/saknas only.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { toCandidate } from "@/lib/discovery/candidate";
@@ -89,6 +103,7 @@ import {
   coverageOfRows,
   estimateFitRunUsd,
   fitRowKey,
+  incompleteDistricts,
   renderAreaReport,
   renderBrfLine,
   renderCoverage,
@@ -118,10 +133,33 @@ import {
   type ModelHealth,
 } from "@/lib/discovery/fit-score";
 import { INNERSTAN_DISTRICTS, parseHedonicModel, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
-import { guardedDataPath, writeJsonAtomic } from "@/lib/discovery/json-store";
+import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
 import { districtAvgiftMedians, isReasonFlagged, reasonCell, reasonsFor } from "@/lib/discovery/watch-reasons";
+import { WATCH_MAIL_ENV, sendWatchMail } from "@/lib/discovery/watch-mail";
+import {
+  renderWatchHtml,
+  renderWatchText,
+  selectMailRows,
+  watchSubject,
+  type WatchMailInput,
+} from "@/lib/discovery/watch-report";
+import {
+  RunLockedError,
+  WATCH_FIRST_MAIL_PER_SECTION,
+  WATCH_STATE_PATH,
+  acquireRunLock,
+  diffRun,
+  isFirstRun,
+  loadWatchState,
+  lockPathOf,
+  peekWatchState,
+  pruneStale,
+  readRunLock,
+  saveWatchState,
+  type RunLock,
+} from "@/lib/discovery/watch-state";
 import {
   HEADLESS_VISION_CAP_SEK,
   HEADLESS_VISION_CHUNKS,
@@ -149,6 +187,9 @@ const USAGE = `Användning:
     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
     npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+  Veckomejl med bevakningsminne (båda lägena):
+    npx tsx scripts/fit-score.ts --email [--state <fil>] [--no-state-write] [--no-vision] [--dry-run]
+    npx tsx scripts/fit-score.ts --replay <snapshot.json> --email [--state <fil>] [--no-state-write]
 
   Tabellen har två avsnitt: "Förväntat under 4 M" (förväntat slutpris högst 4 000 000 kr) och "Över 4 M förväntat".
   "Okapad skillnad" är värde minus slutpris före 20 %-taket; "Krediterad" är den del som räknas in i vinsten.
@@ -171,10 +212,20 @@ const USAGE = `Användning:
   --renderer <r>     Live: local (standard när en skärm finns; gratis) eller apify (betald). Alternativ: miljövariabeln BOOLI_RENDERER
   --allow-apify      Live, lokal webbläsare: låt en sida som blockerats två gånger gå till Apify (betald, kräver token och utrymme)
   --apify-max-renders <n>  Live: tak för Apify-renderingar med --allow-apify, standard ${DEFAULT_APIFY_MAX_RENDERS} (1-${MAX_APIFY_MAX_RENDERS})
+  --email            Veckomejl: kom ihåg vad som visats (${WATCH_STATE_PATH}) och skicka bara nya annonser ("nya sedan förra veckan")
+                     och prisändrade ("prisändrad (gammalt → nytt)"); första körningen tar de 15 främsta i varje avsnitt.
+                     En vecka utan nyheter skickar och skriver ingenting ("inget nytt: 0 nya, 0 prisändrade, ingen e-post").
+                     E-post skickas via SMTP när miljövariablerna ${WATCH_MAIL_ENV.url} och ${WATCH_MAIL_ENV.to} är satta
+                     (valfritt ${WATCH_MAIL_ENV.from}; värdena skrivs aldrig ut, bara satt/saknas). Annars skrivs samma HTML till
+                     ${DATA_DIR}/weekly-<datum>.html. Minnet uppdateras först när leveransen lyckats. Live-körning kräver
+                     ${ANTHROPIC_ENV} om inte --no-vision anges. Med --dry-run: bara förkontroller (SMTP, minne, lås), ingen hämtning
+  --state <fil>      Bevakningsminne (JSON under ${DATA_DIR}/), standard ${WATCH_STATE_PATH}; låsfilen ligger bredvid (<namn>.lock)
+  --no-state-write   Skriv inte bevakningsminnet (provkörning av mejlet)
   --help             Visa den här texten
 
-Slutkoder: 0 klart (även med noll kandidater), 1 fel (argument, fil, nyckel saknas, alla distrikt misslyckades, ingen skärm),
-2 Apify-utrymmet för månaden är mindre än körningens uppskattade kostnad (inget betalt anrop gjordes).`;
+Slutkoder: 0 klart (även med noll kandidater och en tyst vecka), 1 fel (argument, fil, nyckel saknas, alla distrikt misslyckades, ingen skärm),
+2 Apify-utrymmet för månaden är mindre än körningens uppskattade kostnad (inget betalt anrop gjordes),
+3 en annan körning håller låset (watch-state.lock), 4 e-postleveransen misslyckades (HTML skriven, minnet orört).`;
 
 const WINDOW_ALL_NEEDS_LOCAL = "--window all kräver --renderer local (med Apify är varje sida en betald rendering)";
 
@@ -200,6 +251,11 @@ interface Args {
   renderer: string | null;
   allowApify: boolean;
   apifyMaxRenders: number;
+  /** Weekly mail with the seen-listing memory (WATCH-05). Allowed with --replay. */
+  email: boolean;
+  /** The memory file; null = {@link WATCH_STATE_PATH}. */
+  state: string | null;
+  noStateWrite: boolean;
   help: boolean;
 }
 
@@ -217,6 +273,9 @@ function parseArgs(argv: string[]): Args | null {
     renderer: null,
     allowApify: false,
     apifyMaxRenders: DEFAULT_APIFY_MAX_RENDERS,
+    email: false,
+    state: null,
+    noStateWrite: false,
     help: false,
   };
   let liveOnly = false;
@@ -238,6 +297,9 @@ function parseArgs(argv: string[]): Args | null {
     } else if (flag === "--out" && value !== undefined) { out.out = value; liveOnly = true; i++; }
     else if (flag === "--renderer" && value !== undefined) { out.renderer = value; liveOnly = true; i++; }
     else if (flag === "--allow-apify") { out.allowApify = true; liveOnly = true; }
+    else if (flag === "--email") out.email = true;
+    else if (flag === "--state" && value !== undefined) { out.state = value; i++; }
+    else if (flag === "--no-state-write") out.noStateWrite = true;
     else if (
       flag === "--apify-max-renders" &&
       value !== undefined &&
@@ -248,6 +310,8 @@ function parseArgs(argv: string[]): Args | null {
     else return null;
   }
   if (out.replay !== null && liveOnly) return null;
+  // The memory flags mean nothing without the mail: refuse them rather than ignore them silently.
+  if (!out.email && (out.state !== null || out.noStateWrite)) return null;
   return out;
 }
 
@@ -402,18 +466,177 @@ function loadModel(path: string) {
   return parseHedonicModel(JSON.parse(readFileSync(modelPath, "utf8")));
 }
 
+function modelLineOf(model: ReturnType<typeof parseHedonicModel>): string {
+  return `Modell per ${model.asOf}: n ${model.n}, R² ${model.r2.toFixed(2)}, storlek ${model.minLivingArea}–${model.maxLivingArea} kvm, renoband ${RENO_BAND}`;
+}
+
 function printModelLine(model: ReturnType<typeof parseHedonicModel>): void {
-  console.log(
-    `Modell per ${model.asOf}: n ${model.n}, R² ${model.r2.toFixed(2)}, storlek ${model.minLivingArea}–${model.maxLivingArea} kvm, renoband ${RENO_BAND}`,
-  );
+  console.log(modelLineOf(model));
   if (model.note) console.log(`OBS: ${model.note}`);
+}
+
+// ---------------------------------------------------------------------------
+// Weekly e-mail and memory (WATCH-05, shared by replay and live)
+// ---------------------------------------------------------------------------
+
+/** Exit code 3: another run holds watch-state.lock. */
+const EXIT_LOCKED = 3;
+/** Exit code 4: the e-mail could not be delivered (the HTML is written, the memory is untouched). */
+const EXIT_MAIL_FAILED = 4;
+
+/** Today's date as YYYY-MM-DD in Europe/Stockholm (the Monday run belongs to the Swedish date, not UTC). */
+function stockholmToday(now: Date = new Date()): string {
+  return now.toLocaleDateString("sv-SE", { timeZone: "Europe/Stockholm" });
+}
+
+/** The memory file the run uses: --state or the default, guarded to the data directory (T-14.2-13). Exits 1 on a bad path. */
+function resolveStatePath(args: Args): string {
+  const wanted = args.state ?? WATCH_STATE_PATH;
+  const safe = guardedDataPath(wanted, { dir: DATA_DIR, ext: ".json" });
+  if (safe === null) {
+    console.error(`--state måste vara en .json-fil under ${DATA_DIR}/`);
+    process.exit(1);
+  }
+  return safe;
+}
+
+/** Presence only, never a value (T-14.2-11). */
+function printMailEnvState(): void {
+  console.log(`${WATCH_MAIL_ENV.url}: ${process.env[WATCH_MAIL_ENV.url] ? "satt" : "saknas"}`);
+  console.log(`${WATCH_MAIL_ENV.to}: ${process.env[WATCH_MAIL_ENV.to] ? "satt" : "saknas"}`);
+}
+
+/**
+ * The two --dry-run --email lines (W5) after the SMTP lines: the memory and the lock, both read-only
+ * (a dry run takes no lock, renames no file and scrapes nothing).
+ */
+function printWatchDryRun(statePath: string, shownPath: string): void {
+  const peek = peekWatchState(statePath);
+  if (peek.kind === "missing") console.log(`watch-state: ${shownPath}: saknas (första körningen)`);
+  else if (peek.kind === "corrupt") console.log(`watch-state: ${shownPath}: oläsligt (läses som tomt och flyttas åt sidan vid körning)`);
+  else console.log(`watch-state: ${shownPath}: ${peek.listings} annonser sedda, senast ${peek.lastSeen ?? "-"}`);
+  const lock = readRunLock(lockPathOf(statePath));
+  if (lock === null) console.log("Lås: ledigt");
+  else if (lock.alive) console.log(`Lås: upptaget av pid ${lock.pid} sedan ${lock.startedAt}`);
+  else console.log(`Lås: ledigt (kvarglömt lås från pid ${lock.pid}, tas över)`);
+}
+
+/**
+ * Takes the run lock next to the memory, or exits 3 with a Swedish message naming the holder (T-14.2-12).
+ * The lock is also released on process exit, so a signal-driven exit does not leave it behind.
+ */
+function takeRunLock(statePath: string): RunLock {
+  try {
+    const lock = acquireRunLock(lockPathOf(statePath));
+    if (lock.warning) console.log(`OBS: ${lock.warning}`);
+    process.once("exit", () => lock.release());
+    return lock;
+  } catch (e) {
+    if (e instanceof RunLockedError) {
+      console.error(`En annan körning pågår redan (pid ${e.pid}, startad ${e.startedAt}). Den här körningen avbröts; inget skickades och inget ändrades.`);
+      process.exit(EXIT_LOCKED);
+    }
+    throw e;
+  }
+}
+
+interface WatchEmailRun {
+  readonly statePath: string;
+  readonly noStateWrite: boolean;
+  readonly tableRows: readonly FitTableRow[];
+  readonly header: WatchMailInput["header"];
+}
+
+/**
+ * Diff against the memory, pick the mail rows, deliver, and only then write the memory (WATCH-05).
+ * Quiet week: no mail, no file, the pruned memory is saved. Otherwise the HTML goes to
+ * <memory dir>/weekly-<date>.html, then SMTP when both variables are set. Sent, or file-only: the memory
+ * is saved. A failed send keeps the memory untouched and sets exit code 4. Never throws for delivery.
+ */
+async function runWatchEmail(run: WatchEmailRun): Promise<void> {
+  const today = stockholmToday();
+  const loaded = loadWatchState(run.statePath);
+  if (loaded.warning) console.log(`OBS: ${loaded.warning}`);
+  const firstRun = isFirstRun(loaded.state);
+  const diff = diffRun(loaded.state, run.tableRows, today);
+  const sections = selectMailRows({ rows: run.tableRows, diff, firstRun, perSectionFirstRun: WATCH_FIRST_MAIL_PER_SECTION });
+  const mailed = [...sections.under, ...sections.over];
+  const nNew = mailed.filter((m) => m.status === "new").length;
+  const nChanged = mailed.length - nNew;
+  const nextState = pruneStale(diff.next, today);
+
+  const saveState = (): void => {
+    if (run.noStateWrite) {
+      console.log("Bevakningsminnet skrevs inte (--no-state-write).");
+      return;
+    }
+    try {
+      saveWatchState(run.statePath, nextState);
+    } catch (e) {
+      console.error(`FEL: bevakningsminnet kunde inte skrivas: ${e instanceof Error ? e.message : String(e)} (nästa körning kan skicka samma sak igen)`);
+      process.exitCode = 1;
+    }
+  };
+
+  if (mailed.length === 0) {
+    console.log("inget nytt: 0 nya, 0 prisändrade, ingen e-post");
+    saveState();
+    return;
+  }
+
+  const mail: WatchMailInput = {
+    date: today,
+    sections,
+    header: {
+      ...run.header,
+      note: firstRun
+        ? `Första körningen (bevakningsminnet var tomt): de ${WATCH_FIRST_MAIL_PER_SECTION} främsta annonserna i varje avsnitt visas, alla markerade som nya. Härifrån visas bara nya och prisändrade annonser.`
+        : null,
+    },
+    counts: { nNew, nChanged },
+  };
+  const subject = watchSubject(today, nNew, nChanged);
+  const html = renderWatchHtml(mail);
+  const text = renderWatchText(mail);
+  const htmlFile = join(dirname(run.statePath), `weekly-${today}.html`);
+  const htmlPath = relative(process.cwd(), htmlFile) || htmlFile;
+  try {
+    writeTextAtomic(htmlFile, html);
+  } catch (e) {
+    console.error(`E-post ej skickad: HTML kunde inte skrivas till ${htmlPath}: ${e instanceof Error ? e.message : String(e)}; bevakningsminnet uppdateras inte`);
+    process.exitCode = EXIT_MAIL_FAILED;
+    return;
+  }
+
+  const result = await sendWatchMail({ subject, text, html });
+  if (result.status === "sent") {
+    console.log(`E-post skickad: ${nNew} nya, ${nChanged} prisändrade (HTML sparad som ${htmlPath})`);
+    saveState();
+  } else if (result.status === "no-env") {
+    console.log(`ingen e-post skickad: ${result.missing.join(", ")} saknas; HTML skriven till ${htmlPath}`);
+    saveState();
+  } else {
+    console.error(`E-post misslyckades (kod ${result.code}); HTML skriven till ${htmlPath}; bevakningsminnet uppdateras inte`);
+    process.exitCode = EXIT_MAIL_FAILED;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Replay
 // ---------------------------------------------------------------------------
 
-function runReplay(args: Args): void {
+async function runReplay(args: Args): Promise<void> {
+  // --email: the lock is taken before anything else, exactly as in a live run (exit 3 when another run holds it).
+  const statePath = args.email ? resolveStatePath(args) : null;
+  const lock = statePath === null ? null : takeRunLock(statePath);
+  try {
+    await runReplayInner(args, statePath);
+  } finally {
+    lock?.release();
+  }
+}
+
+async function runReplayInner(args: Args, statePath: string | null): Promise<void> {
   const snapshotPath = resolve(args.replay as string);
   if (!existsSync(snapshotPath)) {
     console.error(`Snapshotfil saknas: ${args.replay}`);
@@ -435,7 +658,20 @@ function runReplay(args: Args): void {
   const reasonsOf = makeReasonsOf(snapshot.rows, ranking.ranked);
   const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });
   printRanking(ranking, snapshot.rows, preRankPositions, args.track, tableRows, reasonsOf);
-  console.log(`\n${renderCoverage(withReasonsOnFlagged(coverageOfRows(snapshot.rows, model), tableRows))}`);
+  const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(snapshot.rows, model), tableRows));
+  console.log(`\n${coverageLine}`);
+
+  if (statePath !== null) {
+    console.log("");
+    printMailEnvState();
+    await runWatchEmail({
+      statePath,
+      noStateWrite: args.noStateWrite,
+      tableRows,
+      // A replay measured no candidate list, so it says so instead of claiming "komplett".
+      header: { completeness: "Kandidatlista: ej mätt (uppspelning av en sparad snapshot)", incomplete: false, coverageLine, modelLine: modelLineOf(model) },
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -523,6 +759,7 @@ async function runLive(args: Args): Promise<void> {
     process.exit(1);
   }
   const model = loadModel(args.model);
+  const statePath = args.email ? resolveStatePath(args) : null;
 
   // Preflight. Presence only, never a value.
   const apifyState = process.env[APIFY_ENV] ? "satt" : "saknas";
@@ -533,6 +770,11 @@ async function runLive(args: Args): Promise<void> {
   if (apifyState === "saknas" && (!localMode || args.allowApify)) process.exit(1);
   if (args.noVision) console.log("Bildtolkning: avstängd (--no-vision)");
   else if (anthropicState === "saknas") console.log("Bildtolkning hoppas över: nyckel saknas");
+  // A weekly table without picture reading is not trustworthy (WATCH-05): --email needs the key, or an explicit --no-vision.
+  if (args.email && !args.noVision && anthropicState === "saknas") {
+    console.error(`FEL: --email kräver ${ANTHROPIC_ENV} (bildtolkning ingår i veckotabellen). Sätt nyckeln i ~/.zshenv eller ange --no-vision.`);
+    process.exit(1);
+  }
 
   // Free: loading modules and reading limits spends nothing.
   const transport = await import("@/lib/booli/transport");
@@ -561,6 +803,11 @@ async function runLive(args: Args): Promise<void> {
     if (!check.proceed) process.exit(2);
   } else {
     console.log("Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.");
+  }
+  // W5: after the renderer line, the env presence lines and the skipped-check lines, before the dry-run return.
+  if (statePath !== null) {
+    printMailEnvState();
+    if (args.dryRun) printWatchDryRun(statePath, args.state ?? WATCH_STATE_PATH);
   }
   if (args.dryRun) {
     console.log(localMode ? "--dry-run: förkontrollerna är klara, ingen webbläsare startades." : "--dry-run: förkontrollerna är klara, ingen betald körning startades.");
@@ -664,6 +911,9 @@ async function runLive(args: Args): Promise<void> {
       : async (candidates) => candidates,
   };
 
+  // The run lock next to the memory, before anything is scraped (exit 3 when another run holds it).
+  const lock = statePath === null ? null : takeRunLock(statePath);
+
   // Local mode: install the headed-Chromium renderer into transport.ts. From here every Booli read in
   // this process (scrape, detail, vision enrichment) goes through it; Apify is touched only by an
   // explicit --allow-apify fallback. Nothing may process.exit past this point: the browser must close.
@@ -730,7 +980,24 @@ async function runLive(args: Args): Promise<void> {
       console.error(`\nFEL: snapshoten kunde inte skrivas till ${outPath}: ${writeError}`);
       process.exitCode = 1;
     }
+
+    if (statePath !== null) {
+      console.log("");
+      await runWatchEmail({
+        statePath,
+        noStateWrite: args.noStateWrite,
+        tableRows,
+        header: {
+          // The last line of the area report is the pinned "Kandidatlista: ..." line.
+          completeness: renderAreaReport(result.areas).split("\n").pop() ?? "Kandidatlista: okänd",
+          incomplete: result.areas.length === 0 || incompleteDistricts(result.areas).length > 0,
+          coverageLine: renderCoverage(withReasonsOnFlagged(result.coverage, tableRows)),
+          modelLine: modelLineOf(model),
+        },
+      });
+    }
   } finally {
+    lock?.release();
     disposeSignals?.();
     await handle?.close();
   }
@@ -755,7 +1022,7 @@ async function main(): Promise<void> {
     console.error(`--district måste vara ett av: ${INNERSTAN_DISTRICTS.join(", ")} (fick "${args.district}")`);
     process.exit(1);
   }
-  if (args.replay !== null) runReplay(args);
+  if (args.replay !== null) await runReplay(args);
   else await runLive(args);
 }
 

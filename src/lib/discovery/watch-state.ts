@@ -255,6 +255,26 @@ export function loadWatchState(
   };
 }
 
+/**
+ * A read-only look at the memory for `--dry-run`: it never renames or writes anything (a dry run must
+ * leave the world as it found it, where {@link loadWatchState} moves a bad file aside).
+ * `lastSeen` is the memory's newest sighting date, or null for an empty memory.
+ */
+export function peekWatchState(
+  path: string,
+): { kind: "missing" } | { kind: "corrupt" } | { kind: "ok"; listings: number; lastSeen: string | null } {
+  try {
+    const raw = readJsonIfExists(path);
+    if (raw === null) return { kind: "missing" };
+    const parsed = watchStateSchema.safeParse(raw);
+    if (!parsed.success) return { kind: "corrupt" };
+    const dates = Object.values(parsed.data.listings).map((l) => l.lastSeen).sort();
+    return { kind: "ok", listings: dates.length, lastSeen: dates.length === 0 ? null : dates[dates.length - 1] };
+  } catch {
+    return { kind: "corrupt" };
+  }
+}
+
 /** Writes the memory atomically. Refuses a path outside the data directory (T-14.2-13) by throwing; `opts.dir` is for tests. */
 export function saveWatchState(path: string, state: WatchState, opts: { dir?: string } = {}): void {
   const dir = opts.dir ?? WATCH_DATA_DIR;

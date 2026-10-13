@@ -15,6 +15,7 @@ import {
   listingKey,
   loadWatchState,
   lockPathOf,
+  peekWatchState,
   pruneStale,
   readRunLock,
   saveWatchState,
@@ -252,6 +253,17 @@ describe("load and save", () => {
     expect(r.warning).not.toBeNull();
     expect(isFirstRun(r.state)).toBe(true);
     expect(existsSync(path)).toBe(false);
+  });
+
+  it("peekWatchState reads without touching anything, even a corrupt file", () => {
+    const path = join(dir, "watch-state.json");
+    expect(peekWatchState(path)).toEqual({ kind: "missing" });
+    saveWatchState(path, diffRun(emptyWatchState(), THREE, "2026-10-20").next, { dir });
+    expect(peekWatchState(path)).toEqual({ kind: "ok", listings: 3, lastSeen: "2026-10-20" });
+    writeFileSync(path, "{ nope", "utf8");
+    expect(peekWatchState(path)).toEqual({ kind: "corrupt" });
+    expect(readFileSync(path, "utf8")).toBe("{ nope"); // not renamed, not rewritten
+    expect(readdirSync(dir)).toEqual(["watch-state.json"]);
   });
 
   it("refuses to save outside the data directory", () => {
