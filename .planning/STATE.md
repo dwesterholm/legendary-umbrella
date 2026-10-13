@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
-current_phase: "14.2"
-current_phase_name: Trustworthy Weekly Table
-status: verifying
-stopped_at: Completed 14.2-09-PLAN.md
-last_updated: "2026-10-13T12:52:56.637Z"
+current_phase: 13
+current_phase_name: Discovery UX / Poll-Timeout Fix
+status: planning
+stopped_at: Phase 14.2 complete, ready to plan Phase 13
+last_updated: "2026-10-13T12:58:10.286Z"
 last_activity: 2026-10-13
-last_activity_desc: Phase 14.2 execution started
-state_head: 5dc11f31a22ca2218d0229ab91a2df79c3ecd4b4
+last_activity_desc: Phase 14.2 complete, transitioned to Phase 13
+state_head: 13aadc91f7c5e0b5573f9645655cb7011d75877c
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 34
   completed_plans: 34
-  percent: 13
+  percent: 25
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 ## Current Position
 
-Phase: 14.2 (Trustworthy Weekly Table) — EXECUTING
-Plan: 9 of 9
-Status: Phase complete — ready for verification
-Last activity: 2026-10-13 — Phase 14.2 execution started
+Phase: 13 — Discovery UX / Poll-Timeout Fix
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-13 — Phase 14.2 complete, transitioned to Phase 13
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
 
 ## Roadmap Summary (v1.2 — CURRENT)
@@ -279,7 +279,7 @@ Recent decisions affecting current work:
 **Resume file:** None
 
 Last session: 2026-10-13T12:52:56.510Z
-Stopped at: Completed 14.2-09-PLAN.md
+Stopped at: Phase 14.2 complete, ready to plan Phase 13
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
