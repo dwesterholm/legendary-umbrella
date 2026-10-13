@@ -52,7 +52,7 @@
 
 - [x] **VAL-01**: The sold-price cache's `enriched` record gains avgift (kr/month), BRF id, tenure form, publish date and build year, read from Booli sold-detail pages (sales from 2025-10-01 on) through the FREE local rung by the existing resumable `--enrich-sample` path (checkpoint after every row, 0 USD Apify, failure rate and block signals measured and printed); a second resumable pass reads each distinct BRF's public page once (`fetchBrfFacts`) and stores debt/kvm per BRF id.
   - *Amended 2026-10-13 (14.4-CONTEXT R-01):* sold-detail pages carry no publish date; they print days on market (`daysActive`, "Bostaden var till salu i N dagar"), which is stored and used; candidates use `facts.daysOnMarket`.
-- [ ] **VAL-02**: The hedonic model gains the features avgift/kvm/month, BRF debt/kvm and tomträtt (0/1) with the same honesty rule as today (null → training mean, listed in `imputed`); the refit reports each new coefficient with standard error, R² and CV error before/after, nothing is tuned to a listing, Folkungagatan 61 stays out of the training set, and the committed `data/hedonic-model.json` is version-bumped so an old file is rejected, never silently mis-read.
+- [x] **VAL-02**: The hedonic model gains the features avgift/kvm/month, BRF debt/kvm and tomträtt (0/1) with the same honesty rule as today (null → training mean, listed in `imputed`); the refit reports each new coefficient with standard error, R² and CV error before/after, nothing is tuned to a listing, Folkungagatan 61 stays out of the training set, and the committed `data/hedonic-model.json` is version-bumped so an old file is rejected, never silently mis-read.
   - *Amended 2026-10-13 (14.4-CONTEXT R-02):* tomträtt is not fitted (every sold page says Bostadsrätt, so the column has no variation); the model file records it with source "zeroed" and a note.
 - [ ] **VAL-03**: Listing age enters the expected final price, not the resale price: the bid-premium model gains a days-on-market term fitted from the enriched rows (publish date → sold date) with cross-validation deciding whether it is kept; a candidate's `published` date feeds it at prediction time.
   - *Amended 2026-10-13 (14.4-CONTEXT R-01):* sold-detail pages carry no publish date; they print days on market (`daysActive`, "Bostaden var till salu i N dagar"), which is stored and used; candidates use `facts.daysOnMarket`.
@@ -135,7 +135,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | SUN-05 | Phase 14.3 — Sun & Orientation | Complete |
 | SUN-06 | Phase 14.3 — Sun & Orientation | Complete |
 | VAL-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
-| VAL-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | VAL-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
 | VAL-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
 | VAL-05 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
