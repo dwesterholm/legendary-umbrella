@@ -4,7 +4,7 @@
 #
 # Hemligheter (ANTHROPIC_API_KEY, WATCH_SMTP_URL, WATCH_EMAIL_TO ...) ligger i ~/.zshenv och
 # läses härifrån. Den här filen skriver aldrig ut miljön eller några variabelvärden och
-# använder aldrig skalspårning. --allow-apify skickas aldrig med (R-03): veckojobbet
+# använder aldrig skalspårning. Flaggan som släpper in betalda Apify-sidor skickas aldrig med (R-03): veckojobbet
 # kan inte kosta Apify-pengar.
 #
 # WATCH_DRY_RUN=1 lägger till --dry-run (bara förkontroller, ingen hämtning).
