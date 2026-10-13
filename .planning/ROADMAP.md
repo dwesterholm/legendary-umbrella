@@ -165,11 +165,34 @@ Plans:
 5. **Seen-listing memory + weekly email.** Persist seen Booli ids + last asking price (local JSON or the local Supabase); weekly run on this Mac (launchd/cron, Mac is the E2E runner and stays awake); email only new or price-changed rows with the full column set + the "varför här" reason + Booli link; zero mail on a quiet week.
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 0 plans
+**Plans:** 8 plans
 
 Plans:
+**Wave 1**
 
-- [ ] TBD (run /gsd-plan-phase 14.2 to break down)
+- [ ] 14.2-01-PLAN.md — Local browser rung (D-01, first): transport renderer seam, headed local Chromium, parity test, challenge/one-retry/no-Apify gate, local default in the headless scripts, 0 USD ledger after a settle wait, playwright pinned
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 14.2-02-PLAN.md — Complete district lists (Booli's own total, up to 15 pages) + CandidateFacts from Booli payloads, with real local fixtures
+- [ ] 14.2-03-PLAN.md — 14.1 review fixes WR-01..WR-04 (reno-tier negation, "genomgående", slutpris resume) + stated-sun phrase list
+- [ ] 14.2-04-PLAN.md — Model decisions: size sign rule dropped + free refit committed, uncapped gap column, "Förväntat under 4 M" / "Över 4 M förväntat" sections
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 14.2-05-PLAN.md — Every candidate read: detail + broker + facts for all, vision for all (3 chunks, 60 SEK cap, cache), completeness and coverage lines
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 14.2-06-PLAN.md — "Varför här": BRF debt per kvm from Booli's public BRF page + deterministic reason rules on every flagged row
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 14.2-07-PLAN.md — Seen-listing memory, run lock, weekly HTML e-mail via nodemailer (HTML-file fallback), quiet weeks send nothing
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 14.2-08-PLAN.md — LaunchAgent (Monday 07:00, documented, not installed) + the real evidence run, quiet rerun, lock check and D-17 readout
 
 ### Phase 14.3: Sun & Orientation Spike (INSERTED)
 
