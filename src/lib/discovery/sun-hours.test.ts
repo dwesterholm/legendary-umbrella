@@ -394,6 +394,7 @@ describe("sideHours: Folkungagatan 61 on the real fixture", () => {
   const facade = inferStreetFacade(index, { ...FOLKUNGAGATAN, address: "Folkungagatan 61", floor: 5 });
   if (facade.status !== "ok") throw new Error("Folkungagatan 61 must resolve on the fixture");
   const point = facade.streetPoint;
+  if (point === null) throw new Error("Folkungagatan 61 must have a street point on the fixture");
   const walls = wallsNear(index, point.lat, point.lng, SUN_HOURS_PARAMS.radiusM);
   const input = { lat: point.lat, lng: point.lng, bearingDeg: facade.streetBearingDeg, z: flatHeightM(5), walls };
   const side = sideHours(input);

@@ -5,6 +5,7 @@ import {
   OSM_ATTRIBUTION,
   buildOsmIndex,
   parseOsmExtract,
+  pointInBuilding,
   projectFrom,
   unprojectFrom,
   type OsmExtract,
@@ -19,7 +20,7 @@ import {
   type FootprintOk,
   type FootprintResult,
 } from "@/lib/discovery/sun-facade";
-import { formatSolCell, sunFactFromFootprint, unknownSunFact } from "@/lib/discovery/sun-fact";
+import { computeSunFact, formatSolCell, sunFactFromFootprint, unknownSunFact } from "@/lib/discovery/sun-fact";
 
 // Real OSM data (c) OpenStreetMap contributors, ODbL: a 220 m cut around Folkungagatan 61, downloaded 2026-10-13.
 const FIXTURE = join(__dirname, "__fixtures__", "osm-folkungagatan-61.fixture.json");
@@ -222,15 +223,16 @@ describe("inferStreetFacade: a synthetic slab", () => {
     expect(result.ambiguous).toBe(false);
   });
 
-  it("puts the street point 0,3 m south of the south wall and the courtyard point 0,3 m north of the north wall", () => {
+  it("puts the street point 1 m south of the south wall and the courtyard point 1 m north of the north wall", () => {
     const toM = projectFrom(LAT0, LNG0);
-    const [sx, sy] = toM(result.streetPoint.lng, result.streetPoint.lat);
+    expect(result.streetPoint).not.toBeNull();
+    const [sx, sy] = toM((result.streetPoint as { lng: number }).lng, (result.streetPoint as { lat: number }).lat);
     expect(sx).toBeCloseTo(0, 1);
-    expect(sy).toBeCloseTo(-6.3, 1);
+    expect(sy).toBeCloseTo(-7, 1);
     expect(result.courtyardPoint).not.toBeNull();
     const [cx, cy] = toM((result.courtyardPoint as { lng: number }).lng, (result.courtyardPoint as { lat: number }).lat);
     expect(cx).toBeCloseTo(0, 1);
-    expect(cy).toBeCloseTo(6.3, 1);
+    expect(cy).toBeCloseTo(7, 1);
   });
 
   it("does not depend on the ring winding", () => {
@@ -521,5 +523,124 @@ describe("inferStreetFacade: determinism on the real fixture", () => {
     expect(idx.skipped.relationsWithoutOuter).toBe(0);
     expect(idx.buildings.filter((b) => b.id.startsWith("relation/")).length).toBeGreaterThanOrEqual(2);
     expect(idx.buildings.filter((b) => b.id.startsWith("way/"))).toHaveLength(extract.buildings.length - idx.skipped.invalidWays);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14.3 review WR-01: a window point must lie outside every building and clear of the walls
+// ---------------------------------------------------------------------------
+
+describe("inferStreetFacade: the window points lie outside every building (WR-01)", () => {
+  /** Metres from (lat, lng) to the nearest wall of any building (outer ring or hole). */
+  function nearestWallM(idx: OsmIndex, p: { lat: number; lng: number }): number {
+    const proj = projectFrom(p.lat, p.lng);
+    let best = Infinity;
+    for (const b of idx.buildings) {
+      for (const ring of [b.outer, ...b.inners]) {
+        const xy = ring.map(([lng, lat]) => proj(lng, lat));
+        for (let i = 0; i < xy.length - 1; i++) {
+          const [x1, y1] = xy[i];
+          const [x2, y2] = xy[i + 1];
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const len2 = dx * dx + dy * dy;
+          const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, (-x1 * dx - y1 * dy) / len2));
+          best = Math.min(best, Math.hypot(x1 + t * dx, y1 + t * dy));
+        }
+      }
+    }
+    return best;
+  }
+  const insideAny = (idx: OsmIndex, p: { lat: number; lng: number }): boolean => idx.buildings.some((b) => pointInBuilding(b, p.lng, p.lat));
+  const toM = projectFrom(LAT0, LNG0);
+
+  it("sets the push to 1 m and keeps a window 1 m from either end of its wall", () => {
+    expect(SUN_FACADE_PARAMS.outwardPushM).toBe(1);
+    expect(SUN_FACADE_PARAMS.cornerMarginM).toBe(1);
+  });
+
+  it("gives no courtyard point when the courtyard wall is a party wall with a neighbour (the point would sit inside it)", () => {
+    // Klippgatan 14E / Tobaksspinnargatan 10 shape: the north wall is drawn twice, once per building.
+    const idx = scene({
+      buildings: [building(100, rect(-10, -6, 10, 6)), building(101, rect(-10, 6, 10, 20))],
+      roads: [road(200, [[-60, -12], [60, -12]])],
+    });
+    const result = ok(inferStreetFacade(idx, at("Testgatan 3")));
+    expect(result.osmId).toBe("way/100");
+    expect(result.courtyardPoint).toBeNull();
+    expect(result.streetPoint).not.toBeNull();
+    expect(insideAny(idx, result.streetPoint as { lat: number; lng: number })).toBe(false);
+  });
+
+  it("falls back to the next-nearest courtyard wall when the nearest one is a party wall", () => {
+    // The north side is two walls; the nearer one (x -2 to 10) is shared with the neighbour at x -1 to 3, the other is free.
+    const idx = scene({
+      buildings: [
+        building(100, [[-10, -6], [10, -6], [10, 6], [-2, 6], [-10, 6], [-10, -6]]),
+        building(101, rect(-1, 6, 3, 20)),
+      ],
+      roads: [road(200, [[-60, -12], [60, -12]])],
+    });
+    const result = ok(inferStreetFacade(idx, at("Testgatan 3")));
+    const p = result.courtyardPoint;
+    expect(p).not.toBeNull();
+    const [x, y] = toM((p as { lng: number }).lng, (p as { lat: number }).lat);
+    expect(x).toBeCloseTo(-3, 1);
+    expect(y).toBeCloseTo(7, 1);
+    expect(insideAny(idx, p as { lat: number; lng: number })).toBe(false);
+  });
+
+  it("keeps a window out of an inside corner: the spot on the wall is 1 m from the corner, not in it", () => {
+    // An L-shaped building: the courtyard wall ends at an inside corner where the wing's west wall rises at x = -3.
+    const idx = scene({
+      buildings: [building(100, [[-10, -6], [10, -6], [10, 20], [-3, 20], [-3, 6], [-10, 6], [-10, -6]])],
+      roads: [road(200, [[-60, -12], [60, -12]])],
+    });
+    const result = ok(inferStreetFacade(idx, at("Testgatan 3")));
+    const p = result.courtyardPoint as { lat: number; lng: number };
+    expect(p).not.toBeNull();
+    const [x, y] = toM(p.lng, p.lat);
+    expect(x).toBeLessThan(-3.5);
+    expect(y).toBeCloseTo(7, 1);
+    expect(nearestWallM(idx, p)).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it("degrades the hours of a side without a point to theoretical instead of a false zero", () => {
+    const idx = scene({
+      buildings: [building(100, rect(-10, -6, 10, 6)), building(101, rect(-10, 6, 10, 20))],
+      roads: [road(200, [[-60, -12], [60, -12]])],
+    });
+    const fact = computeSunFact(idx, { lat: LAT0, lng: LNG0, address: "Testgatan 3", floor: 2, candidateOrientation: null, factsFacades: null }, { plan: null });
+    const yard = fact.sides.find((s) => s.side === "gård");
+    expect(yard?.point).toBeNull();
+    expect(yard?.hours?.jun.theoreticalDay).toBeGreaterThan(0);
+    expect(yard?.hours?.jun.obstructedWindow).toBeNull();
+    expect(yard?.hours?.jun.obstructedDay).toBeNull();
+    // The street side still gets its shade figures.
+    expect(fact.sides.find((s) => s.side === "gata")?.hours?.jun.obstructedWindow).not.toBeNull();
+  });
+
+  it("puts every street and courtyard point of the real Folkungagatan cut outside all buildings and 0,9 m clear of the walls", () => {
+    const idx = buildOsmIndex(parseOsmExtract(loadFixture()));
+    const streets = ["Folkungagatan", "Götgatan", "Tjärhovsgatan", "Södermannagatan", "Högbergsgatan", "Åsögatan", "Östgötagatan", "Bondegatan"];
+    let checked = 0;
+    for (const b of idx.buildings) {
+      const proj = projectFrom(b.outer[0][1], b.outer[0][0]);
+      const unp = unprojectFrom(b.outer[0][1], b.outer[0][0]);
+      const pts = b.outer.slice(0, -1).map(([lng, lat]) => proj(lng, lat));
+      const [cx, cy] = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
+      const [lng, lat] = unp(cx, cy);
+      for (const street of streets) {
+        const r = inferStreetFacade(idx, { lat, lng, address: `${street} 1`, floor: 2 });
+        if (r.status !== "ok") continue;
+        for (const p of [r.streetPoint, r.courtyardPoint]) {
+          if (p === null) continue;
+          checked += 1;
+          expect(insideAny(idx, p), `${b.id} ${street}`).toBe(false);
+          expect(nearestWallM(idx, p), `${b.id} ${street}`).toBeGreaterThanOrEqual(0.9);
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
   });
 });

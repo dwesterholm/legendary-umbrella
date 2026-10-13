@@ -58,8 +58,20 @@ export const SUN_FACADE_PARAMS = {
   snapMaxM: 25,
   /** The second group makes the flat a corner flat when its weight is STRICTLY greater than this share of the top group's. */
   ambiguousRatio: 0.6,
-  /** The street / courtyard point is pushed this far out of the wall (metres). */
-  outwardPushM: 0.3,
+  /**
+   * The street / courtyard point is pushed this far out of the wall (metres). One metre, not 0,3: OSM walls are
+   * only good to about a metre, and a point 0,3 m out landed inside the neighbour or the own building on 9 of
+   * 148 derived points (14.3 review WR-01).
+   */
+  outwardPushM: 1,
+  /**
+   * A window is not in a corner: the point is taken at least this far (metres) from either end of its wall. The
+   * nearest spot to the Booli point is often a wall's end at an inside corner, and pushing out from there lands ON the
+   * neighbouring wall of the same building (14 of 151 points did, 14.3 review WR-01).
+   */
+  cornerMarginM: 1,
+  /** A window point must also be at least this far (metres) from every wall of every building. */
+  clearanceM: 0.5,
   /** A wall can hold the courtyard point when its normal is within this many degrees (inclusive) of the courtyard bearing. */
   courtyardTolDeg: 45,
   /** The outward normal is the one whose point this far from the wall midpoint is NOT inside the building (metres). */
@@ -202,9 +214,9 @@ export interface FootprintOk {
   readonly ambiguous: boolean;
   /** The Booli floor is above the building's `building:levels`: probably the wrong building. */
   readonly floorAboveLevels: boolean;
-  /** Where the street side's windows would be: on the wall, pushed out 0,3 m. Null when unknown. */
-  readonly streetPoint: { readonly lat: number; readonly lng: number };
-  /** The same for the courtyard side, null when no wall faces the courtyard bearing. */
+  /** Where the street side's windows would be: on the wall, pushed out 1 m, in no building. Null when no street wall has a free spot in front of it. */
+  readonly streetPoint: { readonly lat: number; readonly lng: number } | null;
+  /** The same for the courtyard side, null when no wall faces the courtyard bearing or none has a free spot in front of it. */
   readonly courtyardPoint: { readonly lat: number; readonly lng: number } | null;
 }
 
@@ -402,11 +414,16 @@ export function inferStreetFacade(index: OsmIndex, input: FacadeInput): Footprin
   const streetBearingDeg = roundBearing(top.bearing);
   const courtyardBearingDeg = roundBearing(streetBearingDeg + 180);
 
-  // The street point: the nearest spot on the winning walls to the Booli point, pushed out of the wall.
-  const streetPoint = pushedPoint(top.edges, origin, P.outwardPushM, unproj);
-  // The courtyard point: the same on any wall whose normal is within the tolerance of the courtyard bearing.
+  // A window point must lie OUTSIDE every building and clear of every wall (a point inside one sends the ray out through
+  // that building's own wall and reads as a false 0,0 h of sun). A candidate that fails is skipped for the next-nearest wall.
+  const isFree = (p: { lat: number; lng: number }): boolean => clearOfBuildings(index, p.lat, p.lng, P.clearanceM);
+  // The street point: the nearest spot on the winning walls to the Booli point, pushed out of the wall. Null when every
+  // street wall is a party wall with a neighbour (OSM draws the shared wall twice), so the hours degrade to theoretical.
+  const streetPoint = pushedPoint(top.edges, origin, P.outwardPushM, unproj, isFree);
+  // The courtyard point: the same on any wall whose normal is within the tolerance of the courtyard bearing; null when no
+  // such wall has a free spot in front of it, so the hours degrade to theoretical instead of a false zero.
   const courtyardWalls = walls.filter((w) => angularDistance(w.bearing, courtyardBearingDeg) <= P.courtyardTolDeg);
-  const courtyardPoint = courtyardWalls.length > 0 ? pushedPoint(courtyardWalls, origin, P.outwardPushM, unproj) : null;
+  const courtyardPoint = pushedPoint(courtyardWalls, origin, P.outwardPushM, unproj, isFree);
 
   const c = P.confidence;
   const floorAboveLevels = input.floor !== null && own.levels !== null && input.floor > own.levels;
@@ -440,18 +457,54 @@ export function inferStreetFacade(index: OsmIndex, input: FacadeInput): Footprin
   };
 }
 
-/** The point on the nearest of `walls` to `from`, pushed `push` metres along that wall's normal, as stored lat/lng. */
+/**
+ * True when (lat, lng) lies in no building's solid part and is at least `clearM` metres from every wall (outer ring or
+ * courtyard hole) of every building. Buildings are prefiltered by their bounding box grown by `clearM`.
+ */
+function clearOfBuildings(index: OsmIndex, lat: number, lng: number, clearM: number): boolean {
+  const dLat = (clearM + 1) / 100_000;
+  const dLng = dLat / Math.cos((lat * Math.PI) / 180);
+  const proj = projectFrom(lat, lng);
+  const origin: XY = [0, 0];
+  for (const b of index.buildings) {
+    const [minLng, minLat, maxLng, maxLat] = b.bbox;
+    if (lng < minLng - dLng || lng > maxLng + dLng || lat < minLat - dLat || lat > maxLat + dLat) continue;
+    if (pointInBuilding(b, lng, lat)) return false;
+    for (const ring of [b.outer, ...b.inners]) {
+      const xy = toXY(proj, ring);
+      for (let i = 0; i < xy.length - 1; i++) if (closestOnSegment(origin, xy[i], xy[i + 1]).d < clearM) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * The point on the nearest of `walls` to `from`, pushed `push` metres along that wall's normal, as stored lat/lng. The
+ * spot on a wall keeps `cornerMarginM` away from both ends (as far as the wall's length allows). Walls are tried from the
+ * nearest outwards and the first whose pushed point passes `isFree` wins; null when none does (or there are no walls).
+ */
 function pushedPoint(
   walls: readonly Wall[],
   from: XY,
   push: number,
   unproj: (x: number, y: number) => [number, number],
-): { lat: number; lng: number } {
-  let best = { ...closestOnSegment(from, walls[0].a, walls[0].b), normal: walls[0].normal };
-  for (const w of walls.slice(1)) {
-    const hit = closestOnSegment(from, w.a, w.b);
-    if (hit.d < best.d) best = { ...hit, normal: w.normal };
+  isFree: (p: { lat: number; lng: number }) => boolean,
+): { lat: number; lng: number } | null {
+  const margin = SUN_FACADE_PARAMS.cornerMarginM;
+  const candidates = walls
+    .map((w, i) => {
+      const m = Math.max(0, Math.min(margin, w.lengthM / 2 - 0.25));
+      const ux = (w.b[0] - w.a[0]) / w.lengthM;
+      const uy = (w.b[1] - w.a[1]) / w.lengthM;
+      const a: XY = [w.a[0] + ux * m, w.a[1] + uy * m];
+      const b: XY = [w.b[0] - ux * m, w.b[1] - uy * m];
+      return { ...closestOnSegment(from, a, b), normal: w.normal, i };
+    })
+    .sort((x, y) => x.d - y.d || x.i - y.i);
+  for (const hit of candidates) {
+    const [lng, lat] = unproj(hit.c[0] + hit.normal[0] * push, hit.c[1] + hit.normal[1] * push);
+    const point = { lat: roundTo(lat, SUN_FACADE_PARAMS.decimals.point), lng: roundTo(lng, SUN_FACADE_PARAMS.decimals.point) };
+    if (isFree(point)) return point;
   }
-  const [lng, lat] = unproj(best.c[0] + best.normal[0] * push, best.c[1] + best.normal[1] * push);
-  return { lat: roundTo(lat, SUN_FACADE_PARAMS.decimals.point), lng: roundTo(lng, SUN_FACADE_PARAMS.decimals.point) };
+  return null;
 }
