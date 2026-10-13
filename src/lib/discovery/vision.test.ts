@@ -732,6 +732,55 @@ describe("runVisionPass", () => {
     expect(totalSpent).toBeLessThanOrEqual(CAP_VISION_SEK_MAX);
   });
 
+  describe("runVisionPass - per-pass ceiling via capSek (Phase 14.2, R-09)", () => {
+    beforeEach(() => {
+      parse.mockResolvedValue({
+        parsed_output: { worthDeepPass: false },
+        usage: baseUsage(),
+        stop_reason: "end_turn",
+      });
+    });
+
+    const three = () =>
+      Array.from({ length: 3 }, (_, i) => makeCandidate({ sourceListingUrl: `https://www.booli.se/annons/cap-${i}` }));
+
+    it("a capSek below the estimate refuses the very first call: every candidate cost_cap, no Anthropic call", async () => {
+      const result = await runVisionPass(three(), { capSek: estimateVisionCallSek() / 2 });
+      expect(parse).not.toHaveBeenCalled();
+      expect(result.map((c) => c.visionSkippedReason)).toEqual(["cost_cap", "cost_cap", "cost_cap"]);
+    });
+
+    it("running + estimate exactly equal to capSek is allowed (strictly greater refuses)", async () => {
+      const [first] = await runVisionPass(three().slice(0, 1), { capSek: estimateVisionCallSek() });
+      expect(first.vision).not.toBeNull();
+      expect(first.visionSkippedReason).toBeNull();
+    });
+
+    it("once running + estimate would pass capSek this candidate and every later one are cost_cap", async () => {
+      // capSek == the estimate: the first call fits (0 + e is not > e), the real cost is > 0, so the second does not.
+      const result = await runVisionPass(three(), { capSek: estimateVisionCallSek() });
+      expect(result[0].vision).not.toBeNull();
+      expect(result[1].visionSkippedReason).toBe("cost_cap");
+      expect(result[2].visionSkippedReason).toBe("cost_cap");
+      expect(parse.mock.calls.length).toBeGreaterThan(0);
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -3, undefined])(
+      "capSek %s falls back to CAP_VISION_SEK_MAX",
+      async (bad) => {
+        // initialSpentSek at the in-app cap: the fallback cap refuses, a wide-open cap would not.
+        const result = await runVisionPass(three(), { capSek: bad as number | undefined, initialSpentSek: CAP_VISION_SEK_MAX });
+        expect(result.every((c) => c.visionSkippedReason === "cost_cap")).toBe(true);
+        expect(parse).not.toHaveBeenCalled();
+      },
+    );
+
+    it("capSek larger than the in-app cap raises the ceiling for this pass only", async () => {
+      const result = await runVisionPass(three().slice(0, 1), { capSek: 60, initialSpentSek: CAP_VISION_SEK_MAX });
+      expect(result[0].vision).not.toBeNull();
+    });
+  });
+
   describe("runVisionPass — shared budget pool via initialSpentSek (D-14-08)", () => {
     beforeEach(() => {
       parse.mockResolvedValue({

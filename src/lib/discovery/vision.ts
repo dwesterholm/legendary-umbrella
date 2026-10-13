@@ -517,6 +517,9 @@ export async function runVisionForCandidate(
  *   the SAME `CAP_VISION_SEK_MAX` ceiling this pass enforces. Additive-optional
  *   — every existing call site is unaffected when omitted. A non-finite or
  *   negative value is treated as 0, exactly like omitting the option.
+ * @param opts.capSek - OPTIONAL ceiling for THIS pass (default
+ *   `CAP_VISION_SEK_MAX`). The check stays strictly "running + estimate > cap",
+ *   so a call that lands exactly on the cap is allowed.
  * @param opts.booliIdOf - resolves a candidate's dedupe/logging key (falls
  *   back to `sourceListingUrl`, or — CR-03 (11-REVIEW.md) — the candidate's
  *   own array index when `sourceListingUrl` is null/missing, since
@@ -541,8 +544,17 @@ export async function runVisionPass(
      * `CAP_VISION_SEK_MAX` pool. Additive-OPTIONAL; omitted/non-finite/
      * negative all behave as 0. */
     initialSpentSek?: number;
+    /** OPTIONAL per-call spend ceiling in SEK (IN-01 of the 14.1 review, Phase 14.2
+     * R-09). The headless weekly run passes a per-lane cap here so three lanes
+     * together can never pass the run ceiling. Omitted, non-finite or <= 0 all
+     * fall back to `CAP_VISION_SEK_MAX`, so every in-app call is unchanged. */
+    capSek?: number;
   } = {},
 ): Promise<DiscoveryCandidate[]> {
+  const capSek =
+    typeof opts.capSek === "number" && Number.isFinite(opts.capSek) && opts.capSek > 0
+      ? opts.capSek
+      : CAP_VISION_SEK_MAX;
   const booliIdOf =
     opts.booliIdOf ??
     ((c: DiscoveryCandidate, i: number) => c.sourceListingUrl ?? `unknown-${i}`);
@@ -586,7 +598,7 @@ export async function runVisionPass(
     // shrinks as the candidate count grows and bears no relation to what the
     // imminent call can actually cost.
     const estimate = estimateVisionCallSek();
-    if (runningVisionSek + estimate > CAP_VISION_SEK_MAX) {
+    if (runningVisionSek + estimate > capSek) {
       costCapHit = true;
       out.push({ ...candidate, vision: null, visionSkippedReason: "cost_cap" });
       continue;
