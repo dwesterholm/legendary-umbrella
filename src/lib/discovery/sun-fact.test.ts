@@ -9,9 +9,11 @@ import {
   computeSunFact,
   formatSolCell,
   formatSolHours,
+  renderSunReport,
   resolveSunFact,
   statedFacadesOf,
   sunFactSchema,
+  unknownSunFact,
   type DateHours,
   type SunFact,
 } from "@/lib/discovery/sun-fact";
@@ -628,5 +630,152 @@ describe("formatSolHours", () => {
     const fact = factWithHours(dateHours(6.0, [5.8, 5.1, 6.0]), dateHours(5.5, [5.5, 5.5, 5.5]), dateHours(4.1, [1.2, 0.0, 4.1]), { heightsEstimated: true });
     const { theoretical, obstructed } = formatSolHours(fact);
     expect(`${theoretical} ${obstructed}`).not.toMatch(/[<>&"']/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderSunReport (plan 07)
+// ---------------------------------------------------------------------------
+
+/** Hours for one date with every figure spelled out: [nominal, low, high] ranges for the window and the full day. */
+function dh(o: { win: number; day: number; w?: readonly [number, number, number] | null; d?: readonly [number, number, number] | null; below?: number | null }): DateHours {
+  const range = (r: readonly [number, number, number] | null | undefined) => (r == null ? null : { nominal: r[0], low: r[1], high: r[2] });
+  return { theoreticalWindow: o.win, theoreticalDay: o.day, obstructedWindow: range(o.w), obstructedDay: range(o.d), floorBelowWindow: o.below ?? null };
+}
+
+/** A footprint fact whose first side carries the same hours on every date (one flat's sun, built by hand). */
+function reportFact(hours: DateHours, over: { confidence?: number; heightsEstimated?: boolean; ambiguous?: boolean } = {}): SunFact {
+  const base = resolveSunFact({ stated: null, plan: null, footprint: footprintOk({ confidence: over.confidence ?? 0.95, ambiguous: over.ambiguous ?? false }) });
+  const side = { z: 16.5, heightsEstimated: over.heightsEstimated ?? false, mar: hours, jun: hours, sep: hours, dec: hours };
+  return { ...base, sides: base.sides.map((sd, i) => (i === 0 ? { ...sd, hours: side } : sd)) };
+}
+
+const REPORT_OPTS = { probeSummary: "0 av 11 planer med verklig kompass, väg stängd", routeEnabled: false } as const;
+const reportLines = (rows: Parameters<typeof renderSunReport>[0], opts: Parameters<typeof renderSunReport>[1] = REPORT_OPTS): string[] => renderSunReport(rows, opts).split("\n");
+
+describe("renderSunReport: the four synthetic rows", () => {
+  const hours = dh({ win: 6, day: 10, w: [5, 4.5, 5.5], d: [9, 8, 9.5] });
+  const rows = [
+    { address: "Folkungagatan 61", sun: reportFact(hours) },
+    { address: "Kungsholmsgatan 5", sun: resolveSunFact({ stated: ["west"], plan: null, footprint: EAST_WEST }) },
+    { address: "Lugnetvägen 2", sun: unknownSunFact("ingen gata med samma namn inom 35 m") },
+    { address: "Bortavägen 9", sun: unknownSunFact("ingen byggnad inom 25 m") },
+  ];
+  const lines = reportLines(rows);
+
+  it("opens with the pinned line", () => {
+    expect(lines[0]).toBe("Sol (4 annonser): fasad härledd 2 av 4 (50,0 %)");
+  });
+
+  it("counts the sources in the fixed order", () => {
+    expect(lines).toContain("  källa: angiven 1, planritning 0, fastighet/gata 1, okänd 2");
+  });
+
+  it("lists the okänd reasons, count descending then reason ascending", () => {
+    expect(lines).toContain("  okänd, anledningar: ingen byggnad inom 25 m 1, ingen gata med samma namn inom 35 m 1");
+    const more = reportLines([...rows, { address: "Z", sun: unknownSunFact("ingen gata med samma namn inom 35 m") }]);
+    expect(more).toContain("  okänd, anledningar: ingen gata med samma namn inom 35 m 2, ingen byggnad inom 25 m 1");
+  });
+
+  it("counts confidence >= 0,70, corners and konflikt", () => {
+    expect(lines).toContain("  säkerhet >= 0,70: 2 av 2");
+    expect(lines).toContain("  hörn: 0, konflikt: 0");
+    const odd = reportLines([
+      { address: "Hörnet 1", sun: reportFact(hours, { ambiguous: true, confidence: 0.69 }) },
+      { address: "Konflikten 2", sun: resolveSunFact({ stated: ["north"], plan: { bearingDeg: 180, confidence: 0.8 }, footprint: { status: "unknown", reason: "adress saknas" } }) },
+    ]);
+    expect(odd).toContain("  säkerhet >= 0,70: 0 av 2"); // 0,69 and the halved 0,50
+    expect(odd).toContain("  hörn: 1, konflikt: 1");
+  });
+
+  it("says how many rows have the shade calculated and how many of those use estimated heights", () => {
+    expect(lines).toContain("  skugga beräknad 1 av 4 (höjd uppskattad: 0)");
+    const estimated = reportLines([{ address: "A", sun: reportFact(hours, { heightsEstimated: true }) }, { address: "B", sun: reportFact(hours) }]);
+    expect(estimated).toContain("  skugga beräknad 2 av 2 (höjd uppskattad: 1)");
+  });
+
+  it("lists each stated row with its street side and courtyard side", () => {
+    expect(lines).toContain("  angiven mot gata: Kungsholmsgatan 5: angiven V, gata Ö 106,0°, gård V 286,0°");
+  });
+
+  it("states the floor-plan line, closed route: not computable", () => {
+    expect(lines).toContain("  planritning: 0 av 11 planer med verklig kompass, väg stängd; överensstämmelse med fastighet/gata: ej beräkningsbar (väg stängd)");
+  });
+
+  it("ends with the OpenStreetMap attribution", () => {
+    expect(lines[lines.length - 1]).toBe("  Kartdata: © OpenStreetMap contributors, ODbL");
+  });
+});
+
+describe("renderSunReport: the +-1 h share and the one-floor sensitivity", () => {
+  it("leaves out rows with less than 1,0 h of theoretical full-day sun; a width of exactly 2,0 h counts as within", () => {
+    const rows = [
+      { address: "Mörkt", sun: reportFact(dh({ win: 0.2, day: 0.5, w: [0, 0, 3], d: [0, 0, 3] })) },
+      { address: "Exakt", sun: reportFact(dh({ win: 5, day: 8, w: [3.4, 2.4, 4.4], d: [3.4, 2.4, 4.4] })) },
+      { address: "Bredare", sun: reportFact(dh({ win: 5, day: 8, w: [3.4, 2.4, 4.5], d: [3.4, 2.4, 4.5] })) },
+    ];
+    const line = reportLines(rows).find((l) => l.startsWith("  ±1 h"));
+    expect(line).toBeDefined();
+    expect(line).toContain("mar 1 av 2 (50,0 %)");
+    expect(line).toContain("dec 1 av 2 (50,0 %)");
+  });
+
+  it("a row exactly 1,0 h of theoretical full-day sun is counted", () => {
+    const rows = [{ address: "Ett", sun: reportFact(dh({ win: 1, day: 1, w: [1, 1, 1], d: [1, 1, 1] })) }];
+    expect(reportLines(rows).find((l) => l.startsWith("  ±1 h"))).toContain("mar 1 av 1 (100,0 %)");
+  });
+
+  it("counts a row for the floor sensitivity when nominal minus one-floor-lower exceeds 1,0 h; exactly 1,0 does not", () => {
+    const rows = [
+      { address: "Skiljer", sun: reportFact(dh({ win: 5, day: 8, w: [4, 3.5, 4.5], d: [7, 6, 8], below: 2.9 })) },
+      { address: "Skiljer inte", sun: reportFact(dh({ win: 5, day: 8, w: [4, 3.5, 4.5], d: [7, 6, 8], below: 3 })) },
+    ];
+    const line = reportLines(rows).find((l) => l.startsWith("  en våning lägre"));
+    expect(line).toBe("  en våning lägre (> 1,0 h skillnad i fönstret): mar 1 av 2, jun 1 av 2, sep 1 av 2, dec 1 av 2");
+  });
+
+  it("rows without an obstructed range are left out of both counts", () => {
+    const rows = [{ address: "Utan våning", sun: reportFact(dh({ win: 5, day: 8 })) }];
+    const lines = reportLines(rows);
+    expect(lines.find((l) => l.startsWith("  ±1 h"))).toContain("mar 0 av 0 (0,0 %)");
+    expect(lines.find((l) => l.startsWith("  en våning lägre"))).toContain("mar 0 av 0");
+  });
+});
+
+describe("renderSunReport: the floor-plan line with the route open", () => {
+  const plan = (bearingDeg: number): SunFact => resolveSunFact({ stated: null, plan: { bearingDeg, confidence: 0.8 }, footprint: EAST_WEST });
+  const open = { probeSummary: "6 av 11 planer med kompass", routeEnabled: true } as const;
+
+  it("counts a plan bearing within 45,0 degrees of the street or courtyard bearing as agreeing", () => {
+    const rows = [
+      { address: "Passar", sun: plan(100) }, // 6 from the street side (106)
+      { address: "Passar inte", sun: plan(0) }, // 106 from the street side (106), 74 from the courtyard side (286)
+      { address: "Kant", sun: plan(331) }, // exactly 45,0 from 286
+    ];
+    expect(reportLines(rows, open)).toContain("  planritning: 6 av 11 planer med kompass; överensstämmelse med fastighet/gata: 2 av 3");
+  });
+
+  it("prints '0 av 0' when no row got its facade from a plan", () => {
+    expect(reportLines([{ address: "X", sun: unknownSunFact("adress saknas") }], open)).toContain("  planritning: 6 av 11 planer med kompass; överensstämmelse med fastighet/gata: 0 av 0");
+  });
+});
+
+describe("renderSunReport: edge cases", () => {
+  it("zero rows: the pinned first line and no crash", () => {
+    const lines = reportLines([]);
+    expect(lines[0]).toBe("Sol (0 annonser): fasad härledd 0 av 0 (0,0 %)");
+    expect(lines.join("\n")).not.toMatch(/NaN|Infinity|undefined/);
+    expect(lines[lines.length - 1]).toBe("  Kartdata: © OpenStreetMap contributors, ODbL");
+  });
+
+  it("rows the run did not look at (sun null) count in N but in no source", () => {
+    const lines = reportLines([{ address: "A", sun: null }, { address: "B", sun: unknownSunFact("adress saknas") }]);
+    expect(lines[0]).toBe("Sol (2 annonser): fasad härledd 0 av 2 (0,0 %)");
+    expect(lines).toContain("  källa: angiven 0, planritning 0, fastighet/gata 0, okänd 1, ej beräknad 1");
+  });
+
+  it("is pure: the same rows give the same text", () => {
+    const rows = [{ address: "A", sun: reportFact(dh({ win: 5, day: 8, w: [4, 3.5, 4.5], d: [7, 6, 8] })) }];
+    expect(renderSunReport(rows, REPORT_OPTS)).toBe(renderSunReport(rows, REPORT_OPTS));
   });
 });
