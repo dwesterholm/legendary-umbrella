@@ -167,7 +167,7 @@ Plans:
 
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 5/9 plans executed
+**Plans:** 6/9 plans executed
 
 Plans:
 **Wave 1**
@@ -186,7 +186,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 14.2-06-PLAN.md — Vision for every candidate: 3 lanes, 60 SEK run cap, cache; paid 10-flat smoke across all lanes + cached rerun
+- [x] 14.2-06-PLAN.md — Vision for every candidate: 3 lanes, 60 SEK run cap, cache; paid 10-flat smoke across all lanes + cached rerun
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
