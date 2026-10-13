@@ -218,15 +218,28 @@ export function daysOnMarketFromText(text: string | null): number | null {
 /**
  * Whether a description says the land is leased (tomträtt): true when stated, false when
  * ruled out (not tomträtt, "friköpt", "föreningen äger marken"), null when it says nothing or
- * there is no text. A ruling-out beats a mention ("har friköpt tomträtten" is false). Pure.
+ * there is no text. Pure.
+ *
+ * What rules tomträtt out (WR-10): a negation right before the noun ("ej/inte/ingen tomträtt", with
+ * at most one word between; "utan tomträtt" only directly before it, because "utan" is also the
+ * common conjunction), or a PAST-tense buy-out (friköpt, avlöst) in the same sentence as the
+ * tomträtt mention, or, with no tomträtt mention at all, anywhere ("Marken är friköpt"). A buy-out
+ * that is only possible or planned ("möjlighet att friköpa", "ska avlösas 2028") rules nothing out:
+ * the flat is still on leased land today, and that is what the column exists to show.
  */
 export function landLeaseFromText(text: string | null): boolean | null {
   if (typeof text !== "string" || text.trim() === "") return null;
   const t = text.toLowerCase();
   const mentionsLease = /tomträtt/.test(t);
-  if (/\b(?:ej|inte|ingen|utan)\s+(?:\S+\s+)?tomträtt/.test(t)) return false;
-  if (/friköp|avlös/.test(t)) return false;
-  if (mentionsLease) return true;
+  if (/\b(?:ej|inte|ingen)\s+(?:\S+\s+)?tomträtt/.test(t)) return false;
+  if (/\butan\s+tomträtt(?:en)?\b/.test(t)) return false;
+  const boughtOut = /friköpt|friköpte|friköpts|avlöst|avlöste|avlösts/;
+  if (mentionsLease) {
+    const sentences = t.split(/[.;!?\n]+/);
+    if (sentences.some((sentence) => /tomträtt/.test(sentence) && boughtOut.test(sentence))) return false;
+    return true;
+  }
+  if (boughtOut.test(t)) return false;
   if (/äger\s+(?:både\s+)?(?:marken|tomten)/.test(t)) return false;
   return null;
 }

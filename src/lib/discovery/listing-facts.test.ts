@@ -133,6 +133,18 @@ describe("landLeaseFromText", () => {
     ["ej tomträtt", false],
     ["Det är inte tomträtt", false],
     ["Föreningen har friköpt tomträtten", false],
+    // WR-10: a buy-out that is possible or planned does not rule tomträtt out
+    ["Föreningen har tomträtt, möjlighet att friköpa finns", true],
+    ["Tomträtten ska avlösas 2028", true],
+    ["Fastigheten är upplåten med tomträtt. Avlösen kan ske tidigast 2030.", true],
+    // ...nor does a buy-out in another sentence (a neighbour's, a later one)
+    ["Föreningen innehar tomträtt. Grannfastigheten har friköpt marken.", true],
+    // "utan" is a conjunction unless it stands right before the noun
+    ["Ljus lägenhet, utan tomträttsavgäld att tänka på, med tomträtt till 2040", true],
+    ["Lägenhet, utan tomträttsavgäld att tänka på", true],
+    ["Fastigheten är utan tomträtt", false],
+    // a past-tense buy-out in the SAME sentence as the mention still rules it out
+    ["Tomträtten är avlöst sedan 2019", false],
     ["Fin utsikt", null],
     ["", null],
     [null, null],
