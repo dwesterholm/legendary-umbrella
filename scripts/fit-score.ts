@@ -381,10 +381,16 @@ async function runLive(args: Args): Promise<void> {
           // Only for a name the seed lacks: the app's own resolver, with the local Supabase defaults find-reno.ts uses.
           const { createClient } = await import("@supabase/supabase-js");
           const { resolveArea } = await import("@/lib/discovery/resolve-area");
-          supabase ??= createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321",
-            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
-          );
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+          if (!supabaseUrl || !supabaseKey) {
+            // No baked-in fallback (code review IN-09): a missing env must fail loudly,
+            // never silently point a production shell at localhost.
+            throw new Error(
+              `Området "${name}" saknas i AREA_SEED och NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY är inte satta (läs in .env.development.local eller ~/.zshenv).`,
+            );
+          }
+          supabase ??= createClient(supabaseUrl, supabaseKey);
           areaId = (await resolveArea(name, supabase as never))?.areaId ?? null;
         }
         targets.push({ name, district: districtOf(name), areaId });
