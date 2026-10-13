@@ -4,6 +4,7 @@
  *   npx tsx scripts/probe-local-booli.ts search --area <areaId> [--pages N]
  *       [--min-area N] [--price-decrease] [--max-price N] [--save-meta <path>]
  *   npx tsx scripts/probe-local-booli.ts detail <booli-url> [--save <path>] [--mode new-headless]
+ *   npx tsx scripts/probe-local-booli.ts brf <digits-id> [--save <path>] [--raw]
  *
  * Opens a headed Chromium on this Mac (parked off-screen unless
  * BOOLI_LOCAL_WINDOW=visible) and prints what Booli shipped. It never calls
@@ -39,6 +40,7 @@ const USAGE = `Användning:
       [--price-decrease] [--max-price N] [--save-meta <sökväg>]
   npx tsx scripts/probe-local-booli.ts search --area <områdes-id> --complete [--min-area N]
   npx tsx scripts/probe-local-booli.ts detail <booli-url> [--save <sökväg>] [--mode new-headless]
+  npx tsx scripts/probe-local-booli.ts brf <id> [--save <sökväg>] [--raw]
 
   --area <id>        Booli-områdes-id, till exempel 115341 (Södermalm)
   --pages <n>        antal sökresultatsidor, standard 1 (1-5)
@@ -51,6 +53,10 @@ const USAGE = `Användning:
   --save-meta <p>    spara ett sanerat sökresultat-utdrag som fixtur
   --save <p>         spara den sanerade annonsposten som fixtur
   --mode new-headless  kör utan fönster (A1, obevisat mot Booli)
+  brf <id>           läs Boolis offentliga BRF-sida (/bostadsrattsforening/<siffror>) och skriv
+                     lån, boarea och skuld per kvm; --save sparar sidtexten kortad till
+                     ekonomiraderna (rader som nämner personer tas bort), --raw skriver ut
+                     sidtexten (bara för felsökning, aldrig till git)
 
 Sparsökvägar måste ligga under src/lib/booli/__fixtures__/ eller .planning/calibration/data/.
 Gratis: använder bara den lokala webbläsaren, aldrig Apify.`;
@@ -71,7 +77,13 @@ interface DetailArgs {
   save: string | null;
   browserMode: "headed" | "new-headless";
 }
-type Args = SearchArgs | DetailArgs;
+interface BrfArgs {
+  mode: "brf";
+  id: string;
+  save: string | null;
+  raw: boolean;
+}
+type Args = SearchArgs | DetailArgs | BrfArgs;
 
 const isPosInt = (v: string | undefined): v is string => v !== undefined && /^\d+$/.test(v) && Number(v) >= 1;
 
@@ -123,6 +135,24 @@ function parseArgs(argv: string[]): Args | null {
       } else if (flag === "--mode" && value === "new-headless") {
         a.browserMode = "new-headless";
         i++;
+      } else {
+        return null;
+      }
+    }
+    return a;
+  }
+  if (mode === "brf") {
+    const [id, ...flags] = rest;
+    if (id === undefined || !/^\d+$/.test(id)) return null;
+    const a: BrfArgs = { mode, id, save: null, raw: false };
+    for (let i = 0; i < flags.length; i++) {
+      const flag = flags[i];
+      const value = flags[i + 1];
+      if (flag === "--save" && value !== undefined) {
+        a.save = value;
+        i++;
+      } else if (flag === "--raw") {
+        a.raw = true;
       } else {
         return null;
       }
@@ -511,6 +541,72 @@ async function runDetail(a: DetailArgs): Promise<void> {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// brf (Phase 14.2, WATCH-03, R-07)
+// ---------------------------------------------------------------------------
+
+/** Lines that may name a person or carry a contact detail; never kept. */
+const PERSON_LINE = /ordförande|ledamot|suppleant|revisor|styrelse|kontakt|telefon|e-?post|@|\b0\d{1,2}[-\s]?\d{5,}/i;
+/** The labels whose value (the next non-empty line) is kept: the economy section only. */
+const ECONOMY_LABEL = /^(?:Byggår|Antal bostadsrätter|Antal hyresrätter|Boarea bostadsrätter|Lån|Belåning per kvm|Årsavgift per kvm)$/i;
+/** The report-year sentence; only its first sentence is kept. */
+const REPORT_YEAR_SENTENCE = /årsredovisning(?:en)?\s+för\s+(?:19|20)\d{2}/i;
+
+/**
+ * The page text cut to the economy lines (T-14.2-09): each economy label with the lines up to and
+ * including its value, and the first sentence that names the annual-report year. Everything else
+ * (menus, explanations, the list of flats, anything that may name a person) is dropped, and a
+ * line that looks like a person or a contact detail is never kept.
+ */
+function economyText(text: string): string {
+  const lines = text.split("\n").map((l) => l.replace(/[ \t]+$/g, ""));
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // The report-year line also holds a Booli e-mail address further on, so only its first sentence is cut out.
+    const sentence = line.match(/^.*?årsredovisning(?:en)?\s+för\s+(?:19|20)\d{2}\.?/i);
+    if (sentence && REPORT_YEAR_SENTENCE.test(sentence[0]) && !PERSON_LINE.test(sentence[0])) {
+      out.push(sentence[0]);
+      continue;
+    }
+    if (PERSON_LINE.test(line)) continue;
+    if (ECONOMY_LABEL.test(line.trim())) {
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === "") j++;
+      if (j < lines.length && !PERSON_LINE.test(lines[j]) && !ECONOMY_LABEL.test(lines[j].trim())) {
+        out.push(...lines.slice(i, j + 1));
+      } else {
+        out.push(line); // a label with no value below it (login-gated) stays, as the page shows it
+      }
+      i = j < lines.length && out[out.length - 1] === lines[j] ? j : i;
+    }
+  }
+  return `${out.join("\n")}\n`;
+}
+
+async function runBrf(a: BrfArgs): Promise<void> {
+  const { fetchBrfText, parseBrfPage, brfPageUrl } = await import("@/lib/booli/brf-page");
+  const text = await fetchBrfText(a.id);
+  const f = parseBrfPage(text);
+  const missing = [f.loanSek === null ? "Lån" : null, f.areaSqm === null ? "Boarea bostadsrätter" : null].filter(Boolean);
+  const k = (n: number | null, unit: string) => (n === null ? "-" : `${kr(n)} ${unit}`);
+  console.log(
+    `BRF ${a.id}: lån ${k(f.loanSek, "kr")}, boarea ${k(f.areaSqm, "m²")}, skuld/kvm ${k(f.debtPerSqm, "kr")} (årsredovisning ${f.reportYear ?? "-"})${missing.length > 0 ? ` | saknas: ${missing.join(", ")}` : ""}`,
+  );
+  console.log(`BRF-sida: ${brfPageUrl(a.id)} (${text.length} tecken)`);
+  if (a.raw) console.log(text);
+  if (a.save !== null) {
+    const abs = guardedSavePath(a.save);
+    if (abs === null) throw new Error("Sparsökvägen måste ligga under src/lib/booli/__fixtures__/ eller .planning/calibration/data/");
+    const trimmed = economyText(text);
+    const hits = piiValuePaths(trimmed.split("\n").filter(Boolean));
+    if (hits.length > 0) throw new Error(`Möjliga personuppgifter kvar i fixturen: ${hits.join(", ")}`);
+    writeText(abs, trimmed);
+    console.log(`Sparade kortad sidtext (${trimmed.split("\n").filter(Boolean).length} rader): ${a.save}`);
+  }
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args === null) {
@@ -523,7 +619,9 @@ async function main(): Promise<number> {
   const handle = installLocalRenderer(args.mode === "detail" ? { mode: args.browserMode } : {});
   let exitCode = 0;
   try {
-    if (args.mode === "detail") {
+    if (args.mode === "brf") {
+      await runBrf(args);
+    } else if (args.mode === "detail") {
       await runDetail(args);
     } else if (args.complete) {
       await runSearchComplete(args);
