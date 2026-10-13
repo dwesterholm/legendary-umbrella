@@ -185,6 +185,20 @@ function inFixedOrder(facades: readonly Facade[]): Facade[] {
   return FACADE_ORDER.filter((f) => facades.includes(f));
 }
 
+/**
+ * The facades the broker's text names: the union of the candidate's
+ * `orientation.facades` and the facts record's `orientationFacades`, once each,
+ * in the fixed order north, east, south, west. Null when neither names one.
+ * Plain inputs, so this module does not import fit-score.ts (no import cycle).
+ */
+export function statedFacadesOf(
+  candidateOrientation: { facades: readonly Facade[] } | null,
+  factsFacades: readonly Facade[] | null,
+): Facade[] | null {
+  const merged = inFixedOrder([...(candidateOrientation?.facades ?? []), ...(factsFacades ?? [])]);
+  return merged.length > 0 ? merged : null;
+}
+
 const roundTo = (n: number, decimals: number): number => {
   const f = 10 ** decimals;
   return Math.round(n * f) / f || 0; // `|| 0` turns -0 into 0
