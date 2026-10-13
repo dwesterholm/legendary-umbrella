@@ -8,7 +8,10 @@
  * rule is tested without a network.
  *
  * THE RULE (boundary inclusive): a refresh is needed when the file is missing,
- * unreadable, its `fetchedAt` does not parse, `fetchedAt` lies more than one
+ * unreadable (that includes a file whose metadata is fine but whose geometry
+ * `parseOsmExtract` refuses or that holds no building: it would otherwise stay
+ * "fresh" for 31 days while every flat reads okänd, 14.3 review WR-05),
+ * its `fetchedAt` does not parse, `fetchedAt` lies more than one
  * day in the future (a clock or a typing error), or the file is 31 days old or
  * older. 30 days 23 h 59 min is fresh; exactly 31 days is not.
  *
@@ -25,7 +28,7 @@
  */
 import { z } from "zod/v4";
 import { guardedDataPath, readJsonIfExists, writeTextAtomic } from "@/lib/discovery/json-store";
-import { OSM_ATTRIBUTION } from "@/lib/discovery/osm-buildings";
+import { OSM_ATTRIBUTION, parseOsmExtract } from "@/lib/discovery/osm-buildings";
 import type { OsmExtract } from "@/lib/discovery/osm-buildings";
 
 /** The one directory the cache may be written to (gitignored with the rest of the data directory). */
@@ -79,6 +82,9 @@ export type OsmCacheLoadError = "saknas" | "ogiltig JSON" | "fel format" | "olä
  * Reads the cache file. Never throws and never renames or deletes the file (a
  * refresh overwrites it): a bad file comes back as an error word the caller
  * prints, so the weekly run fails closed to "okänd" out loud.
+ *
+ * Valid metadata is not enough: the geometry must parse with `parseOsmExtract` and hold at least one building,
+ * else the file is "oläsbar" (treated as missing, so the refresh rule downloads it again).
  */
 export function loadOsmCacheRaw(path: string): { raw: unknown; meta: OsmCacheMeta } | { error: OsmCacheLoadError } {
   let raw: unknown;
@@ -91,6 +97,13 @@ export function loadOsmCacheRaw(path: string): { raw: unknown; meta: OsmCacheMet
   const parsed = metaSchema.safeParse(raw);
   if (!parsed.success) return { error: "fel format" };
   const f = parsed.data;
+  let usable = false;
+  try {
+    usable = parseOsmExtract(raw).buildings.length >= 1;
+  } catch {
+    usable = false;
+  }
+  if (!usable) return { error: "oläsbar" };
   return {
     raw,
     meta: {
@@ -100,6 +113,22 @@ export function loadOsmCacheRaw(path: string): { raw: unknown; meta: OsmCacheMet
       counts: { buildings: f.buildings.length, relations: f.relations.length, roads: f.roads.length },
     },
   };
+}
+
+/**
+ * The fixed okänd reason a flat gets when the cache cannot be used, from the failure text the run prints
+ * ("saknas (filen finns inte)", "saknas (oläsbar)", "ogiltig (<first issue>)"). Three fixed labels, so the sun report
+ * groups them; the printed failure keeps the detail.
+ */
+export function osmCacheUnknownReason(failure: string): "OSM-cache saknas" | "OSM-cache ogiltig" | "OSM-cache oläsbar" {
+  if (failure.includes("oläsbar")) return "OSM-cache oläsbar";
+  if (failure.startsWith("ogiltig")) return "OSM-cache ogiltig";
+  return "OSM-cache saknas";
+}
+
+/** The failure text of {@link loadOsmCacheRaw}'s error word, as the weekly run prints it. */
+export function osmCacheFailureText(error: OsmCacheLoadError): string {
+  return error === "saknas" ? "saknas (filen finns inte)" : error === "oläsbar" ? "saknas (oläsbar)" : `ogiltig (${error})`;
 }
 
 /** The cache's meta, or null when the file is missing, unreadable or the wrong shape. Never throws. */

@@ -187,7 +187,9 @@ import { buildOsmIndex, parseOsmExtract, suspectHeights, type OsmIndex } from "@
 import {
   OSM_CACHE_PATH,
   loadOsmCacheRaw,
+  osmCacheFailureText,
   osmCacheNeedsRefresh,
+  osmCacheUnknownReason,
   readOsmCacheMeta,
   refreshOsmCacheIfStale,
   renderOsmCacheLine,
@@ -697,11 +699,7 @@ function loadSunIndex(source: SunSourceChoice): SunIndexLoad {
   let meta: OsmCacheMeta | null = null;
   if (source.kind === "cache") {
     const loaded = loadOsmCacheRaw(OSM_CACHE_PATH);
-    if ("error" in loaded) {
-      const failure =
-        loaded.error === "saknas" ? "saknas (filen finns inte)" : loaded.error === "oläsbar" ? "saknas (oläsbar)" : `ogiltig (${loaded.error})`;
-      return { index: null, failure };
-    }
+    if ("error" in loaded) return { index: null, failure: osmCacheFailureText(loaded.error) };
     raw = loaded.raw;
     meta = loaded.meta;
   } else {
@@ -724,9 +722,11 @@ function loadSunIndex(source: SunSourceChoice): SunIndexLoad {
 function sunSourceLine(source: SunSourceChoice, load: SunIndexLoad, mode: "replay" | "live", now: Date): string {
   const name = source.kind === "file" ? `OSM-utdrag ${source.path}` : "OSM-cache";
   if (load.index === null) {
+    // An unusable cache is not downloaded again for 31 days unless the refresh rule sees it; say how to fix it by hand.
+    const hint = source.kind === "cache" ? "; kör: npx tsx scripts/osm-download.ts --force" : "";
     return mode === "replay"
-      ? `Sol: ${name} ${load.failure}, solfakta från snapshoten`
-      : `Sol: ${name} ${load.failure}, alla annonser får okänd sol`;
+      ? `Sol: ${name} ${load.failure}, solfakta från snapshoten${hint}`
+      : `Sol: ${name} ${load.failure}, alla annonser får okänd sol${hint}`;
   }
   // CR-01: a bad height tag is replaced by an estimate; the count makes a bad import visible in every run.
   const counts = `${load.index.buildings.length} byggnader, ${load.index.roadsByName.size} gator, höjd orimlig ${suspectHeights(load.index).length} (ersatt med uppskattning)`;
@@ -766,8 +766,11 @@ interface SunStage {
   readonly timingLine: () => string;
 }
 
-/** With no index every row gets the okänd fact "OSM-cache saknas"; otherwise the fact comes from computeSunFact. */
-function makeSunStage(index: OsmIndex | null, buildMs: number): SunStage {
+/**
+ * With no index every row gets the okänd fact with `noIndexReason` (WR-05: "OSM-cache saknas", "ogiltig" or "oläsbar",
+ * from the load failure, not always "saknas"); otherwise the fact comes from computeSunFact.
+ */
+function makeSunStage(index: OsmIndex | null, buildMs: number, noIndexReason: string = "OSM-cache saknas"): SunStage {
   const planOf = makePlanOf();
   let calls = 0;
   let ms = buildMs;
@@ -775,7 +778,7 @@ function makeSunStage(index: OsmIndex | null, buildMs: number): SunStage {
     sunOf: (row) => {
       const t0 = performance.now();
       try {
-        if (index === null) return unknownSunFact("OSM-cache saknas");
+        if (index === null) return unknownSunFact(noIndexReason);
         const c = row.candidate;
         // WR-03: one bad geometry must not abort the run after the paid vision calls; the flat becomes okänd (fel).
         const { fact, failure } = computeSunFactSafe(
@@ -1057,7 +1060,7 @@ async function runLive(args: Args): Promise<void> {
   }
   const sunLoad = loadSunIndex(sunSource);
   console.log(sunSourceLine(sunSource, sunLoad, "live", new Date()));
-  const sunStage = makeSunStage(sunLoad.index, sunLoad.index === null ? 0 : sunLoad.buildMs);
+  const sunStage = makeSunStage(sunLoad.index, sunLoad.index === null ? 0 : sunLoad.buildMs, sunLoad.index === null ? osmCacheUnknownReason(sunLoad.failure) : undefined);
 
   const { fetchAreaListings, HEADLESS_MAX_AREA_PAGES } = await import("@/lib/booli/client");
   const { enrichAllCandidates } = await import("@/lib/discovery/watch-enrich");

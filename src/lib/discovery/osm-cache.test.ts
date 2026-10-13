@@ -9,7 +9,9 @@ import {
   OSM_CACHE_PATH,
   OSM_REFRESH_DAYS,
   loadOsmCacheRaw,
+  osmCacheFailureText,
   osmCacheNeedsRefresh,
+  osmCacheUnknownReason,
   readOsmCacheMeta,
   refreshOsmCacheIfStale,
   renderOsmCacheLine,
@@ -151,6 +153,70 @@ describe("loadOsmCacheRaw / readOsmCacheMeta (fail closed, never throw)", () => 
       counts: { buildings: 2, relations: 1, roads: 1 },
     });
     expect(readOsmCacheMeta(cachePath)).toEqual(loaded.meta);
+  });
+});
+
+describe("a cache with good metadata but unusable geometry is not a cache (14.3 review WR-05)", () => {
+  /** Valid metadata (the refresh decision's view) around geometry parseOsmExtract refuses: a latitude of 99. */
+  const badGeometry = (): OsmExtract => {
+    const file = extractFile();
+    return { ...file, buildings: [{ type: "way", id: 1, tags: { building: "yes" }, geometry: [{ lat: 99, lon: 18 }] }] };
+  };
+
+  it("loads as { error: 'oläsbar' } and reads as no meta, although the metadata alone is fine", () => {
+    writeCache(badGeometry());
+    expect(loadOsmCacheRaw(cachePath)).toEqual({ error: "oläsbar" });
+    expect(readOsmCacheMeta(cachePath)).toBeNull();
+    expect(existsSync(cachePath)).toBe(true);
+  });
+
+  it("a file with no building at all is unusable too", () => {
+    writeCache(extractFile({ buildings: [] }));
+    expect(loadOsmCacheRaw(cachePath)).toEqual({ error: "oläsbar" });
+    expect(readOsmCacheMeta(cachePath)).toBeNull();
+  });
+
+  it("a brand-new but unusable file is downloaded again (old code: 'fresh' for 31 days, no download)", async () => {
+    writeCache(badGeometry());
+    const download = vi.fn(async () => extractFile({ fetchedAt: NOW.toISOString() }));
+    const result = await refreshOsmCacheIfStale({ path: cachePath, now: NOW, force: false, download, dir });
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(result.action).toBe("downloaded");
+    expect("error" in loadOsmCacheRaw(cachePath)).toBe(false);
+  });
+
+  it("a failed download leaves the unusable file in place and reports no cache", async () => {
+    writeCache(badGeometry());
+    const before = readFileSync(cachePath);
+    const result = await refreshOsmCacheIfStale({
+      path: cachePath,
+      now: NOW,
+      force: false,
+      download: async () => {
+        throw new Error("nere");
+      },
+      dir,
+    });
+    expect(result.action).toBe("failed-no-cache");
+    expect(readFileSync(cachePath).equals(before)).toBe(true);
+  });
+
+  it("a usable file of the same age is still fresh and never downloaded", async () => {
+    writeCache(extractFile());
+    const download = vi.fn(async () => extractFile());
+    const result = await refreshOsmCacheIfStale({ path: cachePath, now: NOW, force: false, download, dir });
+    expect(result.action).toBe("fresh");
+    expect(download).not.toHaveBeenCalled();
+  });
+
+  it("names the okänd reason by what is wrong with the cache, with three fixed labels", () => {
+    expect(osmCacheUnknownReason(osmCacheFailureText("saknas"))).toBe("OSM-cache saknas");
+    expect(osmCacheUnknownReason(osmCacheFailureText("oläsbar"))).toBe("OSM-cache oläsbar");
+    expect(osmCacheUnknownReason(osmCacheFailureText("ogiltig JSON"))).toBe("OSM-cache ogiltig");
+    expect(osmCacheUnknownReason(osmCacheFailureText("fel format"))).toBe("OSM-cache ogiltig");
+    expect(osmCacheUnknownReason("ogiltig (bbox.north: Too big)")).toBe("OSM-cache ogiltig");
+    expect(osmCacheFailureText("saknas")).toBe("saknas (filen finns inte)");
+    expect(osmCacheFailureText("fel format")).toBe("ogiltig (fel format)");
   });
 });
 
