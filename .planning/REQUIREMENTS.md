@@ -48,6 +48,20 @@
 - [x] **SUN-05**: The weekly table and HTML mail gain "Sol" columns: facade (source, confidence), theoretical hours Mar/Jun/Dec, obstructed range; the coverage line gains `sol härledd k av N (p %)`; the Overpass cache is refreshed only when older than 31 days and never during the weekly run otherwise.
 - [x] **SUN-06**: One real local evidence run over the current candidates records coverage per source, D-03 vs D-04 agreement where both exist, the Folkungagatan 61 row (facade, hours range, taste change), and the ±1 h share per season from the research method; sun coverage ≥ 80 % closes the D-17 sun clause of 14.2.
 
+### Valuation Gaps, Layout & Livability (Phase 14.4, inserted 2026-10-13)
+
+- [ ] **VAL-01**: The sold-price cache's `enriched` record gains avgift (kr/month), BRF id, tenure form, publish date and build year, read from Booli sold-detail pages (sales from 2025-10-01 on) through the FREE local rung by the existing resumable `--enrich-sample` path (checkpoint after every row, 0 USD Apify, failure rate and block signals measured and printed); a second resumable pass reads each distinct BRF's public page once (`fetchBrfFacts`) and stores debt/kvm per BRF id.
+- [ ] **VAL-02**: The hedonic model gains the features avgift/kvm/month, BRF debt/kvm and tomträtt (0/1) with the same honesty rule as today (null → training mean, listed in `imputed`); the refit reports each new coefficient with standard error, R² and CV error before/after, nothing is tuned to a listing, Folkungagatan 61 stays out of the training set, and the committed `data/hedonic-model.json` is version-bumped so an old file is rejected, never silently mis-read.
+- [ ] **VAL-03**: Listing age enters the expected final price, not the resale price: the bid-premium model gains a days-on-market term fitted from the enriched rows (publish date → sold date) with cross-validation deciding whether it is kept; a candidate's `published` date feeds it at prediction time.
+- [ ] **VAL-04**: The 20 % credit cap is removed from `fit-score.ts` (credit = full gap); the `creditCapped` flag and the `kredit-tak` reason are replaced by a soft `residualFlag` ("ovanligt långt under modellpris": asking/kvm below the model price × exp(−2 × residualSdLog)) that is shown and explained but never caps; `notComparable` at 0.5 is unchanged; all tests, the table, the mail and the reasons module follow.
+- [ ] **VAL-05**: An offline before/after report on the current for-sale snapshot lists every row that carried `kredit-tak`: old credit, new credit, the kr each new feature explains, the residual and the new flag; plus the top-15 before/after and Folkungagatan 61's rank and decomposition — measured, not tuned.
+- [ ] **LAY-01**: A separate slim layout read (own module, own schema with no nullable field, own cache file and version, never the existing vision schema or cache) returns per flat from the floor plan + up to 6 photos: balcony side (street/courtyard/none/unknown), rooms on the balcony side (living, kitchen, bedroom as booleans), window sides (one/two opposite/corner/unknown), bedroom side (street/courtyard/unknown), what in the photos settles street vs courtyard, and one confidence; ≤ 0,6 kr per flat, cumulative cap ≤ 40 kr per run tracked in the cache, 0 USD Apify.
+- [ ] **LAY-02**: Where the balcony side is known (confidence ≥ 0,6) the sun part uses that side's facade and obstructed hours from 14.3 (balcony on the street side → street facade) and the 0.5 street-only factor becomes 1; otherwise everything stays exactly as 14.3 left it; `taste.ts` stays pure; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched; the separation test registers the new modules.
+- [ ] **LAY-03**: Korsdrag (windows on two opposite sides) and a quiet bedroom (bedroom on the courtyard side) become named taste terms inside the unchanged 5 % cap (korsdrag 1 %, quiet bedroom 1 % of resale) and named columns/flags in the weekly table and the HTML mail ("Korsdrag", "Sovrum"); unknown shows "okänd" and adds nothing.
+- [ ] **LAY-04**: Calibration: the replay fixture for Folkungagatan 61 asserts balcony = street side, window sides = one, bedroom = street (sun yes, korsdrag no, bedroom on Folkungagatan); one real local run over the current candidates records layout coverage per field and the agreement between the photo-settled street side and 14.3's footprint street facade.
+- [ ] **BID-01**: The bid-premium model gains a condition term (dated −1 / ok or unknown 0 / fresh +1) fitted from a stratified sample of enriched sold rows whose sold-detail pages still show photos, read by a slim single-enum Haiku condition call (own cache, ≤ 30 kr total); cross-validation decides whether the term is kept; if the pages carry no photos or CV rejects it, a documented prior (source "prior", dated −2 pp, fresh +2 pp) is used and the model file says so.
+- [ ] **BID-02**: `expectedOverbid` takes the candidate's vision condition (the existing deep-pass verdict) so a dated flat's expected final price rises less; the table prints the premium used and its source (fit/prior); the before/after on the current snapshot is in the VAL-05 report.
+
 ### Opportunity Brief (Phase A.5)
 
 - [ ] **ROI-01**: Analysis produces a prioritized opportunity list — each item has cheap/mid/high cost band, expected uplift, confidence, and rationale; structural items retain the "kräver konstruktör / väggutredning" caveat.
@@ -115,6 +129,17 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | SUN-04 | Phase 14.3 — Sun & Orientation | Complete |
 | SUN-05 | Phase 14.3 — Sun & Orientation | Complete |
 | SUN-06 | Phase 14.3 — Sun & Orientation | Complete |
+| VAL-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-05 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| LAY-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| LAY-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| LAY-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| LAY-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| BID-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| BID-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-03 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
