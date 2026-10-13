@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.4"
 current_phase_name: Valuation Gaps, Layout & Livability
 status: executing
-stopped_at: Completed 14.3-08-PLAN.md
-last_updated: "2026-10-13T18:43:51.055Z"
+stopped_at: Completed 14.4-01-PLAN.md
+last_updated: "2026-10-13T18:49:59.192Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 07e3cedd0eb2283c0295730705f8da796c1c0536
+state_head: 11233e66eb64803096fb91deb29f2c2218128cc5
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 52
-  completed_plans: 42
+  completed_plans: 43
   percent: 17
 ---
 
@@ -104,6 +104,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.3 P06 | 4 min | 2 tasks | 4 files |
 | Phase 14.3 P07 | 24 min | 3 tasks | 7 files |
 | Phase 14.3 P08 | 20 min | 2 tasks | 7 files |
+| Phase 14.4 P01 | 6 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -263,6 +264,7 @@ Recent decisions affecting current work:
 - [Phase 14.3]: 14.3-05: stated 1,00 > planritning > fastighet/gata; konflikt strictly above 90 degrees halves confidence; footprint-only conflicts need non-opposite sides
 - [Phase 14.3]: 14.3-06: sun taste = best-side facade weight x March obstruction factor x confidence, halved (streetOnlyFactor 0.5, assumption A4) when only the footprint is known; stated keeps 1.0; 3 % cap unchanged
 - [Phase 14.3]: 14.3-08: 14.2 D-17 sun clause met - live sol härledd 74 av 76 (97,4 %), replay 75 av 77 (97,4 %); street-side factor 0,5 left as shipped (mean taste move 24 931 kr, max 79 273 kr between 0,5 and 1,0)
+- [Phase 14.4]: 14.4-01: run record keeps flags as plain strings and rows loose so deleted/added fields still parse; frozen before = 77 comparable, 17 creditCapped, Folkungagatan 61 rank 29 / 778 545 kr
 
 ### Pending Todos
 
@@ -294,8 +296,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T16:20:06.574Z
-Stopped at: Completed 14.3-08-PLAN.md
+Last session: 2026-10-13T18:49:59.036Z
+Stopped at: Completed 14.4-01-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

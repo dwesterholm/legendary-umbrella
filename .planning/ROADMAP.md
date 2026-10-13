@@ -122,12 +122,12 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, LAY-01, LAY-02, LAY-03, LAY-04, BID-01, BID-02
 **Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
-**Plans:** 10 plans (sequential, waves 1-10)
+**Plans:** 1/10 plans executed (sequential, waves 1-10)
 
 Plans:
 **Wave 1**
 
-- [ ] 14.4-01-PLAN.md — Freeze today's ranking (before the cap goes) + separation guard for the new modules (VAL-05, R-05)
+- [x] 14.4-01-PLAN.md — Freeze today's ranking (before the cap goes) + separation guard for the new modules (VAL-05, R-05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
