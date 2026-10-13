@@ -50,6 +50,7 @@ import {
 import type { HedonicModel, InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
+import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -114,9 +115,18 @@ export interface AreaReport {
   readonly complete?: boolean | null;
 }
 
+/** What the BRF stage did (Phase 14.2, R-07): distinct associations, pages read, pages that failed or were not reached. */
+export interface BrfStats {
+  readonly distinct: number;
+  readonly fetched: number;
+  readonly failed: number;
+}
+
 export type EnrichmentLike = Pick<EnrichmentResult, "candidates" | "brokerImages" | "sunPhrases"> & {
   /** Detail-side facts by window index (watch-enrich.ts); absent from the in-app enrichment. */
   readonly facts?: ReadonlyMap<number, CandidateFacts>;
+  /** The BRF page stage (watch-enrich.ts); absent from the in-app enrichment. */
+  readonly brfStats?: BrfStats;
 };
 
 export interface FitPipelineDeps {
@@ -158,6 +168,8 @@ export interface FitPipelineResult {
   readonly counts: { scraped: number; deduped: number; filtered: number };
   /** R-05: how much is known across the comparable rows. */
   readonly coverage: Coverage;
+  /** R-07: the BRF page stage; null when the enrichment did not read BRF pages (in-app or Apify path). */
+  readonly brfStats: BrfStats | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +310,7 @@ export async function runFitPipeline(
     areas: scraped.areas,
     counts,
     coverage,
+    brfStats: enrichment.brfStats ?? null,
   };
 }
 
@@ -345,6 +358,8 @@ export interface FitTableRow {
   readonly profitKr: number | null;
   readonly tasteKr: number;
   readonly flags: string[];
+  /** WATCH-03 "Varför här": the reasons, "oförklarat fynd" on a flagged row with none, "-" on an unflagged one. */
+  readonly reasons: string;
   readonly link: string;
 }
 
@@ -359,6 +374,7 @@ const roundOrNull = (n: number | null): number | null => (n === null ? null : ro
 export function toFitTableRows(
   ranking: { readonly ranked: readonly FitScoreResult[] },
   preRankPositions: ReadonlyMap<string, number>,
+  opts: { reasonsOf?: (r: FitScoreResult) => string[] } = {},
 ): FitTableRow[] {
   return ranking.ranked.map((r, i) => ({
     rank: i + 1,
@@ -379,12 +395,13 @@ export function toFitTableRows(
     profitKr: roundOrNull(r.profitSek),
     tasteKr: roundKr(r.tasteSek),
     flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
+    reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
     link: r.sourceListingUrl ?? "-",
   }));
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -415,6 +432,7 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         orDash(r.profitKr),
         kr(r.tasteKr),
         r.flags.join(", ") || "-",
+        r.reasons,
         r.link,
       ].join(" | "),
     );
@@ -527,10 +545,24 @@ export interface CoverageItem {
   readonly known: number;
 }
 
+/** How many flagged rows (kredit-tak or dold-defekt-risk) carry a reason (WATCH-03). */
+export interface ReasonsOnFlagged {
+  /** Flagged rows with at least one reason. */
+  readonly explained: number;
+  /** Flagged rows that read "oförklarat fynd". */
+  readonly unexplained: number;
+  /** Flagged rows in all. */
+  readonly flagged: number;
+}
+
 export interface Coverage {
   /** Comparable rows counted. */
   readonly n: number;
   readonly items: readonly CoverageItem[];
+  /** Rows whose association debt per kvm is known (Phase 14.2, R-07), printed after the seven pinned items. */
+  readonly brfDebt: number;
+  /** Reasons on flagged rows; null until {@link withReasonsOnFlagged} sets it (it needs the table rows). */
+  readonly reasonsOnFlagged: ReasonsOnFlagged | null;
 }
 
 /** Rows whose fact is known, by the R-05 definitions. One predicate per label, in {@link COVERAGE_LABELS} order. */
@@ -562,7 +594,25 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
   return {
     n: rows.length,
     items: COVERAGE_LABELS.map((label, i) => ({ label, known: rows.filter(COVERAGE_KNOWN[i]).length })),
+    brfDebt: rows.filter((r) => r.facts?.brf?.debtPerSqm != null).length,
+    reasonsOnFlagged: null,
   };
+}
+
+/**
+ * Counts the reasons on the flagged rows of the printed table: a row is flagged when it carries
+ * kredit-tak or dold-defekt-risk, unexplained when its cell reads "oförklarat fynd". Pure.
+ */
+export function reasonsOnFlaggedOf(rows: readonly FitTableRow[]): ReasonsOnFlagged {
+  const flaggedLabels = [FIT_FLAG_LABELS.creditCapped, FIT_FLAG_LABELS.hiddenDefectRisk];
+  const flagged = rows.filter((r) => r.flags.some((f) => flaggedLabels.includes(f)));
+  const unexplained = flagged.filter((r) => r.reasons === UNEXPLAINED_LABEL).length;
+  return { explained: flagged.length - unexplained, unexplained, flagged: flagged.length };
+}
+
+/** The coverage with the reason counts of `rows` (the full printed list, not only the first 60 per section). Pure. */
+export function withReasonsOnFlagged(coverage: Coverage, rows: readonly FitTableRow[]): Coverage {
+  return { ...coverage, reasonsOnFlagged: reasonsOnFlaggedOf(rows) };
 }
 
 /** Coverage over a stored snapshot's comparable rows (the same set the live run counts), for replay. Pure. */
@@ -576,11 +626,21 @@ const percent = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 
  * The pinned R-05 line that plan 09 parses:
  * "Täckning (N annonser): detaljsida k av N (p %), balkong känd k av N (p %), ..." with every item
  * "<label> <k> av <N> (<p> %)", p to one decimal with a decimal comma, and N = 0 printing
- * "0 av 0 (0,0 %)" instead of dividing by zero.
+ * "0 av 0 (0,0 %)" instead of dividing by zero. After the seven plan-05 items (text and order
+ * unchanged) comes "föreningsskuld känd k av N (p %)" in the same shape, and, when the reason counts
+ * are known, last: "anledning på flaggade rader: E förklarade, U oförklarat fynd av F".
  */
 export function renderCoverage(coverage: Coverage): string {
-  const items = coverage.items.map((i) => `${i.label} ${i.known} av ${coverage.n} (${percent(i.known, coverage.n)} %)`);
+  const item = (label: string, known: number): string => `${label} ${known} av ${coverage.n} (${percent(known, coverage.n)} %)`;
+  const items = [...coverage.items.map((i) => item(i.label, i.known)), item("föreningsskuld känd", coverage.brfDebt)];
+  const r = coverage.reasonsOnFlagged;
+  if (r !== null) items.push(`anledning på flaggade rader: ${r.explained} förklarade, ${r.unexplained} oförklarat fynd av ${r.flagged}`);
   return `Täckning (${coverage.n} annonser): ${items.join(", ")}`;
+}
+
+/** The pinned BRF line (R-07): "BRF-sidor: <fetched> av <distinct> lästa, <failed> misslyckades". Pure. */
+export function renderBrfLine(stats: BrfStats): string {
+  return `BRF-sidor: ${stats.fetched} av ${stats.distinct} lästa, ${stats.failed} misslyckades`;
 }
 
 /**

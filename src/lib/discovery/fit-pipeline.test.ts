@@ -21,6 +21,9 @@ import {
   FIT_TABLE_MAX_ROWS,
   checkApifyHeadroom,
   computeCoverage,
+  reasonsOnFlaggedOf,
+  renderBrfLine,
+  withReasonsOnFlagged,
   coverageOfRows,
   estimateFitRunUsd,
   fitRowKey,
@@ -382,6 +385,41 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(cells[headerCells.indexOf("Krediterad")]).toBe((800_000).toLocaleString("sv-SE"));
   });
 
+  it("the header puts 'Varför här' right after 'Flaggor' and before 'Länk'; every row prints a cell for it", () => {
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    expect(headerCells.indexOf("Varför här")).toBe(headerCells.indexOf("Flaggor") + 1);
+    expect(headerCells.indexOf("Länk")).toBe(headerCells.indexOf("Varför här") + 1);
+    const flagged: FitScoreResult = { ...sample[0], flags: ["creditCapped"] };
+    const cells = renderFitTable(toFitTableRows({ ranked: [flagged] }, new Map(), { reasonsOf: () => ["tomträtt", "ute i 75 dagar"] }))
+      .split("\n")[1]
+      .split(" | ");
+    expect(cells).toHaveLength(headerCells.length);
+    expect(cells[headerCells.indexOf("Flaggor")]).toBe("kredit-tak");
+    expect(cells[headerCells.indexOf("Varför här")]).toBe("tomträtt, ute i 75 dagar");
+  });
+
+  it("a flagged row with no reason prints 'oförklarat fynd', an unflagged one '-' (also without reasonsOf)", () => {
+    const rows = toFitTableRows(
+      { ranked: [{ ...sample[0], flags: ["hiddenDefectRisk", "creditCapped"] }, { ...sample[1], flags: ["ejBildtolkad"] }] },
+      new Map(),
+    );
+    expect(rows[0].reasons).toBe("oförklarat fynd");
+    expect(rows[1].reasons).toBe("-");
+    const withCallback = toFitTableRows({ ranked: [{ ...sample[0], flags: ["creditCapped"] }] }, new Map(), { reasonsOf: () => [] });
+    expect(withCallback[0].reasons).toBe("oförklarat fynd");
+  });
+
+  it("reasonsOf is called with the scored row", () => {
+    const seen: (string | null)[] = [];
+    toFitTableRows({ ranked: sample.slice(0, 3) }, new Map(), {
+      reasonsOf: (r) => {
+        seen.push(r.sourceListingUrl);
+        return [];
+      },
+    });
+    expect(seen).toEqual(sample.slice(0, 3).map((r) => r.sourceListingUrl));
+  });
+
   it("looks up the pre-rank position by listing URL", () => {
     const key = fitRowKey({ sourceListingUrl: sample[0].sourceListingUrl, address: sample[0].address, price: sample[0].askingSek });
     const [row] = toFitTableRows({ ranked: [sample[0]] }, new Map([[key, 7]]));
@@ -731,14 +769,16 @@ describe("coverage (R-05)", () => {
   it("renders the pinned line exactly (decimal comma, one decimal, '<label> <k> av <N> (<p> %)')", () => {
     expect(renderCoverage(computeCoverage(hand))).toBe(
       "Täckning (3 annonser): detaljsida 2 av 3 (66,7 %), balkong känd 3 av 3 (100,0 %), skick känt 1 av 3 (33,3 %), " +
-        "beskrivning läst 2 av 3 (66,7 %), sol/orientering angiven 2 av 3 (66,7 %), avgift 1 av 3 (33,3 %), upplåtelseform 2 av 3 (66,7 %)",
+        "beskrivning läst 2 av 3 (66,7 %), sol/orientering angiven 2 av 3 (66,7 %), avgift 1 av 3 (33,3 %), upplåtelseform 2 av 3 (66,7 %), " +
+        "föreningsskuld känd 0 av 3 (0,0 %)",
     );
   });
 
   it("N = 0 prints '0 av 0 (0,0 %)' for every item and never divides by zero", () => {
     const text = renderCoverage(computeCoverage([]));
     expect(text.startsWith("Täckning (0 annonser): ")).toBe(true);
-    expect(text.match(/ 0 av 0 \(0,0 %\)/g)).toHaveLength(COVERAGE_LABELS.length);
+    // The seven plan-05 items plus "föreningsskuld känd".
+    expect(text.match(/ 0 av 0 \(0,0 %\)/g)).toHaveLength(COVERAGE_LABELS.length + 1);
     expect(text).not.toMatch(/NaN|Infinity/);
   });
 
@@ -780,6 +820,86 @@ describe("coverage (R-05)", () => {
     expect(get("detaljsida")).toBe(5);
     expect(get("upplåtelseform")).toBe(5);
     expect(get("avgift")).toBe(5);
+  });
+});
+
+describe("coverage: association debt and reasons on flagged rows (WATCH-03, R-07)", () => {
+  const withBrf = (debtPerSqm: number | null) => {
+    const base = snapshot.rows[0];
+    return {
+      ...base,
+      facts: candidateFactsSchema.parse({ brf: { loanSek: 1, areaSqm: 1, reportYear: 2024, debtPerSqm } }),
+    };
+  };
+  const tableRow = (flags: string[], reasons: string): FitTableRow => ({
+    ...toFitTableRows({ ranked: rankFit(snapshot.rows, model).ranked.slice(0, 1) }, new Map())[0],
+    flags,
+    reasons,
+  });
+
+  it("counts rows with a known debt per kvm; a brf object with a null debt does not count", () => {
+    const c = computeCoverage([withBrf(1171), withBrf(null), snapshot.rows[1], withBrf(12_729)]);
+    expect(c.brfDebt).toBe(2);
+    expect(c.reasonsOnFlagged).toBeNull();
+  });
+
+  it("prints 'föreningsskuld känd k av N (p %)' right after upplåtelseform, the seven earlier items unchanged", () => {
+    const text = renderCoverage(computeCoverage([withBrf(1171), withBrf(null), withBrf(3000), withBrf(null)]));
+    expect(text).toContain("upplåtelseform 0 av 4 (0,0 %), föreningsskuld känd 2 av 4 (50,0 %)");
+    expect(text.startsWith("Täckning (4 annonser): detaljsida 0 av 4 (0,0 %), balkong känd")).toBe(true);
+    expect(text).not.toContain("anledning");
+  });
+
+  it("counts explained and unexplained flagged rows from the printed table rows", () => {
+    const rows = [
+      tableRow(["kredit-tak", "dold-defekt-risk"], "tomträtt"),
+      tableRow(["kredit-tak"], "oförklarat fynd"),
+      tableRow(["dold-defekt-risk"], "snart till salu (ej budgivning än)"),
+      tableRow(["ej bildtolkad"], "-"),
+      tableRow([], "-"),
+    ];
+    expect(reasonsOnFlaggedOf(rows)).toEqual({ explained: 2, unexplained: 1, flagged: 3 });
+    expect(reasonsOnFlaggedOf([])).toEqual({ explained: 0, unexplained: 0, flagged: 0 });
+  });
+
+  it("appends 'anledning på flaggade rader: E förklarade, U oförklarat fynd av F' last, in the pinned shape", () => {
+    const rows = [tableRow(["kredit-tak"], "tomträtt"), tableRow(["kredit-tak"], "oförklarat fynd")];
+    const text = renderCoverage(withReasonsOnFlagged(computeCoverage([withBrf(1171), withBrf(null)]), rows));
+    expect(text).toBe(
+      "Täckning (2 annonser): detaljsida 0 av 2 (0,0 %), balkong känd 0 av 2 (0,0 %), skick känt 0 av 2 (0,0 %), " +
+        "beskrivning läst 0 av 2 (0,0 %), sol/orientering angiven 0 av 2 (0,0 %), avgift 0 av 2 (0,0 %), upplåtelseform 0 av 2 (0,0 %), " +
+        "föreningsskuld känd 1 av 2 (50,0 %), anledning på flaggade rader: 1 förklarade, 1 oförklarat fynd av 2",
+    );
+    expect(text.endsWith("1 förklarade, 1 oförklarat fynd av 2")).toBe(true);
+  });
+
+  it("zero flagged rows print '0 förklarade, 0 oförklarat fynd av 0'", () => {
+    const text = renderCoverage(withReasonsOnFlagged(computeCoverage([]), []));
+    expect(text.endsWith("anledning på flaggade rader: 0 förklarade, 0 oförklarat fynd av 0")).toBe(true);
+  });
+
+  it("renders the BRF line in the pinned shape, zero included", () => {
+    expect(renderBrfLine({ distinct: 30, fetched: 28, failed: 2 })).toBe("BRF-sidor: 28 av 30 lästa, 2 misslyckades");
+    expect(renderBrfLine({ distinct: 0, fetched: 0, failed: 0 })).toBe("BRF-sidor: 0 av 0 lästa, 0 misslyckades");
+  });
+
+  it("a live run carries the enrichment's BRF stats through, and null when the enrichment has none", async () => {
+    const detail = candidateFactsSchema.parse({ brf: { loanSek: 5, areaSqm: 1, reportYear: 2024, debtPerSqm: 5 }, detailFetched: true });
+    const facts = new Map<number, CandidateFacts>(Array.from({ length: 3 }, (_, i) => [i, detail]));
+    const deps = fakeDeps(fixtureScraped.slice(0, 26), { facts });
+    const enrich = deps.enrich;
+    enrich.mockImplementation(async (candidates: DiscoveryCandidate[]) => ({
+      candidates: candidates.map((c) => ({ ...c, imageUrls: [DETAIL_IMAGE] })),
+      brokerImages: new Map(),
+      sunPhrases: new Map(),
+      facts,
+      brfStats: { distinct: 3, fetched: 2, failed: 1 },
+    }));
+    const result = await run(deps.deps, 3);
+    expect(result.brfStats).toEqual({ distinct: 3, fetched: 2, failed: 1 });
+    expect(result.coverage.brfDebt).toBe(3);
+    const none = await run(fakeDeps(fixtureScraped.slice(0, 26)).deps, 3);
+    expect(none.brfStats).toBeNull();
   });
 });
 

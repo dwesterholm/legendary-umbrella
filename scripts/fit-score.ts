@@ -57,6 +57,14 @@
  * Every row shows the uncapped gap ("Okapad skillnad", D-11) beside the credited
  * amount ("Krediterad", capped at 20 % of the value).
  *
+ * "Varför här" (Phase 14.2, WATCH-03, D-08): every row has a reason column built by the pure
+ * rules in src/lib/discovery/watch-reasons.ts (tenure, tomträtt, nyproduktion, bidding, price
+ * cut, days on market, avgift per kvm against the district median, association debt per kvm,
+ * a high floor with no elevator listed, an unusual layout, "snart till salu"). A row flagged
+ * kredit-tak or dold-defekt-risk with no reason says "oförklarat fynd". Association debt comes
+ * from Booli's public BRF page (one page per distinct association, local browser, free); the
+ * line "BRF-sidor: <lästa> av <olika> lästa, <misslyckade> misslyckades" says how many were read.
+ *
  * The orchestration (order of paid calls, filters, table) lives in
  * src/lib/discovery/fit-pipeline.ts so the Phase 14.2 email can reuse it.
  *
@@ -82,16 +90,19 @@ import {
   estimateFitRunUsd,
   fitRowKey,
   renderAreaReport,
+  renderBrfLine,
   renderCoverage,
   renderFitSections,
   renderWindowReport,
   runFitPipeline,
   splitFitSections,
   toFitTableRows,
+  withReasonsOnFlagged,
   FIT_FLAG_LABELS,
   type AreaReport,
   type FitPipelineDeps,
   type FitPipelineResult,
+  type FitTableRow,
   type ScrapedRow,
 } from "@/lib/discovery/fit-pipeline";
 import {
@@ -110,6 +121,7 @@ import { INNERSTAN_DISTRICTS, parseHedonicModel, type InnerstanDistrict } from "
 import { guardedDataPath, writeJsonAtomic } from "@/lib/discovery/json-store";
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
+import { districtAvgiftMedians, isReasonFlagged, reasonCell, reasonsFor } from "@/lib/discovery/watch-reasons";
 import {
   HEADLESS_VISION_CAP_SEK,
   HEADLESS_VISION_CHUNKS,
@@ -141,7 +153,8 @@ const USAGE = `Användning:
   Tabellen har två avsnitt: "Förväntat under 4 M" (förväntat slutpris högst 4 000 000 kr) och "Över 4 M förväntat".
   "Okapad skillnad" är värde minus slutpris före 20 %-taket; "Krediterad" är den del som räknas in i vinsten.
   Områdesraden säger "N av M annonser (P sidor, komplett|ofullständig)" och "Kandidatlista: komplett|OFULLSTÄNDIG (...)";
-  raden "Täckning (...)" säger hur mycket som faktiskt är känt (balkong, skick, beskrivning, sol, avgift, upplåtelseform).
+  raden "Täckning (...)" säger hur mycket som faktiskt är känt (balkong, skick, beskrivning, sol, avgift, upplåtelseform, föreningsskuld).
+  Kolumnen "Varför här" förklarar varför en annons kan vara billig; en flaggad annons utan förklaring heter "oförklarat fynd".
 
   --replay <fil>     Spela upp en sparad snapshot av bostäder till salu (inga nätverksanrop)
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
@@ -272,11 +285,34 @@ function printHealth(health: ModelHealth): void {
   }
 }
 
+/**
+ * The "varför här" callback for a run: the reason rules read each scored row's snapshot row (its facts and
+ * its candidate's upcomingSale flag), with the district avgift medians taken from the run's own comparable rows (D-09).
+ * Replay and live build it the same way from the same rows, so the cells match.
+ */
+function makeReasonsOf(
+  rows: readonly FitInputRow[],
+  ranked: readonly FitScoreResult[],
+): (r: FitScoreResult) => string[] {
+  const keyOfResult = (r: FitScoreResult): string => r.sourceListingUrl ?? `${r.address}|${r.askingSek}`;
+  const byKey = new Map(rows.map((row) => [fitRowKey(row.candidate), row] as const));
+  const comparable = ranked.flatMap((r) => {
+    const row = byKey.get(keyOfResult(r));
+    return row ? [row] : [];
+  });
+  const medians = districtAvgiftMedians(comparable);
+  return (r) => {
+    const row = byKey.get(keyOfResult(r));
+    return row ? reasonsFor(row, { medians }) : [];
+  };
+}
+
 function printTracked(
   trackId: number,
   ranking: { ranked: FitScoreResult[]; notComparable: FitScoreResult[] },
   rows: readonly FitInputRow[],
   preRankPositions: ReadonlyMap<string, number>,
+  reasonsOf: (r: FitScoreResult) => string[],
 ): void {
   const { ranked, notComparable } = ranking;
   const index = ranked.findIndex((r) => r.booliId === trackId);
@@ -319,6 +355,7 @@ function printTracked(
   console.log(`  Smak:               ${sek(r.tasteSek)} kr (sol ${pct(r.tasteSunPct)}, nav ${pct(r.tasteHubPct)}, närmaste nav ${r.nearestHub ?? "-"})`);
   console.log(`  Vinst:              ${orDash(r.profitSek, sek)} kr`);
   console.log(`  Flaggor:            ${r.flags.map((f) => FIT_FLAG_LABELS[f]).join(", ") || "-"}`);
+  console.log(`  Varför här:         ${reasonCell(reasonsOf(r), isReasonFlagged(r.flags))}`);
   console.log(`  Imputerat:          ${r.featuresImputed.join(", ") || "-"}`);
 
   const worse = clearlyWorseAbove(ranked, trackId);
@@ -347,9 +384,11 @@ function printRanking(
   rows: readonly FitInputRow[],
   preRankPositions: ReadonlyMap<string, number>,
   trackId: number,
+  tableRows: readonly FitTableRow[],
+  reasonsOf: (r: FitScoreResult) => string[],
 ): void {
-  console.log(renderFitSections(toFitTableRows(ranking, preRankPositions), { maxRows: FIT_TABLE_MAX_ROWS }));
-  printTracked(trackId, ranking, rows, preRankPositions);
+  console.log(renderFitSections(tableRows, { maxRows: FIT_TABLE_MAX_ROWS }));
+  printTracked(trackId, ranking, rows, preRankPositions, reasonsOf);
   printNotComparable(ranking.notComparable);
   printHealth(ranking.health);
 }
@@ -393,8 +432,10 @@ function runReplay(args: Args): void {
   console.log(
     `Snapshot per ${snapshot.asOf}: ${snapshot.rows.length} rader, ${ranking.ranked.length} jämförbara, ${ranking.notComparable.length} ej jämförbara (förrank räknat om från snapshoten)\n`,
   );
-  printRanking(ranking, snapshot.rows, preRankPositions, args.track);
-  console.log(`\n${renderCoverage(coverageOfRows(snapshot.rows, model))}`);
+  const reasonsOf = makeReasonsOf(snapshot.rows, ranking.ranked);
+  const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });
+  printRanking(ranking, snapshot.rows, preRankPositions, args.track, tableRows, reasonsOf);
+  console.log(`\n${renderCoverage(withReasonsOnFlagged(coverageOfRows(snapshot.rows, model), tableRows))}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -672,9 +713,12 @@ async function runLive(args: Args): Promise<void> {
       `\nAnnonser: ${result.counts.scraped} hämtade, ${result.counts.deduped} efter dubblettstädning, ${result.counts.filtered} efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); ${result.ranking.ranked.length} jämförbara, ${result.ranking.notComparable.length} ej jämförbara`,
     );
     console.log(`\n${renderWindowReport(result)}`);
-    console.log(`\n${renderCoverage(result.coverage)}`);
+    const reasonsOf = makeReasonsOf(result.snapshot.rows, result.ranking.ranked);
+    const tableRows = toFitTableRows(result.ranking, result.preRankPositions, { reasonsOf });
+    console.log(`\n${renderCoverage(withReasonsOnFlagged(result.coverage, tableRows))}`);
+    if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
     console.log("");
-    printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track);
+    printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
     await printSpend(t0, result, transport, ledger(), visionLineOf());
     if (cacheSaveError !== null) {
       console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);

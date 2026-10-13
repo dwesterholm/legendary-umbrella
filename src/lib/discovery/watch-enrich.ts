@@ -38,6 +38,7 @@ import {
   fetchListing,
 } from "@/lib/booli/client";
 import { runPool } from "@/lib/booli/slutpriser";
+import { fetchBrfFacts, type BrfFacts } from "@/lib/booli/brf-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { toCandidate, type DiscoveryCandidate } from "@/lib/discovery/candidate";
@@ -71,7 +72,7 @@ const BROKER_RENDER_MAX_RETRIES = 1;
 /** Broker photos fetched as bytes per candidate (same as `job.ts`). */
 const BROKER_IMAGES_PER_CANDIDATE = 4;
 
-/** The three network edges, injectable so tests need no module mocks. */
+/** The four network edges, injectable so tests need no module mocks. */
 export interface WatchEnrichDeps {
   fetchListing(
     url: string,
@@ -79,9 +80,23 @@ export interface WatchEnrichDeps {
   ): Promise<Record<string, unknown>>;
   fetchBrokerListingPage: typeof fetchBrokerListingPage;
   fetchBrokerImageBytes: typeof fetchBrokerImageBytes;
+  /** The public Booli page of one association (R-07); rejects when the page cannot be rendered. */
+  fetchBrfFacts(id: string): Promise<BrfFacts>;
 }
 
-const REAL_DEPS: WatchEnrichDeps = { fetchListing, fetchBrokerListingPage, fetchBrokerImageBytes };
+const REAL_DEPS: WatchEnrichDeps = {
+  fetchListing,
+  fetchBrokerListingPage,
+  fetchBrokerImageBytes,
+  fetchBrfFacts: (id) => fetchBrfFacts(id),
+};
+
+/** What the BRF stage did: distinct associations found, pages read, pages that failed or were not reached (deadline). */
+export interface BrfStats {
+  readonly distinct: number;
+  readonly fetched: number;
+  readonly failed: number;
+}
 
 export interface WatchEnrichment {
   /** Same length and order as the input; a successfully read entry is a new object. */
@@ -92,6 +107,8 @@ export interface WatchEnrichment {
   sunPhrases: Map<number, SunPhrases>;
   /** candidate index -> the detail-side facts (set only for a successful detail fetch). */
   facts: Map<number, CandidateFacts>;
+  /** The BRF page stage (R-07). `facts` entries of a read association carry `brf`. */
+  brfStats: BrfStats;
 }
 
 export interface WatchEnrichOptions {
@@ -222,5 +239,40 @@ export async function enrichAllCandidates(
       deadlineMs: opts.deadlineMs,
     });
   }
-  return { candidates: out, brokerImages, sunPhrases, facts };
+
+  // BRF stage (R-07): one page per distinct association, after the detail stage has found the ids.
+  // A rejected page, or one not reached before the deadline, leaves `brf` null on those rows and counts
+  // as failed; it never throws and never stops the other associations.
+  const byBrf = new Map<string, number[]>();
+  for (const [i, f] of facts) {
+    if (f.brfId === null) continue;
+    const list = byBrf.get(f.brfId);
+    if (list) list.push(i);
+    else byBrf.set(f.brfId, [i]);
+  }
+  const brfStats = { distinct: byBrf.size, fetched: 0, failed: 0 };
+  await runPool(
+    [...byBrf].map(([brfId, indices]) => async () => {
+      if (now() - startedAt >= opts.deadlineMs) {
+        brfStats.failed += 1;
+        return;
+      }
+      try {
+        const brf = await d.fetchBrfFacts(brfId);
+        for (const i of indices) {
+          const current = facts.get(i);
+          if (current) facts.set(i, { ...current, brf });
+        }
+        brfStats.fetched += 1;
+      } catch (error) {
+        brfStats.failed += 1;
+        console.error("[watch-enrich] BRF page failed (non-fatal)", {
+          code: error instanceof Error ? error.name : "UNKNOWN",
+        });
+      }
+    }),
+    concurrency,
+  );
+
+  return { candidates: out, brokerImages, sunPhrases, facts, brfStats };
 }

@@ -55,26 +55,33 @@ function rawDetail(patch: Record<string, unknown> = {}): Record<string, unknown>
   };
 }
 
+/** What the BRF page of the test association says (the numbers of the real fixture 2, BRF 81611). */
+const BRF_FACTS = { loanSek: 164_160_600, areaSqm: 12_897, reportYear: 2024, debtPerSqm: 12_729 };
+
 interface Fakes {
   deps: WatchEnrichDeps;
   fetchListing: ReturnType<typeof vi.fn>;
   fetchBrokerListingPage: ReturnType<typeof vi.fn>;
   fetchBrokerImageBytes: ReturnType<typeof vi.fn>;
+  fetchBrfFacts: ReturnType<typeof vi.fn>;
 }
 
 function fakes(overrides: Partial<Fakes> = {}): Fakes {
   const fetchListing = overrides.fetchListing ?? vi.fn(async () => rawDetail());
   const fetchBrokerListingPage = overrides.fetchBrokerListingPage ?? vi.fn(async () => null);
   const fetchBrokerImageBytes = overrides.fetchBrokerImageBytes ?? vi.fn(async () => []);
+  const fetchBrfFacts = overrides.fetchBrfFacts ?? vi.fn(async () => BRF_FACTS);
   return {
     deps: {
       fetchListing: fetchListing as unknown as WatchEnrichDeps["fetchListing"],
       fetchBrokerListingPage: fetchBrokerListingPage as unknown as WatchEnrichDeps["fetchBrokerListingPage"],
       fetchBrokerImageBytes: fetchBrokerImageBytes as unknown as WatchEnrichDeps["fetchBrokerImageBytes"],
+      fetchBrfFacts: fetchBrfFacts as unknown as WatchEnrichDeps["fetchBrfFacts"],
     },
     fetchListing,
     fetchBrokerListingPage,
     fetchBrokerImageBytes,
+    fetchBrfFacts,
   };
 }
 
@@ -396,6 +403,116 @@ describe("deadline and concurrency", () => {
     await enrichAllCandidates(input, 9, opts(f.deps, { concurrency: 3 }));
     expect(peak).toBeLessThanOrEqual(3);
     expect(peak).toBeGreaterThan(1);
+  });
+});
+
+describe("BRF stage (R-07)", () => {
+  /** A detail whose breadcrumb names association `brf`; reshapeListingEntity would set brfId the same way. */
+  const detailOf = (brfByListing: Record<number, string | undefined>) =>
+    vi.fn(async (url: string) => rawDetail({ brfId: brfByListing[idOf(url)] }));
+
+  it("two rows of one association fetch its page once and both rows get the numbers", async () => {
+    const input = [1, 2, 3].map((n) => candidate(n));
+    const f = fakes({ fetchListing: detailOf({ 1: "81611", 2: "81611", 3: "79301" }) });
+    const result = await enrichAllCandidates(input, 3, opts(f.deps));
+
+    expect(f.fetchBrfFacts).toHaveBeenCalledTimes(2);
+    expect(f.fetchBrfFacts.mock.calls.map((c) => c[0]).sort()).toEqual(["79301", "81611"]);
+    expect(result.facts.get(0)?.brf).toEqual(BRF_FACTS);
+    expect(result.facts.get(1)?.brf).toEqual(BRF_FACTS);
+    expect(result.facts.get(2)?.brf).toEqual(BRF_FACTS);
+    expect(result.brfStats).toEqual({ distinct: 2, fetched: 2, failed: 0 });
+  });
+
+  it("a failing association leaves brf null on its rows, counts failed, and the others still get theirs", async () => {
+    const input = [1, 2, 3].map((n) => candidate(n));
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const f = fakes({
+      fetchListing: detailOf({ 1: "81611", 2: "81611", 3: "79301" }),
+      fetchBrfFacts: vi.fn(async (id: string) => {
+        if (id === "81611") throw new Error("blocked https://www.booli.se/bostadsrattsforening/81611 secret-token-123");
+        return BRF_FACTS;
+      }),
+    });
+    const result = await enrichAllCandidates(input, 3, opts(f.deps));
+
+    expect(result.facts.get(0)?.brf).toBeNull();
+    expect(result.facts.get(1)?.brf).toBeNull();
+    expect(result.facts.get(2)?.brf).toEqual(BRF_FACTS);
+    expect(result.brfStats).toEqual({ distinct: 2, fetched: 1, failed: 1 });
+    // The log carries the error name only, never its message.
+    expect(JSON.stringify(err.mock.calls)).not.toContain("secret-token-123");
+    err.mockRestore();
+  });
+
+  it("rows without a brfId trigger no fetch", async () => {
+    const f = fakes({ fetchListing: detailOf({}) });
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, opts(f.deps));
+    expect(f.fetchBrfFacts).not.toHaveBeenCalled();
+    expect(result.brfStats).toEqual({ distinct: 0, fetched: 0, failed: 0 });
+    expect(result.facts.get(0)?.brf).toBeNull();
+  });
+
+  it("a failed detail read has no facts, so its association is not fetched for it", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => {
+        if (idOf(url) === 1) throw new Error("blocked");
+        return rawDetail({ brfId: "81611" });
+      }),
+    });
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, opts(f.deps));
+    expect(f.fetchBrfFacts).toHaveBeenCalledTimes(1);
+    expect(result.facts.has(0)).toBe(false);
+    expect(result.facts.get(1)?.brf).toEqual(BRF_FACTS);
+    err.mockRestore();
+  });
+
+  it("a page that rendered without the labels is read (brf object with null fields), not failed", async () => {
+    const empty = { loanSek: null, areaSqm: null, reportYear: null, debtPerSqm: null };
+    const f = fakes({ fetchListing: detailOf({ 1: "81611" }), fetchBrfFacts: vi.fn(async () => empty) });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    expect(result.facts.get(0)?.brf).toEqual(empty);
+    expect(result.brfStats).toEqual({ distinct: 1, fetched: 1, failed: 0 });
+  });
+
+  it("never runs more BRF pages at the same time than opts.concurrency", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const input = Array.from({ length: 6 }, (_, i) => candidate(i + 1));
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => rawDetail({ brfId: String(100 + idOf(url)) })),
+      fetchBrfFacts: vi.fn(async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+        return BRF_FACTS;
+      }),
+    });
+    await enrichAllCandidates(input, 6, opts(f.deps, { concurrency: 2 }));
+    expect(f.fetchBrfFacts).toHaveBeenCalledTimes(6);
+    expect(peak).toBe(2);
+  });
+
+  it("an association not reached before the deadline counts as failed and is not fetched", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let clock = 0;
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => {
+        clock += 10;
+        return rawDetail({ brfId: String(100 + idOf(url)) });
+      }),
+    });
+    // Both reads start inside the 15 ms budget (clock 0 and 10); by the BRF stage the clock stands at 20.
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, {
+      ...opts(f.deps, { deadlineMs: 15, concurrency: 1 }),
+      now: () => clock,
+    });
+    expect(result.facts.size).toBe(2);
+    expect(f.fetchBrfFacts).not.toHaveBeenCalled();
+    expect(result.brfStats).toEqual({ distinct: 2, fetched: 0, failed: 2 });
+    err.mockRestore();
   });
 });
 
