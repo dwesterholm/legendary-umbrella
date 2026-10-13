@@ -5,7 +5,15 @@
  * `scripts/fit-score.ts` and Phase 14.2 load.
  *
  *   npx tsx scripts/fit-hedonic.ts [--cache .planning/calibration/data/slutpriser-cache.json] \
- *       [--out data/hedonic-model.json] [--as-of <YYYY-MM-DD, default: the cache's asOf>]
+ *       [--out data/hedonic-model.json] [--as-of <YYYY-MM-DD, default: the cache's asOf>] \
+ *       [--before-record <fil.json>] [--without-new-features --out <fil>]
+ *
+ * 14.4 (VAL-02): avgift per m2 and month, the association's debt per m2 and tomträtt are fitted
+ * features. `--before-record` reads (never writes) a frozen run record and prints the new model's
+ * R² and cross-validation error next to the old model's. `--without-new-features` fits the OLD
+ * feature set on the same rows (the three columns blanked, so they come out "absent") and
+ * refuses to overwrite the committed model: it needs an explicit --out (R-05, the intermediate
+ * model that separates "refit and stage 2" from "new features").
  *
  * NO NETWORK. This file imports nothing from the Booli transport or client, and
  * `slutpriser.ts` (schemas only here) is pure. Free to run as often as you like.
@@ -28,6 +36,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   HEDONIC_FEATURES,
+  HEDONIC_MIN_LAMBDA,
   HEDONIC_RIDGE_LAMBDA,
   INNERSTAN_DISTRICTS,
   describeModel,
@@ -36,6 +45,7 @@ import {
   hedonicModelSchema,
   monthsBetweenIso,
   trainingFeatureMatrix,
+  type HedonicFitReport,
   type HedonicModel,
   type HedonicTrainingRow,
   type InnerstanDistrict,
@@ -48,6 +58,7 @@ import {
   type BrfEntry,
   type SoldRow,
 } from "@/lib/booli/slutpriser";
+import { parseFitRunRecord } from "@/lib/discovery/valuation-report";
 
 const CWD = process.cwd();
 const DEFAULT_CACHE = join(CWD, ".planning", "calibration", "data", "slutpriser-cache.json");
@@ -93,6 +104,10 @@ const BUILD_YEAR_BUCKETS = [
 function argValue(name: string): string | null {
   const i = process.argv.indexOf(name);
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
+}
+
+function hasFlag(name: string): boolean {
+  return process.argv.includes(name);
 }
 
 function resolveOutPath(): string {
@@ -193,17 +208,12 @@ interface SizeCheck {
   readonly bands: SizeBandEffect[];
 }
 
-/**
- * Size effect per band relative to the first band (35-40 m2), estimated with the
- * same features as the model (neighbour level, floor, ground floor, time trend,
- * distance to centre) but with five band dummies instead of ln(area). Run once
- * on every sale and once on the latest months only, where all six bands exist
- * side by side, so that "big flats are recent" cannot explain the result.
- * A diagnostic for the report; it does not feed the persisted model.
- */
-function sizeCheck(rows: readonly HedonicTrainingRow[], asOf: string, since: string | null): SizeCheck {
-  const used = rows.filter((r) => since === null || r.soldDate >= since);
-  const points: TrainingPoint[] = used.map((r) => ({
+/** Training rows as the fit sees them (rounded coordinates, ln kr/m2) and the district medians the features need. */
+function pointsAndMedians(
+  rows: readonly HedonicTrainingRow[],
+  asOf: string,
+): { points: TrainingPoint[]; medians: Record<InnerstanDistrict, number> } {
+  const points: TrainingPoint[] = rows.map((r) => ({
     district: r.district,
     lat: Math.round(r.lat * 1000) / 1000,
     lng: Math.round(r.lng * 1000) / 1000,
@@ -221,6 +231,20 @@ function sizeCheck(rows: readonly HedonicTrainingRow[], asOf: string, since: str
     const own = points.filter((p) => p.district === d).map((p) => p.y);
     medians[d] = own.length >= 30 ? (median(own) as number) : overall;
   }
+  return { points, medians };
+}
+
+/**
+ * Size effect per band relative to the first band (35-40 m2), estimated with the
+ * same features as the model (neighbour level, floor, ground floor, time trend,
+ * distance to centre) but with five band dummies instead of ln(area). Run once
+ * on every sale and once on the latest months only, where all six bands exist
+ * side by side, so that "big flats are recent" cannot explain the result.
+ * A diagnostic for the report; it does not feed the persisted model.
+ */
+function sizeCheck(rows: readonly HedonicTrainingRow[], asOf: string, since: string | null): SizeCheck {
+  const used = rows.filter((r) => since === null || r.soldDate >= since);
+  const { points, medians } = pointsAndMedians(used, asOf);
   const { X } = trainingFeatureMatrix(points, medians);
   const col = (name: (typeof HEDONIC_FEATURES)[number]): number => HEDONIC_FEATURES.indexOf(name);
   const bandOf = (area: number): number => {
@@ -263,11 +287,146 @@ function describeSizeCheck(check: SizeCheck): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// The 14.4 features: how much evidence stands behind them, and how they overlap
+// ---------------------------------------------------------------------------
+const NEW_FEATURES = ["avgiftPerSqmMonth", "brfDebtPerSqm", "tomtratt"] as const;
+
+function pearson(xs: readonly number[], ys: readonly number[]): number | null {
+  const n = xs.length;
+  if (n < 3) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null;
+}
+
+interface NewFeatureDiagnostics {
+  /** Correlation of avgift/kvm and debt/kvm over the rows that have both (RESEARCH Q9: 0,37 among the for-sale rows). */
+  readonly correlation: number | null;
+  readonly correlationRows: number;
+  /** 1 / (1 - R²) of regressing the feature on the other eight columns, over the rows where it is known. */
+  readonly vif: Partial<Record<"avgiftPerSqmMonth" | "brfDebtPerSqm", number | null>>;
+}
+
+/** Overlap between the two continuous new features and with the six old ones (RESEARCH Q9). */
+function newFeatureDiagnostics(training: readonly HedonicTrainingRow[], asOf: string): NewFeatureDiagnostics {
+  const both = training.filter((r) => r.avgiftPerSqmMonth !== null && r.brfDebtPerSqm !== null);
+  const correlation = pearson(
+    both.map((r) => r.avgiftPerSqmMonth as number),
+    both.map((r) => r.brfDebtPerSqm as number),
+  );
+  const { points, medians } = pointsAndMedians(training, asOf);
+  const { X } = trainingFeatureMatrix(points, medians);
+  const vif: NewFeatureDiagnostics["vif"] = {};
+  for (const name of ["avgiftPerSqmMonth", "brfDebtPerSqm"] as const) {
+    const j = HEDONIC_FEATURES.indexOf(name);
+    const idx = training.map((_, i) => i).filter((i) => training[i][name] !== null);
+    if (idx.length < 30) {
+      vif[name] = null;
+      continue;
+    }
+    const others = HEDONIC_FEATURES.map((_, c) => c).filter((c) => c !== j);
+    const fit = fitRidge(
+      idx.map((i) => others.map((c) => X[i][c])),
+      idx.map((i) => X[i][j]),
+      HEDONIC_MIN_LAMBDA,
+    );
+    vif[name] = fit.r2 >= 1 ? Number.POSITIVE_INFINITY : 1 / (1 - fit.r2);
+  }
+  return { correlation, correlationRows: both.length, vif };
+}
+
+/** Three significant digits with a decimal comma: a debt coefficient is about -0,0000020 per kr/m2, so fixed decimals would print zeros. */
+const svSig = (x: number): string => (x === 0 ? "0" : x.toPrecision(3).replace(".", ","));
+
+function svSourceWord(source: "fit" | "prior" | "zeroed"): string {
+  if (source === "fit") return "data";
+  if (source === "prior") return "studie";
+  return "nollställd";
+}
+
+/** The block Daniel reads to judge the new coefficients (VAL-02): evidence, raw estimate, what was used, effect in percent. */
+function printNewFeatures(args: {
+  model: HedonicModel;
+  report: HedonicFitReport;
+  trainingRows: number;
+  knownBefore: Record<(typeof NEW_FEATURES)[number], number>;
+  distinctBrfs: number;
+  diagnostics: NewFeatureDiagnostics;
+}): void {
+  const { model, report, trainingRows, knownBefore, distinctBrfs, diagnostics } = args;
+  console.log("\nNya egenskaper (14.4):");
+  const labels: Record<(typeof NEW_FEATURES)[number], string> = {
+    avgiftPerSqmMonth: "Avgift kr/kvm/mån",
+    brfDebtPerSqm: "Föreningsskuld kr/kvm",
+    tomtratt: "Tomträtt",
+  };
+  for (const name of NEW_FEATURES) {
+    const f = model.features.find((x) => x.name === name)!;
+    const rawEst = report.rawEstimates[name];
+    const kept = report.knownCounts[name] ?? 0;
+    console.log(
+      `  ${labels[name]}: kända rader ${fmt(knownBefore[name])} av ${fmt(trainingRows)}` +
+        (name === "brfDebtPerSqm" ? `, distinkta föreningar ${fmt(distinctBrfs)}` : "") +
+        ` (${fmt(kept)} kvar efter avvikarrensning)`,
+    );
+    if (rawEst === undefined) {
+      console.log("    rå skattning: ingen (egenskapen kunde inte skattas, se reservvärdet nedan)");
+    } else {
+      console.log(
+        `    rå skattning före kontrollen: β ${svSig(rawEst.beta)}, SE ${rawEst.se === null ? "-" : svSig(rawEst.se)}, t = ${rawEst.t === null ? "-" : sv(rawEst.t, 1)}`,
+      );
+    }
+    console.log(`    använd β ${svSig(f.beta)}, källa: ${svSourceWord(f.source)}${f.se === null ? "" : `, SE ${svSig(f.se)}`}`);
+    if (name === "avgiftPerSqmMonth") {
+      const raw10 = rawEst === undefined ? "" : ` (rå: ${svPct(Math.exp(10 * rawEst.beta) - 1, 2)})`;
+      console.log(`    effekt på kvadratmeterpriset: ${svPct(Math.exp(10 * f.beta) - 1, 2)} per 10 kr/kvm/mån${raw10}`);
+    } else if (name === "brfDebtPerSqm") {
+      const raw1000 = rawEst === undefined ? "" : ` (rå: ${svPct(Math.exp(1000 * rawEst.beta) - 1, 2)})`;
+      console.log(`    effekt på kvadratmeterpriset: ${svPct(Math.exp(1000 * f.beta) - 1, 2)} per 1 000 kr/kvm${raw1000}`);
+    }
+    if (f.lo !== undefined && f.hi !== undefined) {
+      console.log(`    värden begränsas till ${sv(f.lo, 1)}–${sv(f.hi, 1)} (1:a–99:e percentilen), medelvärde ${sv(f.mean, 1)}`);
+    }
+    for (const fb of model.fallbacks.filter((x) => x.item === name)) {
+      console.log(`    reservvärde (${fb.reason}): ${fb.detail}`);
+    }
+  }
+  console.log(
+    `Korrelation avgift/kvm och skuld/kvm: ${diagnostics.correlation === null ? "-" : sv(diagnostics.correlation, 2)} (n ${fmt(diagnostics.correlationRows)})`,
+  );
+  const v = (x: number | null | undefined): string => (x === null || x === undefined ? "-" : Number.isFinite(x) ? sv(x, 2) : "oändlig");
+  console.log(`VIF: avgift ${v(diagnostics.vif.avgiftPerSqmMonth)}, skuld ${v(diagnostics.vif.brfDebtPerSqm)}`);
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
   const cachePath = resolve(argValue("--cache") ?? DEFAULT_CACHE);
   const outPath = resolveOutPath();
+  // R-05: the intermediate model (old feature set) must never replace the committed one.
+  const intermediate = hasFlag("--without-new-features");
+  if (intermediate && (argValue("--out") === null || outPath === DEFAULT_OUT)) {
+    throw new Error("--without-new-features kräver --out under .planning/calibration/data/ (den committade modellen skrivs aldrig över av en mellanmodell)");
+  }
+  // Read-only comparison record (T-14.4-12): .json only, parsed with the run-record schema.
+  const beforePath = argValue("--before-record");
+  let before: ReturnType<typeof parseFitRunRecord> | null = null;
+  if (beforePath !== null) {
+    if (!beforePath.endsWith(".json")) throw new Error("--before-record måste vara en .json-fil");
+    const beforeFile = resolve(beforePath);
+    if (!existsSync(beforeFile)) throw new Error(`Hittar ingen jämförelsefil på ${beforeFile}`);
+    before = parseFitRunRecord(JSON.parse(readFileSync(beforeFile, "utf8")));
+  }
+  if (intermediate) console.log("Mellanmodell: de tre nya egenskaperna utelämnade (R-05)");
   if (!existsSync(cachePath)) throw new Error(`Hittar ingen cache på ${cachePath} (kör scripts/pull-slutpriser.ts först)`);
 
   const parsed = slutprisCacheSchema.safeParse(JSON.parse(readFileSync(cachePath, "utf8")));
@@ -282,7 +441,12 @@ function main(): void {
   // Training rows; the calibration listing is kept out (Pitfall 10).
   const excluded = cache.rows.filter(isCalibrationListing);
   const brfTable = cache.brf ?? {};
-  const training = cache.rows.filter((r) => !isCalibrationListing(r)).map((r) => toTrainingRow(r, brfTable));
+  const trainingSource = cache.rows.filter((r) => !isCalibrationListing(r));
+  const withNew = trainingSource.map((r) => toTrainingRow(r, brfTable));
+  // The intermediate model sees the same rows with the three new columns blanked, so they come out "absent".
+  const training = intermediate
+    ? withNew.map((r) => ({ ...r, avgiftPerSqmMonth: null, brfDebtPerSqm: null, tomtratt: null }))
+    : withNew;
   const enrichedRows = training.filter((r) => r.enriched);
 
   console.log("=== MODELLANPASSNING (offline, inga nätverksanrop) ===");
@@ -359,6 +523,34 @@ function main(): void {
         `I urvalet gav Booli säljobjektet bara för försäljningar från oktober 2025 och senare, och ${bucketCounts[0]} av ${detail.length} är byggda före 1931.`,
     );
   }
+  const knownBefore = {
+    avgiftPerSqmMonth: training.filter((r) => r.avgiftPerSqmMonth !== null).length,
+    brfDebtPerSqm: training.filter((r) => r.brfDebtPerSqm !== null).length,
+    tomtratt: training.filter((r) => r.tomtratt !== null).length,
+  };
+  const distinctBrfs = new Set(
+    trainingSource.filter((_, i) => training[i].brfDebtPerSqm !== null).map((r) => r.enriched?.brfId),
+  ).size;
+  if (intermediate) {
+    notes.push(
+      "Mellanmodell (R-05): de tre nya egenskaperna (avgift/kvm/mån, föreningsskuld/kvm, tomträtt) är utelämnade ur anpassningen; modellen används bara för att skilja effekten av ominpassningen från effekten av de nya egenskaperna.",
+    );
+  } else {
+    const firstDetailDate = trainingSource
+      .filter((_, i) => training[i].avgiftPerSqmMonth !== null)
+      .map((r) => r.soldDate)
+      .sort()[0];
+    const tomtrattAbsent = fitted.fallbacks.some((f) => f.item === "tomtratt" && f.reason === "absent");
+    notes.push(
+      `Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter` +
+        `${firstDetailDate === undefined ? "" : ` (sålda från ${firstDetailDate})`}: avgift känd för ${fmt(knownBefore.avgiftPerSqmMonth)} försäljningar, ` +
+        `skuld för ${fmt(knownBefore.brfDebtPerSqm)} (${fmt(distinctBrfs)} föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. ` +
+        `Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. ` +
+        (tomtrattAbsent
+          ? "Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd."
+          : "Tomträtt är skattad ur underlaget."),
+    );
+  }
   const note = notes.length > 0 ? notes.join(" ") : undefined;
   // When the detail sample was left out, the library's own fallback text says "0 sales with details",
   // which is true of the refit but not of the data. Replace it with the real reason.
@@ -388,10 +580,29 @@ function main(): void {
   }
 
   console.log(`\nR²: ${sv(model.r2, 3)} (på samma data). Korsvalidering (5 delar), RMSE i logskala: ${sv(model.cvRmseLog, 3)}; per del: ${report.cvByFold.map((v) => sv(v, 3)).join(", ")}`);
+  if (before !== null) {
+    console.log(
+      `Jämförelse med modellen före 14.4 (version ${before.model.version}): R² ${sv(before.model.r2, 3)} -> ${sv(model.r2, 3)}, ` +
+        `korsvalidering ${sv(before.model.cvRmseLog, 3)} -> ${sv(model.cvRmseLog, 3)}, n ${fmt(before.model.n)} -> ${fmt(model.n)}`,
+    );
+  }
   console.log(`Smearing: ${sv(model.smearing, 3)}. Residualens 75:e percentil (log): ${sv(model.residualP75Log, 3)}. Residualens SD (log): ${sv(model.residualSdLog, 3)}`);
 
   console.log("\nKoefficienter och slutsatser i klartext:");
   for (const l of lines) console.log(`  - ${l}`);
+
+  if (intermediate) {
+    console.log("\nNya egenskaper (14.4): utelämnade i den här körningen (mellanmodell, R-05).");
+  } else {
+    printNewFeatures({
+      model,
+      report,
+      trainingRows: training.length,
+      knownBefore,
+      distinctBrfs,
+      diagnostics: newFeatureDiagnostics(training, asOf),
+    });
+  }
 
   const bid = model.bidPremium;
   console.log(

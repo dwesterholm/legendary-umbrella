@@ -9,6 +9,7 @@ import {
   HEDONIC_PRIORS,
   KERNEL_CUTOFF_M,
   MIN_DISTRICT_N,
+  MIN_FIT_ROWS,
   OPTIONAL_14_4_FEATURES,
   STAGE2_CAP_PCT,
   buildFeatureRow,
@@ -1376,10 +1377,18 @@ describe("trainingFeatureMatrix: the 14.4 columns (D-01)", () => {
         tomtratt: i % 5 === 0 ? null : i % 7 === 0,
       }),
     );
-    const { X, colMeans, kernel } = trainingFeatureMatrix(points, medians);
+    const { X, colMeans, kernel, ctx } = trainingFeatureMatrix(points, medians);
     const served = structuredClone(modelJson) as unknown as HedonicModel;
     served.kernel = kernel;
-    served.features.forEach((f) => (f.mean = colMeans[HEDONIC_FEATURES.indexOf(f.name)]));
+    served.features.forEach((f) => {
+      f.mean = colMeans[HEDONIC_FEATURES.indexOf(f.name)];
+      // The persisted model carries the clamp bounds; serving reads them from there (task 2).
+      const b = ctx.bounds?.[f.name];
+      if (b !== undefined) {
+        f.lo = b.lo;
+        f.hi = b.hi;
+      }
+    });
     points.forEach((p, i) => {
       const row = buildFeatureRow(served, {
         district: p.district,
@@ -1451,5 +1460,164 @@ describe("fitHedonicModel: avgift and BRF debt as fitted features (D-01)", () =>
     expect(featureOf(m, "avgiftPerSqmMonth").beta).toBe(0);
     expect(featureOf(m, "brfDebtPerSqm").beta).toBe(0);
     expect(featureOf(m, "tomtratt").beta).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14.4-03 task 2: honest outcomes (R-02 zero spread, clamps, raw estimates)
+// ---------------------------------------------------------------------------
+
+describe("fitHedonicModel: a feature the data cannot estimate is recorded as absent (R-02)", () => {
+  const withKnown = generateRows({
+    seed: 902,
+    centralityEffect: 0,
+    newFeatures: { knownShare: 0.5, avgiftEffect: -0.004, debtEffect: -0.00002 },
+  });
+
+  it("tomträtt with only 'false' among the known values: beta 0, no SE, zeroed, with the true reason", () => {
+    const { model } = fitHedonicModel(withKnown, OPTS);
+    const f = featureOf(model, "tomtratt");
+    expect(f.beta).toBe(0);
+    expect(f.se).toBeNull();
+    expect(f.source).toBe("zeroed");
+    const hit = model.fallbacks.find((x) => x.item === "tomtratt");
+    expect(hit).toEqual({
+      item: "tomtratt",
+      reason: "absent",
+      detail: "tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)",
+    });
+    expect(model.fallbacks.filter((x) => x.item === "tomtratt")).toHaveLength(1);
+    expect(JSON.stringify(model.fallbacks.filter((x) => x.item === "tomtratt"))).not.toMatch(/osäker uppskattning/);
+  });
+
+  it("fewer than MIN_FIT_ROWS known avgift values also gives 'absent', naming the known count", () => {
+    const rows = withKnown.map((r, i) => (i < 12 ? r : { ...r, avgiftPerSqmMonth: null }));
+    const knownAvgift = rows.filter((r) => r.avgiftPerSqmMonth !== null).length;
+    expect(knownAvgift).toBeLessThan(MIN_FIT_ROWS);
+    const { model } = fitHedonicModel(rows, OPTS);
+    const f = featureOf(model, "avgiftPerSqmMonth");
+    expect(f.beta).toBe(0);
+    expect(f.source).toBe("zeroed");
+    const hit = model.fallbacks.find((x) => x.item === "avgiftPerSqmMonth")!;
+    expect(hit.reason).toBe("absent");
+    expect(hit.detail).toContain(`(${knownAvgift};`);
+    expect(hit.detail).toMatch(/för få kända värden/);
+  });
+
+  it("a zero-spread column does not move any other coefficient (within 1e-9)", () => {
+    const allNull = withKnown.map((r) => ({ ...r, tomtratt: null }));
+    const a = fitHedonicModel(withKnown, OPTS).model;
+    const b = fitHedonicModel(allNull, OPTS).model;
+    for (const name of HEDONIC_FEATURES) {
+      expect(Math.abs(featureOf(a, name).beta - featureOf(b, name).beta), name).toBeLessThan(1e-9);
+    }
+  });
+
+  it("describeModel says tomträtt cannot be estimated and that the effect is zero", () => {
+    const { model } = fitHedonicModel(withKnown, OPTS);
+    const line = describeModel(model).find((l) => /^Tomträtt/.test(l))!;
+    expect(line).toMatch(/kan inte skattas/);
+    expect(line).not.toMatch(/osäker/);
+  });
+});
+
+describe("percentile clamps of the continuous 14.4 features", () => {
+  const medians = { Södermalm: 11.5, Kungsholmen: 11.5, Vasastan: 11.5, Östermalm: 11.5 };
+  const point = (i: number, avgift: number | null): TrainingPoint => ({
+    district: "Södermalm",
+    lat: 59.3 + i * 0.001,
+    lng: 18.07,
+    floor: 2,
+    livingArea: 50,
+    y: 11.5,
+    monthsAgo: 0,
+    avgiftPerSqmMonth: avgift,
+    brfDebtPerSqm: null,
+    tomtratt: null,
+  });
+  // avgift 1..100, one each, in order.
+  const points = Array.from({ length: 100 }, (_, i) => point(i, i + 1));
+  const { ctx, X } = trainingFeatureMatrix(points, medians);
+  const col = HEDONIC_FEATURES.indexOf("avgiftPerSqmMonth");
+
+  it("the bounds are the 1st and 99th percentile of the sorted known values", () => {
+    expect(ctx.bounds?.avgiftPerSqmMonth?.lo).toBeCloseTo(1.99, 9);
+    expect(ctx.bounds?.avgiftPerSqmMonth?.hi).toBeCloseTo(99.01, 9);
+  });
+
+  it("training values are clamped to the bounds and the mean is computed after clamping", () => {
+    expect(X[0][col]).toBeCloseTo(1.99, 9);
+    expect(X[99][col]).toBeCloseTo(99.01, 9);
+    // 98 untouched values 2..99 plus 1.99 and 99.01: the clamped mean is still 50.5.
+    expect(ctx.means.avgiftPerSqmMonth).toBeCloseTo(50.5, 9);
+    // One absurd value among 200 would drag an unclamped mean to about 5 000; clamped it barely moves.
+    const skewed = [...Array.from({ length: 199 }, (_, i) => point(i, i + 1)), point(199, 1_000_000)];
+    const clamped = trainingFeatureMatrix(skewed, medians).ctx.means.avgiftPerSqmMonth;
+    expect(clamped).toBeLessThan(120);
+  });
+
+  it("a prediction input of 500 is clamped to hi and -5 to lo, through the model's stored bounds", () => {
+    const m = structuredClone(modelJson) as unknown as HedonicModel;
+    const f = m.features.find((x) => x.name === "avgiftPerSqmMonth")!;
+    f.lo = ctx.bounds!.avgiftPerSqmMonth!.lo;
+    f.hi = ctx.bounds!.avgiftPerSqmMonth!.hi;
+    f.mean = ctx.means.avgiftPerSqmMonth;
+    expect(buildFeatureRow(m, { ...FOLKUNGAGATAN, avgiftPerSqmMonth: 500 }).x.avgiftPerSqmMonth).toBeCloseTo(99.01, 9);
+    expect(buildFeatureRow(m, { ...FOLKUNGAGATAN, avgiftPerSqmMonth: -5 }).x.avgiftPerSqmMonth).toBeCloseTo(1.99, 9);
+    expect(buildFeatureRow(m, { ...FOLKUNGAGATAN, avgiftPerSqmMonth: 50 }).x.avgiftPerSqmMonth).toBe(50);
+  });
+
+  it("a fitted model stores lo and hi on the two continuous features, never on the others", () => {
+    const { model } = fitHedonicModel(
+      generateRows({ seed: 903, centralityEffect: 0, newFeatures: { knownShare: 0.5, avgiftEffect: -0.004, debtEffect: -0.00002 } }),
+      OPTS,
+    );
+    for (const name of ["avgiftPerSqmMonth", "brfDebtPerSqm"] as const) {
+      const f = featureOf(model, name);
+      expect(f.lo, name).toBeDefined();
+      expect(f.hi, name).toBeDefined();
+      expect(f.hi!).toBeGreaterThan(f.lo!);
+      expect(f.mean).toBeGreaterThanOrEqual(f.lo!);
+      expect(f.mean).toBeLessThanOrEqual(f.hi!);
+    }
+    expect(featureOf(model, "floor").lo).toBeUndefined();
+    expect(featureOf(model, "tomtratt").lo).toBeUndefined();
+  });
+
+  it("an extreme avgift cannot pull a prediction outside the training range", () => {
+    const { model } = fitHedonicModel(
+      generateRows({ seed: 904, centralityEffect: 0, newFeatures: { knownShare: 0.5, avgiftEffect: -0.004, debtEffect: -0.00002 } }),
+      OPTS,
+    );
+    const at = (a: number) => predictKrPerSqm(model, { ...FOLKUNGAGATAN, avgiftPerSqmMonth: a, brfDebtPerSqm: null, tomtratt: null }).krPerSqm;
+    expect(at(10_000)).toBeCloseTo(at(featureOf(model, "avgiftPerSqmMonth").hi!), 9);
+  });
+});
+
+describe("fitHedonicModel report: raw estimates before the guard (VAL-02)", () => {
+  it("carries beta, se and t of the new features from the stage-1 fit, and the known-value counts", () => {
+    const rows = generateRows({ seed: 905, centralityEffect: 0, newFeatures: { knownShare: 0.5, avgiftEffect: -0.004, debtEffect: -0.00002 } });
+    const { model, report } = fitHedonicModel(rows, OPTS);
+    const raw = report.rawEstimates.avgiftPerSqmMonth!;
+    // The raw estimate is the first fit; the final one is refitted if the guard replaced another feature.
+    expect(raw.beta).toBeCloseTo(featureOf(model, "avgiftPerSqmMonth").beta, 3);
+    expect(raw.se).toBeGreaterThan(0);
+    expect(raw.t).toBeCloseTo(raw.beta / raw.se!, 9);
+    expect(report.rawEstimates.brfDebtPerSqm).toBeDefined();
+    // The absent feature has no estimate to show.
+    expect(report.rawEstimates.tomtratt).toBeUndefined();
+    const knownAvgift = rows.filter((r) => r.avgiftPerSqmMonth !== null).length;
+    expect(Math.abs(report.knownCounts.avgiftPerSqmMonth! - knownAvgift)).toBeLessThanOrEqual(5);
+    expect(report.knownCounts.tomtratt).toBe(report.knownCounts.avgiftPerSqmMonth);
+  });
+
+  it("keeps the raw estimate of a coefficient the guard then zeroed (wrong sign is visible)", () => {
+    // A positive true avgift effect points the wrong way against the expected sign.
+    const rows = generateRows({ seed: 906, centralityEffect: 0, newFeatures: { knownShare: 0.6, avgiftEffect: 0.006 } });
+    const { model, report } = fitHedonicModel(rows, OPTS);
+    expect(report.rawEstimates.avgiftPerSqmMonth!.beta).toBeGreaterThan(0.003);
+    expect(featureOf(model, "avgiftPerSqmMonth").beta).toBe(0);
+    expect(featureOf(model, "avgiftPerSqmMonth").source).toBe("zeroed");
+    expect(model.fallbacks.find((f) => f.item === "avgiftPerSqmMonth")!.reason).toBe("wrong-sign");
   });
 });

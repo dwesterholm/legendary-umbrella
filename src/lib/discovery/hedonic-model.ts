@@ -50,6 +50,11 @@ export const HEDONIC_FEATURES = [
 ] as const;
 export type HedonicFeature = (typeof HEDONIC_FEATURES)[number];
 
+/** Continuous 14.4 features are clamped to the training percentiles below at fit and at prediction. */
+export const CLAMPED_FEATURES = ["avgiftPerSqmMonth", "brfDebtPerSqm"] as const;
+export const CLAMP_LOW_PERCENTILE = 0.01;
+export const CLAMP_HIGH_PERCENTILE = 0.99;
+
 /**
  * The features whose value can be unknown for a sold flat or a candidate, and is then
  * marginalised at the mean of the known values (the honesty rule). Sold pages read
@@ -342,10 +347,16 @@ export interface FeatureContext {
   readonly districtLnMedian: Readonly<Record<InnerstanDistrict, number>>;
   /** Only floor, groundOrBelow, centralityKm and the three 14.4 features are read (the imputable inputs). */
   readonly means: Readonly<Record<HedonicFeature, number>>;
+  /**
+   * Training percentile bounds of the continuous 14.4 features (CLAMPED_FEATURES). A known
+   * value is clamped to [lo, hi]; absent bounds mean no clamp. Persisted on the feature
+   * records (`lo`, `hi`), so prediction never invents them.
+   */
+  readonly bounds?: Partial<Record<HedonicFeature, { readonly lo: number; readonly hi: number }>>;
 }
 
 /**
- * Builds the six feature values for one candidate. Unknown inputs take the
+ * Builds the nine feature values for one candidate. Unknown inputs take the
  * training mean (contributing exactly nothing) and are listed in `imputed`.
  * monthsAgo is always 0: the prediction is for a sale today. `excludeIndex` is
  * the leave-one-out hook for training rows (see {@link kernelLevel}).
@@ -394,16 +405,20 @@ export function buildFeatureRowFromContext(
   // The three 14.4 inputs follow the floor pattern: unknown = the mean of the known
   // values (contributes exactly nothing) and the name goes into `imputed`.
   const known = (v: number | null): v is number => v !== null && Number.isFinite(v);
+  const clamp = (name: HedonicFeature, v: number): number => {
+    const b = ctx.bounds?.[name];
+    return b === undefined ? v : Math.min(b.hi, Math.max(b.lo, v));
+  };
   let avgiftPerSqmMonth: number;
   if (known(input.avgiftPerSqmMonth)) {
-    avgiftPerSqmMonth = input.avgiftPerSqmMonth;
+    avgiftPerSqmMonth = clamp("avgiftPerSqmMonth", input.avgiftPerSqmMonth);
   } else {
     avgiftPerSqmMonth = ctx.means.avgiftPerSqmMonth;
     imputed.push("avgiftPerSqmMonth");
   }
   let brfDebtPerSqm: number;
   if (known(input.brfDebtPerSqm)) {
-    brfDebtPerSqm = input.brfDebtPerSqm;
+    brfDebtPerSqm = clamp("brfDebtPerSqm", input.brfDebtPerSqm);
   } else {
     brfDebtPerSqm = ctx.means.brfDebtPerSqm;
     imputed.push("brfDebtPerSqm");
@@ -434,10 +449,15 @@ export function buildFeatureRowFromContext(
 
 /** {@link buildFeatureRowFromContext} with the context taken from a persisted model. */
 export function buildFeatureRow(model: HedonicModel, input: HedonicInput): FeatureRow {
+  const bounds: Partial<Record<HedonicFeature, { lo: number; hi: number }>> = {};
+  for (const f of model.features) {
+    if (f.lo !== undefined && f.hi !== undefined) bounds[f.name] = { lo: f.lo, hi: f.hi };
+  }
   return buildFeatureRowFromContext(
     {
       kernel: model.kernel,
       districtLnMedian: model.districtLnMedian,
+      bounds,
       means: {
         nbLevel: meanOf(model, "nbLevel"),
         floor: meanOf(model, "floor"),
@@ -965,8 +985,22 @@ export function trainingFeatureMatrix(
   // The 14.4 features: means over the KNOWN values only, exactly as the floor mean is.
   const finiteOnly = (values: ReadonlyArray<number | null>): number[] =>
     values.filter((v): v is number => v !== null && Number.isFinite(v));
-  const avgiftKnown = finiteOnly(points.map((p) => p.avgiftPerSqmMonth));
-  const debtKnown = finiteOnly(points.map((p) => p.brfDebtPerSqm));
+  const avgiftRaw = finiteOnly(points.map((p) => p.avgiftPerSqmMonth));
+  const debtRaw = finiteOnly(points.map((p) => p.brfDebtPerSqm));
+  // Continuous features: the 1st-99th percentile of the known values is the clamp range, and the
+  // mean (what an unknown value is replaced with) is taken AFTER clamping. Too few values to
+  // estimate (the feature will be recorded as absent) get no bounds.
+  const boundsOf = (values: readonly number[]): { lo: number; hi: number } | null => {
+    if (values.length < MIN_FIT_ROWS) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    return { lo: percentileSorted(sorted, CLAMP_LOW_PERCENTILE), hi: percentileSorted(sorted, CLAMP_HIGH_PERCENTILE) };
+  };
+  const avgiftBounds = boundsOf(avgiftRaw);
+  const debtBounds = boundsOf(debtRaw);
+  const clampTo = (v: number, b: { lo: number; hi: number } | null): number =>
+    b === null ? v : Math.min(b.hi, Math.max(b.lo, v));
+  const avgiftKnown = avgiftRaw.map((v) => clampTo(v, avgiftBounds));
+  const debtKnown = debtRaw.map((v) => clampTo(v, debtBounds));
   const tomtrattKnown = points.flatMap((p) => (p.tomtratt === null ? [] : [p.tomtratt ? 1 : 0]));
   const statsOf = (values: readonly number[]): KnownStats => ({
     n: values.length,
@@ -992,6 +1026,10 @@ export function trainingFeatureMatrix(
       avgiftPerSqmMonth: meanOfValues(avgiftKnown),
       brfDebtPerSqm: meanOfValues(debtKnown),
       tomtratt: meanOfValues(tomtrattKnown),
+    },
+    bounds: {
+      ...(avgiftBounds === null ? {} : { avgiftPerSqmMonth: avgiftBounds }),
+      ...(debtBounds === null ? {} : { brfDebtPerSqm: debtBounds }),
     },
   };
   const X = points.map((p, i) => {
@@ -1066,6 +1104,9 @@ interface Stage1Fit {
   /** y minus the model, per training point (mean zero by construction). */
   readonly residuals: number[];
   readonly r2: number;
+  /** The first ridge fit of the run, before the guard replaced anything: per feature index, null when not fitted. */
+  readonly raw: Array<{ beta: number; se: number } | null>;
+  readonly knownStats: Record<(typeof OPTIONAL_14_4_FEATURES)[number], KnownStats>;
 }
 
 /**
@@ -1091,6 +1132,8 @@ function fitStage1(points: readonly TrainingPoint[], lambda: number, guard: bool
 
   let active: number[] = [];
   let fit: RidgeFit;
+  const raw: Array<{ beta: number; se: number } | null> = new Array<{ beta: number; se: number } | null>(k).fill(null);
+  let firstPass = true;
   for (;;) {
     active = HEDONIC_FEATURES.map((_, j) => j).filter((j) => replacements[j] === null);
     const adjusted = y.map((v, i) => {
@@ -1106,6 +1149,12 @@ function fitStage1(points: readonly TrainingPoint[], lambda: number, guard: bool
       adjusted,
       lambda,
     );
+    if (firstPass) {
+      active.forEach((j, pos) => {
+        raw[j] = { beta: fit.beta[pos], se: fit.se[pos] };
+      });
+      firstPass = false;
+    }
     if (!guard) break;
 
     let worst: { pos: number; score: number; reason: "wrong-sign" | "unstable" } | null = null;
@@ -1167,6 +1216,8 @@ function fitStage1(points: readonly TrainingPoint[], lambda: number, guard: bool
     intercept: yMean,
     residuals,
     r2: tss > 0 ? 1 - rss / tss : 0,
+    raw,
+    knownStats,
   };
 }
 
@@ -1440,6 +1491,15 @@ export interface HedonicFitReport {
   enrichedN: number;
   /** Out-of-fold RMSE (ln kr/m2) per fold. */
   cvByFold: number[];
+  /**
+   * The three 14.4 features' coefficient, standard error and t from the first ridge fit,
+   * BEFORE the sign/stability guard replaced anything. A feature recorded as absent has
+   * no entry. This is what the R-06 decision reads: a coefficient the guard zeroed is
+   * still visible here.
+   */
+  rawEstimates: Partial<Record<HedonicFeature, { beta: number; se: number | null; t: number | null }>>;
+  /** Rows (after outlier removal) with a known value, per 14.4 feature. */
+  knownCounts: Partial<Record<HedonicFeature, number>>;
 }
 
 /**
@@ -1550,11 +1610,13 @@ export function fitHedonicModel(
   const fallbacks: HedonicModel["fallbacks"] = [];
   const features = HEDONIC_FEATURES.map((name, j) => {
     const rep = final.replacements[j];
+    const b = final.ctx.bounds?.[name];
+    const bounds = b === undefined ? {} : { lo: b.lo, hi: b.hi };
     if (rep !== null) {
       fallbacks.push({ item: name, reason: rep.reason, detail: rep.detail });
-      return { name, mean: final.colMeans[j], beta: rep.beta, se: null, source: rep.source, note: rep.detail };
+      return { name, mean: final.colMeans[j], beta: rep.beta, se: null, source: rep.source, note: rep.detail, ...bounds };
     }
-    return { name, mean: final.colMeans[j], beta: final.beta[j], se: final.se[j], source: "fit" as const };
+    return { name, mean: final.colMeans[j], beta: final.beta[j], se: final.se[j], source: "fit" as const, ...bounds };
   });
   for (const d of INNERSTAN_DISTRICTS) {
     if (final.counts[d] < MIN_DISTRICT_N) {
@@ -1619,7 +1681,14 @@ export function fitHedonicModel(
     bidPremium,
     fallbacks,
   };
-  return { model, report: { droppedOutliers, enrichedN: stage2Result.usedN, cvByFold } };
+  const rawEstimates: HedonicFitReport["rawEstimates"] = {};
+  const knownCounts: HedonicFitReport["knownCounts"] = {};
+  for (const name of OPTIONAL_14_4_FEATURES) {
+    knownCounts[name] = final.knownStats[name].n;
+    const r = final.raw[HEDONIC_FEATURES.indexOf(name)];
+    if (r !== null) rawEstimates[name] = { beta: r.beta, se: r.se, t: r.se > 0 ? r.beta / r.se : null };
+  }
+  return { model, report: { droppedOutliers, enrichedN: stage2Result.usedN, cvByFold, rawEstimates, knownCounts } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1687,13 +1756,13 @@ export function describeModel(model: HedonicModel): string[] {
   lines.push(
     notEstimable("avgiftPerSqmMonth")
       ? "Avgift per kvm och månad: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll."
-      : `10 kr högre avgift per kvm och månad ≈ ${svPct(Math.exp(10 * avgift.beta) - 1)}${avgift.se === null ? "" : ` (SE ${sv(avgift.se * 10 * 100, 1)} %)`}, källa: ${svSource(avgift.source)}.`,
+      : `10 kr högre avgift per kvm och månad ≈ ${svPct(Math.exp(10 * avgift.beta) - 1, 2)}${avgift.se === null ? "" : ` (SE ${sv(avgift.se * 10 * 100, 2)} %)`}, källa: ${svSource(avgift.source)}.`,
   );
   const debt = feature("brfDebtPerSqm");
   lines.push(
     notEstimable("brfDebtPerSqm")
       ? "Föreningsskuld per kvm: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll."
-      : `1 000 kr mer föreningsskuld per kvm ≈ ${svPct(Math.exp(1000 * debt.beta) - 1)}${debt.se === null ? "" : ` (SE ${sv(debt.se * 1000 * 100, 1)} %)`}, källa: ${svSource(debt.source)}.`,
+      : `1 000 kr mer föreningsskuld per kvm ≈ ${svPct(Math.exp(1000 * debt.beta) - 1, 2)}${debt.se === null ? "" : ` (SE ${sv(debt.se * 1000 * 100, 2)} %)`}, källa: ${svSource(debt.source)}.`,
   );
   lines.push(
     notEstimable("tomtratt")
