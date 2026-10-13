@@ -684,6 +684,24 @@ describe("pullSlutpriser", () => {
     expect(out.stoppedBy).toBe("budget");
   });
 
+  it("shouldStop (a shutdown signal) stops new renders at once, reports aborted, and keeps what was recorded (WR-11)", async () => {
+    let n = 0;
+    let stop = false;
+    const render = vi.fn(async () => {
+      n += 1;
+      if (n === 3) stop = true; // the signal arrives while the third page is in flight
+      return [item(soldEntry(`p${n}`, { date: "2026-07-01" }))];
+    });
+    const persisted: number[] = [];
+    const out = await pullSlutpriser(
+      baseOpts({ render, maxPagesPerSlice: 10, newestFirst: false, concurrency: 1, shouldStop: () => stop, persist: (c) => void persisted.push(Object.keys(c.pages).length) }),
+    );
+    expect(render).toHaveBeenCalledTimes(3);
+    expect(out.stoppedBy).toBe("aborted");
+    // the in-flight third page was still recorded and persisted
+    expect(persisted.at(-1)).toBe(3);
+  });
+
   it("per-slice page cap: maxPages 2 gets exactly 2 renders, an uncapped slice gets 9", async () => {
     const calls: Record<string, number> = {};
     const render = vi.fn(async (url: string) => {

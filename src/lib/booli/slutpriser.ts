@@ -451,12 +451,14 @@ export interface PullOptions {
   onProgress?: (msg: string) => void;
   /** Checked before every render; true stops scheduling (the script's USD budget guard). */
   budgetExceeded?: () => boolean;
+  /** Checked before every render; true stops scheduling (a shutdown signal, WR-11). In-flight pages finish or fail and are recorded. */
+  shouldStop?: () => boolean;
 }
 
 export interface PullResult {
   cache: SlutprisCache;
   rendersUsed: number;
-  stoppedBy: "done" | "max-renders" | "budget";
+  stoppedBy: "done" | "max-renders" | "budget" | "aborted";
 }
 
 /**
@@ -485,6 +487,10 @@ export async function pullSlutpriser(opts: PullOptions): Promise<PullResult> {
   /** Checked synchronously right before each render; sticky once tripped. */
   const renderAllowed = (): boolean => {
     if (stoppedBy !== "done") return false;
+    if (opts.shouldStop?.()) {
+      stoppedBy = "aborted";
+      return false;
+    }
     if (rendersUsed >= opts.maxRenders) {
       stoppedBy = "max-renders";
       return false;

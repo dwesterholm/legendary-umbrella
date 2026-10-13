@@ -124,15 +124,20 @@ async function resolveRenderer(): Promise<RendererContext> {
 /**
  * Installs the local renderer when `ctx.local` and returns a closer that is safe to call from `finally`
  * (it also unregisters the SIGINT/SIGTERM handlers). Nothing may process.exit while the browser is open.
+ * `shutdown` (WR-11): on a signal `onSignal` stops new work, the browser closes, then `settle` is awaited
+ * (bounded) so the last page outcomes reach the cache before the process exits.
  */
-async function installRenderer(ctx: RendererContext): Promise<{
+async function installRenderer(
+  ctx: RendererContext,
+  shutdown: { onSignal?: () => void; settle?: () => Promise<unknown> } = {},
+): Promise<{
   stats: () => LocalStats | null;
   close: () => Promise<void>;
 }> {
   if (!ctx.local) return { stats: () => null, close: async () => undefined };
   const lb = await import("@/lib/booli/local-browser");
   const handle = lb.installLocalRenderer({ allowApify: ctx.allowApify, apifyMaxRenders: ctx.apifyMaxRenders });
-  const dispose = lb.closeOnSignals(handle);
+  const dispose = lb.closeOnSignals(handle, shutdown);
   return {
     stats: () => handle.stats(),
     close: async () => {
@@ -445,10 +450,11 @@ async function runEnrichment(opts: {
   };
 
   let done = 0;
-  const browser = await installRenderer(opts.renderer);
+  const stop = { requested: false, settled: Promise.resolve() as Promise<unknown> };
+  const browser = await installRenderer(opts.renderer, { onSignal: () => void (stop.requested = true), settle: () => stop.settled });
   let result: Awaited<ReturnType<typeof enrichSoldRows>>;
   try {
-    result = await enrichSoldRows({
+    const enriching = enrichSoldRows({
       rows: cache.rows,
       sample,
       render,
@@ -459,9 +465,11 @@ async function runEnrichment(opts: {
         done += 1;
         if (done % 10 === 0) console.log(`  ${done} berikade (render ${succeeded + failedRenders}, uppskattat ${spentUsd().toFixed(2)} USD)`);
       },
-      budgetExceeded: () => spentUsd() >= opts.budgetUsd,
+      budgetExceeded: () => stop.requested || spentUsd() >= opts.budgetUsd,
       onProgress: (msg) => console.log(`  ${msg}`),
     });
+    stop.settled = enriching.then(() => persist(cache), () => undefined);
+    result = await enriching;
   } finally {
     await browser.close();
   }
@@ -635,10 +643,11 @@ async function main(): Promise<void> {
     }
   };
 
-  const browser = await installRenderer(rctx);
+  const stop = { requested: false, settled: Promise.resolve() as Promise<unknown> };
+  const browser = await installRenderer(rctx, { onSignal: () => void (stop.requested = true), settle: () => stop.settled });
   let result: Awaited<ReturnType<typeof pullSlutpriser>>;
   try {
-    result = await pullSlutpriser({
+    const pulling = pullSlutpriser({
       slices,
       render,
       cache,
@@ -650,7 +659,11 @@ async function main(): Promise<void> {
       persist,
       onProgress: (msg) => console.log(`  ${msg}`),
       budgetExceeded: () => spentUsd() >= budgetUsd,
+      shouldStop: () => stop.requested,
     });
+    // WR-11: on a signal the last page outcomes are written before the process exits.
+    stop.settled = pulling.then((r) => persist(r.cache), () => undefined);
+    result = await pulling;
   } finally {
     await browser.close();
   }
@@ -661,7 +674,9 @@ async function main(): Promise<void> {
       ? "klar (alla delmängder gick till sitt slut eller sin sidgräns)"
       : result.stoppedBy === "max-renders"
         ? `stoppad av --max-renders (${maxRenders})`
-        : `stoppad av --budget-usd (${budgetUsd.toFixed(2)})`;
+        : result.stoppedBy === "aborted"
+          ? "avbruten av en stoppsignal (återupptas vid nästa körning)"
+          : `stoppad av --budget-usd (${budgetUsd.toFixed(2)})`;
   console.log(`\nKörningen är ${stopText}. Renders i den här körningen: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}).`);
   console.log(`Cache: ${relative(process.cwd(), cachePath)}`);
 

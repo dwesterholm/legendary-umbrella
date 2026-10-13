@@ -640,6 +640,55 @@ describe("cleanup", () => {
     expect(b.log.maxOpen).toBeLessThanOrEqual(2);
   });
 
+  it("closeOnSignals (WR-11): onSignal first, then the browser closes, then settle is awaited, and only then exit", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({}));
+    const h = install(clock, b.launcher);
+    await clock.run(render());
+    const order: string[] = [];
+    const handlers = new Map<string, () => void>();
+    const proc = { once: (sig: string, fn: () => void) => void handlers.set(sig, fn), off: vi.fn() };
+    let finishSettle!: () => void;
+    const settle = () =>
+      new Promise<void>((resolve) => {
+        order.push(`settle(browserCloses=${b.log.browserCloses})`);
+        finishSettle = () => {
+          order.push("settled");
+          resolve();
+        };
+      });
+    const exit = vi.fn(() => void order.push("exit"));
+    closeOnSignals(h, { proc, exit, onSignal: () => void order.push(`onSignal(browserCloses=${b.log.browserCloses})`), settle });
+    handlers.get("SIGTERM")!();
+    await vi.waitFor(() => expect(order).toContain("settle(browserCloses=1)"));
+    expect(exit).not.toHaveBeenCalled(); // still waiting for the pipeline to settle
+    finishSettle();
+    await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(143));
+    expect(order).toEqual(["onSignal(browserCloses=0)", "settle(browserCloses=1)", "settled", "exit"]);
+  });
+
+  it("closeOnSignals: a settle that never finishes is cut off after settleMs; a throwing onSignal does not keep the browser open", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({}));
+    const h = install(clock, b.launcher);
+    await clock.run(render());
+    const handlers = new Map<string, () => void>();
+    const proc = { once: (sig: string, fn: () => void) => void handlers.set(sig, fn), off: vi.fn() };
+    const exit = vi.fn();
+    closeOnSignals(h, {
+      proc,
+      exit,
+      settleMs: 30,
+      onSignal: () => {
+        throw new Error("hook broke");
+      },
+      settle: () => new Promise(() => undefined),
+    });
+    handlers.get("SIGINT")!();
+    await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(130));
+    expect(b.log.browserCloses).toBe(1);
+  });
+
   it("the run watchdog closes the browser, refuses later renders and exits 5; a disposed watchdog does nothing (WR-01)", async () => {
     const clock = makeClock();
     const b = makeBrowser(clock, () => ({}));

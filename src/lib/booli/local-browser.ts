@@ -276,22 +276,56 @@ export function resolveRendererChoice(input: {
   };
 }
 
+/** How long a signal handler waits for in-flight work to settle after the browser closed, before it exits anyway. */
+export const SIGNAL_SETTLE_MS = 15_000;
+
 /**
  * Registers SIGINT and SIGTERM handlers that close the browser and then exit
  * 130 / 143 (launchd stops jobs with SIGTERM). Returns a disposer. `proc` and
  * `exit` are injectable for tests.
+ *
+ * Order on a signal (WR-11): `onSignal` runs first and synchronously (a script sets its "stop
+ * starting new work" flag there), then the browser closes (in-flight renders fail at once, and a
+ * closed renderer refuses new ones, CR-01), then `settle` is awaited for at most `settleMs` (a script
+ * returns the promise of its pipeline so the last outcomes are written to its cache), and only then
+ * the process exits.
  */
 export function closeOnSignals(
   handle: LocalRendererHandle,
   deps: {
     proc?: { once(signal: string, fn: () => void): unknown; off(signal: string, fn: () => void): unknown };
     exit?: (code: number) => void;
+    onSignal?: () => void;
+    settle?: () => Promise<unknown>;
+    settleMs?: number;
   } = {},
 ): () => void {
   const proc = deps.proc ?? process;
   const exit = deps.exit ?? ((code: number) => process.exit(code));
-  const onInt = () => void handle.close().finally(() => exit(130));
-  const onTerm = () => void handle.close().finally(() => exit(143));
+  const finish = (code: number): void => {
+    try {
+      deps.onSignal?.();
+    } catch {
+      // a failing hook must not keep the browser open
+    }
+    void handle
+      .close()
+      .then(async () => {
+        if (!deps.settle) return;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const limit = new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, deps.settleMs ?? SIGNAL_SETTLE_MS);
+        });
+        try {
+          await Promise.race([Promise.resolve().then(deps.settle).catch(() => undefined), limit]);
+        } finally {
+          clearTimeout(timer);
+        }
+      })
+      .finally(() => exit(code));
+  };
+  const onInt = () => finish(130);
+  const onTerm = () => finish(143);
   proc.once("SIGINT", onInt);
   proc.once("SIGTERM", onTerm);
   return () => {
