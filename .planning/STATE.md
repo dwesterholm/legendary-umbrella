@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.3"
 current_phase_name: Sun & Orientation
 status: executing
-stopped_at: Completed 14.3-01-PLAN.md
-last_updated: "2026-10-13T15:07:25.995Z"
+stopped_at: Completed 14.3-02-PLAN.md
+last_updated: "2026-10-13T15:17:41.238Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 27e680eaef8e21ec8264b563e1c7e02ab6c2a89e
+state_head: 2960085516ee32674c3177754ebd041261d6f3ff
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 42
-  completed_plans: 35
+  completed_plans: 36
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.3 (Sun & Orientation) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-10-13 — Phase 14.3 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
@@ -97,6 +97,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.2 P08 | 30min | 3 tasks | 14 files |
 | Phase 14.2 P09 | 28 min | 3 tasks | 7 files |
 | Phase 14.3 P01 | 25 min | 2 tasks | 13 files |
+| Phase 14.3 P02 | 12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -249,6 +250,7 @@ Recent decisions affecting current work:
 - [Phase 14.2]: 14.2-09: D-17 measured on the first real local run: condition 93,5 %, balcony 100 %, sun 2,6 % (not met, 14.3 scope per R-05); 0 USD Apify, 33,01 kr picture reading; LaunchAgent documented, not installed
 - [Phase 14.2]: 14.2-09: the evidence run filled the default watch-state.json (77 flats), so the first scheduled Monday mail carries only new or changed flats
 - [Phase 14.3]: 14.3-01: Folkungagatan 61 resolves to south (166.2 deg, conf 1.00) from the OSM footprint; boundary comparisons run at stored 1-decimal precision; normalizeStreetName lives in osm-buildings.ts and is re-exported from sun-facade.ts
+- [Phase 14.3]: 14.3-02: OSM cache stores only type/id/tags/geometry/members (bounds dropped); 31-day refresh rule inclusive; real cache 12,9 MB downloaded 2026-10-13 via lz4/z mirrors
 
 ### Pending Todos
 
@@ -280,8 +282,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T15:07:25.861Z
-Stopped at: Completed 14.3-01-PLAN.md
+Last session: 2026-10-13T15:17:41.097Z
+Stopped at: Completed 14.3-02-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
