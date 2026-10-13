@@ -1,0 +1,378 @@
+// @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { apifyClientMockFactory } from "@/lib/booli/__mocks__/apify-client";
+
+// client.ts loads transport.ts, which constructs an ApifyClient at import time.
+vi.mock("apify-client", () => apifyClientMockFactory());
+
+// Imported AFTER the mock above is registered.
+import { reshapeListingEntity } from "@/lib/booli/client";
+import { toCandidate } from "@/lib/discovery/candidate";
+import { candidateFactsSchema, factsFromDetail, type CandidateFacts } from "@/lib/discovery/listing-facts";
+import {
+  REASON_ORDER,
+  REASON_THRESHOLDS,
+  UPCOMING_SALE_REASON,
+  avgiftPerSqmYear,
+  districtAvgiftMedians,
+  isReasonFlagged,
+  reasonCell,
+  reasonsFor,
+  type ReasonRow,
+} from "@/lib/discovery/watch-reasons";
+
+const NO_MEDIANS = { medians: new Map<string, number | null>() };
+const FIXTURE_DIR = join(__dirname, "..", "booli", "__fixtures__");
+
+function facts(over: Partial<CandidateFacts> = {}): CandidateFacts {
+  return candidateFactsSchema.parse(over);
+}
+
+function row(
+  over: { facts?: Partial<CandidateFacts> | null; livingArea?: number | null; rooms?: number | null; upcomingSale?: boolean | null; district?: string } = {},
+): ReasonRow {
+  return {
+    district: over.district ?? "Södermalm",
+    facts: over.facts === null ? null : facts(over.facts ?? {}),
+    candidate: {
+      livingArea: over.livingArea === undefined ? 50 : over.livingArea,
+      rooms: over.rooms === undefined ? 2 : over.rooms,
+      upcomingSale: over.upcomingSale === undefined ? null : over.upcomingSale,
+    },
+  };
+}
+
+describe("REASON_THRESHOLDS", () => {
+  it("holds the eight values of the plan in one table", () => {
+    expect(REASON_THRESHOLDS).toEqual({
+      daysOnMarketMin: 60,
+      avgiftHighRatio: 1.25,
+      brfDebtHighPerSqm: 10_000,
+      sqmPerRoomMin: 14,
+      sqmPerRoomMax: 30,
+      minRowsForMedian: 5,
+      priceCutMinSek: 1,
+      noElevatorFloorMin: 4,
+    });
+  });
+
+  it("'snart till salu' is the last entry of REASON_ORDER (W3)", () => {
+    expect(REASON_ORDER[REASON_ORDER.length - 1]).toBe("upcomingSale");
+    expect(UPCOMING_SALE_REASON).toBe("snart till salu (ej budgivning än)");
+    expect(REASON_ORDER).toHaveLength(11);
+  });
+});
+
+describe("boundaries", () => {
+  it.each([
+    [59, []],
+    [60, ["ute i 60 dagar"]],
+    [61, ["ute i 61 dagar"]],
+    [0, []],
+  ])("days on market %i", (days, expected) => {
+    expect(reasonsFor(row({ facts: { daysOnMarket: days } }), NO_MEDIANS)).toEqual(expected);
+  });
+
+  it("days on market null gives no reason", () => {
+    expect(reasonsFor(row({ facts: { daysOnMarket: null } }), NO_MEDIANS)).toEqual([]);
+  });
+
+  // 50 kvm: avgift x 12 / 50. District median 1 000 kr/kvm/år.
+  const ctx = { medians: new Map<string, number | null>([["Södermalm", 1000]]) };
+  it("avgift ratio exactly 1.25 gives none", () => {
+    // 4 167 x 12 / 40 = 1 250.1 would be above; use exact: 5 000 x 12 / 48 = 1 250.
+    expect(reasonsFor(row({ livingArea: 48, rooms: 2, facts: { avgiftMonthlySek: 5000 } }), ctx)).toEqual([]);
+  });
+  it("avgift ratio above 1.25 names both numbers and the district", () => {
+    // 5 001 x 12 / 48 = 1 250.25
+    expect(reasonsFor(row({ livingArea: 48, rooms: 2, facts: { avgiftMonthlySek: 5001 } }), ctx)).toEqual([
+      "hög avgift (1 250 kr/kvm/år mot 1 000 i Södermalm)",
+    ]);
+  });
+  it("avgift 3 329 x 12 / 35 = 1 141.37 prints as '1 141' kr/kvm/år", () => {
+    expect(avgiftPerSqmYear({ avgiftMonthlySek: 3329 }, 35)).toBeCloseTo(1141.37, 2);
+    const small = { medians: new Map<string, number | null>([["Södermalm", 900]]) };
+    expect(reasonsFor(row({ livingArea: 35, rooms: 2, facts: { avgiftMonthlySek: 3329 } }), small)).toEqual([
+      "hög avgift (1 141 kr/kvm/år mot 900 i Södermalm)",
+    ]);
+  });
+  it("a district without a median has no avgift reason", () => {
+    expect(reasonsFor(row({ livingArea: 48, rooms: 2, facts: { avgiftMonthlySek: 9000 } }), NO_MEDIANS)).toEqual([]);
+    const nullMedian = { medians: new Map<string, number | null>([["Södermalm", null]]) };
+    expect(reasonsFor(row({ livingArea: 48, rooms: 2, facts: { avgiftMonthlySek: 9000 } }), nullMedian)).toEqual([]);
+  });
+  it("another district's median is not used", () => {
+    const other = { medians: new Map<string, number | null>([["Kungsholmen", 100]]) };
+    expect(reasonsFor(row({ livingArea: 48, rooms: 2, facts: { avgiftMonthlySek: 9000 } }), other)).toEqual([]);
+  });
+
+  it.each([
+    [10_000, []],
+    [10_001, ["hög föreningsskuld (10 001 kr/kvm)"]],
+    [25_590, ["hög föreningsskuld (25 590 kr/kvm)"]],
+    [1_171, []],
+  ])("BRF debt %i kr/kvm", (debt, expected) => {
+    const brf = { loanSek: 1, areaSqm: 1, reportYear: 2024, debtPerSqm: debt };
+    expect(reasonsFor(row({ facts: { brf } }), NO_MEDIANS)).toEqual(expected);
+  });
+  it("BRF with a null debt gives no reason", () => {
+    const brf = { loanSek: null, areaSqm: null, reportYear: null, debtPerSqm: null };
+    expect(reasonsFor(row({ facts: { brf } }), NO_MEDIANS)).toEqual([]);
+  });
+
+  it.each([
+    [140, 10, []], // 14.0 per room
+    [139, 10, ["ovanlig planlösning"]], // 13.9
+    [300, 10, []], // 30.0
+    [301, 10, ["ovanlig planlösning"]], // 30.1
+    [50, 2, []], // 25
+    [28, 2, []], // exactly 14 with two rooms
+  ])("living area %d over %d rooms", (area, rooms, expected) => {
+    expect(reasonsFor(row({ livingArea: area, rooms }), NO_MEDIANS)).toEqual(expected);
+  });
+  it("missing rooms or area gives no layout reason", () => {
+    expect(reasonsFor(row({ rooms: null }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ livingArea: null }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ rooms: 0 }), NO_MEDIANS)).toEqual([]);
+  });
+
+  it.each([
+    [0, []],
+    [1, ["prissänkt 1 kr"]],
+    [50_000, ["prissänkt 50 000 kr"]],
+    [600_000, ["prissänkt 600 000 kr"]],
+    [-305_000, []], // the asking price went UP
+  ])("price cut %i kr", (cut, expected) => {
+    expect(reasonsFor(row({ facts: { priceCutSek: cut } }), NO_MEDIANS)).toEqual(expected);
+  });
+
+  it("floor 3 with no elevator on the detail page gives none, floor 4 names the floor", () => {
+    expect(reasonsFor(row({ facts: { floor: 3, elevatorListed: false } }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ facts: { floor: 4, elevatorListed: false } }), NO_MEDIANS)).toEqual(["ingen hiss angiven (vån 4)"]);
+    expect(reasonsFor(row({ facts: { floor: 6, elevatorListed: false } }), NO_MEDIANS)).toEqual(["ingen hiss angiven (vån 6)"]);
+  });
+  it("elevator unknown (a card's 'not listed') or listed gives none, whatever the floor", () => {
+    expect(reasonsFor(row({ facts: { floor: 5, elevatorListed: null } }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ facts: { floor: 5, elevatorListed: true } }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ facts: { floor: null, elevatorListed: false } }), NO_MEDIANS)).toEqual([]);
+  });
+});
+
+describe("tenure, tomträtt, new construction, bidding", () => {
+  it("Bostadsrätt in any case and a missing tenure give no tenure reason", () => {
+    for (const t of ["Bostadsrätt", "bostadsrätt", "BOSTADSRÄTT", " Bostadsrätt ", null]) {
+      expect(reasonsFor(row({ facts: { tenureForm: t } }), NO_MEDIANS)).toEqual([]);
+    }
+  });
+  it("Äganderätt is named, lower case", () => {
+    expect(reasonsFor(row({ facts: { tenureForm: "Äganderätt" } }), NO_MEDIANS)).toEqual(["upplåtelseform: äganderätt"]);
+  });
+  it("land lease true gives tomträtt; false and null give nothing", () => {
+    expect(reasonsFor(row({ facts: { landLease: true } }), NO_MEDIANS)).toEqual(["tomträtt"]);
+    expect(reasonsFor(row({ facts: { landLease: false } }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ facts: { landLease: null } }), NO_MEDIANS)).toEqual([]);
+  });
+  it("new construction gives nyproduktion", () => {
+    expect(reasonsFor(row({ facts: { isNewConstruction: true } }), NO_MEDIANS)).toEqual(["nyproduktion"]);
+    expect(reasonsFor(row({ facts: { isNewConstruction: false } }), NO_MEDIANS)).toEqual([]);
+  });
+  it("bidding open, by flag or by status key, is named once", () => {
+    expect(reasonsFor(row({ facts: { biddingOpen: true } }), NO_MEDIANS)).toEqual(["budgivning pågår"]);
+    expect(reasonsFor(row({ facts: { statusKey: "biddingOpen" } }), NO_MEDIANS)).toEqual(["budgivning pågår"]);
+    expect(reasonsFor(row({ facts: { biddingOpen: true, statusKey: "biddingOpen" } }), NO_MEDIANS)).toEqual(["budgivning pågår"]);
+    expect(reasonsFor(row({ facts: { biddingOpen: false } }), NO_MEDIANS)).toEqual([]);
+  });
+});
+
+describe("snart till salu (W3)", () => {
+  it("the card status key gives the informational reason", () => {
+    expect(reasonsFor(row({ facts: { statusKey: "upcomingSale" } }), NO_MEDIANS)).toEqual([UPCOMING_SALE_REASON]);
+  });
+  it("the candidate flag gives the same reason", () => {
+    expect(reasonsFor(row({ upcomingSale: true }), NO_MEDIANS)).toEqual([UPCOMING_SALE_REASON]);
+  });
+  it("the candidate flag works without any facts", () => {
+    expect(reasonsFor(row({ facts: null, upcomingSale: true }), NO_MEDIANS)).toEqual([UPCOMING_SALE_REASON]);
+  });
+  it("both at once give the reason once", () => {
+    expect(reasonsFor(row({ facts: { statusKey: "upcomingSale" }, upcomingSale: true }), NO_MEDIANS)).toEqual([
+      UPCOMING_SALE_REASON,
+    ]);
+  });
+  it("sorts last, after a price cut", () => {
+    expect(reasonsFor(row({ facts: { statusKey: "upcomingSale", priceCutSek: 50_000 } }), NO_MEDIANS)).toEqual([
+      "prissänkt 50 000 kr",
+      "snart till salu (ej budgivning än)",
+    ]);
+  });
+  it("a flagged row whose only reason is this one shows the reason, not 'oförklarat fynd'", () => {
+    const reasons = reasonsFor(row({ facts: { statusKey: "upcomingSale" } }), NO_MEDIANS);
+    expect(reasonCell(reasons, true)).toBe("snart till salu (ej budgivning än)");
+  });
+  it("bidding status or null with the flag false or null gives no such reason", () => {
+    expect(reasonsFor(row({ facts: { statusKey: "biddingOpen" }, upcomingSale: false }), NO_MEDIANS)).not.toContain(UPCOMING_SALE_REASON);
+    expect(reasonsFor(row({ facts: { statusKey: null }, upcomingSale: null }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ facts: { statusKey: null }, upcomingSale: false }), NO_MEDIANS)).toEqual([]);
+  });
+});
+
+describe("order and joining", () => {
+  it("lists reasons in the fixed order whatever the evaluation order", () => {
+    const r = row({
+      livingArea: 301,
+      rooms: 10,
+      facts: {
+        // Set in reverse of the print order.
+        statusKey: "upcomingSale",
+        elevatorListed: false,
+        floor: 5,
+        brf: { loanSek: 1, areaSqm: 1, reportYear: 2024, debtPerSqm: 12_000 },
+        daysOnMarket: 90,
+        priceCutSek: 100_000,
+        biddingOpen: true,
+        isNewConstruction: true,
+        landLease: true,
+        tenureForm: "Äganderätt",
+      },
+    });
+    expect(reasonsFor(r, NO_MEDIANS)).toEqual([
+      "upplåtelseform: äganderätt",
+      "tomträtt",
+      "nyproduktion",
+      "budgivning pågår",
+      "prissänkt 100 000 kr",
+      "ute i 90 dagar",
+      "hög föreningsskuld (12 000 kr/kvm)",
+      "ingen hiss angiven (vån 5)",
+      "ovanlig planlösning",
+      "snart till salu (ej budgivning än)",
+    ]);
+  });
+
+  it("a row with two reasons shows both, comma-joined", () => {
+    const reasons = reasonsFor(row({ facts: { priceCutSek: 50_000, daysOnMarket: 75 } }), NO_MEDIANS);
+    expect(reasons).toEqual(["prissänkt 50 000 kr", "ute i 75 dagar"]);
+    expect(reasonCell(reasons, true)).toBe("prissänkt 50 000 kr, ute i 75 dagar");
+  });
+
+  it("null facts give no reasons and do not crash", () => {
+    expect(reasonsFor(row({ facts: null }), NO_MEDIANS)).toEqual([]);
+  });
+});
+
+describe("reasonCell / isReasonFlagged", () => {
+  it("empty reasons: flagged -> 'oförklarat fynd', unflagged -> '-'", () => {
+    expect(reasonCell([], true)).toBe("oförklarat fynd");
+    expect(reasonCell([], false)).toBe("-");
+  });
+  it("reasons are joined with a comma and a space", () => {
+    expect(reasonCell(["a", "b"], true)).toBe("a, b");
+    expect(reasonCell(["a"], false)).toBe("a");
+  });
+  it("only kredit-tak and dold-defekt-risk flag a row", () => {
+    expect(isReasonFlagged(["creditCapped"])).toBe(true);
+    expect(isReasonFlagged(["hiddenDefectRisk"])).toBe(true);
+    expect(isReasonFlagged(["ejBildtolkad"])).toBe(false);
+    expect(isReasonFlagged(["expectedFinalOver4M", "renoUnknown", "utanförModellensStorlek", "notComparable"])).toBe(false);
+    expect(isReasonFlagged([])).toBe(false);
+  });
+});
+
+describe("avgiftPerSqmYear / districtAvgiftMedians", () => {
+  const withAvgift = (avgift: number | null, area: number | null = 50, district = "Södermalm"): ReasonRow =>
+    row({ district, livingArea: area, facts: { avgiftMonthlySek: avgift } });
+
+  it("is monthly x 12 / area, and null when either is missing", () => {
+    expect(avgiftPerSqmYear({ avgiftMonthlySek: 3000 }, 36)).toBe(1000);
+    expect(avgiftPerSqmYear({ avgiftMonthlySek: null }, 36)).toBeNull();
+    expect(avgiftPerSqmYear({ avgiftMonthlySek: 3000 }, null)).toBeNull();
+    expect(avgiftPerSqmYear({ avgiftMonthlySek: 3000 }, 0)).toBeNull();
+    expect(avgiftPerSqmYear(null, 36)).toBeNull();
+  });
+
+  it("4 rows with avgift in a district give no median", () => {
+    const m = districtAvgiftMedians([1, 2, 3, 4].map((i) => withAvgift(i * 1000, 50, "Kungsholmen")));
+    expect(m.get("Kungsholmen")).toBeNull();
+  });
+
+  it("5 rows give the median", () => {
+    // per kvm per year: avgift x 12 / 60 = avgift / 5
+    const m = districtAvgiftMedians([1000, 2000, 3000, 4000, 9000].map((a) => withAvgift(a, 60, "Kungsholmen")));
+    expect(m.get("Kungsholmen")).toBe(600);
+  });
+
+  it("an even count gives the mean of the two middle values", () => {
+    const m = districtAvgiftMedians([1000, 2000, 3000, 4000, 5000, 100_000].map((a) => withAvgift(a, 60)));
+    expect(m.get("Södermalm")).toBe(700); // (600 + 800) / 2
+  });
+
+  it("rows with a null avgift or no area are ignored", () => {
+    const rows = [
+      ...[1000, 2000, 3000, 4000].map((a) => withAvgift(a, 60)),
+      withAvgift(null, 60),
+      withAvgift(5000, null),
+    ];
+    expect(districtAvgiftMedians(rows).get("Södermalm")).toBeNull(); // only 4 usable rows
+    expect(districtAvgiftMedians([...rows, withAvgift(5000, 60)]).get("Södermalm")).toBe(600);
+  });
+
+  it("districts are separate", () => {
+    const rows = [
+      ...[1000, 2000, 3000, 4000, 5000].map((a) => withAvgift(a, 60, "Södermalm")),
+      ...[100, 200].map((a) => withAvgift(a, 60, "Vasastan")),
+    ];
+    const m = districtAvgiftMedians(rows);
+    expect(m.get("Södermalm")).toBe(600);
+    expect(m.get("Vasastan")).toBeNull();
+    expect(m.has("Kungsholmen")).toBe(false);
+  });
+
+  it("rows without facts do not count", () => {
+    expect(districtAvgiftMedians([row({ facts: null })]).get("Södermalm")).toBeNull();
+  });
+});
+
+describe("real anchors: facts built from captured Booli detail pages (2026-10-13)", () => {
+  function fromFixture(n: 1 | 2 | 3): ReasonRow {
+    const entity = JSON.parse(readFileSync(join(FIXTURE_DIR, `listing-detail-local-${n}.fixture.json`), "utf8"));
+    const raw = reshapeListingEntity(entity);
+    const c = toCandidate(raw);
+    return {
+      district: "Södermalm",
+      facts: factsFromDetail(raw, { asOf: "2026-10-13" }),
+      candidate: { livingArea: c.livingArea, rooms: c.rooms, upcomingSale: c.upcomingSale },
+    };
+  }
+
+  it("listing 1: a 600 000 kr price cut, listed 53 days, 41 kvm / 2 rooms", () => {
+    const reasons = reasonsFor(fromFixture(1), NO_MEDIANS);
+    expect(reasonCell(reasons, true)).toBe("prissänkt 600 000 kr");
+  });
+
+  it("listing 2: the asking price went UP, nothing else fires, so a flagged row is an unexplained find", () => {
+    const reasons = reasonsFor(fromFixture(2), NO_MEDIANS);
+    expect(reasons).toEqual([]);
+    expect(reasonCell(reasons, true)).toBe("oförklarat fynd");
+    expect(reasonCell(reasons, false)).toBe("-");
+  });
+
+  it("listing 3: bidding is open", () => {
+    expect(reasonCell(reasonsFor(fromFixture(3), NO_MEDIANS), true)).toBe("budgivning pågår");
+  });
+});
+
+describe("source hygiene", () => {
+  const source = readFileSync(join(__dirname, "watch-reasons.ts"), "utf8");
+  it("never reads the card's sale-type field", () => {
+    expect(source).not.toMatch(/saleType/);
+  });
+  it("imports no node module (pure)", () => {
+    expect(source).not.toMatch(/^import .*node:(fs|path)/m);
+  });
+  it("has one thresholds table and the literal reason text", () => {
+    expect(source.match(/export const REASON_THRESHOLDS/g)).toHaveLength(1);
+    expect(source).toContain("snart till salu (ej budgivning än)");
+  });
+});
