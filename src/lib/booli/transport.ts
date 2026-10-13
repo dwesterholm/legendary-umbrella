@@ -33,6 +33,16 @@ import { ApifyClient } from "apify-client";
  * logs only the error object via `console.error("[booli-transport]", error)`,
  * then re-throws a Swedish, user-facing message — the raw error (and
  * certainly never the token or the `ApifyClient` instance) is never leaked.
+ *
+ * Renderer selection (Phase 14.2, D-02/D-03/D-05): this module owns WHICH
+ * renderer serves a Booli page. `runPlaywrightRender` is the single entry
+ * point; it dispatches to a renderer installed with `setRenderer()` (the local
+ * headed Chromium in `local-browser.ts`, installed by headless SCRIPTS only)
+ * or, when none is installed, to `runApifyRender` (the old body, moved
+ * verbatim). Apify is therefore ONE renderer among two, the metered fallback,
+ * and the in-app job keeps using it unchanged because the app never installs
+ * anything. This file must never import the browser library: it is in the
+ * Next.js server graph (via `client.ts`), and `local-browser.test.ts` guards it.
  */
 
 const client = new ApifyClient({
@@ -47,11 +57,74 @@ export const RENDER_MEMORY_MB = 2048;
 /** Seconds past `waitSecs` after which Apify itself aborts the run. */
 export const RENDER_TIMEOUT_GRACE_SECS = 60;
 
+/** The optional render knobs every renderer accepts (a local renderer ignores them). */
+export interface RenderOpts {
+  waitSecs?: number;
+  maxRequestRetries?: number;
+}
+
+/** A renderer: URL + serialized page function in, usable dataset items out (HIGH-1: never `[]`). */
+export type RenderFn = (
+  url: string,
+  pageFunction: string,
+  opts?: RenderOpts,
+) => Promise<unknown[]>;
+
+/** The installed renderer, or `null` for the default (Apify). Only scripts ever set it. */
+let renderer: RenderFn | null = null;
+
 /**
- * Renders `url` through the owned Playwright transport and returns the usable
+ * Installs `fn` as the renderer behind `runPlaywrightRender`, or restores the
+ * Apify default with `null`. Scripts call this (via `installLocalRenderer`);
+ * the in-app server code never does, so its Apify input stays byte-identical.
+ */
+export function setRenderer(fn: RenderFn | null): void {
+  renderer = fn;
+}
+
+/**
+ * The HIGH-1 rule shared by every renderer (Apify and local): an empty result
+ * or one where every item has `hasApollo === false` is a SOURCE failure and
+ * throws, it is never returned as `[]` (which a caller could not tell from a
+ * genuinely empty area). The two Swedish messages are identical on both paths.
+ */
+export function usableItems(items: unknown[]): unknown[] {
+  // A non-200 / blocked render yields no item or hasApollo=false. Either is
+  // a SOURCE failure (HIGH-1) — throw, never return [] (which would be
+  // indistinguishable from a genuinely empty result).
+  if (!items.length) {
+    throw new Error("Inga resultat fran Booli-kallan");
+  }
+  const usable = items.filter(
+    (it) => (it as { hasApollo?: boolean }).hasApollo !== false,
+  );
+  if (!usable.length) {
+    throw new Error("Booli-kallan returnerade ingen Apollo-data (hasApollo=false)");
+  }
+  return usable;
+}
+
+/**
+ * Renders `url` through the installed renderer when a script installed one
+ * (local headed Chromium), else through Apify (`runApifyRender`). Throws —
+ * never returns an empty array — when the render fails, the result is empty,
+ * or every item lacks a usable Apollo blob.
+ */
+export function runPlaywrightRender(
+  url: string,
+  pageFunction: string,
+  opts?: RenderOpts,
+): Promise<unknown[]> {
+  return renderer ? renderer(url, pageFunction, opts) : runApifyRender(url, pageFunction, opts);
+}
+
+/**
+ * Renders `url` through the owned Apify Playwright actor and returns the usable
  * dataset items (each `{ hasApollo, __APOLLO_STATE__ }`, per `pageFunction`'s
  * contract). Throws — never returns an empty array — when the render fails,
  * the dataset is empty, or every item lacks a usable Apollo blob.
+ *
+ * This is the pre-14.2 body of `runPlaywrightRender`, moved verbatim.
  *
  * @param url - the pre-validated Booli URL to render (the domain allowlist
  *   check is the CALLER's responsibility — see T-05-09 in 05-03-PLAN.md's
@@ -65,10 +138,10 @@ export const RENDER_TIMEOUT_GRACE_SECS = 60;
  *   lower `waitSecs` to bound worst-case per-tick duration (RESEARCH Pitfall
  *   1/2) — never lower these two literal defaults in place.
  */
-export async function runPlaywrightRender(
+export async function runApifyRender(
   url: string,
   pageFunction: string,
-  opts?: { waitSecs?: number; maxRequestRetries?: number },
+  opts?: RenderOpts,
 ): Promise<unknown[]> {
   const waitSecs = opts?.waitSecs ?? 240;
   const maxRequestRetries = opts?.maxRequestRetries ?? 3;
@@ -119,20 +192,8 @@ export async function runPlaywrightRender(
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-    // A non-200 / blocked render yields no item or hasApollo=false. Either is
-    // a SOURCE failure (HIGH-1) — throw, never return [] (which would be
-    // indistinguishable from a genuinely empty result).
-    if (!items.length) {
-      throw new Error("Inga resultat fran Booli-kallan");
-    }
-    const usable = items.filter(
-      (it) => (it as { hasApollo?: boolean }).hasApollo !== false,
-    );
-    if (!usable.length) {
-      throw new Error("Booli-kallan returnerade ingen Apollo-data (hasApollo=false)");
-    }
-
-    return usable;
+    // HIGH-1: empty / hasApollo=false is a source failure (shared rule).
+    return usableItems(items);
   } catch (error) {
     // Log the real error server-side before mapping to a user-facing message.
     // Never log process.env.APIFY_API_TOKEN or the ApifyClient instance.
@@ -225,6 +286,38 @@ export async function apifySpendSince(since: Date): Promise<ApifySpend | null> {
     console.error("[booli-transport] runs list", error);
     return null;
   }
+}
+
+/**
+ * How long a script waits after its last Apify call before reading the runs
+ * API (WR-05, D-07). Apify books a run's usage a few seconds after the run
+ * ends, so reading the bill immediately reports too little. ONE constant for
+ * every headless script (`fit-score.ts`, `pull-slutpriser.ts`,
+ * `probe-fit-sources.ts`).
+ */
+export const LEDGER_SETTLE_MS = 10_000;
+
+/** Waits `ms` (default `LEDGER_SETTLE_MS`) before a runs-API read (WR-05). */
+export function waitForLedgerSettle(ms: number = LEDGER_SETTLE_MS): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The ONE runs-API ledger line the headless scripts print (W4), in Swedish
+ * decimal-comma format, so later evidence checks can match it literally.
+ * A zero bill is exactly
+ * `Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)`;
+ * an unreadable bill is `Apify (runs-API): kunde inte läsas (<reason>)` (the
+ * parenthesis is omitted when no reason is given). The account-wide caveat
+ * (the bill can include other runs since the start time) is printed by the
+ * caller on a separate note line, not folded into this one.
+ */
+export function formatApifyRunsLine(spend: ApifySpend | null, reason?: string): string {
+  if (spend === null) {
+    return reason ? `Apify (runs-API): kunde inte läsas (${reason})` : "Apify (runs-API): kunde inte läsas";
+  }
+  const usd = spend.usd.toFixed(2).replace(".", ",");
+  return `Apify (runs-API): ${usd} USD, ${spend.runs} körningar (${spend.succeeded} lyckade, ${spend.timedOut} timeout, ${spend.failed} misslyckade)`;
 }
 
 /**

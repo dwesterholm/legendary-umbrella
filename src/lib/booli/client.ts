@@ -795,9 +795,15 @@ async function fetchAreaPage(
   return { listings: result.data, rendersUsed: result.rung };
 }
 
+/**
+ * `opts.maxPages` (Phase 14.2, additive): when given, pages 2..`maxPages`
+ * replace 2..`MAX_AREA_PAGES` (1 fetches page 1 only). A call without `opts`
+ * behaves exactly as before, so the in-app path is unchanged (D-02).
+ */
 export async function fetchAreaListings(
   areaId: string,
   objectType?: string | null,
+  opts?: { maxPages?: number },
 ): Promise<AreaListingsResult> {
   const seen = new Set<string>();
   const collected: Record<string, unknown>[] = [];
@@ -822,14 +828,15 @@ export async function fetchAreaListings(
 
   // Only a FULL page 1 implies a large result set worth paginating; a short
   // page 1 is a small area already returned in full.
-  if (page1.listings.length >= FULL_PAGE_THRESHOLD) {
+  const lastPage = opts?.maxPages ?? MAX_AREA_PAGES;
+  if (page1.listings.length >= FULL_PAGE_THRESHOLD && lastPage > 1) {
     // Fetch pages 2..MAX_AREA_PAGES IN PARALLEL — each is an independent
     // ~15-45s render, so concurrency collapses the wall-clock to ~one render
     // instead of (MAX-1) sequential ones. `allSettled`: a later page failing
     // (block/timeout) is NON-FATAL — keep every page that did come back rather
     // than discard a large partial result over one bad render. Pages beyond the
     // real last page return empty/duplicate and are absorbed by the dedupe.
-    const laterPages = Array.from({ length: MAX_AREA_PAGES - 1 }, (_, i) => i + 2);
+    const laterPages = Array.from({ length: lastPage - 1 }, (_, i) => i + 2);
     const settled = await Promise.allSettled(
       laterPages.map((page) => fetchAreaPage(areaId, objectType, page)),
     );
