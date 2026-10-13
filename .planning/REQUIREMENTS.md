@@ -41,11 +41,11 @@
 
 ### Sun & Orientation (Phase 14.3, inserted 2026-10-12, executed 2026-10-13)
 
-- [ ] **SUN-01**: A pure module resolves a candidate's street facade and courtyard facade (raw bearing + 4-sector facade + confidence + source "fastighet/gata") from a cached one-off OpenStreetMap download (buildings with geometry incl. relations, named roads), by snapping lat/lng to the nearest building polygon and matching the address street name to the nearest same-named road; Folkungagatan 61 (Booli 150148) resolves to a south street facade.
+- [x] **SUN-01**: A pure module resolves a candidate's street facade and courtyard facade (raw bearing + 4-sector facade + confidence + source "fastighet/gata") from a cached one-off OpenStreetMap download (buildings with geometry incl. relations, named roads), by snapping lat/lng to the nearest building polygon and matching the address street name to the nearest same-named road; Folkungagatan 61 (Booli 150148) resolves to a south street facade.
 - [x] **SUN-02**: Orientation precedence is stated text > floor-plan compass (only if the ≤ 2 kr probe shows ≥ 10 % compasses; otherwise the route is recorded as dropped) > footprint; conflicting sources (> 90°) are marked `konflikt` with halved confidence; unknown stays `okänd` and scores 0.
-- [ ] **SUN-03**: Obstructed sun hours per facade for 21 Mar / Jun / Sep / Dec (morning + midday window and full day) are computed by ray-checking suncalc positions against neighbouring footprints within 250 m (R-08 supersedes the 150 m first written here; 150 m remains the radius for the local-median height estimate), heights from `building:levels`/`height` (fallback levels×3+2 m, local-median + `höjd uppskattad` flag), reported as a low–nominal–high range (±3 m neighbour heights), for all candidates in < 5 s total.
+- [x] **SUN-03**: Obstructed sun hours per facade for 21 Mar / Jun / Sep / Dec (morning + midday window and full day) are computed by ray-checking suncalc positions against neighbouring footprints within 250 m (R-08 supersedes the 150 m first written here; 150 m remains the radius for the local-median height estimate), heights from `building:levels`/`height` (fallback levels×3+2 m, local-median + `höjd uppskattad` flag), reported as a low–nominal–high range (±3 m neighbour heights), for all candidates in < 5 s total.
 - [x] **SUN-04**: The taste bonus's sun part uses the inferred facade × confidence × (street-only factor 0.5) × obstruction factor (nominal obstructed / theoretical over the morning+midday window), cap unchanged at 3 % of resale; `taste.ts` stays pure; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched.
-- [ ] **SUN-05**: The weekly table and HTML mail gain "Sol" columns: facade (source, confidence), theoretical hours Mar/Jun/Dec, obstructed range; the coverage line gains `sol härledd k av N (p %)`; the Overpass cache is refreshed only when older than 31 days and never during the weekly run otherwise.
+- [x] **SUN-05**: The weekly table and HTML mail gain "Sol" columns: facade (source, confidence), theoretical hours Mar/Jun/Dec, obstructed range; the coverage line gains `sol härledd k av N (p %)`; the Overpass cache is refreshed only when older than 31 days and never during the weekly run otherwise.
 - [ ] **SUN-06**: One real local evidence run over the current candidates records coverage per source, D-03 vs D-04 agreement where both exist, the Folkungagatan 61 row (facade, hours range, taste change), and the ±1 h share per season from the research method; sun coverage ≥ 80 % closes the D-17 sun clause of 14.2.
 
 ### Opportunity Brief (Phase A.5)
@@ -109,11 +109,11 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | WATCH-05 | Phase 14.2 — Trustworthy Weekly Table | Complete |
 | WATCH-06 | Phase 14.2 — Trustworthy Weekly Table | Complete |
 | WATCH-07 | Phase 14.2 — Trustworthy Weekly Table | Complete |
-| SUN-01 | Phase 14.3 — Sun & Orientation | Pending |
+| SUN-01 | Phase 14.3 — Sun & Orientation | Complete |
 | SUN-02 | Phase 14.3 — Sun & Orientation | Complete |
-| SUN-03 | Phase 14.3 — Sun & Orientation | Pending |
+| SUN-03 | Phase 14.3 — Sun & Orientation | Complete |
 | SUN-04 | Phase 14.3 — Sun & Orientation | Complete |
-| SUN-05 | Phase 14.3 — Sun & Orientation | Pending |
+| SUN-05 | Phase 14.3 — Sun & Orientation | Complete |
 | SUN-06 | Phase 14.3 — Sun & Orientation | Pending |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
