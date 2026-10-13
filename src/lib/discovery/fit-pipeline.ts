@@ -30,6 +30,7 @@ import { filterCandidates, type DiscoveryCandidate } from "@/lib/discovery/candi
 import { AREA_MAX_RENDERS_PER_AREA, OBSERVED_USD_PER_TIMED_OUT_RENDER } from "@/lib/discovery/cost";
 import {
   FIT_VISION_WINDOW,
+  booliIdOf,
   preRank,
   rankFit,
   selectVisionWindow,
@@ -363,6 +364,52 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
     );
   }
   if (rows.length > maxRows) lines.push(`+${rows.length - maxRows} till (se snapshot)`);
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Run reports (shared by the script and the Phase 14.2 email)
+// ---------------------------------------------------------------------------
+
+/** One line per district plus the line that says whether Kungsholmen made it. */
+export function renderAreaReport(areas: readonly AreaReport[]): string {
+  const lines = ["Områden:"];
+  for (const a of areas) {
+    lines.push(
+      a.ok ? `  ${a.name}: ${a.listings} annonser (${a.renders} renders)` : `  ${a.name}: MISSLYCKADES - ${a.error ?? "okänt fel"}`,
+    );
+  }
+  const kungsholmen = areas.find((a) => a.name.toLowerCase() === "kungsholmen");
+  lines.push(kungsholmen !== undefined && kungsholmen.ok && kungsholmen.listings > 0 ? "Kungsholmen: med" : "Kungsholmen: SAKNAS");
+  return lines.join("\n");
+}
+
+/**
+ * The picture-read window in pre-rank order, then its outcome counts. Listing
+ * links are left out on purpose: the only place a link is printed is the table,
+ * so a live log and a replay of its snapshot list links in the same order.
+ */
+export function renderWindowReport(
+  result: Pick<FitPipelineResult, "snapshot" | "preRankPositions" | "window">,
+): string {
+  const position = (c: DiscoveryCandidate): number => result.preRankPositions.get(fitRowKey(c)) ?? Number.POSITIVE_INFINITY;
+  const rows = result.snapshot.rows.filter((r) => r.inVisionWindow).sort((a, b) => position(a.candidate) - position(b.candidate));
+  const w = result.window;
+  const lines = [`Bildfönster (${w.size} annonser, i förrank-ordning; länkar finns bara i tabellen):`];
+  for (const r of rows) {
+    const c = r.candidate;
+    const id = booliIdOf(c);
+    const pos = result.preRankPositions.get(fitRowKey(c));
+    const vision = c.vision ? `${c.vision.claims.length} påståenden` : `ingen bildtolkning (${c.visionSkippedReason ?? "ej körd"})`;
+    const sun = r.sunPhrases !== null && (r.sunPhrases.allDaySun || r.sunPhrases.throughFlat) ? "ja" : "nej";
+    lines.push(
+      `  Förrank ${pos ?? "-"}: ${c.address ?? "-"} (Booli ${id ?? "-"}, ${r.district}) | detaljsida ${r.detailFetched ? "hämtad" : "misslyckades"} | orientering ${c.orientation ? "angiven" : "ej angiven"} | solfras ${sun} | ${vision}`,
+    );
+  }
+  const skipped = Object.entries(w.visionSkipped).map(([reason, n]) => `${reason} ${n}`).join(", ") || "inga";
+  lines.push(
+    `Fönsterutfall: detaljsida hämtad ${w.detailFetched}/${w.size}, orientering angiven ${w.orientationStated}/${w.size}, solfraser ${w.sunPhrases}/${w.size}, bildtolkning med påståenden ${w.visionWithClaims}/${w.size}, hoppade över: ${skipped}`,
+  );
   return lines.join("\n");
 }
 

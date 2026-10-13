@@ -16,9 +16,12 @@ import {
   checkApifyHeadroom,
   estimateFitRunUsd,
   fitRowKey,
+  renderAreaReport,
   renderFitTable,
+  renderWindowReport,
   runFitPipeline,
   toFitTableRows,
+  type AreaReport,
   type EnrichmentLike,
   type FitPipelineDeps,
   type ScrapedRow,
@@ -87,12 +90,13 @@ interface FakeOptions {
   sunPhrases?: Map<number, SunPhrases>;
   /** Vision result per listing URL. */
   visionByUrl?: Map<string, VisionResult>;
+  areas?: AreaReport[];
 }
 
 /** Fake deps. enrich replaces every entry except the failing ones; vision attaches a canned result. */
 function fakeDeps(rows: ScrapedRow[], options: FakeOptions = {}) {
   const failIndexes = new Set(options.failIndexes ?? []);
-  const scrape = vi.fn(async () => ({ rows, areas: [] }));
+  const scrape = vi.fn(async () => ({ rows, areas: options.areas ?? [] }));
   const enrich = vi.fn(
     async (candidates: DiscoveryCandidate[]): Promise<EnrichmentLike> => ({
       candidates: candidates.map((c, i) => (failIndexes.has(i) ? c : { ...c, imageUrls: [DETAIL_IMAGE] })),
@@ -349,6 +353,41 @@ describe("table rows and rendering (FIT-03)", () => {
     const flagged: FitScoreResult = { ...sample[0], flags: ["utanförModellensStorlek"] };
     const text = renderFitTable(toFitTableRows({ ranked: [flagged] }, new Map()));
     expect(text).toContain("storlek utanför modellen");
+  });
+});
+
+describe("run reports", () => {
+  const okArea = (name: string): AreaReport => ({ name, listings: 12, renders: 3, ok: true, error: null });
+
+  it("the area report says Kungsholmen: med when it was scraped, and SAKNAS when it failed or is absent", () => {
+    const withIt = renderAreaReport([okArea("Södermalm"), okArea("Kungsholmen")]);
+    expect(withIt).toContain("Kungsholmen: med");
+    expect(withIt).toContain("Södermalm: 12 annonser (3 renders)");
+
+    const failed = renderAreaReport([okArea("Södermalm"), { name: "Kungsholmen", listings: 0, renders: 0, ok: false, error: "timeout" }]);
+    expect(failed).toContain("Kungsholmen: SAKNAS");
+    expect(failed).toContain("MISSLYCKADES - timeout");
+    expect(renderAreaReport([okArea("Södermalm")])).toContain("Kungsholmen: SAKNAS");
+    expect(renderAreaReport([{ ...okArea("Kungsholmen"), listings: 0 }])).toContain("Kungsholmen: SAKNAS");
+  });
+
+  it("the window report lists the window in pre-rank order with outcomes and prints no listing link", async () => {
+    const rows = fixtureScraped.slice(0, 26);
+    const phrases = new Map<number, SunPhrases>([[0, { allDaySun: true, throughFlat: false }]]);
+    const result = await run(fakeDeps(rows, { failIndexes: [1], sunPhrases: phrases }).deps);
+    const text = renderWindowReport(result);
+    const lines = text.split("\n");
+
+    expect(lines[0]).toContain("20 annonser");
+    expect(text).not.toContain("booli.se/");
+    const listed = lines.filter((l) => l.startsWith("  Förrank "));
+    expect(listed).toHaveLength(FIT_VISION_WINDOW);
+    const positions = listed.map((l) => Number(/Förrank (\d+):/.exec(l)![1]));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(text).toContain("detaljsida misslyckades");
+    expect(text).toContain("solfras ja");
+    expect(lines[lines.length - 1]).toContain("detaljsida hämtad 19/20");
+    expect(lines[lines.length - 1]).toContain("solfraser 1/20");
   });
 });
 
