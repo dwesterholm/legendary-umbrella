@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.4"
 current_phase_name: Valuation Gaps, Layout & Livability
 status: executing
-stopped_at: Completed 14.4-05-PLAN.md
-last_updated: "2026-10-13T20:31:43.371Z"
+stopped_at: Completed 14.4-06-PLAN.md
+last_updated: "2026-10-13T20:44:22.321Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: eb67768e4878bd3e7a286f3567a2354dde850eaa
+state_head: 76420cf462d9c14ffe12ceb95f01b14b4a6e710a
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 52
-  completed_plans: 47
+  completed_plans: 48
   percent: 17
 ---
 
@@ -109,6 +109,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.4 P03 | 12 min | 3 tasks | 10 files |
 | Phase 14.4 P04 | 15 min | 2 tasks | 9 files |
 | Phase 14.4 P05 | 8 min | 3 tasks | 10 files |
+| Phase 14.4 P06 | 14 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -273,6 +274,8 @@ Recent decisions affecting current work:
 - [Phase 14.4]: 14.4-04: days on market kept in the bid premium (CV 0,0736 -> 0,0727, coefficient -0,0351 per ln-day, 837 sales); not a resale feature — Strict CV drop on identical held-out rows and expected sign
 - [Phase 14.4]: 14.4-05: credit is the full gap; residual flag 'ovanligt långt under modellpris' defaults to the expected-final basis (10 of 77 rows; asking basis would flag 26), RESIDUAL_FLAG_BASIS selects
 - [Phase 14.4]: 14.4-05: a residual-flagged row's reason line counts as an explanation, so 'oförklarat fynd' now means hidden-defect flag with no fact to point at (12 of 35, was 13)
+- [Phase 14.4]: 14.4-06: each fact's share of a flat's credit = gap as is minus gap with that fact unknown; remainder printed as Övrigt; days term measured in the intermediate model and shown separately
+- [Phase 14.4]: 14.4-06 open point: stage-2 balcony +8,0 % and build year 1961-1990 -8,0 % sit exactly on the +-8 % fit clamp; unclamped estimate may be larger
 
 ### Pending Todos
 
@@ -304,8 +307,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T20:31:43.222Z
-Stopped at: Completed 14.4-05-PLAN.md
+Last session: 2026-10-13T20:44:22.173Z
+Stopped at: Completed 14.4-06-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
