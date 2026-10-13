@@ -115,24 +115,54 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 **Why (Daniel, 2026-10-13):** "Why not cover the gaps instead of slapping on a hardcoded ceiling of 20 %? All those things (high avgift, BRF debt etc.) should go into the valuation." And: the valuation ignores the photos entirely today — they only set the renovation cost and the sun/taste part. The floor plan + photos can give, with high confidence, where the balcony is, which rooms are on the street side, whether windows sit on one or two sides (korsdrag), and whether the bedroom faces a busy street. For Daniel korsdrag (not boiling in summer) and a bedroom he can keep open at night matter a lot, and buyers price them too (long-term resale).
 
 **Goal, three parts in this order:**
+
 1. **Valuation covers the gaps (replaces the 20 % credit cap).** Enrich the sold-price training set with avgift/kvm, BRF debt/kvm (Booli public BRF page, parser from 14.2), tenure/tomträtt and listing age via the free local rung (≈7 400 sales → ≈1 500 BRF pages; sold-detail pages only serve sales from Oct 2025 on, so tenure is partial — say so). Refit `data/hedonic-model.json` with those features; remove the 20 % credit cap; keep only a soft residual flag ("ovanligt långt under modellpris") for gaps no feature explains. Measure how much of the old `kredit-tak` gaps the new features explain, and how the top 15 moves.
 2. **Layout & livability from floor plan + photos.** One extra cached vision call per flat (≈0,5 kr; slim strict schema; never the compass): balcony side relative to the plan, rooms on the balcony side (living/kitchen/bedroom), windows on one side or two opposite sides (korsdrag ja/nej), bedroom on street or courtyard side, street-vs-courtyard confirmed from the photos (cars, opposite facade). Combine with 14.3's footprint bearing (street side known) → room-level sun hours, the 0.5 street-only factor goes away where the layout is known, korsdrag and quiet-bedroom become explicit taste terms AND mail flags. Calibration row: Folkungagatan 61 (balcony + living + glass-walled bedroom on the south street side, no courtyard windows → sun yes, korsdrag no, bedroom on Folkungagatan).
 3. **Condition-aware bidding.** The expected final price (asking × district premium) ignores that bidders see the same photos; let the picture-read condition adjust the premium (dated bids up less), fitted where the sold data allows, otherwise a documented prior.
+
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, LAY-01, LAY-02, LAY-03, LAY-04, BID-01, BID-02
 **Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
 **Plans:** 10 plans (sequential, waves 1-10)
 
 Plans:
+**Wave 1**
 
 - [ ] 14.4-01-PLAN.md — Freeze today's ranking (before the cap goes) + separation guard for the new modules (VAL-05, R-05)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 14.4-02-PLAN.md — Sold-detail enrichment v2 (avgift, BRF id, tenure, days on market, photo ids), stop rule, BRF pass; 1 200-row local run (VAL-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14.4-03-PLAN.md — Avgift/kvm, BRF debt/kvm, tomträtt (zeroed) in the hedonic model, version 2, refit + R-06 decision (VAL-02)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 14.4-04-PLAN.md — Days on market in the bid premium, kept only by CV (VAL-03)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 14.4-05-PLAN.md — Remove the 20 % credit cap; soft residual flag; reasons; Skillnad + Budpremie columns (VAL-04)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 14.4-06-PLAN.md — Offline before/after report: capped rows, top 15, Folkungagatan 61 (VAL-05)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 14.4-07-PLAN.md — Separate layout read (schema, cache, caps), balcony side picks the sun facade, F61 fixture, live smoke (LAY-01, LAY-02, LAY-04)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 14.4-08-PLAN.md — Korsdrag + quiet bedroom taste and columns, live wiring, real run with coverage and by-eye check (LAY-03, LAY-04)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [ ] 14.4-09-PLAN.md — Condition index in the expected final price; sold-photo condition module; smoke and fit/prior branch (BID-02, BID-01)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [ ] 14.4-10-PLAN.md — Fit (or 0 prior) the condition term, final report and phase gate (BID-01, BID-02, VAL-05)
 
 ### Phase 15: ROI-Aware Opportunity Brief
