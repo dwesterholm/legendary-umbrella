@@ -1,0 +1,9 @@
+Start: 2026-10-13T12:43:29Z
+Renderare: lokal webbläsare
+APIFY_API_TOKEN: satt
+ANTHROPIC_API_KEY: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+WATCH_SMTP_URL: saknas
+WATCH_EMAIL_TO: saknas
+En annan körning pågår redan (pid 84342, startad 2026-10-13T12:43:10.304Z). Den här körningen avbröts; inget skickades och inget ändrades.
+Slut: 2026-10-13T12:43:29Z, kod 3

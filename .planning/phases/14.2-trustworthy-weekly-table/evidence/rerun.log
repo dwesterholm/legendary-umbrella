@@ -1,0 +1,389 @@
+Start: 2026-10-13T12:43:09Z
+Renderare: lokal webbläsare
+APIFY_API_TOKEN: satt
+ANTHROPIC_API_KEY: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+WATCH_SMTP_URL: saknas
+WATCH_EMAIL_TO: saknas
+
+Start: 2026-10-13T12:43:10.305Z
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 7 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 8 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 9 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 10 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 11 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 12 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 13 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 443 listings for area 115341 (13 renders)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 183 listings for area 115348 (6 renders)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 7 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 8 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 9 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 10 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 11 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 12 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 13 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 14 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 15 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 508 listings for area 115349 (15 renders)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 7 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 8 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 9 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 11 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 12 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 13 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 10 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 14 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 482 listings for area 115353 (14 renders)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5PZMVSS3DVKDXP6FB8/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5NZ4DVM3DVKGFTFKBD/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.innerstadsspecialisten.se/till-salu/beskrivning/OBJ5PTL23B2NHTDNX5NB5
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bergetsro.se/Beskrivning/OBJ5PGZMKC3289327VCBJ
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://alexanderwhite.se/objekt/OBJ5PLDGL637XB2865MBE/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5Q36FV72PN5KFCWNBB/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PDC22X2MFWMKP3ZBM
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://aliciaedelman.se/till-salu/beskrivning/OBJ5PTPJBV2L8NT6Q2GBK
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bergetsro.se/Beskrivning/OBJ5PHFDFQ3289HBVMMBP
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://historiskahem.se/object/OBJ5PRBP6B2TJLCMCRNB2
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5P8JP2D3DVKQ4ZK4BE/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://historiskahem.se/object/OBJ5Q453WZ2TJLPFZC8BH
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://tfagency.com/bostader/OBJ18933_1966028251
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5Q2788D3DVK3HZRWBE/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PQVGHS2MFW583NCBS
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://aliciaedelman.se/till-salu/beskrivning/OBJ5Q2QJZF2L8NL4MJSBA
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PMWZFC2GTSL39B8BZ
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PLNSX32GTS2PKHKBY
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://aliciaedelman.se/till-salu/beskrivning/OBJ5PWWMLD3HCMNDRTMBS
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5P3RJ3V2PN5TR3NWBC/
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PWXKKH2MFW9VTRBB7
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bergetsro.se/Beskrivning/OBJ5PVHXCJ3289NGC8SBD
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://diplomatmakleri.se/listing/kristinebergsvagen-3-zcxnnw1o
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/CMBOLGH5AOJEUCPFADQRHPN
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PZ82PT2GTSNBSHMB6
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://historiskahem.se/object/OBJ5PTP98M2TJLMZWV7BV
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bergetsro.se/Beskrivning/OBJ5P5QTDN3289PLTXPBJ
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://widerlov.se/bostader/CMBOLGH5DPC62I7QCAS7TGV
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bergetsro.se/Beskrivning/OBJ5PTSFWQ3289NCP4ZBV
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] https://www.fantasticfrank.se/objekt/OBJ5PKFGWP2S67GWV7KBW → HTTP 429
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.bjurfors.se/visabostad/OBJ5PSSW8H2MFW798XFBT
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for https://www.husmanhagberg.se/objekt/annons/OBJ5PPC6FR3DVKD9DSWBP/
+Modell per 2026-10-13: n 7380, R² 0.61, storlek 35–120 kvm, renoband mid
+OBS: Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0461, SE 0,0055, t = 8,4, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-13, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +5,0 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +1,0 %, 45-50 kvm +0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Balkong och byggår: detaljurvalet (32 försäljningar med båda uppgifterna) var för litet för att mäta byggårsgrupperna (minst 20 per grupp krävs), så balkong = studiens värde +1,9 % och ingen byggårsjustering görs. I urvalet gav Booli säljobjektet bara för försäljningar från oktober 2025 och senare, och 25 av 32 är byggda före 1931.
+Områden:
+  Södermalm: 443 av 446 annonser (13 sidor, komplett)
+  Östermalm: 183 av 183 annonser (6 sidor, komplett)
+  Vasastan: 508 av 510 annonser (15 sidor, komplett)
+  Kungsholmen: 482 av 487 annonser (14 sidor, komplett)
+Kungsholmen: med
+Kandidatlista: komplett
+
+Annonser: 1616 hämtade, 1616 efter dubblettstädning, 78 efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); 77 jämförbara, 1 ej jämförbara
+
+Bildfönster (77 annonser, i förrank-ordning; länkar finns bara i tabellen):
+  Förrank 1: Fatburstrappan 18 (Booli 572010, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 2: Fatburs Kvarngata 18 (Booli 572581, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 3: Klippgatan 14E (Booli 635120, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 4: Falugatan 5 (Booli 568925, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 5: Erstagatan 21 (Booli 4309411, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 6: Tjurbergsgatan 38 (Booli 324863, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 0 påståenden
+  Förrank 7: Tideliusgatan 55 (Booli 767763, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 8: Sysslomansgatan 26 (Booli 6305391, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 0 påståenden
+  Förrank 9: Hornsgatan 119 (Booli 6295311, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 10: Hagaesplanaden 63 (Booli 4314237, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 11: Sågargatan 14 (Booli 6155023, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 12: Kungsklippan 20 (Booli 6282457, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 13: Idungatan 5 (Booli 130457, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 14: Holländargatan 24 (Booli 436593, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 15: Hagaesplanaden 73 (Booli 4515303, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 16: Ola Hanssonsgatan 9 (Booli 6284016, Kungsholmen) | detaljsida hämtad | orientering angiven | solfras nej | 0 påståenden
+  Förrank 17: Rehnsgatan 10 (Booli 705284, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 18: Fyrverkarbacken 23 (Booli 348715, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 19: Heleneborgsgatan 30A (Booli 431217, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 20: Fyrverkarbacken 25 (Booli 348671, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 21: Reimersholmsgatan 39 (Booli 3958359, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 22: Ola Hanssonsgatan 4 (Booli 372080, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 23: Kungsbro Strand 19 (Booli 6271664, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 24: Folkskolegatan 3 (Booli 6238321, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 25: Hagaesplanaden 73 (Booli 4515291, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 26: Karlsviksgatan 9 (Booli 142942, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 27: Pokalvägen 4 (Booli 700725, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 28: Ringvägen 162 (Booli 6256773, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 29: Love Almqvists väg 4B (Booli 6187084, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 30: Tjurbergsgatan 38 (Booli 324847, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 31: Tegelviksgatan 69 (Booli 764543, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 32: Fyrverkarbacken 27 (Booli 3916472, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 33: Lindvallsplan 10 (Booli 6110614, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 34: Igeldammsgatan 10 (Booli 6293700, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 35: Folkungagatan 61 (Booli 150148, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 36: Bondegatan 80 (Booli 6274043, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 37: Blekingegatan 36 (Booli 6286736, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 38: Olof Dalins väg 16 (Booli 6230072, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 39: Love Almqvists väg 4A (Booli 6299459, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 40: Tobaksspinnargatan 10 (Booli 768792, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 41: Stagneliusvägen 28 (Booli 6156024, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 42: Tegelviksgatan 22 (Booli 4538414, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 43: Dalslandsgatan 3 (Booli 586385, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 44: Fridhemsgatan 41 (Booli 144070, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 45: Pipersgatan 9 (Booli 576305, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 46: Tegelviksgatan 18 (Booli 4538398, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 47: Tjurbergsgatan 34 (Booli 324812, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 48: Alströmergatan 32A (Booli 6211654, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 49: Ulriksborgsgatan 9 (Booli 6304161, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 0 påståenden
+  Förrank 50: Wennerbergsgatan 6A (Booli 6305697, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 51: Wennerbergsgatan 6A (Booli 6282708, Kungsholmen) | detaljsida hämtad | orientering angiven | solfras nej | 1 påståenden
+  Förrank 52: Lidnersgatan 6 (Booli 655315, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 53: Hallandsgatan 30 (Booli 315823, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 54: Ringvägen 124 (Booli 6269573, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 4 påståenden
+  Förrank 55: Kristinebergsvägen 3 (Booli 6233823, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 56: Hornsbergs Strand 15F (Booli 3987792, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 57: Lidnersplan 12 (Booli 498782, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 58: Bergsunds Strand 5 (Booli 6280856, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 59: Creutzgatan 2 (Booli 208640, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 60: Bergsundsgatan 14 (Booli 323721, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 61: John Bergs Plan 4 (Booli 6248840, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 62: Heleneborgsgatan 36B (Booli 804932, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 63: Liljeholmsbron 8 (Booli 6265111, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 64: Gyllenborgsgatan 15 (Booli 328408, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 65: Hornsgatan 89A (Booli 439232, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 66: Arbetargatan 33F (Booli 6276087, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 67: Åsögatan 196 (Booli 700459, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 68: Levertinsgatan 5 (Booli 654789, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 69: Orvar Odds väg 51 (Booli 695580, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 70: Rålambsvägen 70 (Booli 6305304, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 71: Frödingsvägen 9 (Booli 309602, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 72: Creutzgatan 5 (Booli 393034, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 0 påståenden
+  Förrank 73: Möregatan 6 (Booli 681083, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 74: Gyllenborgsgatan 15 (Booli 328402, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 3 påståenden
+  Förrank 75: Flintbacken 4 (Booli 6216222, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+  Förrank 76: Creutzgatan 7 (Booli 393008, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | 2 påståenden
+  Förrank 77: Tegelviksgatan 4B (Booli 4388959, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | 1 påståenden
+Fönsterutfall: detaljsida hämtad 77/77, orientering angiven 2/77, solfraser 0/77, bildtolkning med påståenden 72/77, hoppade över: inga
+
+Täckning (77 annonser): detaljsida 77 av 77 (100,0 %), balkong känd 77 av 77 (100,0 %), skick känt 72 av 77 (93,5 %), beskrivning läst 67 av 77 (87,0 %), sol/orientering angiven 2 av 77 (2,6 %), avgift 77 av 77 (100,0 %), upplåtelseform 76 av 77 (98,7 %), föreningsskuld känd 72 av 77 (93,5 %), anledning på flaggade rader: 29 förklarade, 12 oförklarat fynd av 41
+BRF-sidor: 61 av 61 lästa, 0 misslyckades
+
+Förväntat under 4 M (25 annonser)
+# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Varför här | Länk
+14 | 22 | Ola Hanssonsgatan 4 | Kungsholmen | 50 | 1 | 3 350 000 | 3 781 098 | 5 164 524 | 1 383 426 | 1 032 905 | mixed 37 500 (20 000–55 000) | 995 405 | 0 | dold-defekt-risk, kredit-tak, reno okänd | oförklarat fynd | https://www.booli.se/bostad/372080
+15 | 20 | Fyrverkarbacken 25 | Kungsholmen | 43 | 7 | 2 995 000 | 3 456 790 | 5 210 478 | 1 753 688 | 1 042 096 | mixed 60 000 (40 000–80 000) | 982 096 | 0 | dold-defekt-risk, kredit-tak, reno okänd | budgivning pågår, hög föreningsskuld (14 728 kr/kvm) | https://www.booli.se/bostad/348671
+16 | 26 | Karlsviksgatan 9 | Kungsholmen | 37 | 1.5 | 3 495 000 | 3 859 834 | 4 789 585 | 929 751 | 929 751 | mixed 37 500 (20 000–55 000) | 980 761 | 88 510 | dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/bostad/142942
+20 | 18 | Fyrverkarbacken 23 | Kungsholmen | 43 | 12 | 2 995 000 | 3 465 464 | 5 281 602 | 1 816 139 | 1 056 320 | mixed 105 000 (70 000–140 000) | 951 320 | 0 | dold-defekt-risk, kredit-tak, reno okänd | hög föreningsskuld (14 728 kr/kvm) | https://www.booli.se/bostad/348715
+21 | 27 | Pokalvägen 4 | Södermalm | 41 | 0.5 | 3 250 000 | 3 852 019 | 5 020 632 | 1 168 613 | 1 004 126 | mixed 60 000 (40 000–80 000) | 944 126 | 0 | dold-defekt-risk, kredit-tak, reno okänd | prissänkt 600 000 kr | https://www.booli.se/bostad/700725
+24 | 33 | Lindvallsplan 10 | Södermalm | 37 | 0.5 | 2 950 000 | 3 494 743 | 4 545 177 | 1 050 434 | 909 035 | mixed 37 500 (20 000–55 000) | 871 535 | 0 | dold-defekt-risk, kredit-tak, reno okänd | oförklarat fynd | https://www.booli.se/annons/6110614
+25 | 32 | Fyrverkarbacken 27 | Kungsholmen | 39 | 13 | 3 250 000 | 3 606 204 | 4 568 785 | 962 580 | 913 757 | mixed 82 500 (50 000–115 000) | 831 257 | 0 | dold-defekt-risk, kredit-tak, reno okänd | hög föreningsskuld (14 728 kr/kvm) | https://www.booli.se/bostad/3916472
+27 | 17 | Rehnsgatan 10 | Vasastan | 35 | 0 | 3 495 000 | 3 867 695 | 4 763 855 | 896 160 | 896 160 | mixed 82 500 (50 000–115 000) | 813 660 | 0 | dold-defekt-risk, reno okänd | budgivning pågår | https://www.booli.se/bostad/705284
+28 | 34 | Igeldammsgatan 10 | Kungsholmen | 35 | 2 | 3 295 000 | 3 623 067 | 4 409 850 | 786 783 | 786 783 | mixed 82 500 (50 000–115 000) | 783 996 | 79 713 | dold-defekt-risk, reno okänd | budgivning pågår | https://www.booli.se/annons/6293700
+31 | 29 | Love Almqvists väg 4B | Kungsholmen | 44 | 4 | 3 495 000 | 3 862 288 | 4 806 085 | 943 797 | 943 797 | mixed 237 500 (170 000–305 000) | 706 297 | 0 | dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/annons/6187084
+32 | 39 | Love Almqvists väg 4A | Kungsholmen | 38 | 3 | 2 995 000 | 3 301 449 | 4 062 983 | 761 535 | 761 535 | mixed 60 000 (40 000–80 000) | 701 535 | 0 | dold-defekt-risk, reno okänd | budgivning pågår | https://www.booli.se/annons/6299459
+39 | 41 | Stagneliusvägen 28 | Kungsholmen | 45 | 0.5 | 3 400 000 | 3 726 160 | 4 469 571 | 743 411 | 743 411 | mixed 82 500 (50 000–115 000) | 660 911 | 0 | dold-defekt-risk, reno okänd | ute i 60 dagar | https://www.booli.se/annons/6156024
+40 | 46 | Tegelviksgatan 18 | Södermalm | 35 | 0.5 | 2 775 000 | 3 234 215 | 3 914 246 | 680 031 | 680 031 | mixed 37 500 (20 000–55 000) | 642 531 | 0 | dold-defekt-risk, reno okänd | hög avgift (1 182 kr/kvm/år mot 899 i Södermalm), hög föreningsskuld (15 841 kr/kvm) | https://www.booli.se/bostad/4538398
+49 | 52 | Lidnersgatan 6 | Kungsholmen | 43 | 0.5 | 3 495 000 | 3 796 722 | 4 380 885 | 584 163 | 584 163 | mixed 82 500 (50 000–115 000) | 501 663 | 0 | reno okänd | ute i 60 dagar | https://www.booli.se/bostad/655315
+55 | 55 | Kristinebergsvägen 3 | Kungsholmen | 41 | 2.5 | 3 495 000 | 3 788 273 | 4 328 404 | 540 131 | 540 131 | mixed 60 000 (40 000–80 000) | 484 761 | 4 631 | reno okänd | prissänkt 200 000 kr | https://www.booli.se/annons/6233823
+56 | 31 | Tegelviksgatan 69 | Södermalm | 41.5 | 0 | 3 295 000 | 3 785 078 | 4 297 638 | 512 560 | 512 560 | mixed 37 500 (20 000–55 000) | 475 060 | 0 | reno okänd | hög avgift (1 140 kr/kvm/år mot 899 i Södermalm) | https://www.booli.se/bostad/764543
+57 | 56 | Hornsbergs Strand 15F | Kungsholmen | 35 | 5 | 2 995 000 | 3 258 869 | 3 787 429 | 528 560 | 528 560 | mixed 60 000 (40 000–80 000) | 468 560 | 0 | reno okänd | - | https://www.booli.se/bostad/3987792
+61 | 59 | Creutzgatan 2 | Kungsholmen | 39.5 | 1 | 3 295 000 | 3 571 620 | 4 081 508 | 509 888 | 509 888 | mixed 105 000 (70 000–140 000) | 408 656 | 3 768 | reno okänd | - | https://www.booli.se/bostad/208640
+63 | 64 | Gyllenborgsgatan 15 | Kungsholmen | 38 | 2 | 3 295 000 | 3 552 645 | 3 965 561 | 412 916 | 412 916 | mixed 60 000 (40 000–80 000) | 355 732 | 2 816 | reno okänd | prissänkt 200 000 kr | https://www.booli.se/bostad/328408
+67 | 68 | Levertinsgatan 5 | Kungsholmen | 35 | 0.5 | 2 995 000 | 3 218 088 | 3 537 987 | 319 899 | 319 899 | mixed 82 500 (50 000–115 000) | 237 399 | 0 | reno okänd | - | https://www.booli.se/bostad/654789
+68 | 69 | Orvar Odds väg 51 | Kungsholmen | 35 | 2 | 3 195 000 | 3 421 922 | 3 708 908 | 286 986 | 286 986 | mixed 82 500 (50 000–115 000) | 204 486 | 0 | reno okänd | - | https://www.booli.se/bostad/695580
+69 | 70 | Rålambsvägen 70 | Kungsholmen | 35 | 1.5 | 3 195 000 | 3 415 060 | 3 668 847 | 253 787 | 253 787 | mixed 60 000 (40 000–80 000) | 193 787 | 0 | reno okänd | - | https://www.booli.se/annons/6305304
+73 | 72 | Creutzgatan 5 | Kungsholmen | 37 | 1 | 3 495 000 | 3 698 603 | 3 802 269 | 103 666 | 103 666 | mid 105 000 (70 000–140 000) | −599 | 735 | reno okänd | - | https://www.booli.se/bostad/393034
+75 | 76 | Creutzgatan 7 | Kungsholmen | 36 | 4 | 3 595 000 | 3 794 561 | 3 856 492 | 61 931 | 61 931 | mixed 105 000 (70 000–140 000) | −43 069 | 0 | reno okänd | ingen hiss angiven (vån 4) | https://www.booli.se/bostad/393008
+77 | 74 | Gyllenborgsgatan 15 | Kungsholmen | 38 | 2.5 | 3 695 000 | 3 905 782 | 3 995 041 | 89 259 | 89 259 | mixed 260 000 (190 000–330 000) | −167 905 | 2 837 | reno okänd | - | https://www.booli.se/bostad/328402
+
+Över 4 M förväntat (52 annonser)
+# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Flaggor | Varför här | Länk
+1 | 2 | Fatburs Kvarngata 18 | Södermalm | 50 | 3 | 3 495 000 | 4 281 529 | 6 455 649 | 2 174 119 | 1 291 130 | mixed 105 000 (70 000–140 000) | 1 273 921 | 87 792 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | budgivning pågår | https://www.booli.se/bostad/572581
+2 | 5 | Erstagatan 21 | Södermalm | 47 | 2 | 3 995 000 | 4 726 576 | 6 112 203 | 1 385 627 | 1 222 441 | mixed 60 000 (40 000–80 000) | 1 239 122 | 76 681 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | hög avgift (1 481 kr/kvm/år mot 899 i Södermalm), hög föreningsskuld (25 590 kr/kvm) | https://www.booli.se/bostad/4309411
+3 | 1 | Fatburstrappan 18 | Södermalm | 45.5 | 7 | 3 695 000 | 4 501 345 | 6 622 068 | 2 120 723 | 1 324 414 | mixed 260 000 (190 000–330 000) | 1 196 855 | 132 441 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | budgivning pågår, hög avgift (1 126 kr/kvm/år mot 899 i Södermalm), hög föreningsskuld (12 729 kr/kvm) | https://www.booli.se/bostad/572010
+4 | 6 | Tjurbergsgatan 38 | Södermalm | 43.5 | 5 | 3 745 000 | 4 433 412 | 5 748 043 | 1 314 630 | 1 149 609 | mid 105 000 (70 000–140 000) | 1 127 534 | 82 925 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | budgivning pågår | https://www.booli.se/bostad/324863
+5 | 8 | Sysslomansgatan 26 | Kungsholmen | 42 | 6 | 3 795 000 | 4 255 558 | 5 648 009 | 1 392 451 | 1 129 602 | mid 105 000 (70 000–140 000) | 1 112 275 | 87 673 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | oförklarat fynd | https://www.booli.se/annons/6305391
+6 | 13 | Idungatan 5 | Vasastan | 39 | 5 | 3 995 000 | 4 463 863 | 5 737 085 | 1 273 223 | 1 147 417 | mixed 37 500 (20 000–55 000) | 1 109 917 | 0 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | budgivning pågår | https://www.booli.se/bostad/130457
+7 | 9 | Hornsgatan 119 | Södermalm | 46 | 1 | 3 495 000 | 4 223 241 | 5 994 223 | 1 770 982 | 1 198 845 | mixed 105 000 (70 000–140 000) | 1 093 845 | 0 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | tomträtt | https://www.booli.se/annons/6295311
+8 | 4 | Falugatan 5 | Vasastan | 46.7 | 0.5 | 3 995 000 | 4 598 258 | 6 735 778 | 2 137 520 | 1 347 156 | mixed 260 000 (190 000–330 000) | 1 087 156 | 0 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | budgivning pågår | https://www.booli.se/bostad/568925
+9 | 10 | Hagaesplanaden 63 | Vasastan | 45.5 | 1 | 3 995 000 | 4 488 161 | 5 908 078 | 1 419 917 | 1 181 616 | mixed 105 000 (70 000–140 000) | 1 076 616 | 0 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | hög föreningsskuld (16 727 kr/kvm) | https://www.booli.se/bostad/4314237
+10 | 12 | Kungsklippan 20 | Kungsholmen | 38.5 | 6 | 3 995 000 | 4 413 712 | 5 486 103 | 1 072 392 | 1 072 392 | mixed 82 500 (50 000–115 000) | 1 075 219 | 85 327 | slutpris>4M, dold-defekt-risk, reno okänd | hög avgift (1 572 kr/kvm/år mot 967 i Kungsholmen) | https://www.booli.se/annons/6282457
+11 | 11 | Sågargatan 14 | Södermalm | 43 | 1 | 3 550 000 | 4 219 481 | 5 568 447 | 1 348 965 | 1 113 689 | mixed 105 000 (70 000–140 000) | 1 067 139 | 58 450 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | prissänkt 600 000 kr, ute i 63 dagar | https://www.booli.se/annons/6155023
+12 | 3 | Klippgatan 14E | Södermalm | 47 | 0 | 3 950 000 | 4 614 478 | 5 642 848 | 1 028 370 | 1 028 370 | mixed 60 000 (40 000–80 000) | 1 064 908 | 96 538 | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår, prissänkt 500 000 kr, ute i 60 dagar | https://www.booli.se/bostad/635120
+13 | 15 | Hagaesplanaden 73 | Vasastan | 41 | 4 | 3 995 000 | 4 434 908 | 5 538 613 | 1 103 705 | 1 103 705 | mixed 82 500 (50 000–115 000) | 1 021 205 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | ute i 71 dagar, hög föreningsskuld (16 837 kr/kvm) | https://www.booli.se/bostad/4515303
+17 | 23 | Kungsbro Strand 19 | Kungsholmen | 40 | - | 3 895 000 | 4 293 676 | 5 284 839 | 991 163 | 991 163 | mixed 60 000 (40 000–80 000) | 969 793 | 38 630 | slutpris>4M, dold-defekt-risk, reno okänd | hög avgift (1 376 kr/kvm/år mot 967 i Kungsholmen) | https://www.booli.se/annons/6271664
+18 | 21 | Reimersholmsgatan 39 | Södermalm | 46.5 | -1 | 3 395 000 | 4 017 228 | 5 197 906 | 1 180 677 | 1 039 581 | mixed 82 500 (50 000–115 000) | 957 081 | 0 | slutpris>4M, dold-defekt-risk, kredit-tak, reno okänd | ute i 353 dagar | https://www.booli.se/bostad/3958359
+19 | 16 | Ola Hanssonsgatan 9 | Kungsholmen | 50 | 3 | 3 950 000 | 4 364 217 | 5 425 796 | 1 061 580 | 1 061 580 | mid 105 000 (70 000–140 000) | 956 580 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/annons/6284016
+22 | 25 | Hagaesplanaden 73 | Vasastan | 41.5 | 2 | 3 995 000 | 4 421 039 | 5 445 548 | 1 024 509 | 1 024 509 | mixed 105 000 (70 000–140 000) | 919 509 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | ute i 112 dagar, hög föreningsskuld (16 837 kr/kvm) | https://www.booli.se/bostad/4515291
+23 | 28 | Ringvägen 162 | Södermalm | 38 | 3 | 3 495 000 | 4 080 362 | 4 975 839 | 895 477 | 895 477 | mixed 105 000 (70 000–140 000) | 885 361 | 94 884 | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår, prissänkt 300 000 kr | https://www.booli.se/annons/6256773
+26 | 30 | Tjurbergsgatan 38 | Södermalm | 40 | 2 | 3 595 000 | 4 184 615 | 5 036 306 | 851 692 | 851 692 | mixed 105 000 (70 000–140 000) | 819 349 | 72 657 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/bostad/324847
+29 | 35 | Folkungagatan 61 | Södermalm | 35 | 5 | 3 695 000 | 4 274 581 | 5 006 594 | 732 012 | 732 012 | mixed 105 000 (70 000–140 000) | 727 144 | 100 132 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/bostad/150148
+30 | 36 | Bondegatan 80 | Södermalm | 37.5 | 2 | 3 495 000 | 4 051 845 | 4 790 575 | 738 730 | 738 730 | mixed 82 500 (50 000–115 000) | 714 924 | 58 694 | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår, prissänkt 200 000 kr | https://www.booli.se/annons/6274043
+33 | 42 | Tegelviksgatan 22 | Södermalm | 45 | 2 | 3 950 000 | 4 561 321 | 5 299 983 | 738 663 | 738 663 | mixed 37 500 (20 000–55 000) | 701 163 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår, hög avgift (1 145 kr/kvm/år mot 899 i Södermalm), hög föreningsskuld (15 841 kr/kvm) | https://www.booli.se/bostad/4538414
+34 | 43 | Dalslandsgatan 3 | Södermalm | 43 | 0.5 | 3 995 000 | 4 600 929 | 5 283 147 | 682 218 | 682 218 | mixed 37 500 (20 000–55 000) | 691 846 | 47 129 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/bostad/586385
+35 | 38 | Olof Dalins väg 16 | Kungsholmen | 48 | 3 | 3 995 000 | 4 358 508 | 5 124 970 | 766 463 | 766 463 | mixed 82 500 (50 000–115 000) | 683 963 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6230072
+36 | 14 | Holländargatan 24 | Vasastan | 37 | 0 | 3 995 000 | 4 369 927 | 5 113 517 | 743 590 | 743 590 | mixed 60 000 (40 000–80 000) | 683 590 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/436593
+37 | 7 | Tideliusgatan 55 | Södermalm | 49 | 0 | 4 000 000 | 4 622 201 | 5 386 857 | 764 655 | 764 655 | mixed 105 000 (70 000–140 000) | 677 972 | 18 317 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/bostad/767763
+38 | 37 | Blekingegatan 36 | Södermalm | 42 | 1 | 3 950 000 | 4 555 501 | 5 263 500 | 707 999 | 707 999 | mixed 105 000 (70 000–140 000) | 677 954 | 74 954 | slutpris>4M, dold-defekt-risk, reno okänd | hög föreningsskuld (17 790 kr/kvm) | https://www.booli.se/annons/6286736
+41 | 44 | Fridhemsgatan 41 | Kungsholmen | 36 | 4 | 3 995 000 | 4 324 840 | 4 914 408 | 589 568 | 589 568 | mixed 60 000 (40 000–80 000) | 627 856 | 98 288 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/144070
+42 | 45 | Pipersgatan 9 | Kungsholmen | 37 | 2 | 3 995 000 | 4 325 689 | 4 919 627 | 593 938 | 593 938 | mixed 60 000 (40 000–80 000) | 627 834 | 93 896 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/576305
+43 | 48 | Alströmergatan 32A | Kungsholmen | 35 | 4 | 3 695 000 | 4 006 778 | 4 586 754 | 579 975 | 579 975 | mixed 37 500 (20 000–55 000) | 615 288 | 72 813 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6211654
+44 | 50 | Wennerbergsgatan 6A | Kungsholmen | 47 | 2 | 3 895 000 | 4 230 418 | 4 877 062 | 646 643 | 646 643 | mixed 60 000 (40 000–80 000) | 586 643 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6305697
+45 | 19 | Heleneborgsgatan 30A | Södermalm | 39 | 0 | 3 500 000 | 4 043 493 | 4 707 620 | 664 127 | 664 127 | mixed 105 000 (70 000–140 000) | 559 127 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår, ute i 60 dagar | https://www.booli.se/bostad/431217
+46 | 47 | Tjurbergsgatan 34 | Södermalm | 40 | 2 | 3 895 000 | 4 468 862 | 5 046 782 | 577 920 | 577 920 | mixed 105 000 (70 000–140 000) | 550 619 | 77 698 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/324812
+47 | 49 | Ulriksborgsgatan 9 | Kungsholmen | 40 | 11 | 3 695 000 | 4 015 078 | 4 638 391 | 623 313 | 623 313 | mid 105 000 (70 000–140 000) | 543 632 | 25 319 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6304161
+48 | 51 | Wennerbergsgatan 6A | Kungsholmen | 48 | 1 | 3 995 000 | 4 324 506 | 4 912 357 | 587 850 | 587 850 | mixed 82 500 (50 000–115 000) | 505 350 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6282708
+50 | 54 | Ringvägen 124 | Södermalm | 38 | 1 | 3 695 000 | 4 226 776 | 4 711 041 | 484 266 | 484 266 | mixed 60 000 (40 000–80 000) | 496 804 | 72 538 | slutpris>4M | - | https://www.booli.se/annons/6269573
+51 | 40 | Tobaksspinnargatan 10 | Södermalm | 38 | 1.5 | 3 495 000 | 4 054 591 | 4 808 168 | 753 576 | 753 576 | mixed 260 000 (190 000–330 000) | 493 576 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/bostad/768792
+52 | 24 | Folkskolegatan 3 | Södermalm | 40 | 0 | 3 495 000 | 4 025 411 | 4 623 905 | 598 493 | 598 493 | mixed 105 000 (70 000–140 000) | 493 493 | 0 | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | https://www.booli.se/annons/6238321
+53 | 53 | Hallandsgatan 30 | Södermalm | 38 | 4 | 3 750 000 | 4 294 816 | 4 812 148 | 517 332 | 517 332 | mixed 82 500 (50 000–115 000) | 488 539 | 53 706 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/315823
+54 | 57 | Lidnersplan 12 | Kungsholmen | 44 | 1 | 3 795 000 | 4 101 616 | 4 627 266 | 525 650 | 525 650 | mixed 37 500 (20 000–55 000) | 488 150 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/498782
+58 | 60 | Bergsundsgatan 14 | Södermalm | 40 | 1 | 3 995 000 | 4 565 382 | 5 066 048 | 500 665 | 500 665 | mixed 37 500 (20 000–55 000) | 463 165 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/323721
+59 | 61 | John Bergs Plan 4 | Kungsholmen | 38 | 2 | 3 995 000 | 4 292 010 | 4 715 929 | 423 919 | 423 919 | mixed 37 500 (20 000–55 000) | 448 418 | 61 999 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6248840
+60 | 58 | Bergsunds Strand 5 | Södermalm | 37 | 1 | 3 495 000 | 4 011 087 | 4 535 582 | 524 495 | 524 495 | mixed 105 000 (70 000–140 000) | 419 495 | 0 | slutpris>4M, reno okänd | budgivning pågår | https://www.booli.se/annons/6280856
+62 | 63 | Liljeholmsbron 8 | Södermalm | 40 | 1 | 3 995 000 | 4 554 159 | 4 999 031 | 444 873 | 444 873 | mixed 37 500 (20 000–55 000) | 407 373 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/annons/6265111
+64 | 66 | Arbetargatan 33F | Kungsholmen | 35.8 | 2 | 3 995 000 | 4 269 195 | 4 581 885 | 312 690 | 312 690 | mixed 82 500 (50 000–115 000) | 321 827 | 91 638 | slutpris>4M, reno okänd | budgivning pågår, hög föreningsskuld (11 845 kr/kvm) | https://www.booli.se/annons/6276087
+65 | 65 | Hornsgatan 89A | Södermalm | 38 | 3 | 3 995 000 | 4 547 362 | 4 958 800 | 411 438 | 411 438 | mixed 105 000 (70 000–140 000) | 306 438 | 0 | slutpris>4M, reno okänd | budgivning pågår | https://www.booli.se/bostad/439232
+66 | 67 | Åsögatan 196 | Södermalm | 35 | 4 | 3 750 000 | 4 255 040 | 4 575 907 | 320 867 | 320 867 | mixed 105 000 (70 000–140 000) | 252 133 | 36 266 | slutpris>4M, reno okänd | budgivning pågår | https://www.booli.se/bostad/700459
+70 | 73 | Möregatan 6 | Södermalm | 35 | 2 | 3 995 000 | 4 463 378 | 4 483 083 | 19 705 | 19 705 | mixed 60 000 (40 000–80 000) | 41 266 | 81 562 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/681083
+71 | 71 | Frödingsvägen 9 | Kungsholmen | 39.5 | 1.5 | 3 795 000 | 4 016 355 | 4 130 172 | 113 817 | 113 817 | mixed 82 500 (50 000–115 000) | 31 317 | 0 | slutpris>4M, reno okänd | budgivning pågår | https://www.booli.se/bostad/309602
+72 | 62 | Heleneborgsgatan 36B | Södermalm | 36 | 0 | 3 795 000 | 4 250 467 | 4 316 222 | 65 755 | 65 755 | mixed 60 000 (40 000–80 000) | 5 755 | 0 | slutpris>4M, reno okänd | - | https://www.booli.se/bostad/804932
+74 | 75 | Flintbacken 4 | Södermalm | 35 | 12 | 3 600 000 | 4 035 422 | 4 112 926 | 77 504 | 77 504 | mixed 105 000 (70 000–140 000) | −27 496 | 0 | slutpris>4M, reno okänd | budgivning pågår, ute i 67 dagar | https://www.booli.se/annons/6216222
+76 | 77 | Tegelviksgatan 4B | Södermalm | 35 | 3 | 3 750 000 | 4 187 589 | 4 196 940 | 9 351 | 9 351 | mixed 82 500 (50 000–115 000) | −73 149 | 0 | slutpris>4M, reno okänd | hög föreningsskuld (13 073 kr/kvm) | https://www.booli.se/bostad/4388959
+
+Bevakad annons: uppdelning för Booli 150148 (Folkungagatan 61, Södermalm)
+  Placering innerstan: 29 av 77
+  Placering Södermalm: 13 av 35, översta kvartilen: nej (gräns: plats 9 eller bättre)
+  Förrank: 35, i bildfönstret: ja
+  Utgångspris:        3 695 000 kr (35 kvm)
+  Modellpris:         132 149 kr/kvm, utgångspris/modell 79.9 %
+  Förv. överbud:      15.7 %
+  Förv. slutpris:     4 274 581 kr
+  Sektion:            Över 4 M förväntat
+  Värde renoverad:    5 006 594 kr
+  Okapad skillnad (värde - slutpris): 732 012 kr
+  Kredit (max 20.0 % av värdet): 732 012 kr
+  Reno:               mixed 105 000 (70 000–140 000); kök unknown, badrum unknown, helhet ok
+  Försäljningskostnad: 0 kr
+  Innehavskostnad:    0 kr
+  Skatt:              0 kr
+  Smak:               100 132 kr (sol 0.0 %, nav 2.0 %, närmaste nav SoFo/Folkungagatan)
+  Vinst:              727 144 kr
+  Flaggor:            slutpris>4M, dold-defekt-risk, reno okänd
+  Varför här:         oförklarat fynd
+  Imputerat:          -
+  Tydligt sämre annonser ovanför: inga
+
+Ej jämförbar (1):
+  Norra Hammarbyhamnen | utgångspris 1 750 000 | 45 kvm | utgångspris långt under modellvärdet
+
+Modellhälsa: median förv. slutpris / modellpris 0.930 (band 0.85–1.15, 77 rader)
+
+Kostnad:
+Lokal webbläsare: 228 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
+Apify-reserv: 0 renderingar (tak 10)
+Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T12:43:10.305Z och kan inkludera andra körningar.
+Bildtolkning: 0 anrop, 77 från cache, 0 hoppades över, 0,00 kr av tak 60 kr (delar: 26/26/25 kandidater)
+  Anthropic (bildtolkning): 0.00 kr
+  Totalt: 0 kr
+
+Snapshot skriven: /Users/danielwesterholm/dev/legendary-umbrella/.planning/calibration/data/forsale-snapshot-2026-10-13.json
+
+inget nytt: 0 nya, 0 prisändrade, ingen e-post
+Slut: 2026-10-13T12:49:26Z, kod 0
