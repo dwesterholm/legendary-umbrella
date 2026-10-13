@@ -84,3 +84,68 @@ export async function sendWatchMail(
     return { status: "failed", code: errorCodeOf(error) };
   }
 }
+
+/**
+ * The one opt-in for the old behaviour (WR-03): with this variable set to "1", a run without SMTP
+ * variables still writes the HTML and marks the flats as seen. By default a mail that was only written
+ * to a file leaves the memory untouched, so the flats are mailed the first time the variables work.
+ */
+export const WATCH_MARK_SEEN_WITHOUT_SMTP = "WATCH_MARK_SEEN_WITHOUT_SMTP";
+
+export interface DeliveryDecision {
+  /** Write the watch memory (the flats count as seen). */
+  readonly saveMemory: boolean;
+  /** Process exit code for this part of the run: 0, or 4 when the mail did not reach anyone. */
+  readonly exitCode: 0 | 4;
+  /** Swedish log line; `error` lines go to stderr. */
+  readonly log: { readonly level: "info" | "error"; readonly text: string };
+}
+
+/**
+ * What the run does after the send attempt (WR-03). Only a delivered mail, or an explicit
+ * {@link WATCH_MARK_SEEN_WITHOUT_SMTP}=1, marks the flats as seen. Missing SMTP variables are an
+ * error for an unattended run (exit 4), because "written to a file nobody opens" is not delivery.
+ * Pure: names and counts in, text out; no value of any variable is ever in the text.
+ */
+export function decideAfterSend(
+  result: WatchMailResult,
+  ctx: { nNew: number; nChanged: number; htmlPath: string; env?: Readonly<Record<string, string | undefined>> },
+): DeliveryDecision {
+  const env = ctx.env ?? process.env;
+  if (result.status === "sent") {
+    return {
+      saveMemory: true,
+      exitCode: 0,
+      log: { level: "info", text: `E-post skickad: ${ctx.nNew} nya, ${ctx.nChanged} prisändrade (HTML sparad som ${ctx.htmlPath})` },
+    };
+  }
+  if (result.status === "no-env") {
+    const missing = result.missing.join(", ");
+    if (env[WATCH_MARK_SEEN_WITHOUT_SMTP] === "1") {
+      return {
+        saveMemory: true,
+        exitCode: 0,
+        log: {
+          level: "info",
+          text: `ingen e-post skickad: ${missing} saknas; HTML skriven till ${ctx.htmlPath}; annonserna markeras som sedda (${WATCH_MARK_SEEN_WITHOUT_SMTP}=1)`,
+        },
+      };
+    }
+    return {
+      saveMemory: false,
+      exitCode: 4,
+      log: {
+        level: "error",
+        text: `ingen e-post skickad: ${missing} saknas; HTML skriven till ${ctx.htmlPath}; bevakningsminnet uppdateras inte, så annonserna mejlas när variablerna fungerar (${WATCH_MARK_SEEN_WITHOUT_SMTP}=1 markerar dem som sedda ändå)`,
+      },
+    };
+  }
+  return {
+    saveMemory: false,
+    exitCode: 4,
+    log: {
+      level: "error",
+      text: `E-post misslyckades (kod ${result.code}); HTML skriven till ${ctx.htmlPath}; bevakningsminnet uppdateras inte`,
+    },
+  };
+}

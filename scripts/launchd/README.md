@@ -92,7 +92,10 @@ export WATCH_EMAIL_TO='din@adress.se'
 ```
 
 Utan båda variablerna skrivs samma HTML i stället till
-`.planning/calibration/data/weekly-<datum>.html` och körningen säger vilken variabel som saknas.
+`.planning/calibration/data/weekly-<datum>.html`, körningen säger vilken variabel som saknas och avslutar med
+kod 4. Bevakningsminnet lämnas orört, så annonserna mejlas första gången variablerna fungerar (en stavfel i
+`~/.zshenv` får inte göra att veckans annonser räknas som sedda utan att någon fått dem). Vill du ändå markera
+dem som sedda utan mejl, kör med `WATCH_MARK_SEEN_WITHOUT_SMTP=1`.
 
 ## Slutkoder
 
@@ -102,4 +105,5 @@ Utan båda variablerna skrivs samma HTML i stället till
 | 1 | Fel: argument, fil, nyckel saknas, alla distrikt misslyckades, ingen skärm |
 | 2 | Apify-utrymmet för månaden räcker inte (bara med `--renderer apify`; ingen betald körning gjordes) |
 | 3 | En annan körning håller låset (`watch-state.lock`) |
-| 4 | E-postleveransen misslyckades (HTML skriven, bevakningsminnet orört) |
+| 4 | E-postleveransen misslyckades eller SMTP-variablerna saknas (HTML skriven, bevakningsminnet orört) |
+| 5 | Körningen passerade 2 timmar och stoppades av vakthunden (webbläsaren stängdes, låset släpptes) |

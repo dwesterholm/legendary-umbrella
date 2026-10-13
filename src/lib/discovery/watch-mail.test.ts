@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WATCH_MAIL_ENV, sendWatchMail, type LoadTransport, type MailTransport } from "./watch-mail";
+import { WATCH_MAIL_ENV, WATCH_MARK_SEEN_WITHOUT_SMTP, decideAfterSend, sendWatchMail, type LoadTransport, type MailTransport, type WatchMailResult } from "./watch-mail";
 
 const FAKE_URL = "smtp://mailuser:S3cretPassw0rd!@smtp.example.test:587";
 const FAKE_TO = "private.person@example.test";
@@ -128,4 +128,36 @@ describe("secrets", () => {
     expect(JSON.stringify(r)).not.toContain(FAKE_TO);
     expect((r as { code: string }).code).toMatch(/^[A-Za-z0-9_.-]+$/);
   }, 20_000);
+});
+
+describe("decideAfterSend (WR-03)", () => {
+  const ctx = { nNew: 3, nChanged: 1, htmlPath: ".planning/calibration/data/weekly-2026-10-19.html" };
+
+  it("a delivered mail marks the flats as seen and exits 0", () => {
+    const d = decideAfterSend({ status: "sent", accepted: 1 }, { ...ctx, env: {} });
+    expect(d).toMatchObject({ saveMemory: true, exitCode: 0 });
+    expect(d.log.text).toContain("3 nya, 1 prisändrade");
+  });
+
+  it("missing SMTP variables leave the memory untouched and exit 4, naming the variables and the file", () => {
+    const d = decideAfterSend({ status: "no-env", missing: ["WATCH_SMTP_URL"] }, { ...ctx, env: {} });
+    expect(d).toMatchObject({ saveMemory: false, exitCode: 4 });
+    expect(d.log.level).toBe("error");
+    expect(d.log.text).toContain("WATCH_SMTP_URL saknas");
+    expect(d.log.text).toContain("weekly-2026-10-19.html");
+  });
+
+  it("WATCH_MARK_SEEN_WITHOUT_SMTP=1 is the opt-in to mark them seen without a mail; any other value is not", () => {
+    const missing: WatchMailResult = { status: "no-env", missing: ["WATCH_EMAIL_TO"] };
+    expect(decideAfterSend(missing, { ...ctx, env: { [WATCH_MARK_SEEN_WITHOUT_SMTP]: "1" } })).toMatchObject({ saveMemory: true, exitCode: 0 });
+    for (const v of ["0", "true", "", undefined]) {
+      expect(decideAfterSend(missing, { ...ctx, env: { [WATCH_MARK_SEEN_WITHOUT_SMTP]: v } })).toMatchObject({ saveMemory: false, exitCode: 4 });
+    }
+  });
+
+  it("a failed send keeps the memory, exits 4 and shows the error code only; the opt-in does not apply to it", () => {
+    const d = decideAfterSend({ status: "failed", code: "EAUTH" }, { ...ctx, env: { [WATCH_MARK_SEEN_WITHOUT_SMTP]: "1" } });
+    expect(d).toMatchObject({ saveMemory: false, exitCode: 4 });
+    expect(d.log.text).toContain("EAUTH");
+  });
 });

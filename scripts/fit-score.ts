@@ -73,10 +73,11 @@
  * nothing and writes nothing ("inget nytt: 0 nya, 0 prisändrade, ingen e-post"). Delivery is SMTP through
  * nodemailer from the environment (WATCH_SMTP_URL, WATCH_EMAIL_TO, optional WATCH_EMAIL_FROM; reported as
  * satt/saknas only, never printed). Without both variables the same HTML is written to
- * .planning/calibration/data/weekly-<date>.html instead and the run says so. The memory is written only after
- * delivery succeeded (mail accepted, or the file written), so a rerun the same day finds nothing new.
+ * .planning/calibration/data/weekly-<date>.html instead, the run says so and exits 4, and the memory is left
+ * alone (the flats are mailed once the variables work; WATCH_MARK_SEEN_WITHOUT_SMTP=1 restores "mark as seen").
+ * The memory is written only after the mail was accepted, so a rerun the same day finds nothing new.
  * A lock file next to the memory (watch-state.lock) stops two runs from overlapping (exit 3);
- * a failed send keeps the memory untouched (exit 4); a local run that passes 2 hours is stopped (exit 5).
+ * a failed send, or missing SMTP variables, keeps the memory untouched (exit 4); a local run that passes 2 hours is stopped (exit 5).
  * --email also works with --replay (offline apart
  * from the send itself).
  *
@@ -138,7 +139,7 @@ import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discove
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
 import { districtAvgiftMedians, isReasonFlagged, reasonCell, reasonsFor } from "@/lib/discovery/watch-reasons";
-import { WATCH_MAIL_ENV, sendWatchMail } from "@/lib/discovery/watch-mail";
+import { WATCH_MAIL_ENV, WATCH_MARK_SEEN_WITHOUT_SMTP, decideAfterSend, sendWatchMail } from "@/lib/discovery/watch-mail";
 import {
   renderWatchHtml,
   renderWatchText,
@@ -218,7 +219,8 @@ const USAGE = `Användning:
                      En vecka utan nyheter skickar och skriver ingenting ("inget nytt: 0 nya, 0 prisändrade, ingen e-post").
                      E-post skickas via SMTP när miljövariablerna ${WATCH_MAIL_ENV.url} och ${WATCH_MAIL_ENV.to} är satta
                      (valfritt ${WATCH_MAIL_ENV.from}; värdena skrivs aldrig ut, bara satt/saknas). Annars skrivs samma HTML till
-                     ${DATA_DIR}/weekly-<datum>.html. Minnet uppdateras först när leveransen lyckats. Live-körning kräver
+                     ${DATA_DIR}/weekly-<datum>.html, körningen avslutas med kod 4 och minnet lämnas orört (annonserna mejlas när
+                     variablerna fungerar); ${WATCH_MARK_SEEN_WITHOUT_SMTP}=1 markerar dem som sedda ändå. Minnet uppdateras först när leveransen lyckats. Live-körning kräver
                      ${ANTHROPIC_ENV} om inte --no-vision anges. Med --dry-run: bara förkontroller (SMTP, minne, lås), ingen hämtning
   --state <fil>      Bevakningsminne (JSON under ${DATA_DIR}/), standard ${WATCH_STATE_PATH}; låsfilen ligger bredvid (<namn>.lock)
   --no-state-write   Skriv inte bevakningsminnet (provkörning av mejlet)
@@ -551,8 +553,9 @@ interface WatchEmailRun {
 /**
  * Diff against the memory, pick the mail rows, deliver, and only then write the memory (WATCH-05).
  * Quiet week: no mail, no file, the pruned memory is saved. Otherwise the HTML goes to
- * <memory dir>/weekly-<date>.html, then SMTP when both variables are set. Sent, or file-only: the memory
- * is saved. A failed send keeps the memory untouched and sets exit code 4. Never throws for delivery.
+ * <memory dir>/weekly-<date>.html, then SMTP when both variables are set. Sent: the memory
+ * is saved. A failed send, or missing SMTP variables, keeps the memory untouched and sets exit code 4
+ * (see decideAfterSend; WATCH_MARK_SEEN_WITHOUT_SMTP=1 opts in to marking flats as seen without a mail). Never throws for delivery.
  */
 async function runWatchEmail(run: WatchEmailRun): Promise<void> {
   const today = stockholmToday();
@@ -610,16 +613,12 @@ async function runWatchEmail(run: WatchEmailRun): Promise<void> {
   }
 
   const result = await sendWatchMail({ subject, text, html });
-  if (result.status === "sent") {
-    console.log(`E-post skickad: ${nNew} nya, ${nChanged} prisändrade (HTML sparad som ${htmlPath})`);
-    saveState();
-  } else if (result.status === "no-env") {
-    console.log(`ingen e-post skickad: ${result.missing.join(", ")} saknas; HTML skriven till ${htmlPath}`);
-    saveState();
-  } else {
-    console.error(`E-post misslyckades (kod ${result.code}); HTML skriven till ${htmlPath}; bevakningsminnet uppdateras inte`);
-    process.exitCode = EXIT_MAIL_FAILED;
-  }
+  // WR-03: only a delivered mail (or the explicit WATCH_MARK_SEEN_WITHOUT_SMTP=1) marks the flats as seen.
+  const decision = decideAfterSend(result, { nNew, nChanged, htmlPath });
+  if (decision.log.level === "error") console.error(decision.log.text);
+  else console.log(decision.log.text);
+  if (decision.saveMemory) saveState();
+  if (decision.exitCode !== 0) process.exitCode = decision.exitCode;
 }
 
 // ---------------------------------------------------------------------------
