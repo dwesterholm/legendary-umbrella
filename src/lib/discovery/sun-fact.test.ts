@@ -8,9 +8,11 @@ import {
   SUN_SOURCES,
   computeSunFact,
   formatSolCell,
+  formatSolHours,
   resolveSunFact,
   statedFacadesOf,
   sunFactSchema,
+  type DateHours,
   type SunFact,
 } from "@/lib/discovery/sun-fact";
 import type { Facade } from "@/lib/discovery/sun-path";
@@ -550,5 +552,81 @@ describe("computeSunFact: Folkungagatan 61 on the real fixture", () => {
     const before = JSON.stringify(input);
     expect(computeSunFact(osmIndex, input, { plan: null })).toEqual(fact);
     expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatSolHours (plan 07, D-08)
+// ---------------------------------------------------------------------------
+
+/** Window hours for one date: the theoretical figure and, optionally, the obstructed [nominal, low, high]. */
+function dateHours(theoreticalWindow: number, obstructed: readonly [number, number, number] | null): DateHours {
+  const range = obstructed === null ? null : { low: obstructed[1], nominal: obstructed[0], high: obstructed[2] };
+  return { theoreticalWindow, theoreticalDay: theoreticalWindow + 1, obstructedWindow: range, obstructedDay: range, floorBelowWindow: range === null ? null : range.nominal };
+}
+
+/** A footprint fact whose first (street) side has the given hours for mar, jun and dec (sep is not printed). */
+function factWithHours(
+  mar: DateHours,
+  jun: DateHours,
+  dec: DateHours,
+  over: { heightsEstimated?: boolean } = {},
+): SunFact {
+  const base = resolveSunFact({ stated: null, plan: null, footprint: footprintOk() });
+  const hours = { z: 16.5, heightsEstimated: over.heightsEstimated ?? false, mar, jun, sep: mar, dec };
+  return { ...base, sides: base.sides.map((side, i) => (i === 0 ? { ...side, hours } : side)) };
+}
+
+describe("formatSolHours", () => {
+  it("prints '-' for both cells when the run did not look, and for okänd", () => {
+    expect(formatSolHours(null)).toEqual({ theoretical: "-", obstructed: "-" });
+    expect(formatSolHours(resolveSunFact({ stated: null, plan: null, footprint: NO_BUILDING }))).toEqual({ theoretical: "-", obstructed: "-" });
+  });
+
+  it("prints '-' for both cells when the first side has no hours", () => {
+    expect(formatSolHours(resolveSunFact({ stated: null, plan: null, footprint: footprintOk() }))).toEqual({ theoretical: "-", obstructed: "-" });
+  });
+
+  it("theoretical: mar/jun/dec of the first side's window with a decimal comma", () => {
+    const fact = factWithHours(dateHours(6.0, [5.8, 5.1, 6.0]), dateHours(5.5, [5.5, 5.5, 5.5]), dateHours(4.1, [1.2, 0.0, 4.1]));
+    expect(formatSolHours(fact).theoretical).toBe("6,0/5,5/4,1");
+  });
+
+  it("obstructed: nominal (low–high) per date joined by ' / ', then ' usäker' when any date is wider than 2,0 h", () => {
+    const fact = factWithHours(dateHours(6.0, [5.8, 5.1, 6.0]), dateHours(5.5, [5.5, 5.5, 5.5]), dateHours(4.1, [1.2, 0.0, 4.1]));
+    expect(formatSolHours(fact).obstructed).toBe("5,8 (5,1\u20136,0) / 5,5 (5,5\u20135,5) / 1,2 (0,0\u20134,1) usäker");
+  });
+
+  it("a width of exactly 2,0 h is not usäker, even when the subtraction has float noise (4,4 - 2,4 is 2,0000000000000004)", () => {
+    const exact = factWithHours(dateHours(6, [3.4, 2.4, 4.4]), dateHours(6, [5, 4, 6]), dateHours(3, [2, 1, 3]));
+    expect(formatSolHours(exact).obstructed).toBe("3,4 (2,4\u20134,4) / 5,0 (4,0\u20136,0) / 2,0 (1,0\u20133,0)");
+  });
+
+  it("a width of 2,1 h on any one date is usäker", () => {
+    const wide = factWithHours(dateHours(6, [3.4, 2.4, 4.5]), dateHours(6, [5, 4, 6]), dateHours(3, [2, 1, 3]));
+    expect(formatSolHours(wide).obstructed.endsWith(" usäker")).toBe(true);
+  });
+
+  it("heightsEstimated adds ' höjd uppskattad' last, after usäker", () => {
+    const narrow = factWithHours(dateHours(6, [5, 4.5, 5.5]), dateHours(6, [5, 4.5, 5.5]), dateHours(3, [2, 1.5, 2.5]), { heightsEstimated: true });
+    expect(formatSolHours(narrow).obstructed).toBe("5,0 (4,5\u20135,5) / 5,0 (4,5\u20135,5) / 2,0 (1,5\u20132,5) höjd uppskattad");
+    const wide = factWithHours(dateHours(6, [5, 1, 6]), dateHours(6, [5, 4.5, 5.5]), dateHours(3, [2, 1.5, 2.5]), { heightsEstimated: true });
+    expect(formatSolHours(wide).obstructed.endsWith(" usäker höjd uppskattad")).toBe(true);
+  });
+
+  it("hours without an obstructed range (floor unknown): theoretical shown, with-neighbours '-'", () => {
+    const fact = factWithHours(dateHours(6.0, null), dateHours(5.5, null), dateHours(4.1, null));
+    expect(formatSolHours(fact)).toEqual({ theoretical: "6,0/5,5/4,1", obstructed: "-" });
+  });
+
+  it("a range missing on one of the three dates prints '-' for the whole cell", () => {
+    const fact = factWithHours(dateHours(6.0, [5, 4, 6]), dateHours(5.5, null), dateHours(4.1, [3, 2, 4]));
+    expect(formatSolHours(fact).obstructed).toBe("-");
+  });
+
+  it("the cells contain only digits, commas, dashes, brackets, slashes and Swedish words (nothing to escape)", () => {
+    const fact = factWithHours(dateHours(6.0, [5.8, 5.1, 6.0]), dateHours(5.5, [5.5, 5.5, 5.5]), dateHours(4.1, [1.2, 0.0, 4.1]), { heightsEstimated: true });
+    const { theoretical, obstructed } = formatSolHours(fact);
+    expect(`${theoretical} ${obstructed}`).not.toMatch(/[<>&"']/);
   });
 });

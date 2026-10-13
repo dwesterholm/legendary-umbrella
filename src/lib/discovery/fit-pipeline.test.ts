@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
 import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
-import { resolveSunFact, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
+import { resolveSunFact, unknownSunFact, type DateHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { AREA_MAX_RENDERS_PER_AREA, OBSERVED_USD_PER_TIMED_OUT_RENDER } from "@/lib/discovery/cost";
 import {
   COVERAGE_LABELS,
@@ -49,6 +49,7 @@ import {
   parseFitSnapshot,
   preRank,
   rankFit,
+  type FitInputRow,
   type FitScoreResult,
 } from "@/lib/discovery/fit-score";
 import { parseHedonicModel } from "@/lib/discovery/hedonic-model";
@@ -410,6 +411,36 @@ describe("table rows and rendering (FIT-03)", () => {
       .split("\n")[1]
       .split(" | ");
     expect(unknown[headerCells.indexOf("Sol")]).toBe("okänd");
+  });
+
+  it("the header puts the two hour columns right after 'Sol' and before 'Flaggor'; every printed row has as many cells as the header", () => {
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    expect(FIT_TABLE_HEADER).toContain("Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor");
+    const sun = resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } });
+    const printed = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], sun }, { ...sample[1], sun: null }] }, new Map())).split("\n");
+    for (const line of printed.slice(1)) expect(line.split(" | ")).toHaveLength(headerCells.length);
+    const rows = toFitTableRows({ ranked: [{ ...sample[0], sun }, { ...sample[1], sun: null }] }, new Map());
+    expect(rows[0].solTheoretical).toBe("-"); // a stated side has no hours until computeSunFact fills them
+    expect(rows[0].solObstructed).toBe("-");
+    expect(rows[1].solTheoretical).toBe("-");
+    expect(rows[1].solObstructed).toBe("-");
+  });
+
+  it("a row with hours prints the theoretical and obstructed cells at the header's indexes", () => {
+    const hour = (w: number, r: [number, number, number] | null): DateHours => {
+      const range = r === null ? null : { nominal: r[0], low: r[1], high: r[2] };
+      return { theoreticalWindow: w, theoreticalDay: w + 1, obstructedWindow: range, obstructedDay: range, floorBelowWindow: null };
+    };
+    const base = resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } });
+    const sun: SunFact = {
+      ...base,
+      sides: [{ ...base.sides[0], hours: { z: 16.5, heightsEstimated: false, mar: hour(6, [5, 4.5, 5.5]), jun: hour(5.5, [5, 4.5, 5.5]), sep: hour(5, [4, 3.5, 4.5]), dec: hour(4.1, [2, 1.5, 2.5]) } }],
+    };
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    const cells = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], sun }] }, new Map())).split("\n")[1].split(" | ");
+    expect(cells[headerCells.indexOf("Soltim. fri (mar/jun/dec)")]).toBe("6,0/5,5/4,1");
+    expect(cells[headerCells.indexOf("Soltim. med grannhus (mar/jun/dec)")]).toBe("5,0 (4,5\u20135,5) / 5,0 (4,5\u20135,5) / 2,0 (1,5\u20132,5)");
+    expect(cells[headerCells.indexOf("Sol")]).toBe("S (angiven, 1,00)");
   });
 
   it("a flagged row with no reason prints 'oförklarat fynd', an unflagged one '-' (also without reasonsOf)", () => {
@@ -1030,5 +1061,55 @@ describe("deps.sunOf: the sun stage before ranking (Phase 14.3, plan 07)", () =>
     const { deps } = fakeDeps(fixtureScraped.slice(0, 4));
     const result = await run({ ...deps, sunOf: () => null }, "all");
     expect(result.snapshot.rows.every((r) => r.sun === null)).toBe(true);
+  });
+});
+
+describe("coverage: 'sol härledd' (Phase 14.3, SUN-05)", () => {
+  const sunRow = (sun: SunFact | null): FitInputRow => ({ ...snapshot.rows[0], sun });
+  const south = resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } });
+  const noBuilding = unknownSunFact("ingen byggnad inom 25 m");
+
+  it("counts rows whose sun fact has a source other than okänd; a null fact and an okänd fact do not count", () => {
+    const coverage = computeCoverage([sunRow(south), sunRow(south), sunRow(noBuilding), sunRow(null)]);
+    expect(coverage.n).toBe(4);
+    expect(coverage.sunInferred).toBe(2);
+  });
+
+  it("prints right after 'föreningsskuld känd' and before the reasons item; the seven pinned labels stay byte-identical and in order", () => {
+    const rows = [sunRow(south), sunRow(noBuilding)];
+    const flagged = withReasonsOnFlagged(computeCoverage(rows), []);
+    const text = renderCoverage(flagged);
+    expect(text).toMatch(/föreningsskuld känd 0 av 2 \(0,0 %\), sol härledd 1 av 2 \(50,0 %\), anledning på flaggade rader: 0 förklarade, 0 oförklarat fynd av 0$/);
+    expect([...COVERAGE_LABELS]).toEqual([
+      "detaljsida",
+      "balkong känd",
+      "skick känt",
+      "beskrivning läst",
+      "sol/orientering angiven",
+      "avgift",
+      "upplåtelseform",
+    ]);
+    const order = [...COVERAGE_LABELS, "föreningsskuld känd", "sol härledd", "anledning på flaggade rader"].map((label) => text.indexOf(label));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it("an empty row list prints 'sol härledd 0 av 0 (0,0 %)'", () => {
+    expect(renderCoverage(computeCoverage([]))).toContain("sol härledd 0 av 0 (0,0 %)");
+  });
+
+  it("percentages: 61 of 77 is (79,2 %), 62 of 77 is (80,5 %), 75 of 77 is (97,4 %)", () => {
+    const of = (k: number): string => renderCoverage({ ...computeCoverage([]), n: 77, sunInferred: k });
+    expect(of(61)).toContain("sol härledd 61 av 77 (79,2 %)");
+    expect(of(62)).toContain("sol härledd 62 av 77 (80,5 %)");
+    expect(of(75)).toContain("sol härledd 75 av 77 (97,4 %)");
+  });
+
+  it("the live pipeline counts the sun stage's facts in its coverage", async () => {
+    const rows = fixtureScraped.slice(0, 6);
+    const { deps } = fakeDeps(rows);
+    const withSun = await run({ ...deps, sunOf: () => south }, "all");
+    expect(withSun.coverage.sunInferred).toBe(withSun.coverage.n);
+    expect((await run(fakeDeps(rows).deps, "all")).coverage.sunInferred).toBe(0);
   });
 });

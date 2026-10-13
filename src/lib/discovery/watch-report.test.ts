@@ -32,7 +32,9 @@ function tableRow(over: Partial<FitTableRow> = {}): FitTableRow {
     renoHighKr: 400_000,
     profitKr: 250_000,
     tasteKr: 10_000,
-    sol: "-",
+    sol: "S gata/N gård (fastighet/gata, 0,95)",
+    solTheoretical: "6,0/5,5/4,1",
+    solObstructed: "5,8 (5,1\u20136,0) / 5,5 (5,5\u20135,5) / 1,2 (0,0\u20134,1) usäker",
     flags: ["kredit-tak"],
     reasons: "tomträtt",
     link: "https://www.booli.se/bostad/150148",
@@ -199,9 +201,38 @@ describe("renderWatchHtml", () => {
   });
 
   it("has every column of D-15", () => {
-    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Okapad skillnad", "Krediterad", "Reno (nivå, spann)", "Vinst", "Smak", "Flaggor", "Varför här", "Booli"]) {
+    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Förv. slutpris", "Värde renoverad", "Okapad skillnad", "Krediterad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor", "Varför här", "Booli"]) {
       expect(html).toMatch(new RegExp(`<th[^>]*>${heading.replace(/[().]/g, "\\$&")}</th>`));
     }
+  });
+
+  it("the three Sol columns sit right after 'Smak' and before 'Flaggor', and each row's cells are at the same index as the headings", () => {
+    const headings = [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    const smak = headings.indexOf("Smak");
+    expect(headings.slice(smak, smak + 5)).toEqual(["Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor"]);
+    expect(headings[headings.length - 1]).toBe("Booli");
+    // The first body row of the first table: one <td> per heading, the Sol cells at the heading indexes.
+    const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
+    const firstRow = firstTable.split("<tr>")[2];
+    const cells = [...firstRow.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
+    expect(cells).toHaveLength(headings.length);
+    expect(cells[headings.indexOf("Sol")]).toBe("S gata/N gård (fastighet/gata, 0,95)");
+    expect(cells[headings.indexOf("Soltim. fri (mar/jun/dec)")]).toBe("6,0/5,5/4,1");
+    expect(cells[headings.indexOf("Soltim. med grannhus (mar/jun/dec)")]).toBe("5,8 (5,1\u20136,0) / 5,5 (5,5\u20135,5) / 1,2 (0,0\u20134,1) usäker");
+    expect(cells[headings.indexOf("Booli")]).toBe('<a href="https://www.booli.se/bostad/150148">Booli</a>');
+  });
+
+  it("the Sol columns are text: left-aligned, not in the numeric set", () => {
+    const solCell = html.match(/<td style="[^"]*">(S gata\/N gård[^<]*)<\/td>/);
+    expect(solCell).not.toBeNull();
+    expect(solCell?.[0]).not.toContain("text-align:right");
+  });
+
+  it("a Sol cell with markup is escaped in the HTML", () => {
+    const h = renderWatchHtml(input({ sections: { under: [newEntry(tableRow({ sol: "<b>S</b> & N", solObstructed: "<i>x</i>" }))], over: [] } }));
+    expect(h).toContain("&lt;b&gt;S&lt;/b&gt; &amp; N");
+    expect(h).toContain("&lt;i&gt;x&lt;/i&gt;");
+    expect(h).not.toContain("<b>S</b>");
   });
 
   it("formats money with spaces and the reno range with an en dash", () => {
@@ -279,6 +310,19 @@ describe("renderWatchText", () => {
 
   it("an empty section prints 0 annonser", () => {
     expect(renderWatchText(input())).toContain("Över 4 M förväntat (0 annonser)");
+  });
+
+  it("the plain-text header and every row have the same number of cells, the Sol cells at the same index", () => {
+    const lines = text.split("\n");
+    const header = lines.find((l) => l.startsWith("Status | Adress"));
+    const row = lines.find((l) => l.startsWith("nya sedan förra veckan | Götgatan 1"));
+    expect(header).toBeDefined();
+    expect(row).toBeDefined();
+    const h = (header as string).split(" | ");
+    const r = (row as string).split(" | ");
+    expect(r).toHaveLength(h.length);
+    expect(r[h.indexOf("Sol")]).toBe("S gata/N gård (fastighet/gata, 0,95)");
+    expect(r[h.indexOf("Soltim. fri (mar/jun/dec)")]).toBe("6,0/5,5/4,1");
   });
 });
 
