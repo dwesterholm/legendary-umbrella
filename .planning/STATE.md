@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.2"
 current_phase_name: Trustworthy Weekly Table
 status: executing
-stopped_at: 14.1-10 Task 1 done (live run, replay, readout); Task 2 browser run pending
-last_updated: "2026-10-13T10:06:59.564Z"
+stopped_at: Completed 14.2-01-PLAN.md
+last_updated: "2026-10-13T10:19:57.293Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.2 execution started
-state_head: 2bad35883ce7b070cad869056d3bf0a3fb79da49
+state_head: 76fe1cdacbe0371be55cca1761580827d949d310
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 34
-  completed_plans: 25
+  completed_plans: 26
   percent: 13
 ---
 
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.2 (Trustworthy Weekly Table) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 14.2
+Plan: 2 of 9
+Status: Ready to execute
 Last activity: 2026-10-13 — Phase 14.2 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
 
@@ -87,6 +87,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.1 P07 | 7 min | 2 tasks | 3 files |
 | Phase 14.1 P08 | 50min | 2 tasks | 6 files |
 | Phase 14.1 P09 | 13 min | 2 tasks | 7 files |
+| Phase 14.2 P01 | 12 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -226,6 +227,7 @@ Recent decisions affecting current work:
 - [Phase 14.1]: 14.1-08: only 35 sold-detail pages enriched (4.23 USD); too thin for build year, so balcony = study +1.9 % and no build-year term. Booli returns the sold object only for sales from Oct 2025 on.
 - [Phase 14.1]: 14.1-09: fit-score live exit codes 0 done, 1 error, 2 only for Apify headroom below the worst-case estimate (5.90 USD for 4 districts x window 20); --dry-run stops after the check — The wallet guard must be testable without spending; exit 2 must mean one thing
 - [Phase 14.1]: 14.1-09: listing links are printed only in the table, so live log and snapshot replay list links in the same order (plan 10 diff) — Replay-equals-live check
+- [Phase 14.2]: 14.2-01: local headed Chromium is the default renderer for the headless scripts; Apify is an opt-in fallback only with --allow-apify, capped at --apify-max-renders (default 10); no display and no explicit choice is an error
 
 ### Pending Todos
 
@@ -257,8 +259,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T00:42:44.927Z
-Stopped at: 14.1-10 Task 1 done (live run, replay, readout); Task 2 browser run pending
+Last session: 2026-10-13T10:19:57.156Z
+Stopped at: Completed 14.2-01-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

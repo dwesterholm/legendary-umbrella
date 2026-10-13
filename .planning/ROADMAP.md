@@ -158,19 +158,21 @@ Plans:
 
 **Goal**: The weekly innerstan list becomes something Daniel can act on, produced without Apify and delivered by email with only new/changed flats. Today's list (14.1, 2026-10-13) ranks "big and cheap for its location" correctly but cannot tell a reno object from a problem listing, reads pictures/sun for only the top 20, has no BRF debt, and expects most of the top 20 to close above 4 M.
 **Plans, in this order (plan 1 is mandatory first — Daniel 2026-10-13):**
+
 1. **Local browser rung.** A headed local Playwright Chromium rung (`headless: false`, AutomationControlled disabled, sv-SE) as rung 0 for the HEADLESS scripts only (`scripts/fit-score.ts`, pull/enrich); Apify stays the fallback and the in-app job is untouched. Verified 2026-10-13: search, slutpris and detail pages all 200 with full data in ~5 s from this Mac; headless detail → 403 "Vänta...". Spend ledger prints 0 USD for local pages. Memory: `booli-local-browser-works`.
 2. **Every candidate read, not only the top 20.** With local pages ≈ free, fetch the detail + broker page for ALL filtered candidates (~75): stated orientation/sun phrases, floor, balcony, build year, tenure, avgift, listing age/"budgivning pågår"; run vision on all of them within `CAP_VISION_SEK_MAX` (raise if needed, log the SEK). The taste and reno inputs stop being "unknown" for most rows.
 3. **Problem-listing vs reno-object separation.** Explain every `kredit-tak` / `dold-defekt-risk` row: tomträtt/andelsrätt, stale listing (days on market), price cut history, BRF debt per kvm and avgift per kvm (from Booli's detail payload where present; Allabrf is dead), new-production. Rows the model cannot explain stay flagged with a plain-Swedish reason column ("varför här").
 4. **Model decisions applied (orchestrator calls, Daniel to confirm):** drop the sign rule for size (data t = 8.4, market-derived per the north star) and refit for free; keep the 20 % credit cap but print the uncapped gap beside it; show "under 4 M förväntat" as its own section at the top of the table since that is what Daniel can actually win; Folkungagatan 61 stays a watched listing, measured.
 5. **Seen-listing memory + weekly email.** Persist seen Booli ids + last asking price (local JSON or the local Supabase); weekly run on this Mac (launchd/cron, Mac is the E2E runner and stays awake); email only new or price-changed rows with the full column set + the "varför här" reason + Booli link; zero mail on a quiet week.
+
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 9 plans
+**Plans:** 1/9 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 14.2-01-PLAN.md — Local browser rung (D-01, first): transport renderer seam, headed local Chromium, parity test, challenge/one-retry/no-Apify gate, local default in the headless scripts, 0 USD ledger after a settle wait (one pinned runs-API line), playwright pinned
+- [x] 14.2-01-PLAN.md — Local browser rung (D-01, first): transport renderer seam, headed local Chromium, parity test, challenge/one-retry/no-Apify gate, local default in the headless scripts, 0 USD ledger after a settle wait (one pinned runs-API line), playwright pinned
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
