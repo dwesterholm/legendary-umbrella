@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { FootprintOk, FootprintResult } from "@/lib/discovery/sun-facade";
-import { SUN_PRECEDENCE_PARAMS, formatSolCell, resolveSunFact, sunFactSchema, type SunFact } from "@/lib/discovery/sun-fact";
+import {
+  SUN_PRECEDENCE_PARAMS,
+  SUN_SOURCES,
+  formatSolCell,
+  resolveSunFact,
+  statedFacadesOf,
+  sunFactSchema,
+  type SunFact,
+} from "@/lib/discovery/sun-fact";
 import type { Facade } from "@/lib/discovery/sun-path";
 
 /** A resolved footprint: street side 166,2 (south), courtyard 346,2 (north), as on Folkungagatan 61. */
@@ -376,5 +384,88 @@ describe("resolveSunFact: round trip", () => {
     const b = resolveSunFact({ stated, plan, footprint });
     expect(a).toEqual(b);
     expect(JSON.stringify({ stated, plan, footprint })).toBe(snapshot);
+  });
+});
+
+describe("statedFacadesOf", () => {
+  it("merges the candidate orientation and the facts record in the fixed order, without duplicates", () => {
+    expect(statedFacadesOf({ facades: ["west"] }, ["west", "south"])).toEqual(["south", "west"]);
+    expect(statedFacadesOf({ facades: ["west", "north"] }, ["east", "north"])).toEqual(["north", "east", "west"]);
+  });
+
+  it("reads either source alone", () => {
+    expect(statedFacadesOf({ facades: ["east"] }, null)).toEqual(["east"]);
+    expect(statedFacadesOf(null, ["south", "north"])).toEqual(["north", "south"]);
+  });
+
+  it("gives null when nothing is stated", () => {
+    expect(statedFacadesOf(null, null)).toBeNull();
+    expect(statedFacadesOf(null, [])).toBeNull();
+    expect(statedFacadesOf({ facades: [] }, null)).toBeNull();
+    expect(statedFacadesOf({ facades: [] }, [])).toBeNull();
+  });
+
+  it("does not mutate its inputs", () => {
+    const facades: Facade[] = ["west", "east"];
+    const fromFacts: Facade[] = ["south", "east"];
+    statedFacadesOf({ facades }, fromFacts);
+    expect(facades).toEqual(["west", "east"]);
+    expect(fromFacts).toEqual(["south", "east"]);
+  });
+
+  it("feeds resolveSunFact: the merged list becomes one stated side per facade", () => {
+    const fact = resolveSunFact({ stated: statedFacadesOf({ facades: ["west"] }, ["west", "south"]), plan: null, footprint: NO_BUILDING });
+    expect(fact.sides.map((s) => s.facade)).toEqual(["south", "west"]);
+  });
+});
+
+describe("formatSolCell: stated, plan and konflikt rows", () => {
+  it("prints a stated east/west flat as Ö/V (angiven, 1,00)", () => {
+    const fact = resolveSunFact({ stated: ["east", "west"], plan: null, footprint: NO_BUILDING });
+    expect(formatSolCell(fact)).toBe("Ö/V (angiven, 1,00)");
+  });
+
+  it("prints a plan bearing as S (planritning, 0,80)", () => {
+    const fact = resolveSunFact({ stated: null, plan: { bearingDeg: 180, confidence: 0.8 }, footprint: NO_BUILDING });
+    expect(formatSolCell(fact)).toBe("S (planritning, 0,80)");
+  });
+
+  it("prints stated north against a plan facing south as N (angiven, 0,50) konflikt: planritning S", () => {
+    const fact = resolveSunFact({ stated: ["north"], plan: { bearingDeg: 180, confidence: 0.8 }, footprint: NO_BUILDING });
+    expect(formatSolCell(fact)).toBe("N (angiven, 0,50) konflikt: planritning S");
+  });
+
+  it("prints a stated flat that has a footprint with the stated letter only (no gata/gård label)", () => {
+    const fact = resolveSunFact({ stated: ["west"], plan: null, footprint: EAST_WEST });
+    expect(formatSolCell(fact)).toBe("V (angiven, 1,00)");
+  });
+
+  it("keeps the footprint cell and the dash and okänd forms as they were", () => {
+    expect(formatSolCell(resolveSunFact({ stated: null, plan: null, footprint: footprintOk() }))).toBe("S gata/N gård (fastighet/gata, 0,90)");
+    expect(formatSolCell(resolveSunFact({ stated: null, plan: null, footprint: footprintOk({ ambiguous: true }) }))).toBe(
+      "S gata/N gård (fastighet/gata, 0,90) hörn",
+    );
+    expect(formatSolCell(null)).toBe("-");
+    expect(formatSolCell(resolveSunFact({ stated: null, plan: null, footprint: NO_BUILDING }))).toBe("okänd");
+  });
+
+  it("does not print hörn on a stated or plan row, even when the footprint is a corner", () => {
+    const fp = footprintOk({ ambiguous: true });
+    expect(formatSolCell(resolveSunFact({ stated: ["south"], plan: null, footprint: fp }))).toBe("S (angiven, 1,00)");
+  });
+
+  it("names a footprint konflikt with its letter", () => {
+    const fp = footprintOk({ streetBearingDeg: 170, streetFacade: "south", courtyardBearingDeg: 190, courtyardFacade: "south" });
+    expect(formatSolCell(resolveSunFact({ stated: ["north"], plan: null, footprint: fp }))).toBe("N (angiven, 0,50) konflikt: fastighet/gata S");
+  });
+});
+
+describe("SUN_SOURCES", () => {
+  it("are NFC strings (so exact equality is safe)", () => {
+    for (const source of SUN_SOURCES) expect(source).toBe(source.normalize("NFC"));
+  });
+
+  it("are exactly the four D-01 labels", () => {
+    expect([...SUN_SOURCES]).toEqual(["angiven", "planritning", "fastighet/gata", "okänd"]);
   });
 });
