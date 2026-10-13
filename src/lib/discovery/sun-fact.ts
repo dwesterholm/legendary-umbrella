@@ -468,3 +468,126 @@ export function formatSolHours(fact: SunFact | null): { theoretical: string; obs
   if (hours.heightsEstimated) obstructed += " höjd uppskattad";
   return { theoretical, obstructed };
 }
+
+// ---------------------------------------------------------------------------
+// The sun report (SUN-05, evidence for SUN-06)
+// ---------------------------------------------------------------------------
+
+/** The four dates the report counts over, in order. */
+const REPORT_DATES = ["mar", "jun", "sep", "dec"] as const;
+
+/** A flat counts for the +-1 h share only when the first side gets at least this many theoretical full-day hours (research). */
+const REPORT_MIN_THEORETICAL_DAY_H = 1;
+
+/** The full-day envelope of a flat is "+-1 h" when high minus low is at most this many hours (2,0 h inclusive). */
+const REPORT_PLUS_MINUS_ONE_WIDTH_H = 2;
+
+/** The one-floor-lower sensitivity counts when the window hours move by more than this many hours (strict). */
+const REPORT_FLOOR_SHIFT_H = 1;
+
+/** A confidence of at least this much counts as sure (research: 0,70). */
+const REPORT_SURE_CONFIDENCE = 0.7;
+
+/** A floor-plan bearing within this many degrees (inclusive) of the street or courtyard bearing agrees with the footprint (D-03/D-04). */
+const REPORT_PLAN_AGREE_DEG = 45;
+
+const pctOf = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 100).toFixed(1).replace(".", ","));
+const ofN = (k: number, n: number): string => `${k} av ${n} (${pctOf(k, n)} %)`;
+const degrees1 = (deg: number): string => `${deg.toFixed(1).replace(".", ",")}\u00B0`;
+const tenths = (h: number): number => Math.round(h * 10);
+
+/**
+ * The block printed after the coverage line in a replay and in a live run: how many flats got a facade and from
+ * which source, how sure it is, why the others did not, how far the shade figures can be trusted, which flats are
+ * stated, and what the floor-plan route says. First line pinned: "Sol (<N> annonser): fasad härledd <k> av <N> (<p> %)".
+ * The lines after it are indented two spaces. `rows` are the comparable flats in innerstan rank order.
+ *
+ * "+-1 h" counts, per date, the flats whose first side has at least 1,0 h of theoretical full-day sun AND an
+ * obstructed range, and how many of them have a full-day envelope (high minus low) of at most 2,0 h. "en våning lägre"
+ * counts the same flats where the nominal window hours differ from the hours one storey lower by more than 1,0 h.
+ * Compared in tenths of an hour, so a width of exactly 2,0 h never flips on float noise. PURE.
+ */
+export function renderSunReport(
+  rows: ReadonlyArray<{ address: string | null; sun: SunFact | null }>,
+  opts: { probeSummary: string; routeEnabled: boolean },
+): string {
+  const n = rows.length;
+  const facts = rows.map((r) => r.sun);
+  const known = facts.filter((f): f is SunFact => f !== null);
+  const inferred = known.filter((f) => f.source !== "okänd");
+
+  const bySource = SUN_SOURCES.map((source) => `${source} ${known.filter((f) => f.source === source).length}`);
+  const notLooked = n - known.length;
+  const sourceLine = `källa: ${[...bySource, ...(notLooked > 0 ? [`ej beräknad ${notLooked}`] : [])].join(", ")}`;
+
+  const reasons = new Map<string, number>();
+  for (const f of known) if (f.source === "okänd" && f.unknownReason !== null) reasons.set(f.unknownReason, (reasons.get(f.unknownReason) ?? 0) + 1);
+  const reasonList = [...reasons.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const reasonLine = `okänd, anledningar: ${reasonList.length === 0 ? "inga" : reasonList.map(([reason, count]) => `${reason} ${count}`).join(", ")}`;
+
+  const sure = inferred.filter((f) => f.confidence >= REPORT_SURE_CONFIDENCE).length;
+  const corners = inferred.filter((f) => f.source === "fastighet/gata" && f.footprint?.ambiguous === true).length;
+  const conflicts = inferred.filter((f) => f.conflict).length;
+
+  const firstHours = (f: SunFact): SideHours | null => f.sides[0]?.hours ?? null;
+  const shaded = inferred.filter((f) => firstHours(f)?.mar.obstructedWindow != null).length;
+  const estimated = inferred.filter((f) => firstHours(f)?.heightsEstimated === true).length;
+
+  // Per date: the flats that can be judged (>= 1,0 h theoretical full-day sun and an obstructed range).
+  const judged = (date: (typeof REPORT_DATES)[number]): Array<{ day: HoursRange; window: HoursRange; below: number | null }> =>
+    inferred.flatMap((f) => {
+      const d = firstHours(f)?.[date];
+      if (d === undefined || d.obstructedDay === null || d.obstructedWindow === null) return [];
+      if (d.theoreticalDay < REPORT_MIN_THEORETICAL_DAY_H) return [];
+      return [{ day: d.obstructedDay, window: d.obstructedWindow, below: d.floorBelowWindow }];
+    });
+  const plusMinusOne = REPORT_DATES.map((date) => {
+    const flats = judged(date);
+    const within = flats.filter((x) => tenths(x.day.high - x.day.low) <= tenths(REPORT_PLUS_MINUS_ONE_WIDTH_H)).length;
+    return `${date} ${ofN(within, flats.length)}`;
+  }).join(", ");
+  const floorLower = REPORT_DATES.map((date) => {
+    const flats = judged(date);
+    const moved = flats.filter((x) => x.below !== null && tenths(Math.abs(x.window.nominal - x.below)) > tenths(REPORT_FLOOR_SHIFT_H)).length;
+    return `${date} ${moved} av ${flats.length}`;
+  }).join(", ");
+
+  const stated: string[] = [];
+  rows.forEach((r) => {
+    const f = r.sun;
+    if (f === null || f.source !== "angiven") return;
+    const letters = f.sides.map((s) => FACADE_LETTER[s.facade]).join("/");
+    const fp = f.footprint;
+    const streetCourtyard = fp === null ? "gata okänd" : `gata ${FACADE_LETTER[fp.streetFacade]} ${degrees1(fp.streetBearingDeg)}, gård ${FACADE_LETTER[fp.courtyardFacade]} ${degrees1(fp.courtyardBearingDeg)}`;
+    stated.push(`angiven mot gata: ${r.address ?? "-"}: angiven ${letters}, ${streetCourtyard}`);
+  });
+
+  let agreement: string;
+  if (!opts.routeEnabled) {
+    agreement = "ej beräkningsbar (väg stängd)";
+  } else {
+    const plans = inferred.filter((f) => f.source === "planritning" && f.footprint !== null && f.sides[0]?.bearingDeg != null);
+    const agreeing = plans.filter((f) => {
+      const bearing = f.sides[0].bearingDeg as number;
+      const fp = f.footprint as NonNullable<SunFact["footprint"]>;
+      const near = Math.min(distanceDeg(bearing, fp.streetBearingDeg), distanceDeg(bearing, fp.courtyardBearingDeg));
+      return near <= REPORT_PLAN_AGREE_DEG;
+    }).length;
+    agreement = `${agreeing} av ${plans.length}`;
+  }
+
+  const lines = [
+    `Sol (${n} annonser): fasad härledd ${ofN(inferred.length, n)}`,
+    sourceLine,
+    `säkerhet >= 0,70: ${sure} av ${inferred.length}`,
+    reasonLine,
+    `hörn: ${corners}, konflikt: ${conflicts}`,
+    `skugga beräknad ${shaded} av ${n} (höjd uppskattad: ${estimated})`,
+    `\u00B11 h (full dag, spann högst 2,0 h, minst 1,0 h teoretisk sol): ${plusMinusOne}`,
+    `en våning lägre (> 1,0 h skillnad i fönstret): ${floorLower}`,
+    ...(stated.length === 0 ? ["angiven mot gata: inga"] : stated),
+    `planritning: ${opts.probeSummary}; överensstämmelse med fastighet/gata: ${agreement}`,
+    "Kartdata: © OpenStreetMap contributors, ODbL",
+  ];
+  return lines.map((line, i) => (i === 0 ? line : `  ${line}`)).join("\n");
+}

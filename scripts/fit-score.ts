@@ -195,6 +195,7 @@ import {
 } from "@/lib/discovery/osm-cache";
 import {
   FLOORPLAN_CACHE_PATH,
+  FLOORPLAN_PROBE_SUMMARY,
   FLOORPLAN_PROBE_VERSION,
   FLOORPLAN_ROUTE_ENABLED,
   floorPlanImageId,
@@ -202,7 +203,7 @@ import {
   planBearingOf,
   type FloorPlanCache,
 } from "@/lib/discovery/sun-floorplan";
-import { computeSunFact, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
+import { computeSunFact, renderSunReport, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
 import type { PlanBearing } from "@/lib/discovery/sun-fact";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
@@ -461,6 +462,9 @@ function printTracked(
   console.log(`  Innehavskostnad:    ${sek(r.holdingCostsSek)} kr`);
   console.log(`  Skatt:              ${sek(r.taxSek)} kr`);
   console.log(`  Smak:               ${sek(r.tasteSek)} kr (sol ${pct(r.tasteSunPct)}, nav ${pct(r.tasteHubPct)}, närmaste nav ${r.nearestHub ?? "-"})`);
+  // Phase 14.3: the same three cells as the table (same formatters), so the tracked block and the table never disagree.
+  const solCells = toFitTableRows({ ranked: [r] }, new Map())[0];
+  console.log(`  Sol:                ${solCells.sol} | fri ${solCells.solTheoretical} | med grannhus ${solCells.solObstructed}`);
   console.log(`  Vinst:              ${orDash(r.profitSek, sek)} kr`);
   console.log(`  Flaggor:            ${r.flags.map((f) => FIT_FLAG_LABELS[f]).join(", ") || "-"}`);
   console.log(`  Varför här:         ${reasonCell(reasonsOf(r), isReasonFlagged(r.flags))}`);
@@ -793,6 +797,14 @@ function makeSunStage(index: OsmIndex | null, buildMs: number): SunStage {
   };
 }
 
+/** The sun report block over the comparable ranked flats in innerstan order (Phase 14.3, SUN-05). */
+function sunReportOf(ranked: readonly FitScoreResult[]): string {
+  return renderSunReport(
+    ranked.map((r) => ({ address: r.address, sun: r.sun })),
+    { probeSummary: FLOORPLAN_PROBE_SUMMARY, routeEnabled: FLOORPLAN_ROUTE_ENABLED },
+  );
+}
+
 /** The first line of an OSM-cache decision: how old it is, or that it is missing. */
 function osmCacheDescribe(meta: OsmCacheMeta | null, now: Date): string {
   const age = cacheAgeDays(meta, now);
@@ -853,6 +865,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   printRanking(ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
   const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
   console.log(`\n${coverageLine}`);
+  console.log(sunReportOf(ranking.ranked));
 
   if (statePath !== null) {
     console.log("");
@@ -1203,6 +1216,7 @@ async function runLive(args: Args): Promise<void> {
     const tableRows = toFitTableRows(result.ranking, result.preRankPositions, { reasonsOf });
     console.log(`\n${renderCoverage(withReasonsOnFlagged(result.coverage, tableRows))}`);
     if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
+    console.log(sunReportOf(result.ranking.ranked));
     console.log("");
     printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
     await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result));
