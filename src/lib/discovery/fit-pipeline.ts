@@ -50,7 +50,8 @@ import {
 import type { HedonicModel, InnerstanDistrict, OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
-import { formatSolCell, formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
+import { formatSolCellWithLayout } from "@/lib/discovery/layout-fact";
+import { formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,7 @@ export async function runFitPipeline(
     candidate: r.candidate,
     facts: r.facts ?? null,
     sun: null,
+    layout: null,
   }));
 
   const counts = { scraped: scraped.rows.length, deduped: deduped.length, filtered: filtered.length };
@@ -284,6 +286,7 @@ export async function runFitPipeline(
     // Card facts, with the detail page's on top when it was read (R-08).
     facts: combineFacts(p.row.facts, detailFetched[i] ? (enrichment.facts?.get(i) ?? null) : null),
     sun: null, // set below by deps.sunOf, once the window row is complete
+    layout: null, // plan 14.4-08 fills this from the layout read of the live run
   }));
   const outsideRows: FitInputRow[] = outside.map((p) => p.row);
   const comparableRows = new Set(pre.ranked.map((p) => p.row));
@@ -439,7 +442,7 @@ export function toFitTableRows(
       renoHighKr: roundKr(r.renoHighSek),
       profitKr: roundOrNull(r.profitSek),
       tasteKr: roundKr(r.tasteSek),
-      sol: formatSolCell(r.sun),
+      sol: formatSolCellWithLayout(r.sun, r.layout, r.layoutAppliedToSun),
       solTheoretical: solHours.theoretical,
       solObstructed: solHours.obstructed,
       flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),

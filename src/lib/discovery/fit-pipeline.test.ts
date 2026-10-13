@@ -220,7 +220,7 @@ describe("the vision window (D-10, R-03)", () => {
   // The first 26 fixture rows; at least 25 are comparable on the fixture model.
   const rows26 = fixtureScraped.slice(0, 26);
   const comparableCount = preRank(
-    rows26.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null, sun: null })),
+    rows26.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null, sun: null, layout: null })),
     model,
   ).ranked.length;
 
@@ -436,6 +436,28 @@ describe("table rows and rendering (FIT-03)", () => {
       .split("\n")[1]
       .split(" | ");
     expect(unknown[headerCells.indexOf("Sol")]).toBe("okänd");
+  });
+
+  it("the Sol cell shows the layout: applied picks the facade, otherwise a balcony word, and no layout leaves the 14.3 cell (14.4 LAY-02)", () => {
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    const solOf = (row: Partial<(typeof sample)[number]>): string =>
+      renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], ...row }] }, new Map())).split("\n")[1].split(" | ")[headerCells.indexOf("Sol")];
+    const sun: SunFact = {
+      ...resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } }),
+      source: "fastighet/gata",
+      sides: [
+        { side: "gata", facade: "south", bearingDeg: 170, share: 0.5, point: null, hours: null },
+        { side: "gård", facade: "north", bearingDeg: 350, share: 0.5, point: null, hours: null },
+      ],
+    };
+    const layout = {
+      balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
+      windowSides: "one", bedroomSide: "street", streetEvidence: "cars", confidence: 0.9,
+      source: "planritning+foto", version: "v", images: { booli: 4, broker: 0 },
+    } as const;
+    expect(solOf({ sun, layout: null, layoutAppliedToSun: false })).toBe("S gata/N gård (fastighet/gata, 1,00)");
+    expect(solOf({ sun, layout, layoutAppliedToSun: false })).toBe("S gata/N gård (fastighet/gata, 1,00), balkong gata");
+    expect(solOf({ sun, layout, layoutAppliedToSun: true })).toBe("S gata (planritning+foto, 1,00), balkong gata");
   });
 
   it("the header puts the two hour columns right after 'Sol' and before 'Flaggor'; every printed row has as many cells as the header", () => {
@@ -685,7 +707,7 @@ describe("checkApifyHeadroom (R-13)", () => {
 describe('window "all" (D-06, WATCH-02)', () => {
   const rows = fixtureScraped;
   const comparable = preRank(
-    rows.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null, sun: null })),
+    rows.map((r) => ({ district: r.district, detailFetched: false, inVisionWindow: false, sunPhrases: null, candidate: r.candidate, facts: null, sun: null, layout: null })),
     model,
   ).ranked.length;
 

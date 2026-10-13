@@ -79,6 +79,7 @@ import {
   type RenoEstimate,
 } from "@/lib/discovery/reno-tier";
 import { computeNicheScore } from "@/lib/discovery/niche-score";
+import { layoutFactSchema, usableSide, type LayoutFact } from "@/lib/discovery/layout-fact";
 import { sunFactSchema, type SunFact } from "@/lib/discovery/sun-fact";
 import { tasteBonus, type InferredSunInput } from "@/lib/discovery/taste";
 
@@ -174,6 +175,14 @@ const fitRowSchema = z.object({
    * replay, it just reads as "this run did not look".
    */
   sun: sunFactSchema.nullable().catch(null).default(null),
+  /**
+   * R-08 (Phase 14.4, LAY-01): what the slim layout read said about this flat (balcony side, window
+   * sides, bedroom side, street evidence, confidence), beside the candidate and never inside it. Written
+   * by the live run, read by the replay; a replay never makes a model call. Reads null when absent AND
+   * when the stored value does not match the current schema (`.catch(null)`), exactly like `sun`: an old
+   * snapshot replays as "this run did not look".
+   */
+  layout: layoutFactSchema.nullable().catch(null).default(null),
 });
 
 export const fitSnapshotSchema = z.object({
@@ -282,6 +291,10 @@ export interface FitScoreResult {
   readonly featuresImputed: readonly string[];
   /** The row's sun record passed through unchanged (Phase 14.3); null when the run did not look. */
   readonly sun: SunFact | null;
+  /** The row's layout record passed through unchanged (Phase 14.4); null when the run did not read one. */
+  readonly layout: LayoutFact | null;
+  /** True when the layout picked the facade the sun taste used (LAY-02): the Sol cell then reads "planritning+foto". */
+  readonly layoutAppliedToSun: boolean;
 }
 
 /**
@@ -312,6 +325,35 @@ export function inferredSunForTaste(sun: SunFact | null): InferredSunInput | nul
         nominal === undefined || !(theoretical > 0) ? 1 : Math.min(1, Math.max(0, nominal / theoretical));
       return { facade: side.facade, obstructionFactor: factor };
     }),
+  };
+}
+
+/**
+ * The sun input for taste with the layout applied (Phase 14.4, LAY-02, D-09). 14.3 knows which facade
+ * faces the street and which the courtyard, but not which side the living space is on, so for a
+ * footprint-only fact ("fastighet/gata") taste counts the best of the two sides at half weight
+ * (`streetOnlyFactor`). When a usable layout says the balcony is on the street (or courtyard) side, only
+ * that side's facade and obstructed hours are used and the source becomes "planritning", so the factor is 1.
+ *
+ * Applied ONLY when all of these hold: the sun fact is the footprint kind, the layout gives a usable balcony
+ * side (confidence >= 0,6 AND photo evidence, see layout-fact.ts), and the matching side exists in the fact.
+ * A stated facade ("angiven"), an unknown sun, no sun and an unusable layout return exactly
+ * {@link inferredSunForTaste}(sun) with `applied` false. taste.ts is not involved in the facade choice.
+ */
+export function inferredSunWithLayout(
+  sun: SunFact | null,
+  layout: LayoutFact | null,
+): { input: InferredSunInput | null; applied: boolean } {
+  const base = inferredSunForTaste(sun);
+  if (base === null || sun === null || sun.source !== "fastighet/gata") return { input: base, applied: false };
+  const side = usableSide(layout, "balcony");
+  if (side === null) return { input: base, applied: false };
+  const want = side === "street" ? "gata" : "gård";
+  const idx = sun.sides.findIndex((s) => s.side === want);
+  if (idx < 0) return { input: base, applied: false };
+  return {
+    input: { source: "planritning", confidence: base.confidence, sides: [base.sides[idx]] },
+    applied: true,
   };
 }
 
@@ -372,6 +414,8 @@ export function fitScore(
       ? renoEstimateFromVision(c.vision)
       : renoBundle(UNKNOWN_RENO_STATES));
 
+  const sunWithLayout = inferredSunWithLayout(row.sun, row.layout);
+
   const base = {
     booliId: booliIdOf(c),
     address: c.address,
@@ -379,6 +423,8 @@ export function fitScore(
     district: row.district,
     floor: c.floor,
     sun: row.sun,
+    layout: row.layout,
+    layoutAppliedToSun: sunWithLayout.applied,
     renoSek: reno.midSek,
     renoLowSek: reno.lowSek,
     renoHighSek: reno.highSek,
@@ -466,7 +512,7 @@ export function fitScore(
     longitude: c.longitude,
     orientation: c.orientation,
     sunPhrases: row.sunPhrases,
-    inferredSun: inferredSunForTaste(row.sun),
+    inferredSun: sunWithLayout.input,
   });
   const tasteSek = cappedTasteSek(taste.pct, gap.resaleW);
   const askToPred = askingPerSqm / pred;

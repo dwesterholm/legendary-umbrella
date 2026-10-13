@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
+import folkungagatanFixtureJson from "@/lib/discovery/__fixtures__/forsale-snapshot-folkungagatan-61.fixture.json";
 import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import {
   EXPECTED_FINAL_CEILING_SEK,
@@ -21,6 +22,7 @@ import {
   fitScore,
   hedonicInputOf,
   inferredSunForTaste,
+  inferredSunWithLayout,
   modelHealth,
   parseFitSnapshot,
   preRank,
@@ -42,6 +44,7 @@ import {
 import { CGT_EFFECTIVE_RATE, RENO_COST_MATRIX } from "@/lib/discovery/flip-economics";
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import { RENO_BAND, UNKNOWN_RENO_STATES, renoBundle } from "@/lib/discovery/reno-tier";
+import { type LayoutFact } from "@/lib/discovery/layout-fact";
 import { unknownSunFact, type DateHours, type SideHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { LOVED_HUBS, tasteBonus } from "@/lib/discovery/taste";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
@@ -1409,5 +1412,147 @@ describe("residual flag: further below the model than the features explain (R-04
     expect(counts.other).toBe(asking.filter((r) => r.flags.includes("residualFlag")).length);
     // Asking prices sit below sold prices, so the asking basis never flags fewer rows.
     expect(counts.other).toBeGreaterThanOrEqual(counts.primary);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 14.4 (LAY-01, LAY-02): the layout picks the facade of the sun
+// ---------------------------------------------------------------------------
+
+const streetLayout = (over: Partial<LayoutFact> = {}): LayoutFact => ({
+  balconySide: "street",
+  livingOnBalconySide: true,
+  kitchenOnBalconySide: true,
+  bedroomOnBalconySide: true,
+  windowSides: "one",
+  bedroomSide: "street",
+  streetEvidence: "oppositeFacade",
+  confidence: 0.9,
+  source: "planritning+foto",
+  version: "test-version",
+  images: { booli: 4, broker: 0 },
+  ...over,
+});
+
+describe("inferredSunWithLayout (14.4 LAY-02, D-09)", () => {
+  // street south (best side, factor 0.95), courtyard north (no sun)
+  const folk = footprintFact(sideHoursOf(dateHours(6.0, 5.7)), sideHoursOf(dateHours(0, 0)), 1);
+
+  it("a usable street balcony keeps only the street side and becomes 'planritning'", () => {
+    const r = inferredSunWithLayout(folk, streetLayout());
+    expect(r.applied).toBe(true);
+    expect(r.input?.source).toBe("planritning");
+    expect(r.input?.sides).toHaveLength(1);
+    expect(r.input?.sides[0].facade).toBe("south");
+    expect(r.input?.confidence).toBe(1);
+  });
+
+  it("a usable courtyard balcony keeps the courtyard side", () => {
+    const r = inferredSunWithLayout(folk, streetLayout({ balconySide: "courtyard", streetEvidence: "courtyardGreenery" }));
+    expect(r.applied).toBe(true);
+    expect(r.input?.sides.map((s) => s.facade)).toEqual(["north"]);
+  });
+
+  it("a stated facade, an unknown sun, no sun and an unusable layout return exactly inferredSunForTaste", () => {
+    const stated: SunFact = {
+      ...folk,
+      source: "angiven",
+      sides: [{ side: "angiven", facade: "west", bearingDeg: null, share: 1, point: null, hours: null }],
+    };
+    for (const sun of [stated, unknownSunFact("x"), null]) {
+      const r = inferredSunWithLayout(sun, streetLayout());
+      expect(r.applied).toBe(false);
+      expect(r.input).toEqual(inferredSunForTaste(sun));
+    }
+    for (const layout of [null, streetLayout({ confidence: 0.59 }), streetLayout({ streetEvidence: "none" }), streetLayout({ balconySide: "none" }), streetLayout({ balconySide: "unknown" })]) {
+      const r = inferredSunWithLayout(folk, layout);
+      expect(r.applied).toBe(false);
+      expect(r.input).toEqual(inferredSunForTaste(folk));
+    }
+  });
+
+  it("a footprint fact without the matching side is left as 14.3 had it", () => {
+    const streetOnly: SunFact = { ...folk, sides: [folk.sides[0]] };
+    const r = inferredSunWithLayout(streetOnly, streetLayout({ balconySide: "courtyard", streetEvidence: "courtyardGreenery" }));
+    expect(r.applied).toBe(false);
+    expect(r.input).toEqual(inferredSunForTaste(streetOnly));
+  });
+});
+
+describe("a layout fact inside fitScore (14.4 LAY-02)", () => {
+  const folk = footprintFact(sideHoursOf(dateHours(6.0, 5.7)), sideHoursOf(dateHours(0, 0)), 1);
+
+  it("the sun part of taste doubles (the 0,5 street-only factor becomes 1); everything else is equal", () => {
+    const row = { ...flat({ facades: null }), sun: folk };
+    const without = fitScore(row, model);
+    const withLayout = fitScore({ ...row, layout: streetLayout() }, model);
+    expect(without.layoutAppliedToSun).toBe(false);
+    expect(withLayout.layoutAppliedToSun).toBe(true);
+    expect(withLayout.tasteSunPct).toBeCloseTo(2 * without.tasteSunPct, 12);
+    expect(withLayout.tasteSunPct).toBeGreaterThan(0);
+    // The same price, resale, flags and hub part; the profit differs by the taste part only.
+    expect(withLayout.resaleSek).toBe(without.resaleSek);
+    expect(withLayout.purchaseSek).toBe(without.purchaseSek);
+    expect(withLayout.tasteHubPct).toBe(without.tasteHubPct);
+    expect(withLayout.flags).toEqual(without.flags);
+    expect(withLayout.layout).toEqual(streetLayout());
+  });
+
+  it("an unusable layout scores exactly as a row without one", () => {
+    const row = { ...flat({ facades: null }), sun: folk };
+    const base = fitScore(row, model);
+    const weak = fitScore({ ...row, layout: streetLayout({ confidence: 0.59 }) }, model);
+    expect(weak.tasteSek).toBe(base.tasteSek);
+    expect(weak.profitSek).toBe(base.profitSek);
+    expect(weak.layoutAppliedToSun).toBe(false);
+  });
+
+  it("the result carries the layout and the applied flag on the not-comparable path too", () => {
+    const row = { ...flat({ facades: null }), sun: folk, layout: streetLayout() };
+    const noPrice = fitScore({ ...row, candidate: { ...row.candidate, price: null } }, model);
+    expect(noPrice.comparable).toBe(false);
+    expect(noPrice.layout).toEqual(streetLayout());
+    expect(noPrice.layoutAppliedToSun).toBe(true);
+  });
+});
+
+describe("snapshot row layout (R-08, Phase 14.4)", () => {
+  it("the committed fixture has no layout record: every row reads null", () => {
+    for (const row of snapshot.rows) expect(row.layout).toBeNull();
+  });
+
+  it("a stored value that does not match the current schema reads null and the snapshot still parses", () => {
+    const raw = JSON.parse(JSON.stringify(snapshot));
+    raw.rows[0].layout = { junk: 1 };
+    raw.rows[1].layout = "street";
+    raw.rows[2].layout = { ...streetLayout(), source: "gissning" };
+    delete raw.rows[3].layout;
+    const parsed = parseFitSnapshot(raw);
+    expect(parsed.rows.slice(0, 4).map((r) => r.layout)).toEqual([null, null, null, null]);
+    expect(parsed.rows).toHaveLength(snapshot.rows.length);
+  });
+
+  it("a valid record round-trips through JSON", () => {
+    const withLayout = { ...snapshot, rows: snapshot.rows.map((r, i) => (i === 0 ? { ...r, layout: streetLayout() } : r)) };
+    const reparsed = parseFitSnapshot(JSON.parse(JSON.stringify(withLayout)));
+    expect(reparsed.rows[0].layout).toEqual(streetLayout());
+    expect(reparsed.rows[1].layout).toBeNull();
+  });
+});
+
+describe("Folkungagatan 61 layout fixture (LAY-04 plumbing, D-11)", () => {
+  const fixture = parseFitSnapshot(folkungagatanFixtureJson);
+
+  it("is one real row with the hand-written truth: balcony street, windows one side, bedroom street", () => {
+    expect(fixture.rows).toHaveLength(1);
+    const row = fixture.rows[0];
+    expect(booliIdOf(row.candidate)).toBe(FOLKUNGAGATAN_ID);
+    expect(row.sun).toBeNull();
+    expect(row.layout).not.toBeNull();
+    expect(row.layout?.balconySide).toBe("street");
+    expect(row.layout?.windowSides).toBe("one");
+    expect(row.layout?.bedroomSide).toBe("street");
+    expect(row.layout?.streetEvidence).toBe("oppositeFacade");
+    expect(row.layout?.confidence).toBe(0.9);
   });
 });

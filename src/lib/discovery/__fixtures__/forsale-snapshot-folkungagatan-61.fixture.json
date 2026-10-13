@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "asOf": "2026-10-13",
+  "source": "14.4 LAY-04 calibration fixture: one real row + hand-written layout truth (D-11)",
+  "rows": [
+    {
+      "district": "Södermalm",
+      "detailFetched": true,
+      "inVisionWindow": true,
+      "sunPhrases": {
+        "allDaySun": false,
+        "throughFlat": false
+      },
+      "candidate": {
+        "address": "Folkungagatan 61",
+        "price": 3695000,
+        "rooms": 2,
+        "livingArea": 35,
+        "areaLabel": "Södermalm",
+        "thumbnailUrl": null,
+        "sourceListingUrl": "https://www.booli.se/bostad/150148",
+        "constructionYear": 1912,
+        "brfName": null,
+        "tenureForm": null,
+        "kommun": "Stockholm",
+        "imageUrls": [
+          "https://bcdn.se/images/cache/49231065_1440x0.webp",
+          "https://bcdn.se/images/cache/49230913_1440x0.webp",
+          "https://bcdn.se/images/cache/49230933_1440x0.webp",
+          "https://bcdn.se/images/cache/49230915_1440x0.webp"
+        ],
+        "vision": {
+          "claims": [
+            {
+              "attribute": "overall",
+              "claim": "Bostaden verkar vara i gott skick med välbevarade originaldetaljer — taklister, pärlspontspanel/brystning och parkettgolv i trä tyder på ett äldre bestånd med karaktär som verkar omsorgsfullt underhållet",
+              "imageIndex": 2,
+              "whatWasSeen": "Vita taklister, vitmålad brystningspanel, trägolv i mörkt trä, gjutjärnsradiatorer och spröjsade fönster i gott skick",
+              "confidence": 0.75
+            }
+          ],
+          "imageUrlsUsed": [
+            "https://bcdn.se/images/cache/49231065_1440x0.webp",
+            "https://bcdn.se/images/cache/49230913_1440x0.webp",
+            "https://bcdn.se/images/cache/49230933_1440x0.webp",
+            "https://bcdn.se/images/cache/49230915_1440x0.webp"
+          ],
+          "model": "claude-sonnet-4-6",
+          "costSek": 0,
+          "ranAt": "2026-10-13T12:38:54.530Z"
+        },
+        "visionSkippedReason": null,
+        "areaComps": null,
+        "brfSummary": null,
+        "holisticBrief": null,
+        "latitude": 59.3147546,
+        "longitude": 18.07681659,
+        "floor": 5,
+        "orientation": null,
+        "balcony": true,
+        "upcomingSale": false,
+        "isNewConstruction": false
+      },
+      "facts": {
+        "tenureForm": "Bostadsrätt",
+        "avgiftMonthlySek": 2232,
+        "operatingCostMonthlySek": null,
+        "constructionYear": 1912,
+        "balcony": true,
+        "floor": 5,
+        "elevatorListed": true,
+        "publishedAt": "2026-10-09",
+        "daysOnMarket": 4,
+        "daysOnMarketSource": "published",
+        "priceCutSek": null,
+        "listPricePercentageDiff": null,
+        "biddingOpen": false,
+        "statusKey": null,
+        "brfName": null,
+        "brfId": null,
+        "isNewConstruction": false,
+        "orientationFacades": null,
+        "sunPhrases": [],
+        "descriptionRead": true,
+        "landLease": null,
+        "brf": null,
+        "detailFetched": true
+      },
+      "layout": {
+        "balconySide": "street",
+        "livingOnBalconySide": true,
+        "kitchenOnBalconySide": true,
+        "bedroomOnBalconySide": true,
+        "windowSides": "one",
+        "bedroomSide": "street",
+        "streetEvidence": "oppositeFacade",
+        "confidence": 0.9,
+        "source": "planritning+foto",
+        "version": "sanning-2026-10-13",
+        "images": {
+          "booli": 4,
+          "broker": 0
+        }
+      }
+    }
+  ]
+}
