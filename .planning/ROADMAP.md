@@ -167,7 +167,7 @@ Plans:
 
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 1/9 plans executed
+**Plans:** 2/9 plans executed
 
 Plans:
 **Wave 1**
@@ -176,7 +176,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14.2-02-PLAN.md — Complete district lists (Booli's own total, up to 15 pages; in-app dead-page detection unchanged) + CandidateFacts from Booli payloads, with real local fixtures
+- [x] 14.2-02-PLAN.md — Complete district lists (Booli's own total, up to 15 pages; in-app dead-page detection unchanged) + CandidateFacts from Booli payloads, with real local fixtures
 - [ ] 14.2-03-PLAN.md — 14.1 review fixes WR-01..WR-04 (reno-tier negation, "genomgående", slutpris resume) + stated-sun phrase list
 - [ ] 14.2-04-PLAN.md — Model decisions: size sign rule dropped + free refit committed, uncapped gap column, "Förväntat under 4 M" / "Över 4 M förväntat" sections
 
