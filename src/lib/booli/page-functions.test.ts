@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { EXTRACT_STATE_BROWSER_FN, APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
 
 /**
@@ -310,5 +312,96 @@ describe("EXTRACT_STATE_BROWSER_FN — Booli's 2026-10 page shapes", () => {
     expect(APOLLO_PAGE_FUNCTION).toContain("page.evaluate(() => {");
     expect(APOLLO_PAGE_FUNCTION).toContain("ApolloSSRDataTransport");
     expect(APOLLO_PAGE_FUNCTION).toContain("self.__next_f.push(");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 14.2 (WATCH-02, R-04, W6): Booli's own result count and the card status
+// ---------------------------------------------------------------------------
+
+/** A search result object the way Booli ships it: cards, then totalCount, then meta with the title. */
+function resultScript(cards: unknown[], totalCount: number, title: string): string {
+  const searchForSale = {
+    __typename: "SearchResult",
+    items: cards,
+    totalCount,
+    meta: {
+      __typename: "SearchResultMeta",
+      tilesQuery: "isNewConstruction=&objectType=Lägenhet",
+      title: { __typename: "DisplayText", markdown: `**${title}**`, plainText: title },
+    },
+  };
+  return `(window[Symbol.for("ApolloSSRDataTransport")] ??= []).push(${JSON.stringify({ rehydrate: { _R_c: { data: { searchForSale } } } })})`;
+}
+
+const META_FIXTURE = readFileSync(join(__dirname, "__fixtures__", "search-meta-local.fixture.txt"), "utf8");
+
+/** Runs the actor page function string against the current document, as the Apify actor and the local browser do. */
+async function runPageFunction(): Promise<unknown> {
+  const run = new Function(`return (${APOLLO_PAGE_FUNCTION})`)() as (ctx: unknown) => Promise<unknown>;
+  return run({ page: { evaluate: async (fn: () => unknown) => fn() }, request: { url: "https://www.booli.se/sok/till-salu" } });
+}
+
+describe("EXTRACT_STATE_BROWSER_FN - SearchMeta and card statusKey (Phase 14.2)", () => {
+  it("reads the three result counts and the cards out of the real local search fixture", () => {
+    addInlineScript(META_FIXTURE);
+    const state = extract()!;
+    const meta = Object.entries(state)
+      .filter(([key]) => key.startsWith("SearchMeta:"))
+      .map(([, value]) => value);
+    expect(meta).toEqual([
+      { __typename: "SearchMeta", totalCount: 551, title: "Lägenheter till salu på Södermalm" },
+      { __typename: "SearchMeta", totalCount: 4, title: "Nyproduktion av lägenheter på Södermalm" },
+      { __typename: "SearchMeta", totalCount: 37089, title: "Slutpriser för lägenheter på Södermalm" },
+    ]);
+    expect(Object.keys(state).filter((key) => key.startsWith("Listing:")).sort()).toEqual([
+      "Listing:6220466",
+      "Listing:6225820",
+      "Listing:6294081",
+    ]);
+  });
+
+  it("carries primaryStatus.key as statusKey: biddingOpen where Booli says so, null otherwise", () => {
+    addInlineScript(META_FIXTURE);
+    const state = extract()!;
+    expect(state["Listing:6294081"]).toMatchObject({ streetAddress: "Fatburs Kvarngata 18", statusKey: "biddingOpen" });
+    expect(state["Listing:6220466"]).toMatchObject({ streetAddress: "Pokalvägen 4", statusKey: null });
+    expect(state["Listing:6225820"]).toMatchObject({ statusKey: null });
+  });
+
+  it("keeps Swedish letters in the count title and card address byte for byte", () => {
+    addInlineScript(META_FIXTURE);
+    const state = extract()!;
+    expect(state["SearchMeta:0"].title).toBe("Lägenheter till salu på Södermalm");
+    expect(state["Listing:6220466"].streetAddress).toBe("Pokalvägen 4");
+  });
+
+  it("the count rides along beside one real card (the count never replaces cards)", () => {
+    addInlineScript(resultScript([SERP_CARD], 222, "Lägenheter till salu på Södermalm"));
+    const state = extract()!;
+    expect(Object.keys(state).sort()).toEqual(["Listing:6257338", "SearchMeta:0"]);
+    expect(state["SearchMeta:0"]).toEqual({ __typename: "SearchMeta", totalCount: 222, title: "Lägenheter till salu på Södermalm" });
+  });
+
+  it("a card without primaryStatus has statusKey null, and a SERP card keeps every field it had", () => {
+    addInlineScript(transportScript([SERP_CARD]));
+    expect(extract()!["Listing:6257338"]).toMatchObject({ statusKey: null, displayDate: "Inkommet idag" });
+  });
+
+  describe("totalCount-only page (W6: a count with no cards stays a dead page)", () => {
+    it.each([222, 0])("extracts to null when the page carries only a till-salu totalCount of %i", (total) => {
+      addInlineScript(resultScript([], total, "Lägenheter till salu på Södermalm"));
+      expect(extract()).toBeNull();
+    });
+
+    it.each([222, 0])("the page function says hasApollo false for a totalCount-only page (%i), like a page with no transport", async (total) => {
+      addInlineScript(resultScript([], total, "Lägenheter till salu på Södermalm"));
+      const countOnly = await runPageFunction();
+      document.body.innerHTML = "";
+      addInlineScript("window.dataLayer = [];");
+      const empty = await runPageFunction();
+      expect(countOnly).toEqual({ hasApollo: false, __APOLLO_STATE__: null });
+      expect(countOnly).toEqual(empty);
+    });
   });
 });

@@ -33,6 +33,15 @@
  *     pipeline is untouched. The missing fields are backfilled per listing by
  *     the detail fetch in `enrichCandidateImages` (job.ts); until then a
  *     search result carries no build year or BRF name.
+ *     The same transport also carries Booli's OWN result count for the query:
+ *     `...,"totalCount":551,"meta":{...,"title":{"plainText":"Lägenheter till
+ *     salu på Södermalm"}}`, once for the till-salu list and again for the
+ *     Nyproduktion and Slutpriser variants of the same filter (Phase 14.2,
+ *     WATCH-02, R-04). Each becomes a `SearchMeta:<n>` state entry
+ *     `{ totalCount, title }` so the headless run can page until it has them
+ *     all. A SearchMeta entry NEVER makes a page usable (W6): a page with a
+ *     count and no cards still extracts to null, so a Booli card-format change
+ *     surfaces as a dead page, never as an empty district.
  *
  * The browser-side body is exported separately (`EXTRACT_STATE_BROWSER_FN`) so
  * it can be executed verbatim in a real browser tab against live Booli pages
@@ -81,9 +90,8 @@ export const EXTRACT_STATE_BROWSER_FN = `() => {
     for (const v of values) walk(v, visit, depth + 1);
   };
 
-  // Returns the JSON object literal that starts at the "{" enclosing \`idx\`.
-  const objectAround = (text, idx) => {
-    const start = text.lastIndexOf("{", idx);
+  // Returns the JSON object literal that starts at the "{" at \`start\`.
+  const objectFrom = (text, start) => {
     if (start < 0) return null;
     let depth = 0, inStr = false, esc = false;
     for (let i = start; i < text.length; i++) {
@@ -100,6 +108,8 @@ export const EXTRACT_STATE_BROWSER_FN = `() => {
     }
     return null;
   };
+  // Returns the JSON object literal that starts at the "{" enclosing \`idx\`.
+  const objectAround = (text, idx) => objectFrom(text, text.lastIndexOf("{", idx));
 
   const inlineScripts = Array.from(document.scripts)
     .filter((s) => !s.src)
@@ -214,6 +224,8 @@ export const EXTRACT_STATE_BROWSER_FN = `() => {
                   kommun: tp.municipality || null,
                   saleType: o.saleType || null,
                   displayDate: o.displayDate || null,
+                  // primaryStatus.key: "biddingOpen" (Budgivning pågår), "upcomingSale", "newConstruction" ...; null when Booli sets none.
+                  statusKey: (o.primaryStatus && o.primaryStatus.key) || null,
                 };
                 found = true;
               }
@@ -225,6 +237,42 @@ export const EXTRACT_STATE_BROWSER_FN = `() => {
         }
         idx = transport.indexOf(marker, idx + marker.length);
       }
+    }
+
+    // Booli's own result counts (Phase 14.2, R-04). Each "totalCount":N is followed by
+    // ,"meta":{...,"title":{"plainText":...}}: cut that meta object forward and keep the
+    // count with its title. W6: this branch deliberately never sets \`found\`. Only real
+    // Listing / SoldProperty / legacy / flight entities make a page usable, so a page
+    // that carries a count but no cards extracts to null and stays a dead page. A change
+    // in Booli's card format must surface as a failed source, never as an empty district.
+    const countMarker = '"totalCount":';
+    const metaMarker = ',"meta":';
+    const metaSeen = new Set();
+    let metaN = 0;
+    let ci = transport.indexOf(countMarker);
+    while (ci >= 0) {
+      let j = ci + countMarker.length;
+      let digits = "";
+      while (j < transport.length && transport[j] >= "0" && transport[j] <= "9") { digits += transport[j]; j++; }
+      if (digits !== "") {
+        let title = null;
+        if (transport.startsWith(metaMarker, j) && transport[j + metaMarker.length] === "{") {
+          const metaLiteral = objectFrom(transport, j + metaMarker.length);
+          if (metaLiteral) {
+            try {
+              const meta = JSON.parse(metaLiteral);
+              if (meta && meta.title && typeof meta.title.plainText === "string") title = meta.title.plainText;
+            } catch (_) {}
+          }
+        }
+        const metaId = digits + "|" + title;
+        if (!metaSeen.has(metaId)) {
+          metaSeen.add(metaId);
+          state["SearchMeta:" + metaN] = { __typename: "SearchMeta", totalCount: Number(digits), title: title };
+          metaN++;
+        }
+      }
+      ci = transport.indexOf(countMarker, ci + countMarker.length);
     }
   }
 

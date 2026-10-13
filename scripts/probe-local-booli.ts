@@ -37,10 +37,13 @@ import { APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
 const USAGE = `Användning:
   npx tsx scripts/probe-local-booli.ts search --area <områdes-id> [--pages N] [--min-area N]
       [--price-decrease] [--max-price N] [--save-meta <sökväg>]
+  npx tsx scripts/probe-local-booli.ts search --area <områdes-id> --complete [--min-area N]
   npx tsx scripts/probe-local-booli.ts detail <booli-url> [--save <sökväg>] [--mode new-headless]
 
   --area <id>        Booli-områdes-id, till exempel 115341 (Södermalm)
   --pages <n>        antal sökresultatsidor, standard 1 (1-5)
+  --complete         hämta tills Boolis eget antal är nått (högst 15 sidor) och skriv
+                     "Fullständighet: N av M annonser (P sidor, komplett|ofullständig)"
   --min-area <n>     minsta boarea i kvm (minLivingArea)
   --price-decrease   skickar priceDecrease=1 (kontrollerat 2026-10-13: söksidan ignorerar den,
                      antalet blir detsamma; prissänkta annonser syns i kortens priceRemark)
@@ -60,6 +63,7 @@ interface SearchArgs {
   priceDecrease: boolean;
   maxPrice: number | null;
   saveMeta: string | null;
+  complete: boolean;
 }
 interface DetailArgs {
   mode: "detail";
@@ -74,7 +78,7 @@ const isPosInt = (v: string | undefined): v is string => v !== undefined && /^\d
 function parseArgs(argv: string[]): Args | null {
   const [mode, ...rest] = argv;
   if (mode === "search") {
-    const a: SearchArgs = { mode, area: "", pages: 1, minArea: null, priceDecrease: false, maxPrice: null, saveMeta: null };
+    const a: SearchArgs = { mode, area: "", pages: 1, minArea: null, priceDecrease: false, maxPrice: null, saveMeta: null, complete: false };
     let area: string | null = null;
     for (let i = 0; i < rest.length; i++) {
       const flag = rest[i];
@@ -93,6 +97,8 @@ function parseArgs(argv: string[]): Args | null {
         i++;
       } else if (flag === "--price-decrease") {
         a.priceDecrease = true;
+      } else if (flag === "--complete") {
+        a.complete = true;
       } else if (flag === "--save-meta" && value !== undefined) {
         a.saveMeta = value;
         i++;
@@ -419,6 +425,31 @@ async function runSearchCapture(a: SearchArgs): Promise<void> {
   }
 }
 
+/**
+ * The completeness run (Phase 14.2, R-04): the same `fetchAreaListings` the weekly run uses,
+ * paging until Booli's own till-salu count is reached (at most HEADLESS_MAX_AREA_PAGES pages).
+ * An unknown count is reported as incomplete, never as complete.
+ */
+async function runSearchComplete(a: SearchArgs): Promise<void> {
+  const { fetchAreaListings, HEADLESS_MAX_AREA_PAGES } = await import("@/lib/booli/client");
+  const result = await fetchAreaListings(a.area, "Lägenhet", {
+    maxPages: HEADLESS_MAX_AREA_PAGES,
+    ...(a.minArea !== null ? { minLivingArea: a.minArea } : {}),
+  });
+  const collected = result.listings.length;
+  console.log(`Område: ${areaName(a.area)} (${a.area})${a.minArea !== null ? `, minst ${a.minArea} kvm` : ""}`);
+  console.log(
+    `Fullständighet: ${collected} av ${result.totalCount ?? "okänt"} annonser (${result.pagesFetched} sidor, ${result.complete === true ? "komplett" : "ofullständig"})`,
+  );
+  if (result.newConstructionCount !== null) {
+    console.log(
+      `Nyproduktion: Booli räknar ${result.newConstructionCount}, visar ${result.newConstructionCount - result.unlistedProjects} som kort, ${result.unlistedProjects} saknar kort och räknas som hämtade`,
+    );
+  }
+  const withoutPrice = result.listings.map((raw) => toCandidate(raw)).filter((c) => c.price === null).length;
+  console.log(`Varav utan pris (snart till salu): ${withoutPrice}`);
+}
+
 async function runSearchPlain(a: SearchArgs): Promise<void> {
   const { fetchAreaListings } = await import("@/lib/booli/client");
   const { listings } = await fetchAreaListings(a.area, "Lägenhet", { maxPages: a.pages });
@@ -494,6 +525,8 @@ async function main(): Promise<number> {
   try {
     if (args.mode === "detail") {
       await runDetail(args);
+    } else if (args.complete) {
+      await runSearchComplete(args);
     } else if (args.minArea !== null || args.priceDecrease || args.maxPrice !== null || args.saveMeta !== null) {
       await runSearchCapture(args);
     } else {

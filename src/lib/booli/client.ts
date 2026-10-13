@@ -177,6 +177,21 @@ export function brfNameFromBreadcrumbs(breadcrumbs: unknown): string | null {
 }
 
 /**
+ * The BRF's Booli id: the digits of the LAST breadcrumb whose `.url` is
+ * `/bostadsrattsforening/<digits>` (Phase 14.2, R-07/R-08: the key of the public
+ * BRF page and of the facts record). Digits only, so the id can be put into a
+ * URL later without escaping. Null for a non-array, an empty ladder, a last
+ * crumb that is not a BRF crumb, or a non-numeric id - never throws.
+ */
+export function brfIdFromBreadcrumbs(breadcrumbs: unknown): string | null {
+  if (!Array.isArray(breadcrumbs) || breadcrumbs.length === 0) return null;
+  const last = breadcrumbs[breadcrumbs.length - 1] as { url?: unknown } | undefined;
+  if (typeof last?.url !== "string") return null;
+  const m = last.url.match(/\/bostadsrattsforening\/(\d+)(?:[/?#]|$)/);
+  return m ? m[1] : null;
+}
+
+/**
  * Derives the listing's kommun for geographic corroboration (Pitfall 4) from
  * the breadcrumb wide->narrow area ladder (e.g. ["Stockholms län",
  * "Stockholms kommun", "Södermalm", ...]) — the entry whose label ends with
@@ -350,8 +365,15 @@ function extractImageUrls(entry: Record<string, unknown>): string[] | undefined 
  * `Record<string, unknown>` shape `scrapeBooli()` / `scraperOutputSchema`
  * expect. Uses the null-tolerant coercion helpers throughout (T-05-12): a
  * malformed/partial entity yields undefined/null fields, never a throw.
+ *
+ * Exported (Phase 14.2, additive) so `discovery/listing-facts.ts` tests can run
+ * captured detail pages through exactly the reshape the weekly run uses. The
+ * facts keys (displayDate, statusKey, published, listPriceChange,
+ * listPricePercentageDiff, biddingOpen, operatingCost, brfId) ride on this flat
+ * record only; `toCandidate` ignores them, so the persisted candidate is not
+ * widened (R-08).
  */
-function reshapeListingEntity(entry: Record<string, unknown>): Record<string, unknown> {
+export function reshapeListingEntity(entry: Record<string, unknown>): Record<string, unknown> {
   // Arg-keyed `agency(...)` in the legacy normalized cache; plain `agency`
   // in the denormalized payloads page-functions.ts emits since 2026-10.
   const agency = (argKeyedFieldOf(entry, "agency(") ?? entry.agency) as
@@ -430,6 +452,20 @@ function reshapeListingEntity(entry: Record<string, unknown>): Record<string, un
     // Search-page cards (2026-10 shape) carry no breadcrumbs; page-functions.ts
     // sets a plain `kommun` from the card's tracking data instead.
     kommun: kommunFromBreadcrumbs(entry.breadcrumbs) ?? str(entry.kommun) ?? undefined,
+    // Phase 14.2 (R-08): facts for the separate CandidateFacts record. Detail pages
+    // carry published / listPriceChange / listPricePercentageDiff / biddingOpen /
+    // operatingCost; search cards carry displayDate / statusKey. Each is read with the
+    // null-tolerant helpers, so an absent field stays undefined and nothing is invented.
+    displayDate: str(entry.displayDate) ?? undefined,
+    statusKey: str(entry.statusKey) ?? undefined,
+    published: str(entry.published) ?? undefined,
+    // Raw numbers, unwrapped from the FormattedValue. The sign is Booli's: negative means
+    // the asking price went DOWN (checked against a -15,6 % listing on 2026-10-13).
+    listPriceChange: rawOf(entry.listPriceChange) ?? undefined,
+    listPricePercentageDiff: rawOf(entry.listPricePercentageDiff) ?? undefined,
+    biddingOpen: num(entry.biddingOpen) ?? undefined,
+    operatingCost: rawOf(entry.operatingCost) ?? undefined,
+    brfId: brfIdFromBreadcrumbs(entry.breadcrumbs) ?? undefined,
   };
 }
 
@@ -597,9 +633,18 @@ export async function fetchListing(
  * `sold-source.ts`'s `buildSlutpriserUrl` — `URLSearchParams` only, never
  * manual string concatenation (T-05-11).
  */
-function buildTillSaluUrl(areaId: string, objectType?: string | null, page: number = 1): string {
+function buildTillSaluUrl(
+  areaId: string,
+  objectType?: string | null,
+  page: number = 1,
+  minLivingArea?: number | null,
+): string {
   const params = new URLSearchParams({ areaIds: areaId });
   if (objectType) params.set("objectType", objectType);
+  // Phase 14.2 (A6, checked 2026-10-13): Booli applies minLivingArea on the server
+  // (Sodermalm 551 -> 444 listings for 35 m2 and up), so the count and the paging
+  // describe the filtered list. Absent unless the caller asks, so the in-app URL is unchanged.
+  if (minLivingArea !== undefined && minLivingArea !== null) params.set("minLivingArea", String(minLivingArea));
   // Lowest kr/m² first — a useful FIRST-PASS surfacing order (cheap per m²,
   // not just cheap absolute), NOT a conclusion. A low kr/m² can mean a renovation
   // opportunity, but it can equally reflect confounders the sort cannot see:
@@ -648,6 +693,16 @@ const FULL_PAGE_THRESHOLD = 20;
  * refinement.)
  */
 export const MAX_AREA_PAGES = 5;
+
+/**
+ * Page cap for the HEADLESS run (Phase 14.2, R-04): `fetchAreaListings(..., { maxPages })`
+ * pages until Booli's own count is reached but never beyond this many pages per district.
+ * Local pages are free (about 5 s each, 0 USD), so the cap only guards against a runaway
+ * count: 15 pages x ~36 cards = ~540 listings, above the largest filtered inner-city
+ * district seen (Sodermalm 444 with 35 m2 and up on 2026-10-13). The in-app job keeps
+ * `MAX_AREA_PAGES` (5); `cost.ts` mirrors that one, not this.
+ */
+export const HEADLESS_MAX_AREA_PAGES = 15;
 
 /**
  * D-02 (13-CONTEXT.md, RESEARCH Open Question #1) — a scoped, materially
@@ -749,12 +804,120 @@ export interface AreaListingsResult {
    * unenforceable (CR-01, 14-REVIEW.md).
    */
   rendersUsed: number;
+  /**
+   * Booli's own till-salu count for this query, read from page 1 (Phase 14.2,
+   * R-04); null when the page carried none. Additive: the in-app job ignores it.
+   */
+  totalCount: number | null;
+  /** Booli's own Nyproduktion count for the same filter (page 1), or null. Part of `totalCount`. */
+  newConstructionCount: number | null;
+  /**
+   * How many of the counted new-construction items Booli does not render as a card
+   * (`newConstructionCount` minus the project cards actually collected). Measured
+   * 2026-10-13: Sodermalm counts 4 and shows 1, Kungsholmen counts 8 and shows 3,
+   * Vasastan counts 3 and shows 1. These are projects the pipeline drops anyway
+   * (new construction has no renovation upside), so they count as "in hand" for
+   * completeness. 0 when the Nyproduktion count is unknown.
+   */
+  unlistedProjects: number;
+  /**
+   * Whether every listing Booli counts is in hand:
+   * `areaCompleteness(listings.length + unlistedProjects, totalCount)`. Null when Booli
+   * printed no count; the caller reports null as incomplete (R-04). Use this, not a bare
+   * `listings.length >= totalCount`, or three of the four inner-city districts would read
+   * "ofullstandig" on every run because of the unlisted projects.
+   */
+  complete: boolean | null;
+  /** Pages that came back with data (page 1 plus every later page that did not fail). */
+  pagesFetched: number;
 }
 
 /** One page's outcome: its entities plus the renders that page consumed. */
 interface AreaPageResult {
   listings: Record<string, unknown>[];
+  /** Booli's till-salu count as printed on this page, or null. */
+  totalCount: number | null;
+  /** Booli's Nyproduktion count as printed on this page, or null. */
+  newConstructionCount: number | null;
   rendersUsed: number;
+}
+
+/** The first `SearchMeta` count whose title satisfies `wanted`, or null. */
+function searchMetaCount(items: unknown[], wanted: (title: string) => boolean): number | null {
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    const state = (item as { __APOLLO_STATE__?: unknown }).__APOLLO_STATE__;
+    if (!state || typeof state !== "object") continue;
+    for (const [key, value] of Object.entries(state as Record<string, unknown>)) {
+      if (!key.startsWith("SearchMeta:") || !value || typeof value !== "object") continue;
+      const { totalCount, title } = value as { totalCount?: unknown; title?: unknown };
+      if (typeof totalCount !== "number" || !Number.isInteger(totalCount) || totalCount < 0) continue;
+      if (typeof title === "string" && wanted(title)) return totalCount;
+    }
+  }
+  return null;
+}
+
+/**
+ * Booli's own till-salu count out of the render items (Phase 14.2, R-04): the
+ * `SearchMeta` entry whose title reads "till salu" and does not start with
+ * "Nyproduktion". The same page also carries a Nyproduktion count and a
+ * Slutpriser count (222 / 1 / 16 048 in the 2026-10-12 probe), which are not the
+ * list being paged. Null when no such entry exists. Pure.
+ */
+export function totalCountFromItems(items: unknown[]): number | null {
+  return searchMetaCount(items, (title) => /till salu/i.test(title) && !/^nyproduktion/i.test(title));
+}
+
+/**
+ * Booli's Nyproduktion count for the same filter (title starts with
+ * "Nyproduktion"). It is a subset of the till-salu count and is larger than the
+ * number of project cards Booli renders (see `AreaListingsResult.unlistedProjects`).
+ * Null when absent. Pure.
+ */
+export function newConstructionCountFromItems(items: unknown[]): number | null {
+  return searchMetaCount(items, (title) => /^nyproduktion/i.test(title));
+}
+
+/**
+ * Whether a district list is complete: every listing Booli counts is in hand
+ * (`collected >= totalCount`). Null when Booli printed no count - an unknown
+ * total is reported as incomplete by the caller, never as complete (R-04). Pure.
+ */
+export function areaCompleteness(collected: number, totalCount: number | null): boolean | null {
+  if (totalCount === null) return null;
+  return collected >= totalCount;
+}
+
+const isProject = (listing: Record<string, unknown>): boolean => listing.isNewConstruction === true;
+
+/**
+ * Lower bound on the pages the headless run walks, from page 1 alone (Phase 14.2,
+ * R-04): `ceil(listings Booli renders / page-1 size)`, never above `maxPages`. With
+ * no usable count it is the old full-page rule (a page 1 with `FULL_PAGE_THRESHOLD`
+ * or more entries walks on up to `maxPages`). It is a LOWER bound because page 1 can
+ * carry extra project cards (Kungsholmen: 38 cards against 35 on every later page), so
+ * a result of 2 or more is then refined from page 2's real size (`pagesFromSizes`).
+ * Pure.
+ */
+function pagesToFetch(page1Size: number, renderable: number | null, maxPages: number): number {
+  if (maxPages <= 1) return 1;
+  if (renderable !== null && renderable > 0 && page1Size > 0) {
+    return Math.max(1, Math.min(Math.ceil(renderable / page1Size), maxPages));
+  }
+  return page1Size >= FULL_PAGE_THRESHOLD ? maxPages : 1;
+}
+
+/**
+ * The exact page count once page 2's size is known: page 1, then enough pages of
+ * `regularSize` for the rest, within `maxPages`. A page 2 shorter than
+ * `FULL_PAGE_THRESHOLD` is the last page (the same rule the in-app path uses).
+ * Pure.
+ */
+function pagesFromSizes(renderable: number, page1Size: number, regularSize: number, maxPages: number): number {
+  if (regularSize < FULL_PAGE_THRESHOLD) return 2;
+  const needed = 1 + Math.ceil(Math.max(0, renderable - page1Size) / regularSize);
+  return Math.max(2, Math.min(needed, maxPages));
 }
 
 /**
@@ -770,45 +933,63 @@ async function fetchAreaPage(
   areaId: string,
   objectType: string | null | undefined,
   page: number,
+  minLivingArea?: number | null,
 ): Promise<AreaPageResult> {
-  const url = buildTillSaluUrl(areaId, objectType, page);
+  const url = buildTillSaluUrl(areaId, objectType, page, minLivingArea);
+  const readPage = (items: unknown[]) => ({
+    listings: extractListingEntities(items),
+    totalCount: totalCountFromItems(items),
+    newConstructionCount: newConstructionCountFromItems(items),
+  });
   const rungs = [
     {
       source: "own-playwright" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(
-          extractListingEntities,
-        ),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(readPage),
     },
     {
       source: "own-playwright-retry" as const,
       attempt: () =>
-        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(
-          extractListingEntities,
-        ),
+        runPlaywrightRender(url, APOLLO_PAGE_FUNCTION, { waitSecs: AREA_PAGE_WAIT_SECS }).then(readPage),
     },
   ];
   const result = await walkFallbackTree(rungs);
   console.error(
     `[booli-client] fetchAreaListings page ${page} served by rung ${result.rung} (${result.source}, health=${result.health})`,
   );
-  return { listings: result.data, rendersUsed: result.rung };
+  return { ...result.data, rendersUsed: result.rung };
 }
 
 /**
- * `opts.maxPages` (Phase 14.2, additive): when given, pages 2..`maxPages`
- * replace 2..`MAX_AREA_PAGES` (1 fetches page 1 only). A call without `opts`
- * behaves exactly as before, so the in-app path is unchanged (D-02).
+ * `opts.maxPages` (Phase 14.2, additive): the HEADLESS run's completeness mode.
+ * The page count comes from Booli's own total, never more than `maxPages` (the
+ * headless caller passes `HEADLESS_MAX_AREA_PAGES`):
+ *  - page 1 gives the count and a lower bound (`ceil(renderable / page-1 size)`);
+ *  - if more pages are needed, page 2 is fetched next and its size (the regular
+ *    page size) fixes the exact page count, because page 1 can carry extra project
+ *    cards (Kungsholmen 38 against 35, which left 32 listings unread when the count
+ *    was divided by page 1's size); the remaining pages run in parallel;
+ *  - "renderable" is the count minus the new-construction items Booli counts but
+ *    does not render as cards (`AreaListingsResult.unlistedProjects`);
+ *  - with no count it falls back to the old full-page rule up to `maxPages`.
+ * `opts.minLivingArea` adds Booli's server-side minimum-area filter to every page URL.
+ *
+ * A call WITHOUT `opts` behaves exactly as in 14.1 (page 1, then pages
+ * 2..`MAX_AREA_PAGES` when page 1 is full), so the in-app path is unchanged
+ * (D-02). The result's `totalCount`, `newConstructionCount`, `unlistedProjects`,
+ * `complete` and `pagesFetched` are additive.
  */
 export async function fetchAreaListings(
   areaId: string,
   objectType?: string | null,
-  opts?: { maxPages?: number },
+  opts?: { maxPages?: number; minLivingArea?: number },
 ): Promise<AreaListingsResult> {
   const seen = new Set<string>();
   const collected: Record<string, unknown>[] = [];
   // CR-01: accumulated from every page's real rung count, never assumed.
   let rendersUsed = 0;
+  let pagesFetched = 0;
+  const minLivingArea = opts?.minLivingArea ?? null;
   const addNew = (listings: Record<string, unknown>[]): void => {
     for (const listing of listings) {
       const key = listingKey(listing);
@@ -818,52 +999,86 @@ export async function fetchAreaListings(
     }
   };
 
+  // Fetches the given pages IN PARALLEL — each is an independent ~15-45s render, so
+  // concurrency collapses the wall-clock to ~one render instead of N sequential ones.
+  // `allSettled`: a later page failing (block/timeout) is NON-FATAL — keep every page
+  // that did come back rather than discard a large partial result over one bad render.
+  // Pages beyond the real last page return empty/duplicate and are absorbed by the dedupe.
+  // Returns each page's outcome (null for a failed page), in the order asked.
+  const fetchPages = async (pages: number[]): Promise<(AreaPageResult | null)[]> => {
+    const settled = await Promise.allSettled(
+      pages.map((page) => fetchAreaPage(areaId, objectType, page, minLivingArea)),
+    );
+    return settled.map((outcome, i) => {
+      if (outcome.status === "fulfilled") {
+        rendersUsed += outcome.value.rendersUsed;
+        pagesFetched += 1;
+        addNew(outcome.value.listings);
+        return outcome.value;
+      }
+      // CR-01: a failed page still consumed EVERY rung's render — bill them.
+      // Under-counting a spend gate is the dangerous direction.
+      rendersUsed += AREA_RENDER_RUNGS;
+      console.error(
+        `[booli-client] fetchAreaListings page ${pages[i]} failed (non-fatal; keeping ${collected.length} listings)`,
+        { code: outcome.reason instanceof Error ? outcome.reason.name : "UNKNOWN" },
+      );
+      return null;
+    });
+  };
+  const range = (from: number, to: number): number[] =>
+    Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
+
   // Page 1 first, sequentially. Its failure IS the kill-switch / dead-source
   // signal (HIGH-1, both own rungs failed) → propagate so the caller degrades,
   // exactly as the pre-pagination single-render path did. Its SIZE also decides
   // whether the area is large enough to paginate at all.
-  const page1 = await fetchAreaPage(areaId, objectType, 1);
+  const page1 = await fetchAreaPage(areaId, objectType, 1, minLivingArea);
   rendersUsed += page1.rendersUsed;
+  pagesFetched += 1;
   addNew(page1.listings);
 
-  // Only a FULL page 1 implies a large result set worth paginating; a short
-  // page 1 is a small area already returned in full.
-  const lastPage = opts?.maxPages ?? MAX_AREA_PAGES;
-  if (page1.listings.length >= FULL_PAGE_THRESHOLD && lastPage > 1) {
-    // Fetch pages 2..MAX_AREA_PAGES IN PARALLEL — each is an independent
-    // ~15-45s render, so concurrency collapses the wall-clock to ~one render
-    // instead of (MAX-1) sequential ones. `allSettled`: a later page failing
-    // (block/timeout) is NON-FATAL — keep every page that did come back rather
-    // than discard a large partial result over one bad render. Pages beyond the
-    // real last page return empty/duplicate and are absorbed by the dedupe.
-    const laterPages = Array.from({ length: lastPage - 1 }, (_, i) => i + 2);
-    const settled = await Promise.allSettled(
-      laterPages.map((page) => fetchAreaPage(areaId, objectType, page)),
-    );
-    for (let i = 0; i < settled.length; i++) {
-      const outcome = settled[i];
-      if (outcome.status === "fulfilled") {
-        rendersUsed += outcome.value.rendersUsed;
-        addNew(outcome.value.listings);
-      } else {
-        // CR-01: a failed page still consumed EVERY rung's render — bill them.
-        // Under-counting a spend gate is the dangerous direction.
-        rendersUsed += AREA_RENDER_RUNGS;
-        console.error(
-          `[booli-client] fetchAreaListings page ${laterPages[i]} failed (non-fatal; keeping ${collected.length} listings)`,
-          {
-            code:
-              outcome.reason instanceof Error ? outcome.reason.name : "UNKNOWN",
-          },
-        );
-      }
+  if (opts?.maxPages === undefined) {
+    // In-app (14.1 rule): only a FULL page 1 implies a large result set worth
+    // paginating; a short page 1 is a small area already returned in full.
+    if (page1.listings.length >= FULL_PAGE_THRESHOLD) await fetchPages(range(2, MAX_AREA_PAGES));
+  } else {
+    // Headless: Booli's own count decides. Items Booli counts but never renders as a
+    // card are taken off first, estimated from page 1 (the project cards it shows).
+    const maxPages = opts.maxPages;
+    const unlistedOnPage1 =
+      page1.newConstructionCount === null
+        ? 0
+        : Math.max(0, page1.newConstructionCount - page1.listings.filter(isProject).length);
+    const renderable = page1.totalCount === null ? null : Math.max(0, page1.totalCount - unlistedOnPage1);
+    const estimate = pagesToFetch(page1.listings.length, renderable, maxPages);
+    if (estimate > 1 && renderable !== null && renderable > 0) {
+      const [second] = await fetchPages([2]);
+      const regular = second?.listings.length ?? 0;
+      // A failed page 2 leaves the size unknown: keep the page-1 lower bound.
+      const last = regular > 0 ? pagesFromSizes(renderable, page1.listings.length, regular, maxPages) : estimate;
+      await fetchPages(range(3, last));
+    } else if (estimate > 1) {
+      await fetchPages(range(2, estimate));
     }
   }
 
+  const unlistedProjects =
+    page1.newConstructionCount === null
+      ? 0
+      : Math.max(0, page1.newConstructionCount - collected.filter(isProject).length);
   console.error(
     `[booli-client] fetchAreaListings collected ${collected.length} listings for area ${areaId} (${rendersUsed} renders)`,
   );
-  return { listings: collected, rendersUsed };
+  return {
+    listings: collected,
+    rendersUsed,
+    totalCount: page1.totalCount,
+    newConstructionCount: page1.newConstructionCount,
+    unlistedProjects,
+    complete: areaCompleteness(collected.length + unlistedProjects, page1.totalCount),
+    pagesFetched,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach } from "vitest";
 import {
   actorCall,
   listItems,
@@ -31,6 +32,15 @@ import {
   MAX_AREA_PAGES,
   type SoldSourceQuery,
 } from "@/lib/booli/client";
+import {
+  HEADLESS_MAX_AREA_PAGES,
+  areaCompleteness,
+  totalCountFromItems,
+  newConstructionCountFromItems,
+  brfIdFromBreadcrumbs,
+  reshapeListingEntity,
+} from "@/lib/booli/client";
+import { setRenderer, type RenderFn } from "@/lib/booli/transport";
 import {
   AREA_MAX_PAGES_PER_AREA,
   AREA_MAX_RENDERS_PER_AREA,
@@ -925,5 +935,343 @@ describe("reshapeListingEntity — Booli's 2026-10 denormalized packaging (inlin
     listItems.mockResolvedValue({ items: [apolloItem({ "Listing:4463691": listingDetailFixture })] });
     const result = await fetchListing(DETAIL_URL);
     expect(result.streetAddress).toBe("Testgatan 1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 14.2 (WATCH-02, R-04, R-08, W6): Booli's own total, paging to it, extra facts
+// ---------------------------------------------------------------------------
+
+const TILL_SALU = "Lägenheter till salu på Södermalm";
+const NYPROD = "Nyproduktion av lägenheter på Södermalm";
+const SLUT = "Slutpriser för lägenheter på Södermalm";
+
+/** An Apollo item the way the page function emits it: SearchMeta entries beside Listing entities. */
+function metaItem(counts: [number, string][], listingIds: string[] = [], projectIds: string[] = []) {
+  const state: Record<string, Record<string, unknown>> = {};
+  counts.forEach(([totalCount, title], n) => {
+    state[`SearchMeta:${n}`] = { __typename: "SearchMeta", totalCount, title };
+  });
+  for (const id of listingIds) state[`Listing:${id}`] = { ...listingDetailFixture, id, booliId: id, isNewConstruction: false };
+  for (const id of projectIds) state[`Listing:${id}`] = { ...listingDetailFixture, id, booliId: id, isNewConstruction: true };
+  return { hasApollo: true, __APOLLO_STATE__: state };
+}
+
+describe("totalCountFromItems - Booli's own till-salu count", () => {
+  it("picks the till-salu count, not the Nyproduktion or the Slutpriser count (222 / 1 / 16 048 on 2026-10-12)", () => {
+    expect(totalCountFromItems([metaItem([[222, TILL_SALU], [1, NYPROD], [16048, SLUT]], ["1"])])).toBe(222);
+  });
+
+  it("does not depend on the order of the counts", () => {
+    expect(totalCountFromItems([metaItem([[16048, SLUT], [1, NYPROD], [222, TILL_SALU]], ["1"])])).toBe(222);
+  });
+
+  it("is null when only the Nyproduktion and Slutpriser counts are present", () => {
+    expect(totalCountFromItems([metaItem([[1, NYPROD], [16048, SLUT]], ["1"])])).toBeNull();
+  });
+
+  it("is null when no SearchMeta entry exists, with no items, and for malformed entries", () => {
+    expect(totalCountFromItems([metaItem([], ["1"])])).toBeNull();
+    expect(totalCountFromItems([])).toBeNull();
+    expect(totalCountFromItems([null, 3, { __APOLLO_STATE__: null }])).toBeNull();
+    expect(
+      totalCountFromItems([
+        { hasApollo: true, __APOLLO_STATE__: { "SearchMeta:0": { totalCount: "222", title: TILL_SALU }, "SearchMeta:1": { totalCount: -3, title: TILL_SALU } } },
+      ]),
+    ).toBeNull();
+  });
+
+  it("accepts a till-salu count of 0 (an honest empty list)", () => {
+    expect(totalCountFromItems([metaItem([[0, TILL_SALU]], ["1"])])).toBe(0);
+  });
+});
+
+describe("newConstructionCountFromItems", () => {
+  it("picks the Nyproduktion count only", () => {
+    expect(newConstructionCountFromItems([metaItem([[222, TILL_SALU], [1, NYPROD], [16048, SLUT]], ["1"])])).toBe(1);
+    expect(newConstructionCountFromItems([metaItem([[222, TILL_SALU]], ["1"])])).toBeNull();
+    expect(newConstructionCountFromItems([])).toBeNull();
+  });
+});
+
+describe("areaCompleteness", () => {
+  it.each([
+    [100, 100, true],
+    [99, 100, false],
+    [101, 100, true],
+    [0, 0, true],
+    [5, null, null],
+  ] as const)("collected %i of %s is %s", (collected, total, expected) => {
+    expect(areaCompleteness(collected, total)).toBe(expected);
+  });
+
+  it("pins the headless page cap at 15 (R-04)", () => {
+    expect(HEADLESS_MAX_AREA_PAGES).toBe(15);
+    expect(HEADLESS_MAX_AREA_PAGES).toBeGreaterThan(MAX_AREA_PAGES);
+  });
+});
+
+describe("brfIdFromBreadcrumbs", () => {
+  it("takes the digits of the last /bostadsrattsforening/<id> crumb", () => {
+    expect(
+      brfIdFromBreadcrumbs([
+        { label: "Södermalm", url: "/sok/till-salu?areaIds=115341" },
+        { label: "HSB BRF Metern", url: "/bostadsrattsforening/82768" },
+      ]),
+    ).toBe("82768");
+  });
+
+  it("is null for a non-BRF last crumb, odd ids, and non-arrays", () => {
+    expect(brfIdFromBreadcrumbs([{ label: "Södermalm", url: "/sok/till-salu?areaIds=115341" }])).toBeNull();
+    expect(brfIdFromBreadcrumbs([{ label: "X", url: "/bostadsrattsforening/abc" }])).toBeNull();
+    expect(brfIdFromBreadcrumbs([])).toBeNull();
+    expect(brfIdFromBreadcrumbs(null)).toBeNull();
+    expect(brfIdFromBreadcrumbs("nope")).toBeNull();
+  });
+});
+
+describe("reshapeListingEntity - Phase 14.2 pass-through for the facts record (R-08)", () => {
+  const reshaped = reshapeListingEntity(listingDetailFixture as unknown as Record<string, unknown>);
+
+  it("passes published, the raw price change numbers, bidding, operating cost and the BRF id through", () => {
+    expect(reshaped).toMatchObject({
+      published: "2026-06-05 10:56:02",
+      listPriceChange: 510000,
+      listPricePercentageDiff: 12.8,
+      biddingOpen: 0,
+      operatingCost: 483,
+      brfId: "82768",
+    });
+  });
+
+  it("passes a card's displayDate and statusKey through", () => {
+    const card = reshapeListingEntity({ id: "1", booliId: "1", displayDate: "3 dagar på Booli", statusKey: "biddingOpen" });
+    expect(card).toMatchObject({ displayDate: "3 dagar på Booli", statusKey: "biddingOpen" });
+  });
+
+  it("leaves absent facts undefined rather than inventing values", () => {
+    const bare = reshapeListingEntity({ id: "2", booliId: "2" });
+    for (const key of ["displayDate", "statusKey", "published", "listPriceChange", "listPricePercentageDiff", "biddingOpen", "operatingCost", "brfId"]) {
+      expect(bare[key]).toBeUndefined();
+    }
+  });
+
+  it("does not change what toCandidate returns (the persisted candidate is not widened)", () => {
+    const extras = ["displayDate", "statusKey", "published", "listPriceChange", "listPricePercentageDiff", "biddingOpen", "operatingCost", "brfId"];
+    const old: Record<string, unknown> = { ...reshaped };
+    for (const key of extras) delete old[key];
+    expect(toCandidate(reshaped)).toEqual(toCandidate(old));
+    expect(Object.keys(toCandidate(reshaped)).sort()).toEqual(Object.keys(toCandidate(old)).sort());
+  });
+});
+
+describe("fetchAreaListings - completeness paging (Phase 14.2, WATCH-02, R-04)", () => {
+  const pageOf = (url: string) => {
+    const m = url.match(/[?&]page=(\d+)/);
+    return m ? Number(m[1]) : 1;
+  };
+
+  /**
+   * A fake local renderer. Page N carries `perPage` cards (ids unique per page) and, when
+   * `total` is not null, the till-salu count beside them. Records every URL it was asked for.
+   */
+  function installFake(opts: {
+    total: number | null;
+    perPage?: number;
+    lastPage?: number;
+    lastPageCards?: number;
+    /** Booli's Nyproduktion count (default 0). */
+    nyprod?: number;
+    /** Project cards Booli adds on top of page 1 (Kungsholmen: 3). */
+    page1Projects?: number;
+    /** Cards on page 2 when it differs from `perPage`. */
+    page2Cards?: number;
+  }) {
+    const urls: string[] = [];
+    const perPage = opts.perPage ?? 36;
+    const fn: RenderFn = async (url) => {
+      urls.push(url);
+      const page = pageOf(url);
+      let n = perPage;
+      if (opts.lastPage !== undefined && page === opts.lastPage) n = opts.lastPageCards ?? perPage;
+      else if (opts.lastPage !== undefined && page > opts.lastPage) n = 0;
+      else if (page === 2 && opts.page2Cards !== undefined) n = opts.page2Cards;
+      const ids = Array.from({ length: n }, (_, i) => String(page * 1000 + i));
+      const projects = page === 1 ? Array.from({ length: opts.page1Projects ?? 0 }, (_, i) => `p${i}`) : [];
+      const counts: [number, string][] =
+        opts.total === null ? [] : [[opts.total, TILL_SALU], [opts.nyprod ?? 0, NYPROD], [37089, SLUT]];
+      return [metaItem(counts, ids, projects)];
+    };
+    setRenderer(fn);
+    return urls;
+  }
+  const pagesRequested = (urls: string[]) => urls.map(pageOf).sort((a, b) => a - b);
+
+  afterEach(() => {
+    setRenderer(null);
+  });
+
+  it("totalCount 100 with 36 cards on page 1 renders exactly pages 1, 2 and 3", async () => {
+    const urls = installFake({ total: 100, lastPage: 3, lastPageCards: 28 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toEqual([1, 2, 3]);
+    expect(result.listings).toHaveLength(100);
+    expect(result.totalCount).toBe(100);
+    expect(result.pagesFetched).toBe(3);
+    expect(areaCompleteness(result.listings.length, result.totalCount)).toBe(true);
+  });
+
+  it("totalCount 1000 stops at the cap of 15 pages and reports the district incomplete", async () => {
+    const urls = installFake({ total: 1000 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
+    expect(result.pagesFetched).toBe(15);
+    expect(result.listings).toHaveLength(15 * 36);
+    expect(areaCompleteness(result.listings.length, result.totalCount)).toBe(false);
+  });
+
+  it("totalCount 30 with 30 cards fetches page 1 only", async () => {
+    const urls = installFake({ total: 30, perPage: 30 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toEqual([1]);
+    expect(result.pagesFetched).toBe(1);
+    expect(areaCompleteness(result.listings.length, result.totalCount)).toBe(true);
+  });
+
+  it("page 1 with extra project cards (Kungsholmen: 38 against 35) still reaches the end: 14 pages, not 13", async () => {
+    // Booli: total 487, Nyproduktion 8, 3 project cards rendered (on page 1), 5 never rendered.
+    // Regular listings: 487 - 8 = 479 = 35 + 12 x 35 + 24.
+    const urls = installFake({ total: 487, nyprod: 8, perPage: 35, page1Projects: 3, lastPage: 14, lastPageCards: 24 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toEqual(Array.from({ length: 14 }, (_, i) => i + 1));
+    expect(result.listings).toHaveLength(479 + 3);
+    expect(result.newConstructionCount).toBe(8);
+    expect(result.unlistedProjects).toBe(5);
+    expect(result.complete).toBe(true);
+  });
+
+  it("projects Booli counts but never renders do not make a district incomplete (Sodermalm: 4 counted, 1 rendered)", async () => {
+    // total 444 = 440 regular + 4 projects; 440 = 35 + 11 x 35 + 20; one project card on page 1.
+    const urls = installFake({ total: 444, nyprod: 4, perPage: 35, page1Projects: 1, lastPage: 13, lastPageCards: 20 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toHaveLength(13);
+    expect(result.listings).toHaveLength(441);
+    expect(result.unlistedProjects).toBe(3);
+    expect(result.complete).toBe(true);
+    // The bare comparison would have said short by 3: that is what the adjustment removes.
+    expect(areaCompleteness(result.listings.length, result.totalCount)).toBe(false);
+  });
+
+  it("a short page 2 is the last page: no page 3 is requested", async () => {
+    const urls = installFake({ total: 56, nyprod: 2, perPage: 36, page2Cards: 18, lastPage: 2, lastPageCards: 18 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toEqual([1, 2]);
+    expect(result.listings).toHaveLength(54);
+    expect(result.complete).toBe(true);
+  });
+
+  it("genuinely missing listings are still reported incomplete (the project allowance is only the unrendered projects)", async () => {
+    installFake({ total: 200, nyprod: 2, perPage: 36, lastPage: 5, lastPageCards: 20 });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    // 36 x 4 + 20 = 164 listings for a count of 200: 36 short, only 2 explained.
+    expect(result.listings).toHaveLength(164);
+    expect(result.complete).toBe(false);
+  });
+
+  it("an unknown totalCount falls back to the old full-page rule, up to maxPages", async () => {
+    const urls = installFake({ total: null });
+    const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: 8 });
+    expect(pagesRequested(urls)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(result.totalCount).toBeNull();
+    expect(areaCompleteness(result.listings.length, result.totalCount)).toBeNull();
+  });
+
+  it("an unknown totalCount with a short page 1 stops after page 1", async () => {
+    const urls = installFake({ total: null, perPage: 10 });
+    await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(pagesRequested(urls)).toEqual([1]);
+  });
+
+  it("without opts the 14.1 rule still decides: pages 2..5 when page 1 is full, even though the count says 3 pages", async () => {
+    const urls = installFake({ total: 100, lastPage: 3, lastPageCards: 28 });
+    const result = await fetchAreaListings("115341", "Lägenhet");
+    expect(pagesRequested(urls)).toEqual([1, 2, 3, 4, 5]);
+    expect(result.listings).toHaveLength(36 * 2 + 28);
+  });
+
+  it("minLivingArea 35 becomes minLivingArea=35 in every page URL; without it the parameter is absent", async () => {
+    const withMin = installFake({ total: 40, perPage: 36, lastPage: 2, lastPageCards: 4 });
+    await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES, minLivingArea: 35 });
+    expect(withMin.length).toBe(2);
+    for (const url of withMin) expect(new URL(url).searchParams.get("minLivingArea")).toBe("35");
+
+    const withoutMin = installFake({ total: 10, perPage: 10 });
+    await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+    expect(new URL(withoutMin[0]).searchParams.has("minLivingArea")).toBe(false);
+    expect(withoutMin[0]).toBe("https://www.booli.se/sok/till-salu?areaIds=115341&objectType=L%C3%A4genhet&sort=listSqmPrice&ascending=true");
+  });
+
+  it("a later page that fails leaves collected short of the count, which reads as incomplete", async () => {
+    const urls: string[] = [];
+    setRenderer(async (url) => {
+      urls.push(url);
+      const page = pageOf(url);
+      if (page === 2) throw new Error("blocked");
+      const ids = Array.from({ length: 36 }, (_, i) => String(page * 1000 + i));
+      return [metaItem([[100, TILL_SALU]], ids)];
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const result = await fetchAreaListings("115341", "Lägenhet", { maxPages: HEADLESS_MAX_AREA_PAGES });
+      expect(result.listings).toHaveLength(72); // pages 1 and 3
+      expect(result.pagesFetched).toBe(2);
+      expect(areaCompleteness(result.listings.length, result.totalCount)).toBe(false);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+describe("fetchAreaListings - totalCount-only page stays a dead page in-app (W6)", () => {
+  it("totalCount-only page: the page function's { hasApollo: false } rejects after both rungs, with the same error as a page with no state", async () => {
+    // What the page function returns for a page that carries only a count and no cards.
+    const countOnly = { hasApollo: false, __APOLLO_STATE__: null };
+
+    succeedRun();
+    listItems.mockResolvedValue({ items: [countOnly] });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let countOnlyError: unknown;
+    try {
+      await fetchAreaListings("115341");
+    } catch (e) {
+      countOnlyError = e;
+    }
+    // Both own rungs were paid for, then it threw: the HIGH-1 behaviour, not an empty district.
+    expect(actorCall).toHaveBeenCalledTimes(2);
+    expect(countOnlyError).toBeInstanceOf(Error);
+
+    // The existing HIGH-1 case: both rungs fail outright (no state at all).
+    actorCall.mockReset();
+    actorCall.mockRejectedValue(new Error("own-playwright render failed"));
+    let deadError: unknown;
+    try {
+      await fetchAreaListings("115341");
+    } catch (e) {
+      deadError = e;
+    }
+    errorSpy.mockRestore();
+
+    expect(deadError).toBeInstanceOf(Error);
+    expect((countOnlyError as Error).name).toBe((deadError as Error).name);
+    expect((countOnlyError as Error).message).toBe((deadError as Error).message);
+    expect(scrapeBooli).not.toHaveBeenCalled();
+  });
+
+  it("totalCount-only page: a count beside cards is NOT dead, it resolves with the count (the count never replaces cards)", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({ items: [metaItem([[222, TILL_SALU]], ["1", "2"])] });
+    const result = await fetchAreaListings("115341");
+    expect(result.listings).toHaveLength(2);
+    expect(result.totalCount).toBe(222);
   });
 });
