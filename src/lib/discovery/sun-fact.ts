@@ -404,6 +404,28 @@ export function computeSunFact(index: OsmIndex, input: SunFactInput, opts: { pla
   return { ...fact, sides };
 }
 
+/** The okänd reason of a flat whose sun computation threw (14.3 review WR-03). */
+export const SUN_FAILURE_REASON = "fel";
+
+/**
+ * {@link computeSunFact} that never throws: one bad geometry (a turf validation error, a bug in a later change) must not
+ * lose a whole weekly run after the paid vision calls. An exception becomes the okänd fact with reason "fel" and
+ * `failure` carries the error's NAME only (never its message, which may quote data). `opts.plan` may be a function, so
+ * a throw while reading the floor-plan cache is caught too.
+ */
+export function computeSunFactSafe(
+  index: OsmIndex,
+  input: SunFactInput,
+  opts: { plan: PlanBearing | null | (() => PlanBearing | null) },
+): { fact: SunFact; failure: string | null } {
+  try {
+    const plan = typeof opts.plan === "function" ? opts.plan() : opts.plan;
+    return { fact: computeSunFact(index, input, { plan }), failure: null };
+  } catch (e) {
+    return { fact: unknownSunFact(SUN_FAILURE_REASON), failure: e instanceof Error && e.name !== "" ? e.name : "Error" };
+  }
+}
+
 /** Two decimals with a decimal comma: 0.9 prints "0,90". */
 const commaDecimals = (n: number): string => n.toFixed(2).replace(".", ",");
 

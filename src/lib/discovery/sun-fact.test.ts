@@ -5,8 +5,10 @@ import { buildOsmIndex, parseOsmExtract } from "@/lib/discovery/osm-buildings";
 import type { FootprintOk, FootprintResult } from "@/lib/discovery/sun-facade";
 import {
   SUN_PRECEDENCE_PARAMS,
+  SUN_FAILURE_REASON,
   SUN_SOURCES,
   computeSunFact,
+  computeSunFactSafe,
   formatSolCell,
   formatSolHours,
   renderSunReport,
@@ -578,6 +580,47 @@ function factWithHours(
   const hours = { z: 16.5, heightsEstimated: over.heightsEstimated ?? false, mar, jun, sep: mar, dec };
   return { ...base, sides: base.sides.map((side, i) => (i === 0 ? { ...side, hours } : side)) };
 }
+
+describe("computeSunFactSafe: one bad flat never aborts the run (14.3 review WR-03)", () => {
+  it("returns exactly the computeSunFact answer, and no failure, when nothing throws", () => {
+    const safe = computeSunFactSafe(osmIndex, FOLKUNGAGATAN_61, { plan: null });
+    expect(safe.failure).toBeNull();
+    expect(safe.fact).toEqual(computeSunFact(osmIndex, FOLKUNGAGATAN_61, { plan: null }));
+  });
+
+  it("turns an exception inside the computation into okänd with the reason 'fel' and the error NAME only", () => {
+    const broken = {} as unknown as typeof osmIndex; // no bbox: inferStreetFacade throws a TypeError
+    expect(() => computeSunFact(broken, FOLKUNGAGATAN_61, { plan: null })).toThrow();
+    const safe = computeSunFactSafe(broken, FOLKUNGAGATAN_61, { plan: null });
+    expect(safe.failure).toBe("TypeError");
+    expect(safe.fact).toEqual(unknownSunFact(SUN_FAILURE_REASON));
+    expect(SUN_FAILURE_REASON).toBe("fel");
+    expect(safe.fact.source).toBe("okänd");
+    expect(safe.fact.unknownReason).toBe("fel");
+    roundTrips(safe.fact);
+  });
+
+  it("catches a throw while reading the floor-plan bearing (a function plan) as well", () => {
+    const safe = computeSunFactSafe(osmIndex, FOLKUNGAGATAN_61, {
+      plan: () => {
+        throw new RangeError("secret path /tmp/x");
+      },
+    });
+    expect(safe.failure).toBe("RangeError");
+    expect(JSON.stringify(safe)).not.toContain("secret path");
+    expect(safe.fact.unknownReason).toBe("fel");
+  });
+
+  it("reads a function plan like a value, and the run goes on with the next flat after a failure", () => {
+    const withPlan = computeSunFactSafe(osmIndex, FOLKUNGAGATAN_61, { plan: () => ({ bearingDeg: 180, confidence: 0.9 }) });
+    expect(withPlan.failure).toBeNull();
+    expect(withPlan.fact.source).toBe("planritning");
+    const flats = [FOLKUNGAGATAN_61, { ...FOLKUNGAGATAN_61, address: null }];
+    const results = flats.map((f, i) => computeSunFactSafe(i === 0 ? ({} as unknown as typeof osmIndex) : osmIndex, f, { plan: null }));
+    expect(results.map((r) => r.fact.source)).toEqual(["okänd", "okänd"]);
+    expect(results.map((r) => r.fact.unknownReason)).toEqual(["fel", "adress saknas"]);
+  });
+});
 
 describe("formatSolHours", () => {
   it("prints '-' for both cells when the run did not look, and for okänd", () => {

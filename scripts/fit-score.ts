@@ -84,7 +84,7 @@
  * Sol (Phase 14.3, SUN-01, SUN-03, SUN-05, R-05): every row gets a sun fact before ranking: the building footprint
  * from the cached OpenStreetMap map of innerstan (.planning/calibration/data/osm/innerstan.json, gitignored), the
  * stated facades, the precedence between them and the hours of direct sun on each side with the neighbouring
- * buildings in the way (src/lib/discovery/sun-fact.ts computeSunFact). The table, the mail, the coverage line and
+ * buildings in the way (src/lib/discovery/sun-fact.ts computeSunFact, wrapped by computeSunFactSafe). The table, the mail, the coverage line and
  * the taste bonus all read that one fact. The map is refreshed only when it is missing or 31 days old (the live run
  * says "OSM-cache: <ålder> dagar gammal, ingen hämtning (gräns 31 dagar)" otherwise); the Overpass client is loaded by
  * dynamic import in that one branch, so a replay and a dry run never reach it. --osm <fil> uses that file instead and
@@ -203,7 +203,7 @@ import {
   planBearingOf,
   type FloorPlanCache,
 } from "@/lib/discovery/sun-floorplan";
-import { computeSunFact, renderSunReport, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
+import { SUN_FAILURE_REASON, computeSunFactSafe, renderSunReport, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
 import type { PlanBearing } from "@/lib/discovery/sun-fact";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
@@ -777,7 +777,8 @@ function makeSunStage(index: OsmIndex | null, buildMs: number): SunStage {
       try {
         if (index === null) return unknownSunFact("OSM-cache saknas");
         const c = row.candidate;
-        return computeSunFact(
+        // WR-03: one bad geometry must not abort the run after the paid vision calls; the flat becomes okänd (fel).
+        const { fact, failure } = computeSunFactSafe(
           index,
           {
             lat: c.latitude,
@@ -787,8 +788,10 @@ function makeSunStage(index: OsmIndex | null, buildMs: number): SunStage {
             candidateOrientation: c.orientation,
             factsFacades: row.facts?.orientationFacades ?? null,
           },
-          { plan: planOf(row) },
+          { plan: () => planOf(row) },
         );
+        if (failure !== null) console.log(`OBS: sol kunde inte beräknas för ${c.address ?? "en annons"} (${failure}); okänd (${SUN_FAILURE_REASON}), körningen fortsätter`);
+        return fact;
       } finally {
         calls += 1;
         ms += performance.now() - t0;
