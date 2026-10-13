@@ -54,9 +54,9 @@
   - *Amended 2026-10-13 (14.4-CONTEXT R-01):* sold-detail pages carry no publish date; they print days on market (`daysActive`, "Bostaden var till salu i N dagar"), which is stored and used; candidates use `facts.daysOnMarket`.
 - [x] **VAL-02**: The hedonic model gains the features avgift/kvm/month, BRF debt/kvm and tomträtt (0/1) with the same honesty rule as today (null → training mean, listed in `imputed`); the refit reports each new coefficient with standard error, R² and CV error before/after, nothing is tuned to a listing, Folkungagatan 61 stays out of the training set, and the committed `data/hedonic-model.json` is version-bumped so an old file is rejected, never silently mis-read.
   - *Amended 2026-10-13 (14.4-CONTEXT R-02):* tomträtt is not fitted (every sold page says Bostadsrätt, so the column has no variation); the model file records it with source "zeroed" and a note.
-- [ ] **VAL-03**: Listing age enters the expected final price, not the resale price: the bid-premium model gains a days-on-market term fitted from the enriched rows (publish date → sold date) with cross-validation deciding whether it is kept; a candidate's `published` date feeds it at prediction time.
+- [x] **VAL-03**: Listing age enters the expected final price, not the resale price: the bid-premium model gains a days-on-market term fitted from the enriched rows (publish date → sold date) with cross-validation deciding whether it is kept; a candidate's `published` date feeds it at prediction time.
   - *Amended 2026-10-13 (14.4-CONTEXT R-01):* sold-detail pages carry no publish date; they print days on market (`daysActive`, "Bostaden var till salu i N dagar"), which is stored and used; candidates use `facts.daysOnMarket`.
-- [ ] **VAL-04**: The 20 % credit cap is removed from `fit-score.ts` (credit = full gap); the `creditCapped` flag and the `kredit-tak` reason are replaced by a soft `residualFlag` ("ovanligt långt under modellpris": asking/kvm below the model price × exp(−2 × residualSdLog)) that is shown and explained but never caps; `notComparable` at 0.5 is unchanged; all tests, the table, the mail and the reasons module follow.
+- [x] **VAL-04**: The 20 % credit cap is removed from `fit-score.ts` (credit = full gap); the `creditCapped` flag and the `kredit-tak` reason are replaced by a soft `residualFlag` ("ovanligt långt under modellpris": asking/kvm below the model price × exp(−2 × residualSdLog)) that is shown and explained but never caps; `notComparable` at 0.5 is unchanged; all tests, the table, the mail and the reasons module follow.
   - *Amended 2026-10-13 (14.4-CONTEXT R-04):* the flag uses the like-for-like basis by default (`RESIDUAL_FLAG_BASIS = "expectedFinal"`: ln(expected final kr/kvm ÷ model kr/kvm) < −2 × residualSdLog); the asking-price basis stays selectable and the VAL-05 report prints both counts.
 - [ ] **VAL-05**: An offline before/after report on the current for-sale snapshot lists every row that carried `kredit-tak`: old credit, new credit, the kr each new feature explains, the residual and the new flag; plus the top-15 before/after and Folkungagatan 61's rank and decomposition — measured, not tuned.
 - [ ] **LAY-01**: A separate slim layout read (own module, own schema with no nullable field, own cache file and version, never the existing vision schema or cache) returns per flat from the floor plan + up to 6 photos: balcony side (street/courtyard/none/unknown), rooms on the balcony side (living, kitchen, bedroom as booleans), window sides (one/two opposite/corner/unknown), bedroom side (street/courtyard/unknown), what in the photos settles street vs courtyard, and one confidence; ≤ 0,6 kr per flat, cumulative cap ≤ 40 kr per run tracked in the cache, 0 USD Apify.
@@ -136,8 +136,8 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | SUN-06 | Phase 14.3 — Sun & Orientation | Complete |
 | VAL-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | VAL-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
-| VAL-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
-| VAL-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
+| VAL-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | VAL-05 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
 | LAY-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
 | LAY-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |

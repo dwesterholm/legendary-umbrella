@@ -122,7 +122,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, LAY-01, LAY-02, LAY-03, LAY-04, BID-01, BID-02
 **Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
-**Plans:** 4/10 plans executed (sequential, waves 1-10)
+**Plans:** 5/10 plans executed (sequential, waves 1-10)
 
 Plans:
 **Wave 1**
@@ -143,7 +143,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 14.4-05-PLAN.md — Remove the 20 % credit cap; soft residual flag; reasons; Skillnad + Budpremie columns (VAL-04)
+- [x] 14.4-05-PLAN.md — Remove the 20 % credit cap; soft residual flag; reasons; Skillnad + Budpremie columns (VAL-04)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
