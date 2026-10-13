@@ -16,6 +16,7 @@ import {
   choleskySolve,
   describeModel,
   expectedOverbid,
+  expectedOverbidDetail,
   fitBidPremium,
   fitHedonicModel,
   fitRidge,
@@ -1079,6 +1080,147 @@ describe("fitBidPremium (R-07)", () => {
     expect(empty.kind).toBe("flat");
     expect(Number.isFinite(empty.overallA)).toBe(true);
     expect(empty.perDistrict.Södermalm.source).toBe("fallback");
+  });
+});
+
+describe("expectedOverbidDetail (VAL-03)", () => {
+  /** The fixture with a days term attached (fixture a for Södermalm is ln 1.08). */
+  function withDom(kept: boolean, kind: "flat" | "slope" = "flat"): HedonicModel {
+    const m = structuredClone(modelJson) as unknown as HedonicModel;
+    m.bidPremium.kind = kind;
+    m.bidPremium.b = kind === "slope" ? -0.5 : null;
+    m.bidPremium.terms.dom = {
+      beta: -0.05,
+      mean: 2.5,
+      n: 400,
+      kept,
+      cvRmse: { without: 0.1, with: 0.09 },
+      note: kept ? "med: korsvalidering 0,1000 -> 0,0900" : "prövad, förkastad: korsvalidering",
+    };
+    return m;
+  }
+
+  it("a longer listing draws a smaller premium when the term is kept", () => {
+    const m = withDom(true);
+    const fresh = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 0 });
+    const old = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 60 });
+    expect(old.pct).toBeLessThan(fresh.pct);
+    expect(old.pct).toBeCloseTo(Math.exp(m.bidPremium.perDistrict.Södermalm.a - 0.05 * (Math.log(61) - 2.5)) - 1, 12);
+    expect(old.domUsed).toBe(true);
+    expect(old.domDays).toBe(60);
+    expect(old.label).toBe("distrikt+dagar");
+  });
+
+  it("unknown days add exactly nothing (the training mean) and the label says so", () => {
+    const m = withDom(true);
+    const unknown = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: null });
+    const atMean = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: Math.exp(2.5) - 1 });
+    expect(unknown.pct).toBeCloseTo(atMean.pct, 12);
+    expect(unknown.pct).toBeCloseTo(0.08, 12);
+    expect(unknown.domUsed).toBe(false);
+    expect(unknown.domDays).toBeNull();
+    expect(unknown.label).toContain("dagar okända");
+  });
+
+  it("a rejected term changes nothing, whatever the days, and the label does not mention days", () => {
+    const m = withDom(false);
+    const a = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 3 });
+    const b = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 200 });
+    expect(a.pct).toBe(b.pct);
+    expect(a.domUsed).toBe(false);
+    expect(a.label).toBe("distrikt");
+    expect(a.label).not.toContain("dagar");
+  });
+
+  it("with no days term the detail equals the old expectedOverbid for flat and slope", () => {
+    const flat = model;
+    const slope = structuredClone(modelJson) as unknown as HedonicModel;
+    slope.bidPremium.kind = "slope";
+    slope.bidPremium.b = -0.5;
+    for (const m of [flat, slope]) {
+      for (const [ask, pred] of [[80_000, 100_000], [100_000, 100_000], [120_000, 100_000]]) {
+        const d = expectedOverbidDetail(m, "Södermalm", ask, pred, { daysOnMarket: 45 });
+        expect(d.pct).toBe(expectedOverbid(m, "Södermalm", ask, pred));
+        expect(d.domUsed).toBe(false);
+        expect(d.conditionIndex).toBe(0);
+        expect(d.conditionUsed).toBe(false);
+        expect(d.conditionSource).toBe("prior");
+      }
+    }
+    expect(expectedOverbidDetail(flat, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt");
+    expect(expectedOverbidDetail(slope, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt+pris");
+  });
+
+  it("expectedOverbid is the detail's pct with days unknown", () => {
+    for (const kept of [true, false]) {
+      for (const kind of ["flat", "slope"] as const) {
+        const m = withDom(kept, kind);
+        expect(expectedOverbid(m, "Södermalm", 90_000, 100_000)).toBe(
+          expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: null, conditionIndex: 0 }).pct,
+        );
+      }
+    }
+  });
+
+  it("slope base: the label carries both the price slope and the days", () => {
+    const m = withDom(true, "slope");
+    expect(expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: 10 }).label).toBe("distrikt+pris+dagar");
+    expect(expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: null }).label).toBe("distrikt+pris, dagar okända");
+  });
+});
+
+describe("fitBidPremium: days on market (VAL-03)", () => {
+  /** ln(1 + days) for days 1..90, plus rows with ln(1+p) = a_d + slopeB u + domBeta domLn + noise. */
+  function domRows(opts: {
+    seed: number;
+    domBeta: number;
+    slopeB?: number;
+    withAsk?: boolean;
+    perDistrict?: number;
+    knownDaysShare?: number;
+  }) {
+    const g = lcg(opts.seed);
+    const out: BidRow[] = [];
+    for (const district of Object.keys(CENTRES) as District[]) {
+      for (let i = 0; i < (opts.perDistrict ?? 120); i++) {
+        const predLnKrm2 = CENTRES[district].level;
+        const u = -0.1 + 0.12 * g.normal();
+        const days = 1 + Math.floor(90 * g.uniform());
+        const dl = Math.log(1 + days);
+        const known = g.uniform() < (opts.knownDaysShare ?? 1);
+        out.push({
+          district,
+          z: DISTRICT_A[district] + (opts.slopeB ?? 0) * u + opts.domBeta * dl + 0.02 * g.normal(),
+          askLnKrm2: opts.withAsk === false ? null : predLnKrm2 + u,
+          predLnKrm2,
+          domLn: known ? dl : null,
+        });
+      }
+    }
+    return out;
+  }
+  type BidRow = { district: District; z: number; askLnKrm2: number | null; predLnKrm2: number; domLn: number | null };
+
+  it("flat base: a real days effect is kept, recovered within 0.005, and lowers the CV error", () => {
+    const fit = fitBidPremium(domRows({ seed: 11, domBeta: -0.02, withAsk: false }));
+    expect(fit.kind).toBe("flat");
+    const dom = fit.terms.dom;
+    expect(dom).not.toBeNull();
+    expect(dom!.kept).toBe(true);
+    expect(Math.abs(dom!.beta + 0.02)).toBeLessThan(0.005);
+    expect(dom!.cvRmse.with).toBeLessThan(dom!.cvRmse.without);
+    expect(dom!.note).toMatch(/^med: korsvalidering \d,\d{4} -> \d,\d{4}$/);
+    expect(dom!.n).toBe(480);
+    expect(fit.terms.condition).toBeNull();
+  });
+
+  it("slope base: the days effect is found next to the asking-price slope", () => {
+    const fit = fitBidPremium(domRows({ seed: 12, domBeta: -0.02, slopeB: -0.2 }));
+    expect(fit.kind).toBe("slope");
+    expect(fit.terms.dom!.kept).toBe(true);
+    expect(Math.abs(fit.terms.dom!.beta + 0.02)).toBeLessThan(0.005);
+    expect(Math.abs(fit.b! + 0.2)).toBeLessThan(0.05);
+    expect(fit.terms.dom!.cvRmse.with).toBeLessThan(fit.terms.dom!.cvRmse.without);
   });
 });
 

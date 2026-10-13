@@ -190,6 +190,8 @@ function toTrainingRow(row: SoldRow, brf: Readonly<Record<string, BrfEntry>>): H
     avgiftPerSqmMonth: rent !== null && rent > 0 ? rent / row.livingArea : null,
     brfDebtPerSqm: debt !== null && Number.isFinite(debt) && debt >= 0 ? debt : null,
     tomtratt: tomtrattOf(e?.tenureForm),
+    // 14.4 VAL-03: days on market feed the bid premium only (never the resale price).
+    daysActive: e?.daysActive ?? null,
   };
 }
 
@@ -407,6 +409,35 @@ function printNewFeatures(args: {
 }
 
 // ---------------------------------------------------------------------------
+// Bid premium: days on market (14.4 VAL-03)
+// ---------------------------------------------------------------------------
+function printDomBlock(model: HedonicModel, training: readonly HedonicTrainingRow[]): void {
+  const withDays = training.filter((r) => r.daysActive !== undefined && r.daysActive !== null);
+  const withDaysAndAsk = withDays.filter((r) => r.askingPrice !== null && r.askingPrice > 0);
+  const dom = model.bidPremium.terms.dom;
+  console.log("\nBudpremie: dagar på marknaden");
+  console.log(
+    `  Rader med dagar: ${fmt(withDays.length)} av ${fmt(training.length)}; av dem med utgångspris: ${fmt(withDaysAndAsk.length)}.`,
+  );
+  if (dom === null) {
+    console.log(`  Dagar-termen kunde inte prövas: färre än 30 försäljningar med dagar (och utgångspris för den lutande formen). Termen saknas i modellen.`);
+    return;
+  }
+  console.log(`  Försäljningar i skattningen: ${fmt(dom.n)} (basform: ${model.bidPremium.kind === "slope" ? "lutande" : "fast per område"}).`);
+  console.log(
+    `  Korsvalideringsfel (logskala, samma hållna rader): utan dagar ${sv(dom.cvRmse.without, 5)}, med dagar ${sv(dom.cvRmse.with, 5)} (${dom.cvRmse.with < dom.cvRmse.without ? "lägre" : "inte lägre"}).`,
+  );
+  console.log(`  Koefficient per ln(1 + dagar): ${sv(dom.beta, 5)} (${dom.beta < 0 ? "negativ: längre annons, lägre premie" : "positiv: längre annons, högre premie"}).`);
+  console.log(`  Beslut: ${dom.kept ? "behålls" : "förkastas"} - ${dom.note}`);
+  const a = model.bidPremium.overallA;
+  const at = (days: number): number => Math.exp(a + dom.beta * (Math.log(1 + days) - dom.mean)) - 1;
+  console.log(
+    `  Effekt på premien för en median-lägenhet, 7 mot 60 dagar: ${svSigned((at(60) - at(7)) * 100, 2)} procentenheter (${svPct(at(7))} -> ${svPct(at(60))})` +
+      `${dom.kept ? "" : "; termen används inte, siffran visar vad den skulle ha gjort"}.`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
@@ -551,6 +582,13 @@ function main(): void {
           : "Tomträtt är skattad ur underlaget."),
     );
   }
+  if (fitted.bidPremium.terms.dom !== null) {
+    const dom = fitted.bidPremium.terms.dom;
+    notes.push(
+      `Dagar på marknaden i budpremien: ${dom.kept ? "används" : "prövades men används inte"} (${dom.note}). ` +
+        "Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat).",
+    );
+  }
   const note = notes.length > 0 ? notes.join(" ") : undefined;
   // When the detail sample was left out, the library's own fallback text says "0 sales with details",
   // which is true of the refit but not of the data. Replace it with the real reason.
@@ -622,6 +660,7 @@ function main(): void {
     console.log(`  (Lutande form: modellens siffra gäller när utgångspriset är lika med modellens pris, b = ${sv(bid.b ?? 0, 2)}; den är därför inte direkt jämförbar med råmedianen.)`);
   }
   console.log(`Andel försäljningar utan etikett (utelämnade ur budpremien, räknas inte som noll): ${sv(bid.nullLabelShare * 100, 1)} %`);
+  printDomBlock(model, training);
 
   console.log("\nStorlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):");
   for (const l of [...describeSizeCheck(sizeAll), ...describeSizeCheck(sizeRecent)]) console.log(l);

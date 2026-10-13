@@ -64,12 +64,13 @@ import { taxLines, valueGap, type ValueGapInput } from "@/lib/discovery/flip-eco
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import {
   INNERSTAN_DISTRICTS,
-  expectedOverbid,
+  expectedOverbidDetail,
   predictKrPerSqm,
   renovatedCapKrPerSqm,
   type HedonicInput,
   type HedonicModel,
   type InnerstanDistrict,
+  type OverbidDetail,
 } from "@/lib/discovery/hedonic-model";
 import {
   UNKNOWN_RENO_STATES,
@@ -221,6 +222,8 @@ export interface FitScoreResult {
   /** Expected final price including the expected overbid, SEK. */
   readonly purchaseSek: number | null;
   readonly overbidPct: number | null;
+  /** How the expected overbid was put together (base form, days-on-market term, label); null when not comparable. */
+  readonly overbidDetail: OverbidDetail | null;
   /** resale - expected final, before the credit cap. */
   readonly gapSek: number | null;
   /** The part of the gap the profit takes credit for, after the cap. */
@@ -386,6 +389,7 @@ export function fitScore(
       resaleSek: null,
       purchaseSek: null,
       overbidPct: null,
+      overbidDetail: null,
       gapSek: null,
       creditSek: null,
       taxSek: 0,
@@ -397,7 +401,11 @@ export function fitScore(
 
   const { krPerSqm: pred, imputed } = predictKrPerSqm(model, hedonicInputOf(row, area));
   const askingPerSqm = price / area;
-  const overbid = expectedOverbid(model, row.district, askingPerSqm, pred);
+  // Days on market move the expected FINAL price (the bid premium), never the resale value (D-02).
+  const overbidDetail = expectedOverbidDetail(model, row.district, askingPerSqm, pred, {
+    daysOnMarket: row.facts?.daysOnMarket ?? null,
+  });
+  const overbid = overbidDetail.pct;
 
   const gapInput: ValueGapInput = {
     askingPrice: price,
@@ -454,7 +462,8 @@ export function fitScore(
     askToPred,
     resaleSek: gap.resaleW,
     purchaseSek: gap.purchaseP,
-    overbidPct: overbid,
+    overbidPct: overbidDetail.pct,
+    overbidDetail,
     gapSek,
     creditSek,
     taxSek,

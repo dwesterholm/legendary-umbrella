@@ -7492,35 +7492,45 @@
     "kind": "slope",
     "perDistrict": {
       "Södermalm": {
-        "a": 0.10442344868909811,
+        "a": 0.1153182074248037,
         "n": 1790,
         "source": "fit"
       },
       "Kungsholmen": {
-        "a": 0.05567000373047034,
+        "a": 0.06169286142262943,
         "n": 1571,
         "source": "fit"
       },
       "Vasastan": {
-        "a": 0.059003362670379034,
+        "a": 0.06707796598456368,
         "n": 1360,
         "source": "fit"
       },
       "Östermalm": {
-        "a": 0.03983031669254107,
+        "a": 0.0496296216033896,
         "n": 640,
         "source": "fit"
       }
     },
-    "b": -0.18371296508465704,
-    "overallA": 0.06914035893985461,
+    "b": -0.09772797797569453,
+    "overallA": 0.07847978477617874,
     "cvRmse": {
       "flat": 0.07575060700845646,
       "slope": 0.07360646085110364
     },
     "nullLabelShare": 0.2734787911641144,
     "terms": {
-      "dom": null,
+      "dom": {
+        "beta": -0.035051376007615924,
+        "mean": 2.6816507757152683,
+        "n": 837,
+        "kept": true,
+        "cvRmse": {
+          "without": 0.07360646085110364,
+          "with": 0.0727472506003549
+        },
+        "note": "med: korsvalidering 0,0736 -> 0,0727"
+      },
       "condition": null
     }
   },
@@ -7531,5 +7541,5 @@
       "detail": "tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)"
     }
   ],
-  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 1 192 försäljningar, skuld för 1 014 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd."
+  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 1 192 försäljningar, skuld för 1 014 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd. Dagar på marknaden i budpremien: används (med: korsvalidering 0,0736 -> 0,0727). Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat)."
 }

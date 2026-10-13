@@ -531,10 +531,81 @@ export function renovatedCapKrPerSqm(model: HedonicModel, predKrPerSqm: number):
 }
 
 /**
+ * How an expected overbid was put together (14.4, VAL-03): the base form, whether the
+ * days-on-market term moved it, and the (still empty) condition slot. `label` is the
+ * short Swedish makeup the tracked-listing block prints next to the percentage.
+ */
+export interface OverbidDetail {
+  /** Expected overbid over asking, as a fraction (0.08 = pays 8 % over). */
+  pct: number;
+  /** The base form actually used: "slope" only when the model is slope AND has its b. */
+  base: "flat" | "slope";
+  /** The days on market the caller supplied, null when unknown. */
+  domDays: number | null;
+  /** True when the days term was kept AND the days were known, so it moved the premium. */
+  domUsed: boolean;
+  conditionIndex: -1 | 0 | 1;
+  conditionUsed: boolean;
+  conditionSource: "fit" | "prior";
+  label: string;
+}
+
+/**
+ * Expected overbid over asking with its makeup. ln(1 + premium) = a_district
+ * + b x (ln asking - ln pred)   [slope form only]
+ * + c x (ln(1 + days) - mean)   [only when cross-validation kept the days term AND the days are known]
+ * + condition term              [slot for plan 09/10; adds 0 while terms.condition is null].
+ * An unknown number of days adds exactly 0 (the training mean), never a guess.
+ */
+export function expectedOverbidDetail(
+  model: HedonicModel,
+  district: InnerstanDistrict,
+  askingKrPerSqm: number,
+  predKrPerSqm: number,
+  extra: { daysOnMarket: number | null; conditionIndex?: -1 | 0 | 1 },
+): OverbidDetail {
+  const bid = model.bidPremium;
+  let ln = bid.perDistrict[district].a;
+  const slope = bid.kind === "slope" && bid.b !== null;
+  if (slope) ln += (bid.b as number) * (Math.log(askingKrPerSqm) - Math.log(predKrPerSqm));
+
+  const dom = bid.terms.dom;
+  const domKept = dom !== null && dom.kept;
+  const days =
+    extra.daysOnMarket !== null && Number.isFinite(extra.daysOnMarket) && extra.daysOnMarket >= 0
+      ? extra.daysOnMarket
+      : null;
+  const domUsed = domKept && days !== null;
+  if (domUsed) ln += dom.beta * (Math.log(1 + (days as number)) - dom.mean);
+
+  const condition = bid.terms.condition;
+  const conditionIndex = extra.conditionIndex ?? 0;
+  const conditionKept = condition !== null && condition.kept;
+  const conditionUsed = conditionKept && conditionIndex !== 0;
+  if (conditionUsed) ln += condition.beta * conditionIndex;
+
+  const base = slope ? "slope" : "flat";
+  let label = slope ? "distrikt+pris" : "distrikt";
+  if (domUsed) label += "+dagar";
+  else if (domKept) label += ", dagar okända";
+  return {
+    pct: Math.exp(ln) - 1,
+    base,
+    domDays: days,
+    domUsed,
+    conditionIndex,
+    conditionUsed,
+    conditionSource: conditionKept ? condition.source : "prior",
+    label,
+  };
+}
+
+/**
  * Expected overbid over asking, as a fraction (0.08 = pays 8 % over). "flat":
  * exp(a_district) - 1. "slope": exp(a_district + b x (ln asking - ln pred)) - 1,
  * so a flat asked below the model's price draws a larger bid. A slope model
- * without a `b` behaves as flat.
+ * without a `b` behaves as flat. Days on market are not part of this number:
+ * use {@link expectedOverbidDetail} to include them.
  */
 export function expectedOverbid(
   model: HedonicModel,
@@ -542,12 +613,10 @@ export function expectedOverbid(
   askingKrPerSqm: number,
   predKrPerSqm: number,
 ): number {
-  const bid = model.bidPremium;
-  const a = bid.perDistrict[district].a;
-  if (bid.kind === "slope" && bid.b !== null) {
-    return Math.exp(a + bid.b * (Math.log(askingKrPerSqm) - Math.log(predKrPerSqm))) - 1;
-  }
-  return Math.exp(a) - 1;
+  return expectedOverbidDetail(model, district, askingKrPerSqm, predKrPerSqm, {
+    daysOnMarket: null,
+    conditionIndex: 0,
+  }).pct;
 }
 
 // ---------------------------------------------------------------------------
@@ -920,6 +989,8 @@ export interface HedonicTrainingRow {
   brfDebtPerSqm: number | null;
   /** true = tomträtt, false = Bostadsrätt on the sold page, null = not read or another tenure. */
   tomtratt: boolean | null;
+  /** Days on market as the sold page prints it (14.4 VAL-03); absent/null = not read. Feeds the bid premium only, never the resale price. */
+  daysActive?: number | null;
 }
 
 /** A row reduced to the numbers the stage-1 regression uses. lat/lng are already rounded. */
@@ -1244,6 +1315,12 @@ export interface BidPremiumRow {
   askLnKrm2: number | null;
   /** ln of the model's price per m2 for this flat (out-of-fold when fitted). */
   predLnKrm2: number;
+  /**
+   * ln(1 + days on market) from the sold page, or null/absent when unknown. The ln(1 + days)
+   * transform is a prior choice (RESEARCH A7) and is NOT searched over: a rejection by
+   * cross-validation means "no detectable effect in this form".
+   */
+  domLn?: number | null;
 }
 
 type DistrictPremium = HedonicModel["bidPremium"]["perDistrict"][InnerstanDistrict];
@@ -1307,6 +1384,85 @@ function fitSlopePremium(items: readonly SlopeItem[]): {
   return { b, overallA, perDistrict };
 }
 
+/** A usable days-on-market value: a finite ln(1 + days) at or above zero. */
+function knownDomLn(r: BidPremiumRow): number | null {
+  const v = r.domLn;
+  return v !== undefined && v !== null && Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+interface DomPremiumFit {
+  /** Slope coefficient re-estimated jointly with the days term (slope base), else null. */
+  b: number | null;
+  /** Coefficient on ln(1 + days) - mean. */
+  c: number;
+  mean: number;
+  /** Rows the coefficients were estimated on (days known, and an asking price for the slope base). */
+  n: number;
+  overallA: number;
+  perDistrict: Record<InnerstanDistrict, DistrictPremium>;
+}
+
+/**
+ * The base premium PLUS a days-on-market term (VAL-03). Within-district least squares on
+ * [u = ln asking - ln pred (slope base only), ln(1 + days)] over the rows that have the
+ * regressors (normal equations through choleskySolve), then per-district intercepts as the
+ * MEDIAN of z - b u - c (domLn - mean), like the base form. A row with unknown days
+ * contributes 0 to that sum (it sits at the mean). Null when fewer than MIN_DISTRICT_N rows
+ * carry the regressors, or the regressors have no usable spread.
+ */
+function fitDomPremium(rows: readonly BidPremiumRow[], kind: "flat" | "slope"): DomPremiumFit | null {
+  const slope = kind === "slope";
+  const usable = rows.filter((r) => knownDomLn(r) !== null && (!slope || r.askLnKrm2 !== null));
+  if (usable.length < MIN_DISTRICT_N) return null;
+  const mean = meanOfValues(usable.map((r) => knownDomLn(r) as number));
+  const regressors = (r: BidPremiumRow): number[] =>
+    slope ? [(r.askLnKrm2 as number) - r.predLnKrm2, knownDomLn(r) as number] : [knownDomLn(r) as number];
+  const p = slope ? 2 : 1;
+  const A = Array.from({ length: p }, () => new Array<number>(p).fill(0));
+  const rhs = new Array<number>(p).fill(0);
+  for (const d of INNERSTAN_DISTRICTS) {
+    const g = usable.filter((r) => r.district === d);
+    if (g.length < 2) continue;
+    const xs = g.map(regressors);
+    const xBar = Array.from({ length: p }, (_, j) => meanOfValues(xs.map((x) => x[j])));
+    const zBar = meanOfValues(g.map((r) => r.z));
+    g.forEach((r, i) => {
+      for (let j = 0; j < p; j++) {
+        rhs[j] += (xs[i][j] - xBar[j]) * (r.z - zBar);
+        for (let k = 0; k < p; k++) A[j][k] += (xs[i][j] - xBar[j]) * (xs[i][k] - xBar[k]);
+      }
+    });
+  }
+  if (A.some((row, j) => !(row[j] > 1e-9))) return null;
+  let coef: number[];
+  try {
+    coef = choleskySolve(A, rhs);
+  } catch {
+    return null;
+  }
+  if (!coef.every((v) => Number.isFinite(v))) return null;
+  const b = slope ? coef[0] : null;
+  const c = coef[p - 1];
+
+  const pool = slope ? rows.filter((r) => r.askLnKrm2 !== null) : rows;
+  const adjusted = (r: BidPremiumRow): number => {
+    const dl = knownDomLn(r);
+    return (
+      r.z -
+      (b !== null && r.askLnKrm2 !== null ? b * (r.askLnKrm2 - r.predLnKrm2) : 0) -
+      (dl === null ? 0 : c * (dl - mean))
+    );
+  };
+  const overallA = medianOf(pool.map(adjusted));
+  const perDistrict = byDistrict((d): DistrictPremium => {
+    const g = pool.filter((r) => r.district === d);
+    return g.length < MIN_DISTRICT_N
+      ? { a: overallA, n: g.length, source: "fallback" }
+      : { a: medianOf(g.map(adjusted)), n: g.length, source: "fit" };
+  });
+  return { b, c, mean, n: usable.length, overallA, perDistrict };
+}
+
 /**
  * Fits the bid premium two ways and keeps the better one (R-07): flat, the
  * median ln(1+premium) per district; slope, ln(1+premium) = a_district +
@@ -1316,6 +1472,14 @@ function fitSlopePremium(items: readonly SlopeItem[]): {
  * A district under MIN_DISTRICT_N rows borrows the overall figure and is marked
  * "fallback". Rows passed in must all carry a label; `nullLabelShare` is the
  * share of flats that did not, reported as given (a null label is not zero).
+ *
+ * Then, on top of the chosen base, a days-on-market term is tried (D-02/R-01, VAL-03):
+ * the base and base-plus-days are both refitted on each fold's training rows and scored on
+ * the SAME held-out rows with the SAME fold rule. The term is kept only when its error is
+ * STRICTLY lower AND its coefficient is negative (a longer listing draws a smaller
+ * premium); otherwise it is recorded as tried and rejected, and the base is left exactly as
+ * it was. When the term is kept, the premium's slope and intercepts are the jointly
+ * re-estimated ones, because the days coefficient is only meaningful against them.
  */
 export function fitBidPremium(
   rows: readonly BidPremiumRow[],
@@ -1353,25 +1517,77 @@ export function fitBidPremium(
   const cvFlat = scored.length === 0 ? 0 : Math.sqrt(sqFlat / scored.length);
   const cvSlope = slope !== null && slopeUsable && scored.length > 0 ? Math.sqrt(sqSlope / scored.length) : null;
 
-  if (slope !== null && cvSlope !== null && cvSlope < cvFlat) {
-    return {
-      kind: "slope",
-      perDistrict: slope.perDistrict,
-      b: slope.b,
-      overallA: slope.overallA,
-      cvRmse: { flat: cvFlat, slope: cvSlope },
-      nullLabelShare,
-      terms: { dom: null, condition: null },
-    };
+  const useSlope = slope !== null && cvSlope !== null && cvSlope < cvFlat;
+  const base: HedonicModel["bidPremium"] =
+    useSlope && slope !== null
+      ? {
+          kind: "slope",
+          perDistrict: slope.perDistrict,
+          b: slope.b,
+          overallA: slope.overallA,
+          cvRmse: { flat: cvFlat, slope: cvSlope },
+          nullLabelShare,
+          terms: { dom: null, condition: null },
+        }
+      : {
+          kind: "flat",
+          perDistrict: flat.perDistrict,
+          b: null,
+          overallA: flat.overallA,
+          cvRmse: { flat: cvFlat, slope: cvSlope },
+          nullLabelShare,
+          terms: { dom: null, condition: null },
+        };
+
+  // ---- the days-on-market contest ----
+  const kind = base.kind;
+  const domFull = fitDomPremium(rows, kind);
+  if (domFull === null) return base;
+  let sqWithout = 0;
+  let sqWith = 0;
+  for (let f = 0; f < CV_FOLDS; f++) {
+    const train = rows.filter((_, i) => i % CV_FOLDS !== f);
+    const flatFold = fitFlatPremium(train);
+    const slopeFold = kind === "slope" ? fitSlopePremium(items(train)) : null;
+    const domFold = fitDomPremium(train, kind);
+    for (const i of scored) {
+      if (i % CV_FOLDS !== f) continue;
+      const r = rows[i];
+      const u = r.askLnKrm2 === null ? 0 : r.askLnKrm2 - r.predLnKrm2;
+      const without =
+        slopeFold !== null
+          ? slopeFold.perDistrict[r.district].a + slopeFold.b * u
+          : flatFold.perDistrict[r.district].a;
+      let withDom = without;
+      if (domFold !== null) {
+        const dl = knownDomLn(r);
+        withDom =
+          domFold.perDistrict[r.district].a +
+          (domFold.b !== null ? domFold.b * u : 0) +
+          (dl === null ? 0 : domFold.c * (dl - domFold.mean));
+      }
+      sqWithout += (r.z - without) ** 2;
+      sqWith += (r.z - withDom) ** 2;
+    }
   }
+  const cvWithout = scored.length === 0 ? 0 : Math.sqrt(sqWithout / scored.length);
+  const cvWith = scored.length === 0 ? 0 : Math.sqrt(sqWith / scored.length);
+  const improves = cvWith < cvWithout;
+  const rightSign = domFull.c < 0;
+  const kept = improves && rightSign;
+  const note = kept
+    ? `med: korsvalidering ${sv(cvWithout, 4)} -> ${sv(cvWith, 4)}`
+    : !improves
+      ? "prövad, förkastad: korsvalidering"
+      : "prövad, förkastad: fel tecken";
+  const dom = { beta: domFull.c, mean: domFull.mean, n: domFull.n, kept, cvRmse: { without: cvWithout, with: cvWith }, note };
+  if (!kept) return { ...base, terms: { dom, condition: null } };
   return {
-    kind: "flat",
-    perDistrict: flat.perDistrict,
-    b: null,
-    overallA: flat.overallA,
-    cvRmse: { flat: cvFlat, slope: cvSlope },
-    nullLabelShare,
-    terms: { dom: null, condition: null },
+    ...base,
+    perDistrict: domFull.perDistrict,
+    b: domFull.b,
+    overallA: domFull.overallA,
+    terms: { dom, condition: null },
   };
 }
 
@@ -1647,6 +1863,10 @@ export function fitHedonicModel(
       askLnKrm2:
         r.askingPrice !== null && r.askingPrice > 0 ? Math.log(r.askingPrice / r.livingArea) : null,
       predLnKrm2: oofLn[i] + Math.log(smearing),
+      domLn:
+        r.daysActive !== undefined && r.daysActive !== null && Number.isInteger(r.daysActive) && r.daysActive >= 0
+          ? Math.log(1 + r.daysActive)
+          : null,
     });
   });
   const bidPremium = fitBidPremium(premiumRows, { nullLabelShare: nullLabels / kept.length });
@@ -1798,6 +2018,12 @@ export function describeModel(model: HedonicModel): string[] {
   lines.push(
     `Budpremiens korsvalidering (logskala): fast ${sv(bid.cvRmse.flat, 3)}, lutande ${bid.cvRmse.slope === null ? "ej beräknad" : sv(bid.cvRmse.slope, 3)}.`,
   );
+  if (bid.terms.dom !== null) {
+    const dom = bid.terms.dom;
+    lines.push(
+      `Dagar på marknaden i budpremien: ${dom.kept ? "används" : "används inte"} (${dom.note}; koefficient ${sv(dom.beta, 4)} per ln-dag, ${dom.n} försäljningar med dagar och utgångspris). Gäller förväntat slutpris, inte lägenhetens värde.`,
+    );
+  }
   lines.push(
     `${sv(bid.nullLabelShare * 100, 1)} % av försäljningarna saknar uppgift om slutpris mot utgångspris och är utelämnade ur budpremien; de räknas inte som noll.`,
   );

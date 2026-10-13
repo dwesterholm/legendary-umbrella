@@ -1261,3 +1261,56 @@ describe("hedonicInputOf: the candidate-side inputs of the 14.4 features (D-01)"
     expect(b.featuresImputed).toEqual(expect.arrayContaining(["avgiftPerSqmMonth", "brfDebtPerSqm"]));
   });
 });
+
+describe("days on market move the expected final price, never the resale value (VAL-03, D-02)", () => {
+  const base = snapshot.rows[0];
+  const domModel = structuredClone(model);
+  domModel.bidPremium.terms.dom = {
+    beta: -0.04,
+    mean: 2.7,
+    n: 800,
+    kept: true,
+    cvRmse: { without: 0.074, with: 0.073 },
+    note: "med: korsvalidering 0,0740 -> 0,0730",
+  };
+  const withDays = (days: number | null): FitInputRow => ({
+    ...base,
+    facts: candidateFactsSchema.parse({ daysOnMarket: days, detailFetched: true }),
+  });
+
+  it("stores the overbid makeup and overbidPct is its pct for every comparable row", () => {
+    for (const r of rankFit(snapshot.rows, model).ranked) {
+      expect(r.overbidDetail).not.toBeNull();
+      expect(r.overbidPct).toBe(r.overbidDetail!.pct);
+    }
+  });
+
+  it("a not-comparable row has no overbid makeup", () => {
+    const r = fitScore(rowWith(base, { price: null }), model);
+    expect(r.overbidPct).toBeNull();
+    expect(r.overbidDetail).toBeNull();
+  });
+
+  it("a longer listing lowers the expected final price when the term is kept, and leaves the resale value alone", () => {
+    const fresh = fitScore(withDays(5), domModel);
+    const stale = fitScore(withDays(90), domModel);
+    expect(stale.overbidPct as number).toBeLessThan(fresh.overbidPct as number);
+    expect(stale.purchaseSek as number).toBeLessThan(fresh.purchaseSek as number);
+    expect(stale.overbidDetail!.domUsed).toBe(true);
+    expect(stale.overbidDetail!.domDays).toBe(90);
+    expect(stale.resaleSek).toBe(fresh.resaleSek);
+    expect(stale.predKrPerSqm).toBe(fresh.predKrPerSqm);
+  });
+
+  it("unknown days change nothing against a model without the term", () => {
+    const unknown = fitScore(withDays(null), domModel);
+    const plain = fitScore(withDays(null), model);
+    expect(unknown.overbidPct).toBeCloseTo(plain.overbidPct as number, 12);
+    expect(unknown.overbidDetail!.label).toContain("dagar okända");
+    expect(unknown.overbidDetail!.domUsed).toBe(false);
+  });
+
+  it("with the term absent from the model, days change nothing", () => {
+    expect(fitScore(withDays(5), model).overbidPct).toBe(fitScore(withDays(90), model).overbidPct);
+  });
+});

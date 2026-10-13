@@ -430,7 +430,14 @@ function makeReasonsOf(
   };
 }
 
+/** The model's days-on-market term in one phrase for the tracked block (kept, tried and rejected, or absent). */
+function domTermText(model: ReturnType<typeof parseHedonicModel>): string {
+  const dom = model.bidPremium.terms.dom;
+  return dom === null ? "saknas i modellen" : dom.note;
+}
+
 function printTracked(
+  model: ReturnType<typeof parseHedonicModel>,
   trackId: number,
   ranking: { ranked: FitScoreResult[]; notComparable: FitScoreResult[] },
   rows: readonly FitInputRow[],
@@ -463,7 +470,10 @@ function printTracked(
   console.log(`  Förrank: ${pre ?? "-"}, i bildfönstret: ${row ? (row.inVisionWindow ? "ja" : "nej") : "okänt"}`);
   console.log(`  Utgångspris:        ${orDash(r.askingSek, sek)} kr (${orDash(r.livingArea, String)} kvm)`);
   console.log(`  Modellpris:         ${orDash(r.predKrPerSqm, sek)} kr/kvm, utgångspris/modell ${orDash(r.askToPred, pct)}`);
-  console.log(`  Förv. överbud:      ${orDash(r.overbidPct, pct)}`);
+  console.log(`  Förv. överbud:      ${orDash(r.overbidPct, pct)}${r.overbidDetail === null ? "" : ` (${r.overbidDetail.label})`}`);
+  console.log(
+    `  Dagar ute:          ${orDash(row?.facts?.daysOnMarket ?? null, (n) => String(Math.round(n)))} (dagar-term: ${domTermText(model)})`,
+  );
   console.log(`  Förv. slutpris:     ${orDash(r.purchaseSek, sek)} kr`);
   // Same split function and same rounding as the table, so the line always matches the section the row was printed in.
   const inUnder = splitFitSections(toFitTableRows({ ranked: [r] }, new Map())).under.length === 1;
@@ -506,6 +516,7 @@ function printNotComparable(notComparable: readonly FitScoreResult[]): void {
 
 /** Table, tracked-listing block, not-comparable list and health: identical in replay and live. */
 function printRanking(
+  model: ReturnType<typeof parseHedonicModel>,
   ranking: { ranked: FitScoreResult[]; notComparable: FitScoreResult[]; health: ModelHealth },
   rows: readonly FitInputRow[],
   preRankPositions: ReadonlyMap<string, number>,
@@ -514,7 +525,7 @@ function printRanking(
   reasonsOf: (r: FitScoreResult) => string[],
 ): void {
   console.log(renderFitSections(tableRows, { maxRows: FIT_TABLE_MAX_ROWS }));
-  printTracked(trackId, ranking, rows, preRankPositions, reasonsOf);
+  printTracked(model, trackId, ranking, rows, preRankPositions, reasonsOf);
   printNotComparable(ranking.notComparable);
   printHealth(ranking.health);
 }
@@ -906,7 +917,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   console.log("");
   const reasonsOf = makeReasonsOf(rows, ranking.ranked);
   const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });
-  printRanking(ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
+  printRanking(model, ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
   const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
   console.log(`\n${coverageLine}`);
   console.log(sunReportOf(ranking.ranked));
@@ -1263,7 +1274,7 @@ async function runLive(args: Args): Promise<void> {
     if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
     console.log(sunReportOf(result.ranking.ranked));
     console.log("");
-    printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
+    printRanking(model, result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
     await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result));
     if (cacheSaveError !== null) {
       console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);
