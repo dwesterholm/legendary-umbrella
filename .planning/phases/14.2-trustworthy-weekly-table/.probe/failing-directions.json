@@ -1,0 +1,211 @@
+{
+  "status": "ok",
+  "commands": [
+    {
+      "command": "npx vitest run src/lib/booli/renderer-parity.test.ts src/lib/booli/transport.test.ts src/lib/booli/client.test.ts && npx tsc --noEmit && out=$(npx tsx scripts/probe-local-booli.ts search --area 115341 --pages 1) && printf '%s\\n' \"$out\" | grep -qE '^Kandidater: [1-9][0-9]* ' && printf '%s\\n' \"$out\" | grep -q '0,00 USD' && printf '%s\\n' \"$out\" | grep -q '^Apify-reserv: 0 '",
+      "statement": "non-zero exit from vitest, tsc or the probe; \"failed\" in a vitest summary line (parity mismatch, or actorCall called in the local path); any \"error TS\" line; probe output has \"Kandidater: 0\" or no \"Kandidater:\" line, lacks \"0,00 USD\", or shows an Apify-reserv count other than 0",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-01-PLAN.md",
+      "task": "Task 1: End-to-end \"one Södermalm search page through the local rung\" - seam, renderer, probe, parity"
+    },
+    {
+      "command": "npx vitest run src/lib/booli/local-browser.test.ts src/lib/booli/transport.test.ts src/lib/booli/renderer-parity.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in any vitest summary line (e.g. a 404 that waited 5 000 ms, a third attempt, actorCall called without allowApify or beyond apifyMaxRenders, more than 2 pages open, a page left open, the app-tree guard finding an import, the runs-API line differing from the pinned string by any character); any \"error TS\" line; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-01-PLAN.md",
+      "task": "Task 2: Harden the local renderer - challenge, one retry, pacing, concurrency, fallback cap, cleanup, app-tree guard; pin the runs-API ledger line"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/niche-score.test.ts src/lib/booli && npx tsc --noEmit && npm run lint && out=$(env -u APIFY_API_TOKEN npx tsx scripts/fit-score.ts --dry-run 2>/dev/null) && printf '%s\\n' \"$out\" | head -n 1 | grep -qx \"Renderare: lokal webbläsare\" && ! printf '%s\\n' \"$out\" | grep -q \"Uppskattad Apify-kostnad\" && test \"$(grep -c 'formatApifyRunsLine' scripts/fit-score.ts)\" -ge 1 && out2=$(env -u APIFY_API_TOKEN npx tsx scripts/pull-slutpriser.ts --dry-run --renderer local) && printf '%s\\n' \"$out2\" | grep -q \"Renderare: lokal\" && node -e 'const p=require(\"./package.json\");if(p.devDependencies.playwright!==\"1.60.0\")throw new Error(\"pin \"+p.devDependencies.playwright)' && out3=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out3\" | grep -q \"Folkungagatan 61\"",
+      "statement": "non-zero exit anywhere in the chain (including the token-less local --dry-run exiting 1 or 2); \"failed\" in a vitest summary; \"error TS\"; eslint errors; the dry-run's first stdout line is not exactly \"Renderare: lokal webbläsare\", or it still prints the worst-case Apify estimate line; printSpend does not use formatApifyRunsLine; pull-slutpriser dry-run lacks \"Renderare: lokal\"; playwright not pinned to exactly 1.60.0; the offline replay no longer prints \"Folkungagatan 61\"",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-01-PLAN.md",
+      "task": "Task 3: Make local the default renderer in the headless scripts; skip Apify checks in local mode; ledger at 0 USD after a settle wait; pin playwright"
+    },
+    {
+      "command": "node -e 'const fs=require(\"fs\");const d=\"src/lib/booli/__fixtures__/\";const m=fs.readFileSync(d+\"search-meta-local.fixture.txt\",\"utf8\");if(!/\"totalCount\":\\d+/.test(m)||!/till salu/.test(m)||(m.match(/ListableProperty/g)||[]).length<3)throw new Error(\"meta fixture\");let pub=0;for(const n of [1,2,3]){const s=fs.readFileSync(d+\"listing-detail-local-\"+n+\".fixture.json\",\"utf8\");JSON.parse(s);if(!/\"tenureForm\"/.test(s))throw new Error(\"tenure \"+n);if(/\"published\"/.test(s))pub++;if(/\"(phone|phoneNumber|email|mobile)\"\\s*:\\s*\"[^\"]+\"/i.test(s))throw new Error(\"pii \"+n);}if(pub<1)throw new Error(\"no published\");console.log(\"fixtures ok\")' && grep -lq \"[åäö]\" src/lib/booli/__fixtures__/search-meta-local.fixture.txt src/lib/booli/__fixtures__/listing-detail-local-*.fixture.json && npx tsc --noEmit",
+      "statement": "non-zero exit; \"meta fixture\" (no totalCount, no \"till salu\" title, or fewer than 3 cards); a detail fixture that is not valid JSON or lacks tenureForm; no fixture carrying \"published\"; a phone/email value left in a fixture; no Swedish letter in any fixture; \"error TS\"",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-02-PLAN.md",
+      "task": "Task 1: Capture real search and detail payloads through the local rung (free) and commit sanitized fixtures"
+    },
+    {
+      "command": "npx vitest run src/lib/booli/page-functions.test.ts src/lib/booli/client.test.ts src/lib/booli/renderer-parity.test.ts && npx tsc --noEmit && npm run lint && out=$(npx tsx scripts/probe-local-booli.ts search --area 115341 --complete --min-area 35) && printf '%s\\n' \"$out\" | grep -qE '^Fullständighet: [0-9]+ av [0-9]+ annonser'",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (wrong page count, the Nyproduktion or Slutpriser count picked, the no-opts path changed, an existing assertion edited to pass, a totalCount-only page extracting to a non-null state or resolving in-app instead of rejecting); \"error TS\"; eslint errors; probe output lacks a \"Fullständighet: N av M annonser\" line (count unknown)",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-02-PLAN.md",
+      "task": "Task 2: Read Booli's own total count and page until the district is complete"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/listing-facts.test.ts src/lib/discovery/niche-score.test.ts src/lib/booli/client.test.ts && npx tsc --noEmit && npm run lint && npm run test",
+      "statement": "non-zero exit; \"failed\" in any vitest summary (a day-count boundary off by one, a card false read as \"no balcony\", a description string inside the facts, a lost Swedish letter, a widened candidate); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-02-PLAN.md",
+      "task": "Task 3: CandidateFacts - the facts record beside the candidate"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/reno-tier.test.ts src/lib/discovery/fit-score.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (any table row misclassified, or an existing reno-tier / fit-score test broken); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-03-PLAN.md",
+      "task": "Task 1: Clause-safe negation and no-need handling in reno-tier (WR-01, WR-02)"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-path.test.ts src/lib/discovery/taste.test.ts src/lib/discovery/fit-score.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (\"genomgående renoverad\" still a through-flat, a stated phrase missed or out of order, a street name matched, a taste test moved); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-03-PLAN.md",
+      "task": "Task 2: \"genomgående\" means layout only (WR-03) and a stated-sun phrase list (R-05)"
+    },
+    {
+      "command": "npx vitest run src/lib/booli/slutpriser.test.ts && npx tsc --noEmit && npm run lint && npm run test",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (empty-throw-throw recorded ok/final, or an unchanged sequence changing outcome); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-03-PLAN.md",
+      "task": "Task 3: A page that is empty once and then errors stays resumable (WR-04)"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/hedonic-model.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in the vitest summary (sign table mismatch, lnArea still zeroed, zeroing path no longer covered); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-04-PLAN.md",
+      "task": "Task 1: Drop the size direction rule (D-10, WR-06)"
+    },
+    {
+      "command": "node -e 'const m=require(\"./data/hedonic-model.json\");const f=m.features.find(x=>x.name===\"lnArea\");if(!(f&&f.source===\"fit\"&&f.beta>0.03&&f.beta<0.06))throw new Error(\"lnArea \"+JSON.stringify(f));if(m.fallbacks.some(x=>x.item===\"lnArea\"))throw new Error(\"lnArea fallback left\");if(!(m.r2>=0.60))throw new Error(\"r2 \"+m.r2);if(!/D-10/.test(m.note||\"\"))throw new Error(\"note lacks D-10\");console.log(\"model ok\",f.beta.toFixed(4),m.r2.toFixed(4))' && a=$(node -p 'require(\"./data/hedonic-model.json\").asOf') && npx tsx scripts/fit-hedonic.ts --as-of \"$a\" --out .planning/calibration/data/hedonic-model-recheck.json > /dev/null && node -e 'const a=require(\"./data/hedonic-model.json\"),b=require(\"./.planning/calibration/data/hedonic-model-recheck.json\");const k=m=>JSON.stringify([m.r2,m.features.map(f=>[f.name,f.beta,f.source])]);if(k(a)!==k(b))throw new Error(\"refit not reproducible\");console.log(\"reproducible\")' && npx vitest run src/lib/discovery/hedonic-model.test.ts src/lib/discovery/fit-score.test.ts src/lib/discovery/niche-score.test.ts && npm run test",
+      "statement": "non-zero exit; \"lnArea\" error (not fit, not positive, outside 0.03-0.06); an lnArea fallback left; R² below 0.60; the note lacks \"D-10\"; a recheck refit with the same --as-of gives different coefficients; \"failed\" in a vitest summary",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-04-PLAN.md",
+      "task": "Task 2: Refit for free, describe the change in Swedish, commit the model"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/fit-pipeline.test.ts && npx tsc --noEmit && npm run lint && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && printf '%s\\n' \"$out\" | grep -q \"^Förväntat under 4 M (\" && printf '%s\\n' \"$out\" | grep -q \"^Över 4 M förväntat (\" && printf '%s\\n' \"$out\" | grep -q \"Okapad skillnad\" && printf '%s\\n' \"$out\" | grep -q \"Sektion:\"",
+      "statement": "non-zero exit; \"failed\" in the vitest summary (4 000 000 in the wrong section, order changed, empty section not printed); \"error TS\"; eslint errors; replay output lacks Folkungagatan 61, either section heading, the \"Okapad skillnad\" column or the tracked \"Sektion:\" line",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-04-PLAN.md",
+      "task": "Task 3: Uncapped gap beside the credit, and the two 4 M sections"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/watch-enrich.test.ts src/lib/discovery/fit-score.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit && npm run lint && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\"",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (identity broken on failure, precedence wrong, description text found in facts, limit or deadline ignored, more tasks in flight than allowed, old snapshot rejected); \"error TS\"; eslint errors; replay no longer prints Folkungagatan 61",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-05-PLAN.md",
+      "task": "Task 1: watch-enrich - detail, broker and facts for every candidate; facts on the snapshot row"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/fit-pipeline.test.ts src/lib/discovery/watch-enrich.test.ts && npx tsc --noEmit && npm run lint && npm run test && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out\" | grep -q \"^Täckning (\" && printf '%s\\n' \"$out\" | grep -qE 'balkong känd [0-9]+ av [0-9]+ \\([0-9]+,[0-9] %\\)' && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && env -u APIFY_API_TOKEN npx tsx scripts/fit-score.ts --dry-run > /dev/null && (o=$(npx tsx scripts/fit-score.ts --renderer apify --window all --dry-run 2>&1); test $? -eq 1 && printf '%s\\n' \"$o\" | grep -q -- \"--window all kräver --renderer local\")",
+      "statement": "non-zero exit; \"failed\" in a vitest summary; \"error TS\"; eslint errors; replay lacks the \"Täckning (\" line, prints the balcony item outside the \"<label> <k> av <N> (<p> %)\" shape, or lacks Folkungagatan 61; the token-less local dry-run exits non-zero; \"--renderer apify --window all\" does not exit 1 with its own message",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-05-PLAN.md",
+      "task": "Task 2: Wire it into the run - complete districts, window \"all\", facts on rows, coverage line; free smoke run"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/vision.test.ts src/lib/discovery/vision-cache.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (cap not honoured, equal-to-cap refused, wrong chunk sets or local indices passed to brokerImagesOf, output out of order, a cache hit charged or called, corrupt cache crashing, a write outside the data dir accepted, the rendered Bildtolkning line differing from the pinned string by any character); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-06-PLAN.md",
+      "task": "Task 1: Vision for all - per-call cap, 3 chunks, cache by listing and image set, pinned spend line; shared atomic JSON store"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/vision.test.ts src/lib/discovery/vision-cache.test.ts src/lib/discovery/fit-pipeline.test.ts && npx tsc --noEmit && npm run lint && npm run test && test \"$(grep -c 'function writeJsonAtomic' scripts/fit-score.ts)\" = \"0\" && test \"$(grep -c 'runVisionChunks' scripts/fit-score.ts)\" -ge 1 && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\" && env -u APIFY_API_TOKEN npx tsx scripts/fit-score.ts --dry-run > /dev/null && node -e 'const fs=require(\"fs\");const d=\".planning/calibration/data/\";const rd=f=>{const s=fs.readFileSync(d+f,\"utf8\");const m=s.match(/^Bildtolkning: (\\d+) anrop, (\\d+) från cache, (\\d+) hoppades över, (\\d+),(\\d{2}) kr av tak 60 kr \\(delar: (\\d+)\\/(\\d+)\\/(\\d+) kandidater\\)$/m);if(!m)throw new Error(\"no pinned Bildtolkning line in \"+f);if(!/^Apify-reserv: 0 /m.test(s))throw new Error(\"Apify-reserv not 0 in \"+f);return {calls:+m[1],hits:+m[2],spent:Number(m[4]+\".\"+m[5]),chunks:[+m[6],+m[7],+m[8]]}};const a=rd(\"smoke-14.2-06-vision.txt\"),b=rd(\"smoke-14.2-06-vision-rerun.txt\");if(!(a.calls>=1&&a.spent<=10&&a.chunks.every(n=>n>=1)))throw new Error(\"run1 \"+JSON.stringify(a));if(!(b.hits>=1&&b.spent<a.spent))throw new Error(\"run2 \"+JSON.stringify(b));const c=JSON.parse(fs.readFileSync(d+\"vision-cache.json\",\"utf8\"));if(Object.keys(c.entries||{}).length<1)throw new Error(\"cache empty\");console.log(\"vision smoke ok\",JSON.stringify({a,b}))'",
+      "statement": "non-zero exit; \"failed\" in a vitest summary; \"error TS\"; eslint errors; a writeJsonAtomic copy left in the script or runVisionChunks not wired; replay lacks Folkungagatan 61; the token-less local dry-run exits non-zero; a smoke output lacks the pinned Bildtolkning line or shows Apify-reserv other than 0; run 1 made 0 calls, spent more than 10,00 kr, or left a lane with 0 candidates; run 2 had no cache hit or did not spend less than run 1; the cache file holds no entry",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-06-PLAN.md",
+      "task": "Task 2: Wire vision-for-all into the run and prove it on 10 real flats across all three lanes, then once more from the cache"
+    },
+    {
+      "command": "npx vitest run src/lib/booli/brf-page.test.ts && npx tsc --noEmit && npm run lint && test \"$(ls src/lib/booli/__fixtures__/brf-page-*.fixture.txt | wc -l | tr -d ' ')\" = \"3\"",
+      "statement": "non-zero exit; \"failed\" in the vitest summary (a fixture number misread, thousands separator not handled, missing label not null, a throwing render swallowed, a non-digit id accepted); \"error TS\"; eslint errors; not exactly three BRF fixtures",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-07-PLAN.md",
+      "task": "Task 1: Read the public BRF page - capture five pages locally, commit three, parse loans and area"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/watch-reasons.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a boundary on the wrong side, order not fixed, duplicate bidding or upcoming-sale reason, the upcoming-sale reason not last, a 4-row median used, a crash on null facts, the separation test finding an import); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-07-PLAN.md",
+      "task": "Task 2: The \"varför här\" rules - one pure module, one thresholds table, fixed order"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/watch-enrich.test.ts src/lib/discovery/fit-pipeline.test.ts src/lib/discovery/watch-reasons.test.ts && npx tsc --noEmit && npm run lint && npm run test && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json) && printf '%s\\n' \"$out\" | grep -q \"Varför här\" && printf '%s\\n' \"$out\" | grep -q \"anledning på flaggade rader\" && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\"",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (BRF fetched twice for one association, a failed BRF crashing the stage, reason column missing or misplaced); \"error TS\"; eslint errors; replay lacks the \"Varför här\" column, the reasons coverage text or Folkungagatan 61",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-07-PLAN.md",
+      "task": "Task 3: Fetch BRF pages in the run and print the \"Varför här\" column; free smoke run"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/watch-state.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a same-day rerun reporting new rows, firstSeen rewritten, a 0 kr change counted, a URL-form switch counted as new, the 90/91 day boundary wrong, a corrupt file crashing, a live lock taken over); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-08-PLAN.md",
+      "task": "Task 1: The seen-listing memory and the run lock"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/watch-report.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in the vitest summary (unescaped markup, U+2212 minus or \"-0\" printed, first run not capped at 15 per section, sections out of order, an image or remote source in the HTML, a lost Swedish letter); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-08-PLAN.md",
+      "task": "Task 2: The weekly HTML and text, rendered purely and escaped"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/watch-mail.test.ts src/lib/discovery/watch-state.test.ts src/lib/discovery/watch-report.test.ts && npx tsc --noEmit && npm run lint && npm run test && d=.planning/calibration/data/verify-14.2-08 && rm -rf \"$d\" && mkdir -p \"$d\" && env -u WATCH_SMTP_URL -u WATCH_EMAIL_TO npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json --email --state \"$d/watch-state.json\" > \"$d/run1.txt\" 2>&1 && grep -q \"WATCH_SMTP_URL\" \"$d/run1.txt\" && grep -q \"ingen e-post skickad\" \"$d/run1.txt\" && f=$(ls \"$d\"/weekly-*.html) && grep -q \"Förväntat under 4 M\" \"$f\" && grep -q \"Över 4 M förväntat\" \"$f\" && grep -q \"nya sedan förra veckan\" \"$f\" && test -f \"$d/watch-state.json\" && env -u WATCH_SMTP_URL -u WATCH_EMAIL_TO npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json --email --state \"$d/watch-state.json\" > \"$d/run2.txt\" 2>&1 && grep -q \"inget nytt\" \"$d/run2.txt\" && printf '{\"pid\":%s,\"startedAt\":\"2026-10-13T00:00:00Z\"}' \"$$\" > \"$d/watch-state.lock\" && (env -u WATCH_SMTP_URL -u WATCH_EMAIL_TO npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model src/lib/discovery/__fixtures__/hedonic-model.fixture.json --email --state \"$d/watch-state.json\" > \"$d/run3.txt\" 2>&1; test $? -eq 3) && rm -f \"$d/watch-state.lock\" && out4=$(env -u WATCH_SMTP_URL -u WATCH_EMAIL_TO npx tsx scripts/fit-score.ts --dry-run --email --no-vision --state \"$d/watch-state.json\" 2>/dev/null) && printf '%s\\n' \"$out4\" | head -n 1 | grep -qx \"Renderare: lokal webbläsare\" && printf '%s\\n' \"$out4\" | awk '/^Renderare: lokal/{a=NR} /^WATCH_SMTP_URL: saknas/{b=NR} /^watch-state: /{c=NR} /^Lås: ledigt/{e=NR} END{exit !(a&&b&&c&&e&&a<b&&b<c&&c<e)}'",
+      "statement": "non-zero exit anywhere in the chain; \"failed\" in a vitest summary (including \"never prints\"); \"error TS\"; eslint errors; first offline run does not report the missing SMTP variable or writes no weekly HTML with both section headings, the \"nya sedan förra veckan\" label, or no state file; second run does not print \"inget nytt\"; a run started while a live pid holds the lock does not exit 3; the --dry-run --email output does not open with \"Renderare: lokal webbläsare\" or does not print the SMTP, watch-state and Lås lines in that order",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-08-PLAN.md",
+      "task": "Task 3: Deliver it - nodemailer pinned, env-only sender, and the --email flow with lock, file fallback and state write after delivery"
+    },
+    {
+      "command": "plutil -lint scripts/launchd/com.bostadai.weekly-watch.plist && python3 -c 'import plistlib;p=plistlib.load(open(\"scripts/launchd/com.bostadai.weekly-watch.plist\",\"rb\"));c=p[\"StartCalendarInterval\"];assert p[\"Label\"]==\"com.bostadai.weekly-watch\";assert (c[\"Weekday\"],c[\"Hour\"],c[\"Minute\"])==(1,7,0),c;assert p[\"ProgramArguments\"][0]==\"/bin/zsh\" and p[\"ProgramArguments\"][1].endswith(\"scripts/launchd/run-weekly.sh\");assert \"RunAtLoad\" not in p and \"EnvironmentVariables\" not in p;assert p[\"StandardOutPath\"].startswith(\"/Users/\");print(\"plist ok\")' && zsh -n scripts/launchd/run-weekly.sh && test -x scripts/launchd/run-weekly.sh && grep -q 'caffeinate -i' scripts/launchd/run-weekly.sh && grep -q 'zshenv' scripts/launchd/run-weekly.sh && out=$(WATCH_DRY_RUN=1 zsh scripts/launchd/run-weekly.sh 2>&1) && printf '%s\\n' \"$out\" | grep -q \"^Renderare: lokal\" && printf '%s\\n' \"$out\" | grep -q \"^WATCH_SMTP_URL: \" && printf '%s\\n' \"$out\" | grep -q \"^Lås: \" && printf '%s\\n' \"$out\" | grep -qE \"^Slut: .*kod 0\"",
+      "statement": "non-zero exit; plutil reports an error; the plist check raises (wrong label, not Monday 07:00, wrong program, RunAtLoad or EnvironmentVariables present, relative log path); zsh syntax error; wrapper not executable or lacking caffeinate -i or the zshenv source; the dry run through the wrapper does not print a line starting \"Renderare: lokal\", lacks plan 08's \"WATCH_SMTP_URL: \" or \"Lås: \" dry-run lines, or does not end with \"kod 0\"",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-09-PLAN.md",
+      "task": "Task 1: LaunchAgent plist, wrapper and README (documented, not installed)"
+    },
+    {
+      "command": "e=.planning/phases/14.2-trustworthy-weekly-table/evidence && grep -qE '^Slut: .*kod 0' \"$e/live-run.log\" && grep -q '^Apify-reserv: 0 ' \"$e/live-run.log\" && grep -q '0,00 USD' \"$e/live-run.log\" && grep -qx 'Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)' \"$e/live-run.log\" && grep -qE '[0-9]+ av [0-9]+ annonser' \"$e/live-run.log\" && grep -q '^Täckning (' \"$e/live-run.log\" && grep -q '^Förväntat under 4 M (' \"$e/live-run.log\" && grep -q '^Över 4 M förväntat (' \"$e/live-run.log\" && grep -q 'anledning på flaggade rader' \"$e/live-run.log\" && grep -qE '^Bildtolkning: .* kr av tak 60 kr' \"$e/live-run.log\" && grep -q 'inget nytt' \"$e/rerun.log\" && grep -qE 'kod 3|exit 3|avslutar' \"$e/lock-check.log\" && test \"$(grep -rIlE 'smtps?://[^ ]*@|sk-ant-|apify_api_[A-Za-z0-9]' \"$e\" | wc -l | tr -d ' ')\" = \"0\"",
+      "statement": "the live log does not end with \"kod 0\"; Apify-reserv is not 0, or no line equals exactly \"Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)\" (a non-zero bill, any run, an unreadable bill, or a format drift from plan 01's pinned line); no \"N av M annonser\" line; no coverage line; either section heading missing; no reasons coverage; no Bildtolkning line within the 60 kr cap; the rerun is not \"inget nytt\"; the lock check did not exit 3; any secret pattern in the evidence",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-09-PLAN.md",
+      "task": "Task 2: The evidence run - the scheduled command, for real, from an empty memory; then a quiet rerun and a lock check"
+    },
+    {
+      "command": "e=.planning/phases/14.2-trustworthy-weekly-table/evidence && test -s \"$e/weekly.html\" && grep -q \"Förväntat under 4 M\" \"$e/weekly.html\" && grep -q \"Över 4 M förväntat\" \"$e/weekly.html\" && grep -q \"nya sedan förra veckan\" \"$e/weekly.html\" && test \"$(grep -rIlE 'smtps?://[^ ]*@|sk-ant-|apify_api_[A-Za-z0-9]' \"$e\" | wc -l | tr -d ' ')\" = \"0\" && s=.planning/phases/14.2-trustworthy-weekly-table/14.2-09-SUMMARY.md && grep -q \"D-17\" \"$s\" && grep -q \"Folkungagatan 61\" \"$s\" && grep -q \"Varför här\" \"$s\" && node -e 'const fs=require(\"fs\");const p=\".planning/phases/14.2-trustworthy-weekly-table/\";const s=fs.readFileSync(p+\"14.2-09-SUMMARY.md\",\"utf8\");const log=fs.readFileSync(p+\"evidence/live-run.log\",\"utf8\");const t=(log.match(/^Täckning \\(.*$/m)||[])[0];if(!t)throw new Error(\"no coverage line\");const get=l=>{const m=t.match(new RegExp(l+\" (\\\\d+) av (\\\\d+) \\\\(\"));if(!m)throw new Error(\"no item \"+l);const k=+m[1],n=+m[2];if(n===0)throw new Error(\"0 candidates\");return {k,n,below:k*100<80*n}};const sun=get(\"sol/orientering angiven\"),cond=get(\"skick känt\"),balc=get(\"balkong känd\");if(sun.below&&!/not met (—|-) 14\\.3 scope/.test(s))throw new Error(\"sun under 80 % without the 14.3 verdict\");for(const [name,c] of [[\"skick känt\",cond],[\"balkong känd\",balc]]){if(c.below&&!(/^## Gaps/m.test(s)&&/gaps_found/.test(s)&&s.includes(name+\" \"+c.k+\" av \"+c.n)))throw new Error(name+\" under 80 % but no Gaps section with gaps_found and the measured number\")}console.log(\"D-17 gate consistent\",JSON.stringify({sun,cond,balc}))' && t=$(git ls-files \"$e\") && test \"$(printf '%s\\n' \"$t\" | grep -c .)\" -ge 4 && test -z \"$(git ls-files .planning/calibration/data)\"",
+      "statement": "evidence HTML missing, lacking either section or the \"nya sedan förra veckan\" label; a secret pattern in evidence; SUMMARY lacks the D-17 checklist, Folkungagatan 61 or the reason column; the W1 gate check fails (sun under 80 % without \"not met — 14.3 scope\", or condition / balcony under 80 % without a \"## Gaps\" section containing gaps_found and the measured \"k av N\"); fewer than four committed evidence files; anything under .planning/calibration/data tracked",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.2-09-PLAN.md",
+      "task": "Task 3: Commit the evidence and write the honest D-17 readout"
+    }
+  ],
+  "counts": {
+    "blocker": 0,
+    "warning": 0,
+    "total": 25
+  },
+  "readError": null
+}
