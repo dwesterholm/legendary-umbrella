@@ -20,7 +20,7 @@
  */
 
 import { z } from "zod/v4";
-import type { FootprintResult } from "@/lib/discovery/sun-facade";
+import { angularDistance, bearingToFacade, type FootprintOk, type FootprintResult } from "@/lib/discovery/sun-facade";
 import type { Facade } from "@/lib/discovery/sun-path";
 
 /** D-01 labels, as printed in the Sol cell. */
@@ -107,6 +107,24 @@ export function unknownSunFact(reason: string): SunFact {
   return { source: "okänd", confidence: 0, unknownReason: reason, conflict: false, conflictWith: null, sides: [], footprint: null };
 }
 
+/** The footprint diagnostics kept on every fact whose footprint is known, whatever source won. */
+function footprintDiagnostics(result: FootprintOk): NonNullable<SunFact["footprint"]> {
+  return {
+    osmId: result.osmId,
+    inside: result.inside,
+    snapM: result.snapM,
+    streetBearingDeg: result.streetBearingDeg,
+    streetFacade: result.streetFacade,
+    courtyardBearingDeg: result.courtyardBearingDeg,
+    courtyardFacade: result.courtyardFacade,
+    confidence: result.confidence,
+    frontageM: result.frontageM,
+    streetDistM: result.streetDistM,
+    ambiguous: result.ambiguous,
+    floorAboveLevels: result.floorAboveLevels,
+  };
+}
+
 /**
  * The footprint route as a SunFact: source "fastighet/gata", a street side and
  * a courtyard side with half the flat each (the footprint does not say which
@@ -124,21 +142,196 @@ export function sunFactFromFootprint(result: FootprintResult): SunFact {
       { side: "gata", facade: result.streetFacade, bearingDeg: result.streetBearingDeg, share: 0.5, point: result.streetPoint, hours: null },
       { side: "gård", facade: result.courtyardFacade, bearingDeg: result.courtyardBearingDeg, share: 0.5, point: result.courtyardPoint, hours: null },
     ],
-    footprint: {
-      osmId: result.osmId,
-      inside: result.inside,
-      snapM: result.snapM,
-      streetBearingDeg: result.streetBearingDeg,
-      streetFacade: result.streetFacade,
-      courtyardBearingDeg: result.courtyardBearingDeg,
-      courtyardFacade: result.courtyardFacade,
-      confidence: result.confidence,
-      frontageM: result.frontageM,
-      streetDistM: result.streetDistM,
-      ambiguous: result.ambiguous,
-      floorAboveLevels: result.floorAboveLevels,
-    },
+    footprint: footprintDiagnostics(result),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Precedence (SUN-02, D-05)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every number of the precedence rule, in one place. The functions own no
+ * constants.
+ */
+export const SUN_PRECEDENCE_PARAMS = {
+  /**
+   * R-03: a stated facade is the broker's own word and counts in full. This is
+   * NOT the 0,5 that `extractOrientationFromDescription` returns for
+   * `computeSunExposure`; that number is a different thing and stays as it is.
+   */
+  statedConfidence: 1,
+  /** D-05: two sources further apart than this many degrees (strictly) are a konflikt. */
+  conflictDeg: 90,
+  /** D-05: a konflikt multiplies the winner's confidence by this. */
+  conflictFactor: 0.5,
+  /**
+   * A stated or plan facade takes the footprint's street or courtyard bearing
+   * (and window point) when that bearing lies within this many degrees
+   * (inclusive) of it. Otherwise only the theoretical hours are known.
+   */
+  matchFootprintDeg: 45,
+  /** The bearing a stated facade starts at: the centre of its 90-degree sector. */
+  sectorCentre: { north: 0, east: 90, south: 180, west: 270 },
+} as const satisfies { statedConfidence: number; conflictDeg: number; conflictFactor: number; matchFootprintDeg: number; sectorCentre: Record<Facade, number> };
+
+/** A compass bearing read off a floor plan; the same shape plan 03's `planBearingOf` returns. */
+export type PlanBearing = { bearingDeg: number; confidence: number };
+
+const FACADE_ORDER: readonly Facade[] = ["north", "east", "south", "west"];
+
+/** The facades in the fixed order north, east, south, west, each once. */
+function inFixedOrder(facades: readonly Facade[]): Facade[] {
+  return FACADE_ORDER.filter((f) => facades.includes(f));
+}
+
+const roundTo = (n: number, decimals: number): number => {
+  const f = 10 ** decimals;
+  return Math.round(n * f) / f || 0; // `|| 0` turns -0 into 0
+};
+
+/** A bearing at its stored precision (1 decimal) inside [0, 360). */
+const roundBearing = (deg: number): number => {
+  const r = roundTo(((deg % 360) + 360) % 360, 1);
+  return r >= 360 ? 0 : r;
+};
+
+/** The angle between two bearings at stored precision, so 90,0 never flips on float noise. */
+const distanceDeg = (a: number, b: number): number => roundTo(angularDistance(a, b), 1);
+
+/** The footprint side closer to a bearing; the street wins a tie. */
+function nearerFootprintSide(
+  footprint: FootprintOk,
+  bearing: number,
+): { side: "gata" | "gård"; bearingDeg: number; facade: Facade; point: { lat: number; lng: number } | null; distanceDeg: number } {
+  const street = {
+    side: "gata" as const,
+    bearingDeg: footprint.streetBearingDeg,
+    facade: footprint.streetFacade,
+    point: footprint.streetPoint,
+    distanceDeg: distanceDeg(bearing, footprint.streetBearingDeg),
+  };
+  const courtyard = {
+    side: "gård" as const,
+    bearingDeg: footprint.courtyardBearingDeg,
+    facade: footprint.courtyardFacade,
+    point: footprint.courtyardPoint,
+    distanceDeg: distanceDeg(bearing, footprint.courtyardBearingDeg),
+  };
+  return courtyard.distanceDeg < street.distanceDeg ? courtyard : street;
+}
+
+/**
+ * Where a stated or plan facade sits: the footprint's nearer side when it lies
+ * within `matchFootprintDeg` of `bearing`, else `bearing` itself with no point.
+ */
+function snapToFootprint(
+  footprint: FootprintOk | null,
+  bearing: number,
+): { bearingDeg: number; point: { lat: number; lng: number } | null } {
+  if (footprint === null) return { bearingDeg: bearing, point: null };
+  const near = nearerFootprintSide(footprint, bearing);
+  if (near.distanceDeg > SUN_PRECEDENCE_PARAMS.matchFootprintDeg) return { bearingDeg: bearing, point: null };
+  return { bearingDeg: roundBearing(near.bearingDeg), point: near.point };
+}
+
+/** The winner's sides, its source and its confidence before any konflikt. */
+function winnerOf(
+  stated: readonly Facade[],
+  plan: PlanBearing | null,
+  footprint: FootprintOk | null,
+): SunFact | null {
+  if (stated.length > 0) {
+    return {
+      source: "angiven",
+      confidence: SUN_PRECEDENCE_PARAMS.statedConfidence,
+      unknownReason: null,
+      conflict: false,
+      conflictWith: null,
+      sides: stated.map((facade) => {
+        const { bearingDeg, point } = snapToFootprint(footprint, SUN_PRECEDENCE_PARAMS.sectorCentre[facade]);
+        return { side: "angiven" as const, facade, bearingDeg, share: 1 / stated.length, point, hours: null };
+      }),
+      footprint: null,
+    };
+  }
+  if (plan !== null) {
+    const bearing = roundBearing(plan.bearingDeg);
+    return {
+      source: "planritning",
+      confidence: roundTo(Math.min(1, Math.max(0, plan.confidence)), 2),
+      unknownReason: null,
+      conflict: false,
+      conflictWith: null,
+      sides: [
+        {
+          side: "planritning",
+          facade: bearingToFacade(bearing),
+          bearingDeg: bearing,
+          share: 1,
+          point: snapToFootprint(footprint, bearing).point,
+          hours: null,
+        },
+      ],
+      footprint: null,
+    };
+  }
+  return null;
+}
+
+/**
+ * Decide which source of a flat's facing direction wins and say so when two
+ * sources disagree (D-05):
+ *
+ * 1. stated text ("angiven") beats a floor-plan compass ("planritning"), which
+ *    beats the building footprint ("fastighet/gata"). The plan bearing only
+ *    exists when the caller passes one; plan 07 does so only while
+ *    FLOORPLAN_ROUTE_ENABLED is true.
+ * 2. Nothing known: "okänd", confidence 0, the footprint's own reason (D-02).
+ * 3. The winner's first side bearing is compared with every lower source that
+ *    is present (the footprint counts with the nearer of its street and
+ *    courtyard bearing). A distance strictly above 90,0 degrees marks
+ *    konflikt, names the first such source in precedence order with its
+ *    facade, and halves the confidence. Both stay visible.
+ * 4. The footprint diagnostics ride on every fact whose footprint is known.
+ *
+ * PURE: same input, same output; inputs are not mutated.
+ */
+export function resolveSunFact(input: {
+  stated: readonly Facade[] | null;
+  plan: PlanBearing | null;
+  footprint: FootprintResult;
+}): SunFact {
+  const footprint = input.footprint.status === "ok" ? input.footprint : null;
+  const plan = input.plan !== null && Number.isFinite(input.plan.bearingDeg) && Number.isFinite(input.plan.confidence) ? input.plan : null;
+  const stated = inFixedOrder(input.stated ?? []);
+
+  let fact = winnerOf(stated, plan, footprint);
+  if (fact === null) return sunFactFromFootprint(input.footprint);
+
+  // Lower sources than the winner, in precedence order.
+  const lower: { source: "planritning" | "fastighet/gata"; bearingDeg: number; facade: Facade }[] = [];
+  if (fact.source === "angiven" && plan !== null) {
+    const bearing = roundBearing(plan.bearingDeg);
+    lower.push({ source: "planritning", bearingDeg: bearing, facade: bearingToFacade(bearing) });
+  }
+  const winnerBearing = fact.sides[0]?.bearingDeg ?? null;
+  if (fact.source !== "fastighet/gata" && footprint !== null && winnerBearing !== null) {
+    const near = nearerFootprintSide(footprint, winnerBearing);
+    lower.push({ source: "fastighet/gata", bearingDeg: near.bearingDeg, facade: near.facade });
+  }
+
+  const disagreeing = winnerBearing === null ? undefined : lower.find((l) => distanceDeg(winnerBearing, l.bearingDeg) > SUN_PRECEDENCE_PARAMS.conflictDeg);
+  if (disagreeing !== undefined) {
+    fact = {
+      ...fact,
+      conflict: true,
+      conflictWith: { source: disagreeing.source, facade: disagreeing.facade },
+      confidence: roundTo(fact.confidence * SUN_PRECEDENCE_PARAMS.conflictFactor, 2),
+    };
+  }
+
+  return footprint === null ? fact : { ...fact, footprint: footprintDiagnostics(footprint) };
 }
 
 /** Two decimals with a decimal comma: 0.9 prints "0,90". */
