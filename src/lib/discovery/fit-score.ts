@@ -78,7 +78,7 @@ import {
 } from "@/lib/discovery/reno-tier";
 import { computeNicheScore } from "@/lib/discovery/niche-score";
 import { sunFactSchema, type SunFact } from "@/lib/discovery/sun-fact";
-import { tasteBonus } from "@/lib/discovery/taste";
+import { tasteBonus, type InferredSunInput } from "@/lib/discovery/taste";
 
 // ---------------------------------------------------------------------------
 // Named constants (R-02: every knob is named, documented and principled)
@@ -246,6 +246,37 @@ export interface FitScoreResult {
 }
 
 /**
+ * Which date's hours scale the sun taste (Phase 14.3, D-07; research Pattern 4):
+ * 21 March, the most stable month in the research envelope for the
+ * morning-and-midday window.
+ */
+export const TASTE_SUN_OBSTRUCTION_DATE = "mar" as const;
+
+/**
+ * The stored sun fact as the plain numbers taste.ts takes (D-07, R-03). Per side
+ * the obstruction factor is obstructed nominal / theoretical hours of the
+ * morning-and-midday window on {@link TASTE_SUN_OBSTRUCTION_DATE}, clamped to
+ * [0, 1], and 1 when the side has no hours, no obstructed range or no
+ * theoretical sun. Pure and does no rounding: the fact is already stored rounded.
+ */
+export function inferredSunForTaste(sun: SunFact | null): InferredSunInput | null {
+  if (sun === null) return null;
+  if (sun.source === "okänd") return { source: "okänd", confidence: 0, sides: [] };
+  return {
+    source: sun.source,
+    confidence: sun.confidence,
+    sides: sun.sides.map((side) => {
+      const date = side.hours?.[TASTE_SUN_OBSTRUCTION_DATE];
+      const theoretical = date?.theoreticalWindow ?? 0;
+      const nominal = date?.obstructedWindow?.nominal;
+      const factor =
+        nominal === undefined || !(theoretical > 0) ? 1 : Math.min(1, Math.max(0, nominal / theoretical));
+      return { facade: side.facade, obstructionFactor: factor };
+    }),
+  };
+}
+
+/**
  * The taste bonus in SEK: `tastePct` of the resale value, clamped to
  * [0, TASTE_CAP_PCT] (D-06). A negative or non-finite share is zero, so taste
  * can order flats whose money case is close but never rescue a bad deal and
@@ -372,6 +403,7 @@ export function fitScore(
     longitude: c.longitude,
     orientation: c.orientation,
     sunPhrases: row.sunPhrases,
+    inferredSun: inferredSunForTaste(row.sun),
   });
   const tasteSek = cappedTasteSek(taste.pct, gap.resaleW);
   const askToPred = askingPerSqm / pred;
