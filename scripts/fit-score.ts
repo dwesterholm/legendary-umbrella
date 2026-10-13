@@ -76,7 +76,8 @@
  * .planning/calibration/data/weekly-<date>.html instead and the run says so. The memory is written only after
  * delivery succeeded (mail accepted, or the file written), so a rerun the same day finds nothing new.
  * A lock file next to the memory (watch-state.lock) stops two runs from overlapping (exit 3);
- * a failed send keeps the memory untouched (exit 4). --email also works with --replay (offline apart
+ * a failed send keeps the memory untouched (exit 4); a local run that passes 2 hours is stopped (exit 5).
+ * --email also works with --replay (offline apart
  * from the send itself).
  *
  * The orchestration (order of paid calls, filters, table) lives in
@@ -921,6 +922,8 @@ async function runLive(args: Args): Promise<void> {
     ? localBrowser.installLocalRenderer({ allowApify: args.allowApify, apifyMaxRenders: args.apifyMaxRenders })
     : null;
   const disposeSignals = handle ? localBrowser.closeOnSignals(handle) : null;
+  // WR-01: a run that hangs where no per-page timeout reaches must still end by itself (releases the lock on exit).
+  const disposeWatchdog = handle ? localBrowser.armRunWatchdog(handle) : null;
   const ledger = (): LocalLedger | null => (handle ? { stats: handle.stats(), apifyMaxRenders: args.apifyMaxRenders } : null);
   /** The pinned spend line; null when pictures were not read this run. With no candidate at all it is the zero line. */
   const visionLineOf = (): string | null => {
@@ -998,6 +1001,7 @@ async function runLive(args: Args): Promise<void> {
     }
   } finally {
     lock?.release();
+    disposeWatchdog?.();
     disposeSignals?.();
     await handle?.close();
   }

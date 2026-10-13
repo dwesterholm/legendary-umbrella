@@ -89,6 +89,8 @@ export interface LocalRendererOptions {
   mode?: LocalMode;
   /** Test seam: replaces the real browser launcher. */
   launcher?: LocalLauncher;
+  /** Ceiling for one page call (WR-01). Default `LOCAL_PAGE_CALL_TIMEOUT_MS`; tests lower it. */
+  pageCallTimeoutMs?: number;
   /** Test seams: wait, clock and randomness for the retry wait and pacing. */
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
@@ -113,6 +115,13 @@ export interface LocalRendererHandle {
 
 /** Per-render navigation timeout. */
 export const LOCAL_NAV_TIMEOUT_MS = 45_000;
+/**
+ * Ceiling for every call into a page that has no timeout of its own (WR-01): the
+ * challenge probe, the page function, opening and closing a tab. Playwright's
+ * `evaluate` waits forever on a tab that stops responding, which would hold one
+ * of the two semaphore slots, stall the pool, and keep the run lock live.
+ */
+export const LOCAL_PAGE_CALL_TIMEOUT_MS = 60_000;
 /** Default cap on paid Apify fallbacks per run (about 0.59 USD at the observed rate). */
 export const DEFAULT_APIFY_MAX_RENDERS = 10;
 /** Pages in flight at once (D-02: concurrency <= 2, kind to Booli from a home IP). */
@@ -147,6 +156,37 @@ export class ChallengeError extends Error {
     super(`Booli utmanade den lokala webblasaren (${marker})`);
     this.name = "ChallengeError";
   }
+}
+
+/** A page call (probe, page function, open, close) that did not answer within its ceiling (WR-01). */
+export class PageTimeoutError extends Error {
+  constructor(readonly label: string) {
+    super(`Sidan svarade inte i tid (${label})`);
+    this.name = "PageTimeoutError";
+  }
+}
+
+/**
+ * Races `work` against a timer. The timer is real, `unref`'d (it never keeps the
+ * process alive by itself) and always cleared, so a fast call leaves nothing
+ * behind. The abandoned `work` promise is left pending; closing the page makes
+ * it settle.
+ */
+export function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new PageTimeoutError(label)), ms);
+    timer.unref?.();
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
@@ -228,6 +268,33 @@ export function closeOnSignals(
 /** What a render started after `close()` is told (CR-01): the run is over, nothing is sent to Apify. */
 export const CLOSED_RENDERER_MESSAGE = "Lokala webblasaren ar stangd";
 
+/** Whole-run ceiling for a headless script (WR-01): 2 hours, far past a normal run (about 40 minutes at most). */
+export const RUN_WATCHDOG_MS = 2 * 60 * 60_000;
+/** Exit code of a run stopped by the watchdog. */
+export const EXIT_RUN_TIMEOUT = 5;
+
+/**
+ * Whole-run watchdog (WR-01). After `ms` it logs, closes the browser (which also
+ * refuses all later renders, CR-01) and exits `EXIT_RUN_TIMEOUT`. Scripts hold a
+ * lock and `caffeinate` keeps the Mac awake for as long as the process lives, so a
+ * run that hangs somewhere no per-page timeout reaches must still end by itself.
+ * The timer is `unref`'d. Returns a disposer. `exit` is injectable for tests.
+ */
+export function armRunWatchdog(
+  handle: LocalRendererHandle,
+  ms: number = RUN_WATCHDOG_MS,
+  deps: { exit?: (code: number) => void; log?: (message: string) => void } = {},
+): () => void {
+  const exit = deps.exit ?? ((code: number) => process.exit(code));
+  const log = deps.log ?? ((message: string) => console.error(message));
+  const timer = setTimeout(() => {
+    log(`FEL: körningen översteg ${Math.round(ms / 60_000)} minuter och avbröts (webbläsaren stängs).`);
+    void handle.close().finally(() => exit(EXIT_RUN_TIMEOUT));
+  }, ms);
+  timer.unref?.();
+  return () => clearTimeout(timer);
+}
+
 /** Fixed viewport (D-02). */
 const VIEWPORT = { width: 1280, height: 900 } as const;
 
@@ -273,6 +340,7 @@ function headedUserAgent(version: string): string {
 export function installLocalRenderer(options: LocalRendererOptions = {}): LocalRendererHandle {
   const allowApify = options.allowApify ?? false;
   const apifyMaxRenders = options.apifyMaxRenders ?? DEFAULT_APIFY_MAX_RENDERS;
+  const pageCallTimeoutMs = options.pageCallTimeoutMs ?? LOCAL_PAGE_CALL_TIMEOUT_MS;
   const windowMode = options.window ?? readWindow();
   const mode = options.mode ?? readMode();
   const stats: LocalRendererStats = { pages: 0, challenged: 0, retried: 0, apifyFallbacks: 0, failed: 0, refused: 0 };
@@ -351,29 +419,30 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
     await acquire();
     try {
       const ctx = await ensureContext();
-      const page = await ctx.newPage();
+      const page = await withTimeout(ctx.newPage(), pageCallTimeoutMs, "ny flik");
       try {
         const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: LOCAL_NAV_TIMEOUT_MS });
         stats.pages += 1;
         const status = response?.status() ?? 0;
         if (CHALLENGE_STATUSES.includes(status)) throw new ChallengeError(status, `HTTP ${status}`);
         if (status >= 400) throw new Error(`Booli svarade HTTP ${status}`);
-        const text = String(await page.evaluate(CHALLENGE_PROBE_EXPRESSION));
+        const text = String(await withTimeout(page.evaluate(CHALLENGE_PROBE_EXPRESSION), pageCallTimeoutMs, "utmaningstest"));
         const marker = isChallenge(status, text);
         if (marker !== null) throw new ChallengeError(status, marker);
 
         const run = compile(pageFunction);
-        let out = await run({ page, request: { url } });
+        let out = await withTimeout(run({ page, request: { url } }), pageCallTimeoutMs, "sidfunktion");
         if ((out as { hasApollo?: boolean } | null)?.hasApollo === false) {
           await sleep(LOCAL_REEXTRACT_MS);
-          out = await run({ page, request: { url } });
+          out = await withTimeout(run({ page, request: { url } }), pageCallTimeoutMs, "sidfunktion");
           if ((out as { hasApollo?: boolean } | null)?.hasApollo === false) {
             throw new ChallengeError(status, "ingen Apollo-data");
           }
         }
         return usableItems([out]);
       } finally {
-        await page.close().catch(() => undefined);
+        // A tab that does not answer must not hold the slot either (WR-01).
+        await withTimeout(page.close(), pageCallTimeoutMs, "stang flik").catch(() => undefined);
       }
     } finally {
       release();

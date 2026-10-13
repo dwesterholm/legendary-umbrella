@@ -15,7 +15,9 @@ vi.mock("@/lib/apify/booli-scraper", () => ({ scrapeBooli: vi.fn() }));
 
 // Imported AFTER the mocks above are registered.
 import {
+  armRunWatchdog,
   ChallengeError,
+  EXIT_RUN_TIMEOUT,
   CLOSED_RENDERER_MESSAGE,
   closeOnSignals,
   displayAvailable,
@@ -90,6 +92,8 @@ interface PageScript {
   durationMs?: number;
   /** evaluate() of the page function's extractor throws. */
   throwInExtract?: boolean;
+  /** evaluate() of the page function's extractor never settles until the page is closed. */
+  hang?: boolean;
 }
 
 function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, n: number) => PageScript) {
@@ -136,6 +140,7 @@ function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, 
                 evaluate: async (arg: unknown) => {
                   if (typeof arg === "string") return sc.text ?? "Booli bostäder till salu";
                   if (sc.throwInExtract) throw new Error("evaluation failed");
+                  if (sc.hang) return new Promise(() => undefined);
                   const states = sc.states ?? [STATE];
                   const state = states[Math.min(extractions, states.length - 1)];
                   extractions += 1;
@@ -485,6 +490,38 @@ describe("cleanup", () => {
     handlers.get("SIGTERM")!();
     await expect(render(`${BOOLI_URL}&page=3`)).rejects.toThrow(CLOSED_RENDERER_MESSAGE);
     expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("a page whose function never answers times out, is closed, frees its slot and does not stall the next render (WR-01)", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, (_url, n) => ({ hang: n === 1 }));
+    // The timeout is a real (unref'd) timer, so this test does not use the virtual clock: sleeps are instant.
+    const h = install(clock, b.launcher, { pageCallTimeoutMs: 30, sleep: async () => undefined });
+    await expect(render()).rejects.toThrow("lokal webblasare");
+    expect(b.log.opened).toBe(b.log.closed);
+    expect(h.stats().failed).toBe(1);
+    // the two-slot gate is free again: the next renders work
+    await Promise.all([render(`${BOOLI_URL}&page=2`), render(`${BOOLI_URL}&page=3`)]);
+    expect(b.log.maxOpen).toBeLessThanOrEqual(2);
+  });
+
+  it("the run watchdog closes the browser, refuses later renders and exits 5; a disposed watchdog does nothing (WR-01)", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({}));
+    const h = install(clock, b.launcher);
+    await clock.run(render());
+    const exit = vi.fn();
+    const log = vi.fn();
+    const disposed = armRunWatchdog(h, 15, { exit, log });
+    disposed();
+    await new Promise((r) => setTimeout(r, 40));
+    expect(exit).not.toHaveBeenCalled();
+
+    armRunWatchdog(h, 15, { exit, log });
+    await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(EXIT_RUN_TIMEOUT));
+    expect(b.log.browserCloses).toBe(1);
+    expect(log).toHaveBeenCalledOnce();
+    await expect(render()).rejects.toThrow(CLOSED_RENDERER_MESSAGE);
   });
 
   it("relaunches once after the browser disconnects", async () => {
