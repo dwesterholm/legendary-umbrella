@@ -9,7 +9,12 @@
  * `valuation-report.md` and `valuation-report.json` to --out-dir (under .planning/phases/).
  *
  *     npx tsx scripts/valuation-report.ts --before <a.json> --intermediate <b.json> --after <c.json> \
- *       --snapshot <snapshot.json> --model data/hedonic-model.json --out-dir <katalog>
+ *       --snapshot <snapshot.json> --model data/hedonic-model.json --out-dir <katalog> \
+ *       [--intermediate-model <modell.json>]
+ *
+ * --intermediate-model is the model the intermediate record was replayed with (default
+ * .planning/calibration/data/hedonic-model-14.4-intermediate.json, gitignored). It is read to separate the days-on-market term
+ * from the rest of the refit and to check that the intermediate record belongs to that model.
  *
  * Offline: no network, no API key, no paid call. Inputs are read-only .json files parsed with the
  * app's own schemas; the report is measured and changes no setting, model or scoring code.
@@ -27,17 +32,21 @@ import {
   renderValuationReportMd,
 } from "@/lib/discovery/valuation-report";
 
+/** Where plan 03/04 left the intermediate model (the old six features refitted on today's data). */
+const DEFAULT_INTERMEDIATE_MODEL = ".planning/calibration/data/hedonic-model-14.4-intermediate.json";
+
 /** The only tree the report may be written to. */
 const OUT_ROOT = ".planning/phases";
 
 const USAGE = `Användning:
-  npx tsx scripts/valuation-report.ts --before <fil.json> --intermediate <fil.json> --after <fil.json> --snapshot <fil.json> --model <fil.json> --out-dir <katalog>
+  npx tsx scripts/valuation-report.ts --before <fil.json> --intermediate <fil.json> --after <fil.json> --snapshot <fil.json> --model <fil.json> --out-dir <katalog> [--intermediate-model <fil.json>]
 
   --before        körningspost före ändringen (modell version 1, kredittak på)
   --intermediate  körningspost med de gamla sex egenskaperna omanpassade på dagens data
   --after         körningspost efter ändringen (den checkade modellen, inget tak)
   --snapshot      snapshoten alla tre körningarna spelades upp mot
   --model         den checkade modellen (data/hedonic-model.json)
+  --intermediate-model  modellen mellanposten spelades upp med (standard ${DEFAULT_INTERMEDIATE_MODEL})
   --out-dir       katalog under ${OUT_ROOT}/ dit valuation-report.md och valuation-report.json skrivs
 `;
 
@@ -48,6 +57,7 @@ interface Args {
   snapshot: string;
   model: string;
   outDir: string;
+  intermediateModel: string;
 }
 
 function parseArgs(argv: readonly string[]): Args | null {
@@ -59,6 +69,7 @@ function parseArgs(argv: readonly string[]): Args | null {
     "--snapshot": "snapshot",
     "--model": "model",
     "--out-dir": "outDir",
+    "--intermediate-model": "intermediateModel",
   };
   for (let i = 0; i < argv.length; i++) {
     const key = names[argv[i]];
@@ -69,7 +80,7 @@ function parseArgs(argv: readonly string[]): Args | null {
   }
   const { before, intermediate, after, snapshot, model, outDir } = found;
   if (!before || !intermediate || !after || !snapshot || !model || !outDir) return null;
-  return { before, intermediate, after, snapshot, model, outDir };
+  return { before, intermediate, after, snapshot, model, outDir, intermediateModel: found.intermediateModel ?? DEFAULT_INTERMEDIATE_MODEL };
 }
 
 /** Reads a .json file as untrusted JSON, or stops with a Swedish message. */
@@ -108,8 +119,19 @@ function main(): void {
     const snapshot = parseFitSnapshot(readJsonFile("--snapshot", args.snapshot));
     const afterModel = parseHedonicModel(readJsonFile("--model", args.model));
 
+    const intermediateModel = parseHedonicModel(readJsonFile("--intermediate-model", args.intermediateModel));
+
     const counterfactual = counterfactualGaps(snapshot.rows, afterModel);
-    const report = buildValuationReport({ before, intermediate, after, counterfactual, afterModel });
+    const intermediateCounterfactual = counterfactualGaps(snapshot.rows, intermediateModel);
+    const report = buildValuationReport({
+      before,
+      intermediate,
+      after,
+      counterfactual,
+      intermediateCounterfactual,
+      afterModel,
+      snapshotRows: snapshot.rows,
+    });
 
     writeTextAtomic(mdPath, renderValuationReportMd(report));
     writeJsonAtomic(jsonPath, report);

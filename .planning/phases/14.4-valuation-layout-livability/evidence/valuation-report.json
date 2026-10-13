@@ -41,11 +41,12 @@
       "newGap": 2331502.9736823505,
       "capRemovedKr": 882989.4103670046,
       "refitKr": 89103.66535526654,
+      "refitExclDaysKr": 117512.69702186761,
       "avgiftKr": -77916.79500501603,
       "debtKr": 34437.08417639276,
       "tomtrattKr": 0,
       "ovrigtKr": 111759.8889135262,
-      "daysKr": -28612.279375730082,
+      "daysKr": -28409.031666601077,
       "residualPct": -0.30579668018681994,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -62,11 +63,12 @@
       "newGap": 1446389.0233626645,
       "capRemovedKr": 163186.26211185637,
       "refitKr": 525677.7064103112,
+      "refitExclDaysKr": 335040.5142492503,
       "avgiftKr": -223191.69864331,
       "debtKr": -208699.2031456679,
       "tomtrattKr": 0,
       "ovrigtKr": -33024.70421090908,
-      "daysKr": 188654.26706722006,
+      "daysKr": 190637.19216106087,
       "residualPct": -0.18355193398952008,
       "flagExpectedFinal": false,
       "flagAsking": true
@@ -83,11 +85,12 @@
       "newGap": 2068291.98388757,
       "capRemovedKr": 796309.0689836247,
       "refitKr": 69171.83252366353,
+      "refitExclDaysKr": 112524.10723613203,
       "avgiftKr": -128532.75761269126,
       "debtKr": -103391.52474234533,
       "tomtrattKr": 0,
       "ovrigtKr": 110321.76094802748,
-      "daysKr": -43432.485821792856,
+      "daysKr": -43352.2747124685,
       "residualPct": -0.2639370731425663,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -104,11 +107,12 @@
       "newGap": 1697123.7910798583,
       "capRemovedKr": 165021.79026206746,
       "refitKr": 403842.54153683037,
+      "refitExclDaysKr": 316181.5462993542,
       "avgiftKr": -59598.68047477864,
       "debtKr": 59310.28220332693,
       "tomtrattKr": 0,
       "ovrigtKr": -21060.646651894785,
-      "daysKr": 87309.28003209922,
+      "daysKr": 87660.99523747619,
       "residualPct": -0.22465285609718977,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -125,11 +129,12 @@
       "newGap": 1612543.757469424,
       "capRemovedKr": 262849.6185755653,
       "refitKr": 249285.9786546491,
+      "refitExclDaysKr": 409850.0504882061,
       "avgiftKr": -58797.88561390899,
       "debtKr": 24843.958036309108,
       "tomtrattKr": 0,
       "ovrigtKr": 4760.219814456999,
-      "daysKr": -160303.2643065881,
+      "daysKr": -160564.07183355698,
       "residualPct": -0.21011575436431873,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -146,11 +151,12 @@
       "newGap": 1108725.3905271534,
       "capRemovedKr": 125805.70727984514,
       "refitKr": -172555.5109949084,
+      "refitExclDaysKr": -57985.17520541139,
       "avgiftKr": 4107.651101086289,
       "debtKr": 0,
       "tomtrattKr": 0,
       "ovrigtKr": 3950.444226725027,
-      "daysKr": -114466.37299610302,
+      "daysKr": -114570.33578949701,
       "residualPct": -0.1312651895136996,
       "flagExpectedFinal": false,
       "flagAsking": true
@@ -167,11 +173,12 @@
       "newGap": 1640997.175785006,
       "capRemovedKr": 572137.4762706235,
       "refitKr": -167402.16540428344,
+      "refitExclDaysKr": -10650.335327464156,
       "avgiftKr": 16449.05465128366,
       "debtKr": 31948.313522991724,
       "tomtrattKr": 0,
       "ovrigtKr": -10980.174704946578,
-      "daysKr": -156854.22892613616,
+      "daysKr": -156751.8300768193,
       "residualPct": -0.21857929182796343,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -188,11 +195,12 @@
       "newGap": 1175455.8556545805,
       "capRemovedKr": 238301.4562389166,
       "refitKr": -134967.42030413728,
+      "refitExclDaysKr": -258740.05732318293,
       "avgiftKr": -71738.16881714482,
       "debtKr": -134801.68802576233,
       "tomtrattKr": 0,
       "ovrigtKr": 97046.1173032932,
-      "daysKr": 122973.08493368421,
+      "daysKr": 123772.63701904565,
       "residualPct": -0.15191408811045448,
       "flagExpectedFinal": false,
       "flagAsking": false
@@ -209,11 +217,12 @@
       "newGap": 1887173.2711353875,
       "capRemovedKr": 235275.99353740574,
       "refitKr": 616401.5057717515,
+      "refitExclDaysKr": 406323.7561201863,
       "avgiftKr": -74111.88016923936,
       "debtKr": 2680.9376888219267,
       "tomtrattKr": 0,
       "ovrigtKr": -6762.587582633831,
-      "daysKr": 209372.11318836268,
+      "daysKr": 210077.74965156522,
       "residualPct": -0.2677758734982677,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -230,11 +239,12 @@
       "newGap": 2383426.4977827733,
       "capRemovedKr": 790364.1370378844,
       "refitKr": 379289.1540254187,
+      "refitExclDaysKr": 410124.1288019363,
       "avgiftKr": -75094.98141421005,
       "debtKr": -24643.08274695836,
       "tomtrattKr": 0,
       "ovrigtKr": -33644.25408394076,
-      "daysKr": -30936.584796898067,
+      "daysKr": -30834.9747765176,
       "residualPct": -0.291935248844143,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -251,11 +261,12 @@
       "newGap": 1192273.346580211,
       "capRemovedKr": 350521.3717303324,
       "refitKr": -149814.21840064926,
+      "refitExclDaysKr": -53666.63648956735,
       "avgiftKr": -61795.654550019186,
       "debtKr": 7263.305780687369,
       "tomtrattKr": 0,
       "ovrigtKr": 13193.822995983995,
-      "daysKr": -95978.02976136282,
+      "daysKr": -96147.58191108191,
       "residualPct": -0.17724361629966978,
       "flagExpectedFinal": false,
       "flagAsking": true
@@ -272,11 +283,12 @@
       "newGap": 1610997.545765264,
       "capRemovedKr": 711592.4778377125,
       "refitKr": 33635.25469981227,
+      "refitExclDaysKr": 2910.495629443787,
       "avgiftKr": -78397.32897647424,
       "debtKr": -100799.36651396798,
       "tomtrattKr": 0,
       "ovrigtKr": 2870.907834056299,
-      "daysKr": 30408.008626816794,
+      "daysKr": 30724.759070368484,
       "residualPct": -0.2733026599140046,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -293,11 +305,12 @@
       "newGap": 1404768.6549989157,
       "capRemovedKr": 759818.3719988242,
       "refitKr": -235223.35974485287,
+      "refitExclDaysKr": 5664.662429340649,
       "avgiftKr": -77353.56255632592,
       "debtKr": -101720.16863345169,
       "tomtrattKr": 0,
       "ovrigtKr": 2926.892530245241,
-      "daysKr": -239728.08632307593,
+      "daysKr": -240888.02217419352,
       "residualPct": -0.22341629016779452,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -314,11 +327,12 @@
       "newGap": 1533018.4093036493,
       "capRemovedKr": 164486.2142586076,
       "refitKr": 377941.60299605643,
+      "refitExclDaysKr": 207941.05216325773,
       "avgiftKr": -25483.839279840235,
       "debtKr": 9595.394435069058,
       "tomtrattKr": 0,
       "ovrigtKr": 2352.6216579726897,
-      "daysKr": 169547.12586526433,
+      "daysKr": 170000.5508327987,
       "residualPct": -0.239477639934224,
       "flagExpectedFinal": true,
       "flagAsking": true
@@ -335,11 +349,12 @@
       "newGap": 1243371.571199417,
       "capRemovedKr": 141096.06722978596,
       "refitKr": 110197.45632436499,
+      "refitExclDaysKr": -304115.8039557687,
       "avgiftKr": -72805.4603560837,
       "debtKr": 28759.72515422292,
       "tomtrattKr": 0,
       "ovrigtKr": -3457.3541635535657,
-      "daysKr": 412863.1076678098,
+      "daysKr": 414313.2602801337,
       "residualPct": -0.20135913797652916,
       "flagExpectedFinal": false,
       "flagAsking": true
@@ -356,11 +371,12 @@
       "newGap": 849596.6063525835,
       "capRemovedKr": 141398.26384409762,
       "refitKr": -188772.76954127802,
+      "refitExclDaysKr": -57831.79720282508,
       "avgiftKr": -10863.31733956188,
       "debtKr": -3047.3291248949245,
       "tomtrattKr": 0,
       "ovrigtKr": 1846.4307609470561,
-      "daysKr": -130804.49565158086,
+      "daysKr": -130940.97233845294,
       "residualPct": -0.12634359947258722,
       "flagExpectedFinal": false,
       "flagAsking": true
@@ -377,14 +393,579 @@
       "newGap": 576898.4973498145,
       "capRemovedKr": 48823.282282256056,
       "refitKr": -244966.98961640522,
+      "refitExclDaysKr": -277489.4707141393,
       "avgiftKr": -66312.78146071918,
       "debtKr": -81739.96421771124,
       "tomtrattKr": 0,
       "ovrigtKr": 7338.025229281746,
-      "daysKr": 32132.030415912624,
+      "daysKr": 32522.481097734068,
       "residualPct": -0.07132727289452978,
       "flagExpectedFinal": false,
       "flagAsking": false
     }
+  ],
+  "top15": {
+    "before": [
+      {
+        "rank": 1,
+        "key": "https://www.booli.se/bostad/572581",
+        "booliId": 572581,
+        "address": "Fatburs Kvarngata 18",
+        "profitSek": 1277084.5846627976,
+        "otherTop15Rank": 1,
+        "otherRank": 1
+      },
+      {
+        "rank": 2,
+        "key": "https://www.booli.se/bostad/4309411",
+        "booliId": 4309411,
+        "address": "Erstagatan 21",
+        "profitSek": 1247164.5256222433,
+        "otherTop15Rank": 11,
+        "otherRank": 11
+      },
+      {
+        "rank": 3,
+        "key": "https://www.booli.se/bostad/572010",
+        "booliId": 572010,
+        "address": "Fatburstrappan 18",
+        "profitSek": 1243273.1140295265,
+        "otherTop15Rank": 3,
+        "otherRank": 3
+      },
+      {
+        "rank": 4,
+        "key": "https://www.booli.se/bostad/324863",
+        "booliId": 324863,
+        "address": "Tjurbergsgatan 38",
+        "profitSek": 1175043.1843117324,
+        "otherTop15Rank": 5,
+        "otherRank": 5
+      },
+      {
+        "rank": 5,
+        "key": "https://www.booli.se/annons/6305391",
+        "booliId": 6305391,
+        "address": "Sysslomansgatan 26",
+        "profitSek": 1148583.6023655601,
+        "otherTop15Rank": 6,
+        "otherRank": 6
+      },
+      {
+        "rank": 6,
+        "key": "https://www.booli.se/bostad/130457",
+        "booliId": 130457,
+        "address": "Idungatan 5",
+        "profitSek": 1142386.1342709358,
+        "otherTop15Rank": null,
+        "otherRank": 19
+      },
+      {
+        "rank": 7,
+        "key": "https://www.booli.se/annons/6295311",
+        "booliId": 6295311,
+        "address": "Hornsgatan 119",
+        "profitSek": 1132307.6046583366,
+        "otherTop15Rank": 9,
+        "otherRank": 9
+      },
+      {
+        "rank": 8,
+        "key": "https://www.booli.se/bostad/635120",
+        "booliId": 635120,
+        "address": "Klippgatan 14E",
+        "profitSek": 1110148.1982675754,
+        "otherTop15Rank": 7,
+        "otherRank": 7
+      },
+      {
+        "rank": 9,
+        "key": "https://www.booli.se/annons/6282457",
+        "booliId": 6282457,
+        "address": "Kungsklippan 20",
+        "profitSek": 1104426.6053945401,
+        "otherTop15Rank": null,
+        "otherRank": 24
+      },
+      {
+        "rank": 10,
+        "key": "https://www.booli.se/bostad/4314237",
+        "booliId": 4314237,
+        "address": "Hagaesplanaden 63",
+        "profitSek": 1091779.6256032444,
+        "otherTop15Rank": null,
+        "otherRank": 20
+      },
+      {
+        "rank": 11,
+        "key": "https://www.booli.se/annons/6155023",
+        "booliId": 6155023,
+        "address": "Sågargatan 14",
+        "profitSek": 1087774.97935025,
+        "otherTop15Rank": 4,
+        "otherRank": 4
+      },
+      {
+        "rank": 12,
+        "key": "https://www.booli.se/bostad/568925",
+        "booliId": 568925,
+        "address": "Falugatan 5",
+        "profitSek": 1087155.5249645794,
+        "otherTop15Rank": 2,
+        "otherRank": 2
+      },
+      {
+        "rank": 13,
+        "key": "https://www.booli.se/annons/6271664",
+        "booliId": 6271664,
+        "address": "Kungsbro Strand 19",
+        "profitSek": 1049066.0415068099,
+        "otherTop15Rank": 14,
+        "otherRank": 14
+      },
+      {
+        "rank": 14,
+        "key": "https://www.booli.se/bostad/4515303",
+        "booliId": 4515303,
+        "address": "Hagaesplanaden 73",
+        "profitSek": 1034774.575413878,
+        "otherTop15Rank": null,
+        "otherRank": 27
+      },
+      {
+        "rank": 15,
+        "key": "https://www.booli.se/bostad/372080",
+        "booliId": 372080,
+        "address": "Ola Hanssonsgatan 4",
+        "profitSek": 1033329.28034923,
+        "otherTop15Rank": 13,
+        "otherRank": 13
+      }
+    ],
+    "after": [
+      {
+        "rank": 1,
+        "key": "https://www.booli.se/bostad/572581",
+        "booliId": 572581,
+        "address": "Fatburs Kvarngata 18",
+        "profitSek": 2318010.102934893,
+        "otherTop15Rank": 1,
+        "otherRank": 1
+      },
+      {
+        "rank": 2,
+        "key": "https://www.booli.se/bostad/568925",
+        "booliId": 568925,
+        "address": "Falugatan 5",
+        "profitSek": 2123426.4977827733,
+        "otherTop15Rank": 12,
+        "otherRank": 12
+      },
+      {
+        "rank": 3,
+        "key": "https://www.booli.se/bostad/572010",
+        "booliId": 572010,
+        "address": "Fatburstrappan 18",
+        "profitSek": 1982689.4117638865,
+        "otherTop15Rank": 3,
+        "otherRank": 3
+      },
+      {
+        "rank": 4,
+        "key": "https://www.booli.se/annons/6155023",
+        "booliId": 6155023,
+        "address": "Sågargatan 14",
+        "profitSek": 1864930.4866105672,
+        "otherTop15Rank": 11,
+        "otherRank": 11
+      },
+      {
+        "rank": 5,
+        "key": "https://www.booli.se/bostad/324863",
+        "booliId": 324863,
+        "address": "Tjurbergsgatan 38",
+        "profitSek": 1727702.7329621427,
+        "otherTop15Rank": 4,
+        "otherRank": 4
+      },
+      {
+        "rank": 6,
+        "key": "https://www.booli.se/annons/6305391",
+        "booliId": 6305391,
+        "address": "Sysslomansgatan 26",
+        "profitSek": 1638342.5854283639,
+        "otherTop15Rank": 5,
+        "otherRank": 5
+      },
+      {
+        "rank": 7,
+        "key": "https://www.booli.se/bostad/635120",
+        "booliId": 635120,
+        "address": "Klippgatan 14E",
+        "profitSek": 1636711.6219701902,
+        "otherTop15Rank": 8,
+        "otherRank": 8
+      },
+      {
+        "rank": 8,
+        "key": "https://www.booli.se/bostad/348671",
+        "booliId": 348671,
+        "address": "Fyrverkarbacken 25",
+        "profitSek": 1586168.205214303,
+        "otherTop15Rank": null,
+        "otherRank": 16
+      },
+      {
+        "rank": 9,
+        "key": "https://www.booli.se/annons/6295311",
+        "booliId": 6295311,
+        "address": "Hornsgatan 119",
+        "profitSek": 1573813.858707995,
+        "otherTop15Rank": 7,
+        "otherRank": 7
+      },
+      {
+        "rank": 10,
+        "key": "https://www.booli.se/bostad/700725",
+        "booliId": 700725,
+        "address": "Pokalvägen 4",
+        "profitSek": 1519265.182532634,
+        "otherTop15Rank": null,
+        "otherRank": 19
+      },
+      {
+        "rank": 11,
+        "key": "https://www.booli.se/bostad/4309411",
+        "booliId": 4309411,
+        "address": "Erstagatan 21",
+        "profitSek": 1467856.829070372,
+        "otherTop15Rank": 2,
+        "otherRank": 2
+      },
+      {
+        "rank": 12,
+        "key": "https://www.booli.se/bostad/348715",
+        "booliId": 348715,
+        "address": "Fyrverkarbacken 23",
+        "profitSek": 1336562.7347381935,
+        "otherTop15Rank": null,
+        "otherRank": 18
+      },
+      {
+        "rank": 13,
+        "key": "https://www.booli.se/bostad/372080",
+        "booliId": 372080,
+        "address": "Ola Hanssonsgatan 4",
+        "profitSek": 1191211.9993871727,
+        "otherTop15Rank": 15,
+        "otherRank": 15
+      },
+      {
+        "rank": 14,
+        "key": "https://www.booli.se/annons/6271664",
+        "booliId": 6271664,
+        "address": "Kungsbro Strand 19",
+        "profitSek": 1178528.9273563372,
+        "otherTop15Rank": 13,
+        "otherRank": 13
+      },
+      {
+        "rank": 15,
+        "key": "https://www.booli.se/bostad/3958359",
+        "booliId": 3958359,
+        "address": "Reimersholmsgatan 39",
+        "profitSek": 1160871.571199417,
+        "otherTop15Rank": null,
+        "otherRank": 20
+      }
+    ]
+  },
+  "folkungagatan61": {
+    "before": {
+      "rank": 29,
+      "profitSek": 778545.098848864,
+      "resaleSek": 5006593.601893358,
+      "expectedFinalSek": 4274581.402728466,
+      "overbidPct": 0.1568555893717094,
+      "gapSek": 732012.1991648916,
+      "creditSek": 732012.1991648916,
+      "renoSek": 105000,
+      "tasteSek": 151532.8996839723
+    },
+    "after": {
+      "rank": 18,
+      "profitSek": 1123047.0986652053,
+      "resaleSek": 5503112.886901321,
+      "expectedFinalSek": 4441626.671612996,
+      "overbidPct": 0.20206405185737375,
+      "gapSek": 1061486.2152883252,
+      "creditSek": 1061486.2152883252,
+      "renoSek": 105000,
+      "tasteSek": 166560.88337687997
+    },
+    "decomposition": {
+      "key": "https://www.booli.se/bostad/150148",
+      "booliId": 150148,
+      "address": "Folkungagatan 61",
+      "oldRank": 29,
+      "newRank": 18,
+      "oldCredit": 732012.1991648916,
+      "oldGap": 732012.1991648916,
+      "intermediateGap": 1090874.9801238896,
+      "newGap": 1061486.2152883252,
+      "capRemovedKr": 0,
+      "refitKr": 358862.780958998,
+      "refitExclDaysKr": 522905.99305318017,
+      "avgiftKr": -8697.596085514873,
+      "debtKr": 0,
+      "tomtrattKr": 0,
+      "ovrigtKr": -20691.168750049546,
+      "daysKr": -164043.21209418215,
+      "residualPct": -0.12592848512429766,
+      "flagExpectedFinal": false,
+      "flagAsking": true
+    }
+  },
+  "creditRemoved": {
+    "total": 6549976.969846411,
+    "top15": 4582762.292395126,
+    "rows": 17
+  },
+  "residualCounts": {
+    "n": 77,
+    "expectedFinal": 10,
+    "asking": 26,
+    "basisInForce": "expectedFinal",
+    "limitPct": -0.2051549481130116
+  },
+  "bidPremium": {
+    "top15": [
+      {
+        "key": "https://www.booli.se/bostad/572581",
+        "address": "Fatburs Kvarngata 18",
+        "rank": 1,
+        "overbidBefore": 0.22504419717702429,
+        "overbidAfter": 0.19122843137284384,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/568925",
+        "address": "Falugatan 5",
+        "rank": 2,
+        "overbidBefore": 0.15100324476105964,
+        "overbidAfter": 0.126796160409552,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/572010",
+        "address": "Fatburstrappan 18",
+        "rank": 3,
+        "overbidBefore": 0.21822607474033506,
+        "overbidAfter": 0.187705699146685,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/annons/6155023",
+        "address": "Sågargatan 14",
+        "rank": 4,
+        "overbidBefore": 0.18858625747034363,
+        "overbidAfter": 0.10979925132486357,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/324863",
+        "address": "Tjurbergsgatan 38",
+        "rank": 5,
+        "overbidBefore": 0.18382168933382115,
+        "overbidAfter": 0.14222107155866004,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/annons/6305391",
+        "address": "Sysslomansgatan 26",
+        "rank": 6,
+        "overbidBefore": 0.12135911816438583,
+        "overbidAfter": 0.14519616855795836,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/635120",
+        "address": "Klippgatan 14E",
+        "rank": 7,
+        "overbidBefore": 0.16822226764021075,
+        "overbidAfter": 0.10145552971767735,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/348671",
+        "address": "Fyrverkarbacken 25",
+        "rank": 8,
+        "overbidBefore": 0.15418695348874367,
+        "overbidAfter": 0.09718160525376196,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/annons/6295311",
+        "address": "Hornsgatan 119",
+        "rank": 9,
+        "overbidBefore": 0.20836658355557236,
+        "overbidAfter": 0.21674158831882728,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/700725",
+        "address": "Pokalvägen 4",
+        "rank": 10,
+        "overbidBefore": 0.18523675282600838,
+        "overbidAfter": 0.11256955223437348,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/4309411",
+        "address": "Erstagatan 21",
+        "rank": 11,
+        "overbidBefore": 0.1831229990612464,
+        "overbidAfter": 0.10911478902734406,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/348715",
+        "address": "Fyrverkarbacken 23",
+        "rank": 12,
+        "overbidBefore": 0.15708298952223143,
+        "overbidAfter": 0.18887953182140094,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/372080",
+        "address": "Ola Hanssonsgatan 4",
+        "rank": 13,
+        "overbidBefore": 0.1286858221985583,
+        "overbidAfter": 0.12534355754700144,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/annons/6271664",
+        "address": "Kungsbro Strand 19",
+        "rank": 14,
+        "overbidBefore": 0.1023557379923623,
+        "overbidAfter": 0.06377081125549533,
+        "labelAfter": "distrikt+pris+dagar"
+      },
+      {
+        "key": "https://www.booli.se/bostad/3958359",
+        "address": "Reimersholmsgatan 39",
+        "rank": 15,
+        "overbidBefore": 0.18327790303768365,
+        "overbidAfter": 0.02873396995353139,
+        "labelAfter": "distrikt+pris+dagar"
+      }
+    ],
+    "meanChange": -0.005929016505825348,
+    "rowsInBoth": 77
+  },
+  "model": {
+    "features": [
+      {
+        "name": "nbLevel",
+        "beta": 1.0663224539597498,
+        "se": 0.01185659672437826,
+        "source": "fit"
+      },
+      {
+        "name": "floor",
+        "beta": 0.015134941887938085,
+        "se": 0.0008805637166208251,
+        "source": "fit"
+      },
+      {
+        "name": "groundOrBelow",
+        "beta": -0.06722202862096957,
+        "se": 0.007976724070494925,
+        "source": "fit"
+      },
+      {
+        "name": "lnArea",
+        "beta": 0.0446675706529327,
+        "se": 0.005508152325094067,
+        "source": "fit"
+      },
+      {
+        "name": "monthsAgo",
+        "beta": -0.007752802408912329,
+        "se": 0.00027016976427295336,
+        "source": "fit"
+      },
+      {
+        "name": "centralityKm",
+        "beta": -0.0071093445268832186,
+        "se": 0.004214488341372364,
+        "source": "fit"
+      },
+      {
+        "name": "avgiftPerSqmMonth",
+        "beta": -0.000643599629455161,
+        "se": 0.0001967019428620363,
+        "source": "fit"
+      },
+      {
+        "name": "brfDebtPerSqm",
+        "beta": -0.0000023896852346561204,
+        "se": 8.272498033619409e-7,
+        "source": "fit"
+      },
+      {
+        "name": "tomtratt",
+        "beta": 0,
+        "se": null,
+        "source": "zeroed"
+      }
+    ],
+    "balconyPct": 0.08,
+    "buildYearPct": {
+      "le1930": 0.038841320944136726,
+      "y1931to1960": -0.0292229458614508,
+      "y1961to1990": -0.08,
+      "ge1991": -0.04464857872836503
+    },
+    "onStage2Cap": [
+      "balkong +8,0 %",
+      "byggår 1961–1990 -8,0 %"
+    ],
+    "daysTerm": {
+      "beta": -0.035051376007615924,
+      "kept": true
+    },
+    "fallbacks": [
+      "tomtratt (absent): tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)"
+    ],
+    "n": {
+      "before": 7380,
+      "after": 7379
+    },
+    "r2": {
+      "before": 0.6095480203454127,
+      "after": 0.6113014570723276
+    },
+    "cvRmseLog": {
+      "before": 0.11517550213413906,
+      "after": 0.11505442485377466
+    }
+  },
+  "avgiftDebtCorrelation": {
+    "r": 0.37160754900470955,
+    "n": 72
+  },
+  "findings": [
+    "The old ceiling hid 6 549 977 kr of credit across 17 rows, 4 582 762 kr of it inside the old top 15.",
+    "11 of the 15 listings in the new top 15 were also in the old top 15. Left: Idungatan 5 (6) -> 19, Kungsklippan 20 (9) -> 24, Hagaesplanaden 63 (10) -> 20, Hagaesplanaden 73 (14) -> 27. Entered: Fyrverkarbacken 25 (8) from 16, Pokalvägen 4 (10) from 19, Fyrverkarbacken 23 (12) from 18, Reimersholmsgatan 39 (15) from 20.",
+    "The profits of the top 15 add up to 16 964 298 kr before and 24 306 093 kr after.",
+    "Across the 17 formerly capped rows the credit moved by +6 658 817 kr in total: ceiling removal +6 549 977, refit +1 303 594, days term +257 251, avgift -1 141 438, BRF debt -560 003, tomträtt 0, rest +249 437. 7 of them rank higher now, 2 keep their place, 8 rank lower or are no longer ranked.",
+    "10 of the 17 formerly capped rows carry the residual flag on the expected-final basis, 15 on the asking basis.",
+    "Over all 77 comparable rows the residual flag marks 10 on the expected-final basis and 26 on the asking basis (limit -20,5 % against the model; basis in force: expectedFinal).",
+    "Folkungagatan 61 moved from rank 29 to 18; profit 778 545 -> 1 123 047 kr. Its credit moved +329 474 kr: ceiling 0, refit +522 906, days term -164 043, avgift -8 698, BRF debt 0, tomträtt 0, rest -20 691.",
+    "Over the 77 rows ranked in both runs the expected overbid changed by -0,6 procentenheter on average.",
+    "Avgift per kvm and BRF debt per kvm correlate at r = 0,37 over 72 listings that have both.",
+    "These stage-2 coefficients sit exactly on the +-8 % limit the fit allows: balkong +8,0 %, byggår 1961–1990 -8,0 %. The fit clamps stage-2 effects at this limit, so the unclamped estimate may be larger than shown. Open point; nothing was changed."
   ]
 }

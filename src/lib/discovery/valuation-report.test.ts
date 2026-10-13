@@ -2,12 +2,14 @@
 import { describe, expect, it } from "vitest";
 import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
 import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
-import { parseFitSnapshot, rankFit, type FitInputRow } from "@/lib/discovery/fit-score";
+import { parseFitSnapshot, rankFit, residualFlagFires, type FitInputRow } from "@/lib/discovery/fit-score";
 import { parseHedonicModel, type HedonicModel } from "@/lib/discovery/hedonic-model";
 import { emptyFacts } from "@/lib/discovery/listing-facts";
 import {
   FIT_RUN_RECORD_VERSION,
+  FOLKUNGAGATAN_61_BOOLI_ID,
   OLD_CAP_FLAG,
+  avgiftDebtCorrelation,
   buildValuationReport,
   counterfactualGaps,
   explainedKr,
@@ -222,18 +224,30 @@ describe("counterfactualGaps", () => {
 });
 
 /** Three records for the same rows: the old model (version 1 with a pretend ceiling), the intermediate and the new one. */
-function threeRecords(rows: FitInputRow[], model: HedonicModel) {
+function threeRecords(
+  rows: FitInputRow[],
+  model: HedonicModel,
+  intermediateModel: HedonicModel = parseHedonicModel(modelJson),
+  isCapped: (index: number) => boolean = (i) => i < 2,
+) {
   const mk = (m: HedonicModel) =>
     fitRunRecordOf({ snapshotAsOf: snapshot.asOf, snapshotFile: "x.json", model: m, sunLine: "Sol: test", ranking: rankFit(rows, m) });
   const after = mk(model);
-  const intermediate = mk(parseHedonicModel(modelJson));
+  const intermediate = mk(intermediateModel);
   const before = mk(parseHedonicModel(modelJson));
   before.model = { ...before.model, version: 1 };
   // Pretend the old run capped the first two ranked rows at 80 % of their gap.
   before.ranked = before.ranked.map((r, i) =>
-    i < 2 ? { ...r, creditSek: (r.gapSek as number) * 0.8, flags: [...r.flags, OLD_CAP_FLAG] } : r,
+    isCapped(i) ? { ...r, creditSek: (r.gapSek as number) * 0.8, flags: [...r.flags, OLD_CAP_FLAG] } : r,
   );
-  return { before, intermediate, after, counterfactual: counterfactualGaps(rows, model), afterModel: model };
+  return {
+    before,
+    intermediate,
+    after,
+    counterfactual: counterfactualGaps(rows, model),
+    intermediateCounterfactual: counterfactualGaps(rows, intermediateModel),
+    afterModel: model,
+  };
 }
 
 describe("buildValuationReport: the formerly capped rows", () => {
@@ -253,6 +267,7 @@ describe("buildValuationReport: the formerly capped rows", () => {
     expect(report.cappedRows.length).toBe(2);
     for (const r of report.cappedRows) {
       expect(r.refitKr).toBeCloseTo(r.intermediateGap - r.oldGap, 6);
+      expect(r.refitExclDaysKr + r.daysKr).toBeCloseTo(r.refitKr, 6);
       expect(r.capRemovedKr).toBeCloseTo(r.oldGap - r.oldCredit, 6);
       expect(r.avgiftKr + r.debtKr + r.tomtrattKr + r.ovrigtKr).toBeCloseTo(r.newGap - r.intermediateGap, 6);
       expect(r.capRemovedKr + r.refitKr + r.avgiftKr + r.debtKr + r.tomtrattKr + r.ovrigtKr).toBeCloseTo(r.newGap - r.oldCredit, 6);
@@ -275,6 +290,33 @@ describe("buildValuationReport: the formerly capped rows", () => {
       expect(typeof r.flagExpectedFinal).toBe("boolean");
       expect(typeof r.flagAsking).toBe("boolean");
     }
+  });
+
+  it("measures the days term in the intermediate model: nothing without a days term, kr for a flat with known days with one", () => {
+    const none = buildValuationReport(threeRecords(rows, featured, parseHedonicModel(modelJson), () => true));
+    for (const r of none.cappedRows) expect(r.daysKr).toBe(0);
+
+    const withDom = parseHedonicModel({
+      ...modelJson,
+      bidPremium: {
+        ...modelJson.bidPremium,
+        terms: { dom: { beta: -0.035, mean: 2.68, n: 800, kept: true, cvRmse: { without: 0.074, with: 0.073 }, note: "test" }, condition: null },
+      },
+    });
+    const report = buildValuationReport(threeRecords(rows, featured, withDom, () => true));
+    const known = report.cappedRows.find((r) => r.key === keyOfRow(rows[3]));
+    const unknown = report.cappedRows.find((r) => r.key === keyOfRow(rows[0]));
+    // 30 days is longer than the training mean (about 14 days): a lower premium, a larger gap.
+    expect(known!.daysKr).toBeGreaterThan(0);
+    expect(unknown!.daysKr).toBe(0);
+    expect(known!.refitExclDaysKr + known!.daysKr).toBeCloseTo(known!.refitKr, 6);
+  });
+
+  it("stops when the intermediate record does not match the intermediate model", () => {
+    const input = threeRecords(rows, featured);
+    const victim = input.intermediate.ranked[0];
+    input.intermediate.ranked[0] = { ...victim, gapSek: (victim.gapSek as number) + 50 };
+    expect(() => buildValuationReport(input)).toThrow("mellan-posten");
   });
 
   it("refuses a before record that is not from model version 1", () => {
@@ -314,5 +356,166 @@ describe("renderValuationReportMd: the formerly capped table", () => {
     const md = renderValuationReportMd(report);
     expect(md).toMatch(/\d \d{3}/);
     expect(md).toMatch(/[+-]\d+,\d %/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The rest of the report (task 2): top 15, Folkungagatan 61, flag counts, bid premium, model
+// ---------------------------------------------------------------------------
+
+describe("buildValuationReport: top 15", () => {
+  const rows = rowsWithFacts();
+  const featured = modelWithFeatures(-0.004);
+
+  it("lists the first 15 ranked rows of before and of after with rank, address and profit", () => {
+    const input = threeRecords(rows, featured);
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    expect(report.top15.before.map((r) => r.rank)).toEqual(input.before.ranked.slice(0, 15).map((_, i) => i + 1));
+    expect(report.top15.after.map((r) => r.key)).toEqual(input.after.ranked.slice(0, 15).map((r) => r.key));
+    for (const r of report.top15.after) {
+      expect(typeof r.profitSek).toBe("number");
+      expect(r.address).not.toBeNull();
+    }
+  });
+
+  it("shows the rank in the other list, and null where the row is missing from it", () => {
+    const input = threeRecords(rows, featured);
+    const dropped = input.after.ranked[0];
+    input.after.ranked = input.after.ranked.slice(1).map((r, i) => ({ ...r, rank: i + 1 }));
+    input.after.notComparable = [...input.after.notComparable, { ...dropped, rank: null }];
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    const left = report.top15.before.find((r) => r.key === dropped.key);
+    expect(left?.otherTop15Rank).toBeNull();
+    expect(left?.otherRank).toBeNull();
+    const kept = report.top15.before.find((r) => r.key !== dropped.key);
+    expect(typeof kept?.otherTop15Rank).toBe("number");
+    const md = renderValuationReportMd(report);
+    expect(md).toContain("Top 15 before and after");
+  });
+});
+
+describe("buildValuationReport: Folkungagatan 61", () => {
+  const rows = rowsWithFacts();
+  const featured = modelWithFeatures(-0.004);
+
+  it("finds the listing by its Booli id in each record and decomposes its credit", () => {
+    expect(FOLKUNGAGATAN_61_BOOLI_ID).toBe(150148);
+    const input = threeRecords(rows, featured);
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    const f = report.folkungagatan61;
+    expect(f.before?.rank).toBe(input.before.ranked.find((r) => r.booliId === 150148)?.rank);
+    expect(f.after?.rank).toBe(input.after.ranked.find((r) => r.booliId === 150148)?.rank);
+    expect(f.after?.profitSek).toBe(input.after.ranked.find((r) => r.booliId === 150148)?.profitSek);
+    expect(f.decomposition).not.toBeNull();
+    const d = f.decomposition!;
+    expect(d.avgiftKr + d.debtKr + d.tomtrattKr + d.ovrigtKr).toBeCloseTo(d.newGap - d.intermediateGap, 6);
+  });
+
+  it("says 'saknas i körningen' when the listing is absent from a record", () => {
+    const input = threeRecords(rows, featured);
+    input.before.ranked = input.before.ranked.filter((r) => r.booliId !== 150148);
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    expect(report.folkungagatan61.before).toBeNull();
+    const md = renderValuationReportMd(report);
+    expect(md).toContain("Folkungagatan 61");
+    expect(md).toContain("saknas i körningen");
+  });
+});
+
+describe("buildValuationReport: credit removed, flag counts, bid premium", () => {
+  const rows = rowsWithFacts();
+  const featured = modelWithFeatures(-0.004);
+
+  it("creditRemoved sums gap minus credit over the before rows, and over the before top 15", () => {
+    const input = threeRecords(rows, featured);
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    const hidden = input.before.ranked.map((r) => (r.gapSek as number) - (r.creditSek as number));
+    expect(report.creditRemoved.total).toBeCloseTo(hidden.reduce((a, b) => a + b, 0), 6);
+    expect(report.creditRemoved.top15).toBeCloseTo(hidden.slice(0, 15).reduce((a, b) => a + b, 0), 6);
+    expect(report.creditRemoved.total).toBeGreaterThan(0);
+  });
+
+  it("counts the residual flag on both bases from the after rows and the after model's spread", () => {
+    const input = threeRecords(rows, featured);
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    let expectedFinal = 0;
+    let asking = 0;
+    for (const r of input.after.ranked) {
+      const ratios = { askToPred: r.askToPred as number, expectedFinalToPred: (r as Record<string, unknown>).expectedFinalToPred as number };
+      if (residualFlagFires("expectedFinal", ratios, featured.residualSdLog)) expectedFinal += 1;
+      if (residualFlagFires("asking", ratios, featured.residualSdLog)) asking += 1;
+    }
+    expect(report.residualCounts.expectedFinal).toBe(expectedFinal);
+    expect(report.residualCounts.asking).toBe(asking);
+    expect(report.residualCounts.n).toBe(input.after.ranked.length);
+    expect(["expectedFinal", "asking"]).toContain(report.residualCounts.basisInForce);
+  });
+
+  it("bidPremium compares overbid before and after for the after top 15 and averages the change over rows in both", () => {
+    const input = threeRecords(rows, featured);
+    const report = buildValuationReport({ ...input, snapshotRows: rows });
+    expect(report.bidPremium.top15.length).toBe(Math.min(15, input.after.ranked.length));
+    const first = report.bidPremium.top15[0];
+    const afterRow = input.after.ranked[0];
+    const beforeRow = input.before.ranked.find((r) => r.key === afterRow.key);
+    expect(first.overbidAfter).toBe(afterRow.overbidPct);
+    expect(first.overbidBefore).toBe(beforeRow?.overbidPct ?? null);
+    const diffs = input.after.ranked.flatMap((a) => {
+      const b = input.before.ranked.find((r) => r.key === a.key);
+      return b && a.overbidPct !== null && b.overbidPct !== null ? [a.overbidPct - b.overbidPct] : [];
+    });
+    expect(report.bidPremium.meanChange).toBeCloseTo(diffs.reduce((x, y) => x + y, 0) / diffs.length, 9);
+    expect(report.bidPremium.rowsInBoth).toBe(diffs.length);
+  });
+});
+
+describe("avgiftDebtCorrelation", () => {
+  const base = snapshot.rows[0];
+  const withFacts = (avgift: number | null, debt: number | null): FitInputRow => ({
+    ...base,
+    candidate: { ...base.candidate, livingArea: 40 },
+    facts: {
+      ...emptyFacts(),
+      avgiftMonthlySek: avgift,
+      brf: debt === null ? null : { loanSek: null, areaSqm: null, reportYear: null, debtPerSqm: debt },
+    },
+  });
+
+  it("is 1 for a perfect line over the rows that have both, and counts only those rows", () => {
+    const result = avgiftDebtCorrelation([
+      withFacts(40 * 50, 1000),
+      withFacts(40 * 60, 2000),
+      withFacts(40 * 70, 3000),
+      withFacts(null, 9000),
+      withFacts(40 * 99, null),
+    ]);
+    expect(result.n).toBe(3);
+    expect(result.r).toBeCloseTo(1, 9);
+  });
+
+  it("is null with fewer than three rows or no spread", () => {
+    expect(avgiftDebtCorrelation([withFacts(2000, 1000), withFacts(2400, 2000)]).r).toBeNull();
+    expect(avgiftDebtCorrelation([withFacts(2000, 1000), withFacts(2000, 2000), withFacts(2000, 3000)]).r).toBeNull();
+  });
+});
+
+describe("renderValuationReportMd: all sections", () => {
+  it("has every section heading, the model block and a findings list", () => {
+    const rows = rowsWithFacts();
+    const featured = modelWithFeatures(-0.004);
+    const report = buildValuationReport({ ...threeRecords(rows, featured), snapshotRows: rows });
+    const md = renderValuationReportMd(report);
+    for (const heading of ["Top 15 before and after", "Folkungagatan 61", "Residual flag", "Bid premium", "Model", "Findings"]) {
+      expect(md).toContain(`## ${heading}`);
+    }
+    expect(md).toContain("R²");
+    expect(report.findings.length).toBeGreaterThan(3);
+    for (const f of report.findings) expect(md).toContain(f);
+  });
+
+  it("never recommends changing a setting", () => {
+    const rows = rowsWithFacts();
+    const report = buildValuationReport({ ...threeRecords(rows, modelWithFeatures(-0.004)), snapshotRows: rows });
+    expect(renderValuationReportMd(report)).not.toMatch(/\b(should|recommend|bör|rekommendera)/i);
   });
 });

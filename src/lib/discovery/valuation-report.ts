@@ -27,12 +27,13 @@
 import { z } from "zod/v4";
 import {
   RESIDUAL_FLAG_BASIS,
+  RESIDUAL_FLAG_SD,
   fitScore,
   residualFlagFires,
   type FitInputRow,
   type FitScoreResult,
 } from "@/lib/discovery/fit-score";
-import type { HedonicModel } from "@/lib/discovery/hedonic-model";
+import { STAGE2_CAP_PCT, type HedonicModel } from "@/lib/discovery/hedonic-model";
 
 /** Bumped only when a field the report reads changes meaning or is removed. */
 export const FIT_RUN_RECORD_VERSION = 1;
@@ -190,6 +191,9 @@ export function parseFitRunRecord(json: unknown): FitRunRecord {
  */
 export const OLD_CAP_FLAG = "creditCapped";
 
+/** How many rows each side-by-side list holds. */
+const TOP_N = 15;
+
 /** The gap tolerance, in kr, between the recomputed new gap and the after record. */
 const GAP_MATCH_TOLERANCE_SEK = 1;
 
@@ -276,15 +280,21 @@ export interface CappedRow {
   readonly newGap: number;
   /** oldGap - oldCredit: what the ceiling used to hide. */
   readonly capRemovedKr: number;
-  /** intermediateGap - oldGap: the refit (balcony and build-year switch, new coefficients, new bid premium). */
+  /**
+   * intermediateGap - oldGap: everything that changed between the frozen run and the model refitted with
+   * the old six features: the balcony and build-year switch (stage 2), the refitted coefficients, and the
+   * days-on-market term in the bid premium (`daysKr` below is that last part).
+   */
   readonly refitKr: number;
+  /** refitKr without the days term: the balcony and build-year switch and the refitted coefficients. */
+  readonly refitExclDaysKr: number;
   /** Change in the credit caused by the avgift fact (negative = the avgift lowers the value). */
   readonly avgiftKr: number;
   readonly debtKr: number;
   readonly tomtrattKr: number;
   /** The remainder: (newGap - intermediateGap) - avgift - debt - tomträtt (refitted floor, location and size terms, interaction). */
   readonly ovrigtKr: number;
-  /** Memo, not an extra part: how much the days-on-market term moved the new gap (sits inside the refit and rest). */
+  /** The days-on-market term in the bid premium, measured in the intermediate model; it is a part of `refitKr`. */
   readonly daysKr: number;
   /** The after row's distance from the model on the basis in force (negative = below the model). */
   readonly residualPct: number | null;
@@ -297,7 +307,50 @@ export interface ValuationReportInputs {
   readonly intermediate: FitRunRecord;
   readonly after: FitRunRecord;
   readonly counterfactual: ReadonlyMap<string, CounterfactualGap>;
+  /** The same counterfactuals under the intermediate model; they separate the days term from the rest of the refit. */
+  readonly intermediateCounterfactual: ReadonlyMap<string, CounterfactualGap>;
   readonly afterModel: HedonicModel;
+  /** The snapshot rows all three records replayed; only the avgift/debt correlation reads them. */
+  readonly snapshotRows?: readonly FitInputRow[];
+}
+
+/** The Booli id of the tracked listing, Folkungagatan 61. */
+export const FOLKUNGAGATAN_61_BOOLI_ID = 150148;
+
+/** One line of a top-15 list. */
+export interface Top15Row {
+  readonly rank: number;
+  readonly key: string;
+  readonly booliId: number | null;
+  readonly address: string | null;
+  readonly profitSek: number | null;
+  /** The row's place among the OTHER record's first 15; null when it is not in that list. */
+  readonly otherTop15Rank: number | null;
+  /** The row's place in the other record's whole ranking; null when it is not ranked there. */
+  readonly otherRank: number | null;
+}
+
+/** The numbers of one listing in one run. */
+export interface ListingNumbers {
+  readonly rank: number | null;
+  readonly profitSek: number | null;
+  readonly resaleSek: number | null;
+  readonly expectedFinalSek: number | null;
+  readonly overbidPct: number | null;
+  readonly gapSek: number | null;
+  readonly creditSek: number | null;
+  readonly renoSek: number;
+  readonly tasteSek: number;
+}
+
+export interface BidPremiumRow {
+  readonly key: string;
+  readonly address: string | null;
+  readonly rank: number;
+  readonly overbidBefore: number | null;
+  readonly overbidAfter: number | null;
+  /** The premium's makeup in the after run, e.g. "distrikt+pris+dagar"; null in a record that lacks it. */
+  readonly labelAfter: string | null;
 }
 
 export interface ValuationReport {
@@ -307,6 +360,46 @@ export interface ValuationReport {
   readonly afterModelSummary: FitRunRecord["model"];
   readonly residualBasis: typeof RESIDUAL_FLAG_BASIS;
   readonly cappedRows: CappedRow[];
+  readonly top15: { readonly before: Top15Row[]; readonly after: Top15Row[] };
+  readonly folkungagatan61: {
+    readonly before: ListingNumbers | null;
+    readonly after: ListingNumbers | null;
+    /** Old credit -> new gap, split by cause, for the listing whether or not it was ever capped. */
+    readonly decomposition: CappedRow | null;
+  };
+  readonly creditRemoved: { readonly total: number; readonly top15: number; readonly rows: number };
+  readonly residualCounts: {
+    readonly n: number;
+    readonly expectedFinal: number;
+    readonly asking: number;
+    readonly basisInForce: typeof RESIDUAL_FLAG_BASIS;
+    readonly limitPct: number;
+  };
+  readonly bidPremium: {
+    readonly top15: BidPremiumRow[];
+    /** Mean of (after - before) overbid, as a fraction, over rows ranked in both with a premium in both. */
+    readonly meanChange: number | null;
+    readonly rowsInBoth: number;
+  };
+  readonly model: {
+    readonly features: readonly {
+      readonly name: string;
+      readonly beta: number;
+      readonly se: number | null;
+      readonly source: string;
+    }[];
+    readonly balconyPct: number;
+    readonly buildYearPct: { readonly le1930: number; readonly y1931to1960: number; readonly y1961to1990: number; readonly ge1991: number } | null;
+    /** Stage-2 coefficients that sit exactly on the +-8 % limit the fit allows. */
+    readonly onStage2Cap: string[];
+    readonly daysTerm: { readonly beta: number; readonly kept: boolean } | null;
+    readonly fallbacks: readonly string[];
+    readonly n: { readonly before: number; readonly after: number };
+    readonly r2: { readonly before: number; readonly after: number };
+    readonly cvRmseLog: { readonly before: number; readonly after: number };
+  };
+  readonly avgiftDebtCorrelation: { readonly r: number | null; readonly n: number };
+  readonly findings: string[];
 }
 
 type RunRow = FitRunRecord["ranked"][number];
@@ -351,34 +444,41 @@ function ratiosOf(row: RunRow): { askToPred: number; expectedFinalToPred: number
  * more than 1 kr for any row (the three records and the model must belong together).
  */
 export function buildValuationReport(input: ValuationReportInputs): ValuationReport {
-  const { before, intermediate, after, counterfactual, afterModel } = input;
+  const { before, intermediate, after, counterfactual, intermediateCounterfactual, afterModel } = input;
   if (before.model.version !== 1) throw new Error("Före-posten är inte från modell version 1");
 
   const afterByKey = indexByKey(after);
   const intermediateByKey = indexByKey(intermediate);
+  const beforeByKey = indexByKey(before);
 
-  // The records and the model must belong together: check every row the after record has a gap for.
-  for (const [key, row] of afterByKey) {
-    if (row.gapSek === null) continue;
-    const cf = counterfactual.get(key);
-    if (cf === undefined) throw new Error(`Raden ${key} finns i efter-posten men inte i snapshoten`);
-    if (Math.abs(cf.gap - row.gapSek) > GAP_MATCH_TOLERANCE_SEK) {
-      throw new Error(
-        `Raden ${key}: skillnaden räknad från snapshot och modell (${cf.gap}) avviker från efter-posten (${row.gapSek}) med mer än ${GAP_MATCH_TOLERANCE_SEK} kr`,
-      );
+  // The records and the models must belong together: check every row each run has a gap for.
+  const checkGaps = (label: string, byKey: ReadonlyMap<string, RunRow>, cfs: ReadonlyMap<string, CounterfactualGap>): void => {
+    for (const [key, row] of byKey) {
+      if (row.gapSek === null) continue;
+      const cf = cfs.get(key);
+      if (cf === undefined) throw new Error(`Raden ${key} finns i ${label}-posten men inte i snapshoten`);
+      if (Math.abs(cf.gap - row.gapSek) > GAP_MATCH_TOLERANCE_SEK) {
+        throw new Error(
+          `Raden ${key}: skillnaden räknad från snapshot och modell (${cf.gap}) avviker från ${label}-posten (${row.gapSek}) med mer än ${GAP_MATCH_TOLERANCE_SEK} kr`,
+        );
+      }
     }
-  }
+  };
+  checkGaps("efter", afterByKey, counterfactual);
+  checkGaps("mellan", intermediateByKey, intermediateCounterfactual);
 
-  const cappedRows: CappedRow[] = [];
-  for (const old of before.ranked) {
-    if (!old.flags.includes(OLD_CAP_FLAG)) continue;
+  const sd = afterModel.residualSdLog;
+
+  /** Follows one before row from its old credit to the new gap; every part is a signed change in the credit. */
+  const decompose = (old: RunRow): CappedRow => {
     const key = old.key;
     const nowRow = afterByKey.get(key);
     const midRow = intermediateByKey.get(key);
     const cf = counterfactual.get(key);
+    const icf = intermediateCounterfactual.get(key);
     if (nowRow === undefined) throw new Error(`Raden ${key} finns i före-posten men inte i efter-posten`);
     if (midRow === undefined) throw new Error(`Raden ${key} finns i före-posten men inte i mellanposten`);
-    if (cf === undefined) throw new Error(`Raden ${key} finns i före-posten men inte i snapshoten`);
+    if (cf === undefined || icf === undefined) throw new Error(`Raden ${key} finns i före-posten men inte i snapshoten`);
 
     const oldCredit = numberOf(old.creditSek, "krediterad del", key);
     const oldGap = numberOf(old.gapSek, "skillnad", key);
@@ -389,11 +489,10 @@ export function buildValuationReport(input: ValuationReportInputs): ValuationRep
     const avgiftKr = cf.gap - cf.avgiftAtMean;
     const debtKr = cf.gap - cf.debtAtMean;
     const tomtrattKr = cf.gap - cf.tomtrattAtMean;
+    // The days term as the intermediate model has it: the gap as it is minus the gap with the days unknown.
+    const daysKr = icf.gap - icf.daysAtMean;
     const ratios = ratiosOf(nowRow);
-    const residualBasis = RESIDUAL_FLAG_BASIS;
-    const sd = afterModel.residualSdLog;
-
-    cappedRows.push({
+    return {
       key,
       booliId: old.booliId,
       address: old.address,
@@ -405,26 +504,175 @@ export function buildValuationReport(input: ValuationReportInputs): ValuationRep
       newGap,
       capRemovedKr: oldGap - oldCredit,
       refitKr: intermediateGap - oldGap,
+      refitExclDaysKr: intermediateGap - oldGap - daysKr,
       avgiftKr,
       debtKr,
       tomtrattKr,
       ovrigtKr: newGap - intermediateGap - avgiftKr - debtKr - tomtrattKr,
-      daysKr: cf.gap - cf.daysAtMean,
-      residualPct: ratios === null ? null : (residualBasis === "asking" ? ratios.askToPred : ratios.expectedFinalToPred) - 1,
+      daysKr,
+      residualPct: ratios === null ? null : (RESIDUAL_FLAG_BASIS === "asking" ? ratios.askToPred : ratios.expectedFinalToPred) - 1,
       flagExpectedFinal: ratios !== null && residualFlagFires("expectedFinal", ratios, sd),
       flagAsking: ratios !== null && residualFlagFires("asking", ratios, sd),
-    });
-  }
-  cappedRows.sort((a, b) => a.oldRank - b.oldRank || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    };
+  };
 
-  return {
+  const cappedRows = before.ranked
+    .filter((r) => r.flags.includes(OLD_CAP_FLAG))
+    .map(decompose)
+    .sort((a, b) => a.oldRank - b.oldRank || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+  // Top 15, side by side. A row's place in the other record is its place in that record's whole ranking.
+  const top15Of = (record: FitRunRecord, other: FitRunRecord): Top15Row[] => {
+    const otherTop = new Map(other.ranked.slice(0, TOP_N).map((r, i) => [r.key, i + 1]));
+    const otherAll = new Map(other.ranked.map((r) => [r.key, r.rank as number]));
+    return record.ranked.slice(0, TOP_N).map((r, i) => ({
+      rank: i + 1,
+      key: r.key,
+      booliId: r.booliId,
+      address: r.address,
+      profitSek: r.profitSek,
+      otherTop15Rank: otherTop.get(r.key) ?? null,
+      otherRank: otherAll.get(r.key) ?? null,
+    }));
+  };
+
+  // Folkungagatan 61, wherever it sits in each record.
+  const numbersOf = (row: RunRow | undefined): ListingNumbers | null =>
+    row === undefined
+      ? null
+      : {
+          rank: row.rank,
+          profitSek: row.profitSek,
+          resaleSek: row.resaleSek,
+          expectedFinalSek: row.purchaseSek,
+          overbidPct: row.overbidPct,
+          gapSek: row.gapSek,
+          creditSek: row.creditSek,
+          renoSek: row.renoSek,
+          tasteSek: row.tasteSek,
+        };
+  const findFolk = (record: FitRunRecord): RunRow | undefined =>
+    [...record.ranked, ...record.notComparable].find((r) => r.booliId === FOLKUNGAGATAN_61_BOOLI_ID);
+  const folkBefore = findFolk(before);
+  const folkAfter = findFolk(after);
+  const folkDecomposition =
+    folkBefore !== undefined && folkAfter !== undefined && folkBefore.rank !== null && folkBefore.gapSek !== null && folkBefore.creditSek !== null
+      ? decompose(folkBefore)
+      : null;
+
+  // Credit the ceiling hid: gap minus credit over the before rows.
+  const hiddenOf = (r: RunRow): number => (r.gapSek !== null && r.creditSek !== null ? r.gapSek - r.creditSek : 0);
+  const creditRemoved = {
+    total: before.ranked.reduce((acc, r) => acc + hiddenOf(r), 0),
+    top15: before.ranked.slice(0, TOP_N).reduce((acc, r) => acc + hiddenOf(r), 0),
+    rows: before.ranked.filter((r) => hiddenOf(r) > 0).length,
+  };
+
+  // The residual flag on both bases, over the after rows.
+  let flaggedExpectedFinal = 0;
+  let flaggedAsking = 0;
+  let counted = 0;
+  for (const r of after.ranked) {
+    const ratios = ratiosOf(r);
+    if (ratios === null) continue;
+    counted += 1;
+    if (residualFlagFires("expectedFinal", ratios, sd)) flaggedExpectedFinal += 1;
+    if (residualFlagFires("asking", ratios, sd)) flaggedAsking += 1;
+  }
+
+  // Bid premium: the after top 15 against the same rows before, and the mean change over rows in both.
+  const bidTop15: BidPremiumRow[] = after.ranked.slice(0, TOP_N).map((r, i) => ({
+    key: r.key,
+    address: r.address,
+    rank: i + 1,
+    overbidBefore: beforeByKey.get(r.key)?.overbidPct ?? null,
+    overbidAfter: r.overbidPct,
+    labelAfter: typeof (r as Record<string, unknown>).overbidLabel === "string" ? ((r as Record<string, unknown>).overbidLabel as string) : null,
+  }));
+  const changes: number[] = [];
+  for (const r of after.ranked) {
+    const b = beforeByKey.get(r.key);
+    if (b !== undefined && b.rank !== null && b.overbidPct !== null && r.overbidPct !== null) changes.push(r.overbidPct - b.overbidPct);
+  }
+
+  // The model block.
+  const by = afterModel.stage2.buildYear;
+  const onStage2Cap: string[] = [];
+  const onCap = (x: number): boolean => Math.abs(Math.abs(x) - STAGE2_CAP_PCT) < 1e-9;
+  if (onCap(afterModel.stage2.balcony.pct)) onStage2Cap.push(`balkong ${pctSigned(afterModel.stage2.balcony.pct)}`);
+  if (by !== null) {
+    const labels = { le1930: "byggår till 1930", y1931to1960: "byggår 1931–1960", y1961to1990: "byggår 1961–1990", ge1991: "byggår från 1991" } as const;
+    for (const k of Object.keys(labels) as (keyof typeof labels)[]) {
+      if (onCap(by.pctByBucket[k])) onStage2Cap.push(`${labels[k]} ${pctSigned(by.pctByBucket[k])}`);
+    }
+  }
+  const dom = afterModel.bidPremium.terms.dom;
+  const model: ValuationReport["model"] = {
+    features: afterModel.features.map((f) => ({ name: f.name, beta: f.beta, se: f.se, source: f.source })),
+    balconyPct: afterModel.stage2.balcony.pct,
+    buildYearPct: by === null ? null : { ...by.pctByBucket },
+    onStage2Cap,
+    daysTerm: dom === null ? null : { beta: dom.beta, kept: dom.kept },
+    fallbacks: afterModel.fallbacks.map((f) => `${f.item} (${f.reason}): ${f.detail}`),
+    n: { before: before.model.n, after: after.model.n },
+    r2: { before: before.model.r2, after: after.model.r2 },
+    cvRmseLog: { before: before.model.cvRmseLog, after: after.model.cvRmseLog },
+  };
+
+  const base = {
     snapshotAsOf: after.snapshotAsOf,
     beforeModel: before.model,
     intermediateModel: intermediate.model,
     afterModelSummary: after.model,
     residualBasis: RESIDUAL_FLAG_BASIS,
     cappedRows,
+    top15: { before: top15Of(before, after), after: top15Of(after, before) },
+    folkungagatan61: { before: numbersOf(folkBefore), after: numbersOf(folkAfter), decomposition: folkDecomposition },
+    creditRemoved,
+    residualCounts: {
+      n: counted,
+      expectedFinal: flaggedExpectedFinal,
+      asking: flaggedAsking,
+      basisInForce: RESIDUAL_FLAG_BASIS,
+      limitPct: Math.exp(-RESIDUAL_FLAG_SD * sd) - 1,
+    },
+    bidPremium: {
+      top15: bidTop15,
+      meanChange: changes.length === 0 ? null : changes.reduce((a, b) => a + b, 0) / changes.length,
+      rowsInBoth: changes.length,
+    },
+    model,
+    avgiftDebtCorrelation: avgiftDebtCorrelation(input.snapshotRows ?? []),
   };
+  return { ...base, findings: findingsOf(base) };
+}
+
+/** Pearson correlation of avgift per m2 and BRF debt per m2 over the rows that have both. */
+export function avgiftDebtCorrelation(rows: readonly FitInputRow[]): { r: number | null; n: number } {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const row of rows) {
+    const avgift = row.facts?.avgiftMonthlySek ?? null;
+    const debt = row.facts?.brf?.debtPerSqm ?? null;
+    const area = row.candidate.livingArea;
+    if (avgift === null || debt === null || area === null || !(area > 0) || !(avgift > 0) || !Number.isFinite(debt)) continue;
+    xs.push(avgift / area);
+    ys.push(debt);
+  }
+  const n = xs.length;
+  if (n < 3) return { r: null, n };
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  if (!(sxx > 0) || !(syy > 0)) return { r: null, n };
+  return { r: sxy / Math.sqrt(sxx * syy), n };
 }
 
 // ---------------------------------------------------------------------------
@@ -464,21 +712,264 @@ function cappedTableMd(report: ValuationReport): string[] {
     "",
     `${report.cappedRows.length} rows carried the old ceiling flag in the frozen record. Each row is followed from the old credit to the new one. Every kr column is a change in the credit (+ raises it, - lowers it), and from "Tak borttaget" onwards they add up to "Skillnad efter" minus "Kredit före".`,
     "",
-    "| Adress | Plats före -> efter | Kredit före | Tak borttaget | Ny anpassning | Avgift | BRF-skuld | Tomträtt | Övrigt | Skillnad efter | Residual | Flagga (förv. slutpris / utgångspris) |",
-    "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+    "| Adress | Plats före -> efter | Kredit före | Tak borttaget | Ny anpassning | Dagar | Avgift | BRF-skuld | Tomträtt | Övrigt | Skillnad efter | Residual | Flagga (förv. slutpris / utgångspris) |",
+    "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
   ];
   for (const r of report.cappedRows) {
     lines.push(
-      `| ${cell(r.address)} | ${r.oldRank} -> ${r.newRank ?? "-"} | ${kr(r.oldCredit)} | ${krSigned(r.capRemovedKr)} | ${krSigned(r.refitKr)} | ${krSigned(r.avgiftKr)} | ${krSigned(r.debtKr)} | ${krSigned(r.tomtrattKr)} | ${krSigned(r.ovrigtKr)} | ${kr(r.newGap)} | ${r.residualPct === null ? "-" : pctSigned(r.residualPct)} | ${yesNo(r.flagExpectedFinal)} / ${yesNo(r.flagAsking)} |`,
+      `| ${cell(r.address)} | ${r.oldRank} -> ${r.newRank ?? "-"} | ${kr(r.oldCredit)} | ${krSigned(r.capRemovedKr)} | ${krSigned(r.refitExclDaysKr)} | ${krSigned(r.daysKr)} | ${krSigned(r.avgiftKr)} | ${krSigned(r.debtKr)} | ${krSigned(r.tomtrattKr)} | ${krSigned(r.ovrigtKr)} | ${kr(r.newGap)} | ${r.residualPct === null ? "-" : pctSigned(r.residualPct)} | ${yesNo(r.flagExpectedFinal)} / ${yesNo(r.flagAsking)} |`,
     );
   }
   const sum = (pick: (r: CappedRow) => number): number => report.cappedRows.reduce((acc, r) => acc + pick(r), 0);
   lines.push(
-    `| **Summa** | | ${kr(sum((r) => r.oldCredit))} | ${krSigned(sum((r) => r.capRemovedKr))} | ${krSigned(sum((r) => r.refitKr))} | ${krSigned(sum((r) => r.avgiftKr))} | ${krSigned(sum((r) => r.debtKr))} | ${krSigned(sum((r) => r.tomtrattKr))} | ${krSigned(sum((r) => r.ovrigtKr))} | ${kr(sum((r) => r.newGap))} | | ${report.cappedRows.filter((r) => r.flagExpectedFinal).length} / ${report.cappedRows.filter((r) => r.flagAsking).length} rader |`,
+    `| **Summa** | | ${kr(sum((r) => r.oldCredit))} | ${krSigned(sum((r) => r.capRemovedKr))} | ${krSigned(sum((r) => r.refitExclDaysKr))} | ${krSigned(sum((r) => r.daysKr))} | ${krSigned(sum((r) => r.avgiftKr))} | ${krSigned(sum((r) => r.debtKr))} | ${krSigned(sum((r) => r.tomtrattKr))} | ${krSigned(sum((r) => r.ovrigtKr))} | ${kr(sum((r) => r.newGap))} | | ${report.cappedRows.filter((r) => r.flagExpectedFinal).length} / ${report.cappedRows.filter((r) => r.flagAsking).length} rader |`,
     "",
-    '"Ny anpassning" is the model refitted on today\'s data with the old six features and the same bid premium: the balcony and build-year effects, the other coefficients and the days-on-market term. "Övrigt" is what is left of the move from that model to the new one after avgift, debt and tomträtt are taken out: the refitted floor, location and size terms and the way the effects combine. Tomträtt is 0 because the model could not estimate it (no leasehold sales in the data).',
+    '"Ny anpassning" is what changed between the frozen run and the model refitted on today\'s data with the old six features: the balcony and build-year effects (stage 2) and the refitted coefficients. "Dagar" is the days-on-market term that now sits in the bid premium, measured in that same refitted model. "Avgift", "BRF-skuld" and "Tomträtt" are what each fact takes off (-) or adds to (+) the credit in the new model, measured by scoring the flat again with that one fact set to unknown. "Övrigt" is what is left of the move from the refitted model to the new one: the other coefficients shifting when avgift and debt entered, and the way the effects combine. Tomträtt is 0 because the model could not estimate it (no leasehold sales in the data).',
   );
   return lines;
+}
+
+const sv = (x: number, decimals: number): string => {
+  const text = x.toFixed(decimals).replace(".", ",");
+  return /^-0(,0+)?$/.test(text) ? text.slice(1) : text;
+};
+
+/** Percentage points with a sign: 0.0123 -> "+1,2 procentenheter". */
+function ppSigned(fraction: number): string {
+  const text = sv(Math.abs(fraction) * 100, 1);
+  return `${fraction < 0 && !/^0(,0+)?$/.test(text) ? "-" : "+"}${text} procentenheter`;
+}
+
+const profitCell = (v: number | null): string => (v === null ? "-" : kr(v));
+const rankCell = (v: number | null): string => (v === null ? "-" : String(v));
+
+/** The sentences at the end of the report, written from the computed numbers only. */
+function findingsOf(r: Omit<ValuationReport, "findings">): string[] {
+  const out: string[] = [];
+  const n = r.cappedRows.length;
+  const sum = (pick: (row: CappedRow) => number): number => r.cappedRows.reduce((acc, row) => acc + pick(row), 0);
+
+  out.push(
+    `The old ceiling hid ${kr(r.creditRemoved.total)} kr of credit across ${r.creditRemoved.rows} rows, ${kr(r.creditRemoved.top15)} kr of it inside the old top 15.`,
+  );
+
+  const kept = r.top15.after.filter((row) => row.otherTop15Rank !== null).length;
+  const left = r.top15.before.filter((row) => row.otherTop15Rank === null);
+  const entered = r.top15.after.filter((row) => row.otherTop15Rank === null);
+  const nameOf = (row: Top15Row, place: number | null): string => `${row.address ?? row.key} (${place ?? "-"})`;
+  out.push(
+    `${kept} of the ${r.top15.after.length} listings in the new top 15 were also in the old top 15. Left: ${left.length === 0 ? "none" : left.map((row) => `${nameOf(row, row.rank)} -> ${rankCell(row.otherRank)}`).join(", ")}. Entered: ${entered.length === 0 ? "none" : entered.map((row) => `${nameOf(row, row.rank)} from ${rankCell(row.otherRank)}`).join(", ")}.`,
+  );
+
+  const profitSum = (rows: readonly Top15Row[]): number => rows.reduce((acc, row) => acc + (row.profitSek ?? 0), 0);
+  out.push(`The profits of the top 15 add up to ${kr(profitSum(r.top15.before))} kr before and ${kr(profitSum(r.top15.after))} kr after.`);
+
+  if (n > 0) {
+    const down = r.cappedRows.filter((row) => row.newRank === null || row.newRank > row.oldRank).length;
+    const up = r.cappedRows.filter((row) => row.newRank !== null && row.newRank < row.oldRank).length;
+    const same = r.cappedRows.filter((row) => row.newRank === row.oldRank).length;
+    out.push(
+      `Across the ${n} formerly capped rows the credit moved by ${krSigned(sum((row) => row.newGap - row.oldCredit))} kr in total: ceiling removal ${krSigned(sum((row) => row.capRemovedKr))}, refit ${krSigned(sum((row) => row.refitExclDaysKr))}, days term ${krSigned(sum((row) => row.daysKr))}, avgift ${krSigned(sum((row) => row.avgiftKr))}, BRF debt ${krSigned(sum((row) => row.debtKr))}, tomträtt ${krSigned(sum((row) => row.tomtrattKr))}, rest ${krSigned(sum((row) => row.ovrigtKr))}. ${up} of them rank higher now, ${same} keep their place, ${down} rank lower or are no longer ranked.`,
+    );
+    out.push(
+      `${r.cappedRows.filter((row) => row.flagExpectedFinal).length} of the ${n} formerly capped rows carry the residual flag on the expected-final basis, ${r.cappedRows.filter((row) => row.flagAsking).length} on the asking basis.`,
+    );
+  }
+  out.push(
+    `Over all ${r.residualCounts.n} comparable rows the residual flag marks ${r.residualCounts.expectedFinal} on the expected-final basis and ${r.residualCounts.asking} on the asking basis (limit ${pctSigned(r.residualCounts.limitPct)} against the model; basis in force: ${r.residualCounts.basisInForce}).`,
+  );
+
+  const f = r.folkungagatan61;
+  if (f.before !== null && f.after !== null) {
+    out.push(
+      `Folkungagatan 61 moved from rank ${rankCell(f.before.rank)} to ${rankCell(f.after.rank)}; profit ${profitCell(f.before.profitSek)} -> ${profitCell(f.after.profitSek)} kr.` +
+        (f.decomposition === null
+          ? ""
+          : ` Its credit moved ${krSigned(f.decomposition.newGap - f.decomposition.oldCredit)} kr: ceiling ${krSigned(f.decomposition.capRemovedKr)}, refit ${krSigned(f.decomposition.refitExclDaysKr)}, days term ${krSigned(f.decomposition.daysKr)}, avgift ${krSigned(f.decomposition.avgiftKr)}, BRF debt ${krSigned(f.decomposition.debtKr)}, tomträtt ${krSigned(f.decomposition.tomtrattKr)}, rest ${krSigned(f.decomposition.ovrigtKr)}.`),
+    );
+  } else {
+    out.push("Folkungagatan 61 saknas i körningen (before or after), so no move could be measured.");
+  }
+
+  if (r.bidPremium.meanChange !== null) {
+    out.push(
+      `Over the ${r.bidPremium.rowsInBoth} rows ranked in both runs the expected overbid changed by ${ppSigned(r.bidPremium.meanChange)} on average.`,
+    );
+  }
+  if (r.avgiftDebtCorrelation.r !== null) {
+    out.push(`Avgift per kvm and BRF debt per kvm correlate at r = ${sv(r.avgiftDebtCorrelation.r, 2)} over ${r.avgiftDebtCorrelation.n} listings that have both.`);
+  }
+  if (r.model.onStage2Cap.length > 0) {
+    out.push(
+      `These stage-2 coefficients sit exactly on the +-${sv(STAGE2_CAP_PCT * 100, 0)} % limit the fit allows: ${r.model.onStage2Cap.join(", ")}. The fit clamps stage-2 effects at this limit, so the unclamped estimate may be larger than shown. Open point; nothing was changed.`,
+    );
+  }
+  return out;
+}
+
+function top15Md(report: ValuationReport): string[] {
+  const lines: string[] = [
+    "## Top 15 before and after",
+    "",
+    "Left: the first 15 of the frozen run. Right: the first 15 of the new run. \"Plats efter\" is the listing's place in the new ranking, \"Plats före\" its place in the old one; \"-\" means it is not ranked in that run.",
+    "",
+    "| # | Före: adress | Vinst före (kr) | Plats efter | Efter: adress | Vinst efter (kr) | Plats före |",
+    "|---:|---|---:|---:|---|---:|---:|",
+  ];
+  const rows = Math.max(report.top15.before.length, report.top15.after.length);
+  for (let i = 0; i < rows; i++) {
+    const b = report.top15.before[i];
+    const a = report.top15.after[i];
+    lines.push(
+      `| ${i + 1} | ${cell(b?.address ?? null)} | ${profitCell(b?.profitSek ?? null)} | ${rankCell(b?.otherRank ?? null)} | ${cell(a?.address ?? null)} | ${profitCell(a?.profitSek ?? null)} | ${rankCell(a?.otherRank ?? null)} |`,
+    );
+  }
+  return lines;
+}
+
+function folkMd(report: ValuationReport): string[] {
+  const f = report.folkungagatan61;
+  const lines: string[] = ["## Folkungagatan 61", "", `Booli ${FOLKUNGAGATAN_61_BOOLI_ID}, the tracked listing.`, ""];
+  if (f.before === null || f.after === null) {
+    lines.push(
+      `Folkungagatan 61 saknas i körningen: ${f.before === null ? "before" : ""}${f.before === null && f.after === null ? " and " : ""}${f.after === null ? "after" : ""} record has no row for it.`,
+    );
+    if (f.before === null && f.after === null) return lines;
+    lines.push("");
+  }
+  const pair = (label: string, pick: (n: ListingNumbers) => string): string =>
+    `| ${label} | ${f.before === null ? "saknas" : pick(f.before)} | ${f.after === null ? "saknas" : pick(f.after)} |`;
+  lines.push(
+    "| | Före | Efter |",
+    "|---|---:|---:|",
+    pair("Plats", (n) => rankCell(n.rank)),
+    pair("Vinst (kr)", (n) => profitCell(n.profitSek)),
+    pair("Framtida värde, renoverad (kr)", (n) => profitCell(n.resaleSek)),
+    pair("Förväntat slutpris (kr)", (n) => profitCell(n.expectedFinalSek)),
+    pair("Budpremie", (n) => (n.overbidPct === null ? "-" : pctSigned(n.overbidPct))),
+    pair("Skillnad (kr)", (n) => profitCell(n.gapSek)),
+    pair("Krediterad del (kr)", (n) => profitCell(n.creditSek)),
+    pair("Renovering (kr)", (n) => kr(n.renoSek)),
+    pair("Smak (kr)", (n) => kr(n.tasteSek)),
+  );
+  const d = f.decomposition;
+  if (d !== null) {
+    lines.push(
+      "",
+      `Where its credit moved (kr, + raises it, - lowers it): old credit ${kr(d.oldCredit)}; ceiling ${krSigned(d.capRemovedKr)}; refit (balcony, build year, coefficients) ${krSigned(d.refitExclDaysKr)}; days term ${krSigned(d.daysKr)}; avgift ${krSigned(d.avgiftKr)}; BRF debt ${krSigned(d.debtKr)}; tomträtt ${krSigned(d.tomtrattKr)}; rest ${krSigned(d.ovrigtKr)}; new credit ${kr(d.newGap)}. Residual ${d.residualPct === null ? "-" : pctSigned(d.residualPct)} against the model, flag ${yesNo(d.flagExpectedFinal)} (expected final) / ${yesNo(d.flagAsking)} (asking). The parts add up to the move from old credit to new credit.`,
+    );
+  }
+  return lines;
+}
+
+function residualMd(report: ValuationReport): string[] {
+  const c = report.residualCounts;
+  return [
+    "## Residual flag",
+    "",
+    `The flag "ovanligt långt under modellpris" fires when a flat is further below the model's price than ${pctSigned(c.limitPct)} (two residual spreads). Counted over the ${c.n} comparable rows of the new run:`,
+    "",
+    "| Basis | Rows flagged |",
+    "|---|---:|",
+    `| Expected final price against the model${c.basisInForce === "expectedFinal" ? " (in force)" : ""} | ${c.expectedFinal} |`,
+    `| Asking price against the model${c.basisInForce === "asking" ? " (in force)" : ""} | ${c.asking} |`,
+    "",
+    `Switching the basis (\`RESIDUAL_FLAG_BASIS\` in fit-score.ts) would change only which rows carry the flag: ${c.basisInForce === "expectedFinal" ? c.asking : c.expectedFinal} rows instead of ${c.basisInForce === "expectedFinal" ? c.expectedFinal : c.asking}. No profit figure changes either way.`,
+    "",
+    `The credit the ceiling removed: ${kr(report.creditRemoved.total)} kr over ${report.creditRemoved.rows} rows (${kr(report.creditRemoved.top15)} kr inside the old top 15).`,
+  ];
+}
+
+function bidMd(report: ValuationReport): string[] {
+  const b = report.bidPremium;
+  const lines: string[] = [
+    "## Bid premium",
+    "",
+    'The expected overbid on the asking price, for the new top 15. "Före" is the same listing in the frozen run (version-1 model, no days term).',
+    "",
+    "| Plats efter | Adress | Budpremie före | Budpremie efter | Hur den räknades |",
+    "|---:|---|---:|---:|---|",
+  ];
+  for (const r of b.top15) {
+    lines.push(
+      `| ${r.rank} | ${cell(r.address)} | ${r.overbidBefore === null ? "-" : pctSigned(r.overbidBefore)} | ${r.overbidAfter === null ? "-" : pctSigned(r.overbidAfter)} | ${cell(r.labelAfter)} |`,
+    );
+  }
+  lines.push(
+    "",
+    b.meanChange === null
+      ? "No row is ranked in both runs with a premium in both."
+      : `Mean change over the ${b.rowsInBoth} rows ranked in both runs: ${ppSigned(b.meanChange)}.`,
+  );
+  return lines;
+}
+
+const FEATURE_LABELS: Record<string, string> = {
+  nbLevel: "områdesnivå",
+  floor: "våning",
+  groundOrBelow: "bottenvåning",
+  lnArea: "storlek",
+  monthsAgo: "tidstrend",
+  centralityKm: "avstånd till centrum",
+  avgiftPerSqmMonth: "avgift kr/kvm/mån",
+  brfDebtPerSqm: "föreningsskuld kr/kvm",
+  tomtratt: "tomträtt",
+};
+
+/** The effect of one unit of a feature on the price per kvm, for the two new ones; "-" for the rest. */
+function effectOf(name: string, beta: number): string {
+  if (name === "avgiftPerSqmMonth") return `${pctSigned(Math.exp(10 * beta) - 1, 2)} per 10 kr/kvm/mån`;
+  if (name === "brfDebtPerSqm") return `${pctSigned(Math.exp(1000 * beta) - 1, 2)} per 1 000 kr/kvm`;
+  return "-";
+}
+
+function modelMd(report: ValuationReport): string[] {
+  const m = report.model;
+  const lines: string[] = [
+    "## Model",
+    "",
+    "Coefficients of the committed model (ln price per kvm; standard error = how much the estimate could move):",
+    "",
+    "| Egenskap | Koefficient | SE | t | Källa | Effekt |",
+    "|---|---:|---:|---:|---|---|",
+  ];
+  for (const f of m.features) {
+    const t = f.se !== null && f.se > 0 ? sv(f.beta / f.se, 1) : "-";
+    lines.push(
+      `| ${FEATURE_LABELS[f.name] ?? f.name} | ${f.source === "zeroed" ? "0" : f.beta.toPrecision(3).replace(".", ",")} | ${f.se === null ? "-" : f.se.toPrecision(3).replace(".", ",")} | ${t} | ${f.source} | ${effectOf(f.name, f.beta)} |`,
+    );
+  }
+  lines.push(
+    "",
+    `Stage 2 (balcony and build year, taken as percentages after the fit): balcony ${pctSigned(m.balconyPct)}` +
+      (m.buildYearPct === null
+        ? "."
+        : `; build year to 1930 ${pctSigned(m.buildYearPct.le1930)}, 1931–1960 ${pctSigned(m.buildYearPct.y1931to1960)}, 1961–1990 ${pctSigned(m.buildYearPct.y1961to1990)}, from 1991 ${pctSigned(m.buildYearPct.ge1991)}.`),
+    m.daysTerm === null
+      ? "The bid premium has no days-on-market term."
+      : `Days on market in the bid premium: coefficient ${m.daysTerm.beta.toPrecision(3).replace(".", ",")} per ln(1 + days), ${m.daysTerm.kept ? "kept" : "dropped"}.`,
+    "",
+    "| | Före (version " + report.beforeModel.version + ") | Efter (version " + report.afterModelSummary.version + ") |",
+    "|---|---:|---:|",
+    `| Försäljningar i anpassningen | ${kr(m.n.before)} | ${kr(m.n.after)} |`,
+    `| R² | ${sv(m.r2.before, 3)} | ${sv(m.r2.after, 3)} |`,
+    `| Korsvalideringsfel (logskala) | ${sv(m.cvRmseLog.before, 4)} | ${sv(m.cvRmseLog.after, 4)} |`,
+    "",
+    r2Note(),
+  );
+  if (m.fallbacks.length > 0) lines.push("", "Fallbacks in the model file:", ...m.fallbacks.map((x) => `- ${x}`));
+  const c = report.avgiftDebtCorrelation;
+  lines.push(
+    "",
+    c.r === null
+      ? "Correlation of avgift and BRF debt per kvm: not computed (fewer than three listings with both)."
+      : `Correlation of avgift per kvm and BRF debt per kvm over the snapshot's listings that have both: r = ${sv(c.r, 2)} (n = ${c.n}).`,
+  );
+  return lines;
+}
+
+function r2Note(): string {
+  return 'R² is the share of the variation in sold prices per kvm the model explains; the cross-validation error is the typical miss, in log units (0,1 is about 10 %), on sales the fit had not seen.';
 }
 
 /** The report as Markdown. English prose, Swedish labels, decimal comma and space thousands. */
@@ -491,6 +982,20 @@ export function renderValuationReportMd(report: ValuationReport): string {
     'How to read this: "Kredit" is the part of a flat\'s gap (renovated resale value minus expected final price) that the profit counts. The old ceiling cut it at 20 % of resale; now it is the whole gap. Every row below shows where its credit moved and which cause moved it, in kronor.',
     "",
     ...cappedTableMd(report),
+    "",
+    ...top15Md(report),
+    "",
+    ...folkMd(report),
+    "",
+    ...residualMd(report),
+    "",
+    ...bidMd(report),
+    "",
+    ...modelMd(report),
+    "",
+    "## Findings",
+    "",
+    ...report.findings.map((x) => `- ${x}`),
     "",
   ];
   return lines.join("\n");
