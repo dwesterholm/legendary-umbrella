@@ -79,7 +79,7 @@ import {
   type RenoEstimate,
 } from "@/lib/discovery/reno-tier";
 import { computeNicheScore } from "@/lib/discovery/niche-score";
-import { layoutFactSchema, usableSide, type LayoutFact } from "@/lib/discovery/layout-fact";
+import { korsdragOf, layoutFactSchema, quietBedroomOf, usableSide, type LayoutFact } from "@/lib/discovery/layout-fact";
 import { sunFactSchema, type SunFact } from "@/lib/discovery/sun-fact";
 import { tasteBonus, type InferredSunInput } from "@/lib/discovery/taste";
 
@@ -280,6 +280,10 @@ export interface FitScoreResult {
   readonly tasteSek: number;
   readonly tasteSunPct: number;
   readonly tasteHubPct: number;
+  /** Phase 14.4 (D-10): the korsdrag part of taste, fraction of resale (0 or 0.01). */
+  readonly tasteKorsdragPct: number;
+  /** Phase 14.4 (D-10): the quiet-bedroom part of taste, fraction of resale (0 or 0.01). */
+  readonly tasteQuietBedroomPct: number;
   readonly nearestHub: string | null;
   readonly hubMeters: number | null;
   readonly salesCostsSek: number;
@@ -439,6 +443,8 @@ export function fitScore(
     tasteSek: 0,
     tasteSunPct: 0,
     tasteHubPct: 0,
+    tasteKorsdragPct: 0,
+    tasteQuietBedroomPct: 0,
     nearestHub: null,
     hubMeters: null,
   } as const;
@@ -513,6 +519,7 @@ export function fitScore(
     orientation: c.orientation,
     sunPhrases: row.sunPhrases,
     inferredSun: sunWithLayout.input,
+    layout: { korsdrag: korsdragOf(row.layout), quietBedroom: quietBedroomOf(row.layout) },
   });
   const tasteSek = cappedTasteSek(taste.pct, gap.resaleW);
   const askToPred = askingPerSqm / pred;
@@ -539,6 +546,8 @@ export function fitScore(
     tasteSek,
     tasteSunPct: taste.sunPct,
     tasteHubPct: taste.hubPct,
+    tasteKorsdragPct: taste.korsdragPct,
+    tasteQuietBedroomPct: taste.quietBedroomPct,
     nearestHub: taste.nearestHub,
     hubMeters: taste.hubMeters,
     comparable: !notComparable,

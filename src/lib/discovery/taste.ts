@@ -39,6 +39,15 @@
  * exactly what it was before. The input is already rounded where it is stored
  * (confidence 2 decimals, hours 1 decimal); this module does no rounding.
  *
+ * LAYOUT TERMS (Phase 14.4, D-10, LAY-03): two small terms of Daniel's own
+ * preference, each 1 % of the resale value: windows on two opposite sides
+ * (korsdrag, so the flat does not boil in summer) and a bedroom on the quiet
+ * courtyard side (so he can sleep with the window open). Unknown adds nothing,
+ * and "no korsdrag" or "street bedroom" subtracts nothing (taste never
+ * subtracts). The market value of either is NOT modelled: sold flats carry no
+ * layout data, so these enter only as taste, inside the unchanged 5 % cap that
+ * fit-score.ts applies to the sum.
+ *
  * Every number lives in {@link TASTE_WEIGHTS}; the functions own no constants
  * (same discipline as NICHE_WEIGHTS in niches.ts).
  */
@@ -69,6 +78,10 @@ export const TASTE_WEIGHTS: {
    * side). Stated text and a floor plan use 1.
    */
   readonly streetOnlyFactor: 0.5;
+  /** D-10: windows on two opposite sides (korsdrag), Daniel's own preference, 1 % of resale; not modelled market value. */
+  readonly korsdragPct: 0.01;
+  /** D-10: a bedroom on the quiet courtyard side, Daniel's own preference, 1 % of resale; not modelled market value. */
+  readonly quietBedroomPct: 0.01;
   readonly hubFullM: 300;
   readonly hubZeroM: 800;
 } = {
@@ -79,6 +92,8 @@ export const TASTE_WEIGHTS: {
   // "sol hela dagen" / "genomgående": stated by the broker, credited once.
   phraseAdd: 0.3,
   streetOnlyFactor: 0.5,
+  korsdragPct: 0.01,
+  quietBedroomPct: 0.01,
   hubFullM: 300,
   hubZeroM: 800,
 };
@@ -171,7 +186,11 @@ export interface TasteResult {
   sunPct: number;
   /** Hub part, fraction of resale (0 to 0.02). */
   hubPct: number;
-  /** sunPct + hubPct. Not capped here; fit-score.ts applies TASTE_CAP_PCT. */
+  /** Korsdrag part, fraction of resale: {@link TASTE_WEIGHTS.korsdragPct} when the flat has windows on two opposite sides, else 0. */
+  korsdragPct: number;
+  /** Quiet-bedroom part, fraction of resale: {@link TASTE_WEIGHTS.quietBedroomPct} for a courtyard bedroom, else 0. */
+  quietBedroomPct: number;
+  /** sunPct + hubPct + korsdragPct + quietBedroomPct. Not capped here; fit-score.ts applies TASTE_CAP_PCT. */
   pct: number;
   nearestHub: string | null;
   hubMeters: number | null;
@@ -185,6 +204,11 @@ export function tasteBonus(input: {
   sunPhrases: SunPhrases | null;
   /** Phase 14.3: the resolved sun fact; absent, null or source "okänd" means today's formula. */
   inferredSun?: InferredSunInput | null;
+  /**
+   * Phase 14.4 (D-10): the believed layout answers (see layout-fact.ts). true adds the weight, false and
+   * null (unknown) add 0; absent or null means no layout.
+   */
+  layout?: { korsdrag: boolean | null; quietBedroom: boolean | null } | null;
 }): TasteResult {
   const hub = nearestLovedHub(input.latitude, input.longitude);
   const inferred = input.inferredSun ?? null;
@@ -194,10 +218,14 @@ export function tasteBonus(input: {
       : sunScore(input.orientation, input.sunPhrases);
   const sunPct = TASTE_WEIGHTS.sunMaxPct * score;
   const hubPct = hubProximityPct(hub ? hub.meters : null);
+  const korsdragPct = input.layout?.korsdrag === true ? TASTE_WEIGHTS.korsdragPct : 0;
+  const quietBedroomPct = input.layout?.quietBedroom === true ? TASTE_WEIGHTS.quietBedroomPct : 0;
   return {
     sunPct,
     hubPct,
-    pct: sunPct + hubPct,
+    korsdragPct,
+    quietBedroomPct,
+    pct: sunPct + hubPct + korsdragPct + quietBedroomPct,
     nearestHub: hub ? hub.name : null,
     hubMeters: hub ? hub.meters : null,
   };

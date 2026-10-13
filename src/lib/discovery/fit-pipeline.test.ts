@@ -56,6 +56,7 @@ import {
 } from "@/lib/discovery/fit-score";
 import { parseHedonicModel } from "@/lib/discovery/hedonic-model";
 import { candidateFactsSchema, type CandidateFacts } from "@/lib/discovery/listing-facts";
+import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import type { SunPhrases } from "@/lib/discovery/sun-path";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 
@@ -428,7 +429,7 @@ describe("table rows and rendering (FIT-03)", () => {
   it("the header puts 'Sol' right after 'Smak'; a row prints '-' without a sun record and the formatted cell with one (D-02)", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
     expect(headerCells.indexOf("Sol")).toBe(headerCells.indexOf("Smak") + 1);
-    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 3); // two hour columns in between (plan 07)
+    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 5); // two hour columns (plan 07) and Korsdrag, Sovrum (14.4 plan 08) in between
     const none = renderFitTable(toFitTableRows({ ranked: [sample[0]] }, new Map())).split("\n")[1].split(" | ");
     expect(none).toHaveLength(headerCells.length);
     expect(none[headerCells.indexOf("Sol")]).toBe("-");
@@ -460,9 +461,30 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(solOf({ sun, layout, layoutAppliedToSun: true })).toBe("S gata (planritning+foto, 1,00), balkong gata");
   });
 
+  it("the header ends the sun block with 'Korsdrag' and 'Sovrum' (LAY-03): unknown prints 'okänd', Folkungagatan 61's layout prints 'nej' and 'gata', a courtyard bedroom with two window sides 'ja' and 'gård'", () => {
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    expect(FIT_TABLE_HEADER).toContain("| Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Flaggor |");
+    expect(headerCells.indexOf("Sovrum")).toBe(headerCells.indexOf("Korsdrag") + 1);
+    const base: LayoutFact = {
+      balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
+      windowSides: "one", bedroomSide: "street", streetEvidence: "oppositeFacade", confidence: 0.9,
+      source: "planritning+foto", version: "v", images: { booli: 4, broker: 0 },
+    };
+    const cellsOf = (layout: LayoutFact | null) => {
+      const line = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], layout }] }, new Map())).split("\n")[1].split(" | ");
+      expect(line).toHaveLength(headerCells.length);
+      return [line[headerCells.indexOf("Korsdrag")], line[headerCells.indexOf("Sovrum")]];
+    };
+    expect(cellsOf(null)).toEqual(["okänd", "okänd"]);
+    expect(cellsOf(base)).toEqual(["nej", "gata"]);
+    expect(cellsOf({ ...base, windowSides: "twoOpposite", bedroomSide: "courtyard" })).toEqual(["ja", "gård"]);
+    const weak: LayoutFact = { ...base, windowSides: "twoOpposite", bedroomSide: "courtyard", confidence: 0.59 };
+    expect(cellsOf(weak)).toEqual(["okänd", "okänd"]);
+  });
+
   it("the header puts the two hour columns right after 'Sol' and before 'Flaggor'; every printed row has as many cells as the header", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
-    expect(FIT_TABLE_HEADER).toContain("Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor");
+    expect(FIT_TABLE_HEADER).toContain("Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Flaggor");
     const sun = resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } });
     const printed = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], sun }, { ...sample[1], sun: null }] }, new Map())).split("\n");
     for (const line of printed.slice(1)) expect(line.split(" | ")).toHaveLength(headerCells.length);

@@ -1516,6 +1516,58 @@ describe("a layout fact inside fitScore (14.4 LAY-02)", () => {
   });
 });
 
+describe("korsdrag and a quiet bedroom in taste (14.4 LAY-03, D-10)", () => {
+  const both = (over: Partial<LayoutFact> = {}) =>
+    streetLayout({ windowSides: "twoOpposite", bedroomSide: "courtyard", ...over });
+
+  it("TASTE_CAP_PCT is still 5 %", () => {
+    expect(TASTE_CAP_PCT).toBe(0.05);
+  });
+
+  it("below the cap, both terms add exactly 2 % of the resale value", () => {
+    const row = flat({ facades: null });
+    const without = fitScore(row, model);
+    const withBoth = fitScore({ ...row, layout: both() }, model);
+    expect(withBoth.tasteKorsdragPct).toBe(0.01);
+    expect(withBoth.tasteQuietBedroomPct).toBe(0.01);
+    expect(without.tasteKorsdragPct).toBe(0);
+    expect(without.tasteQuietBedroomPct).toBe(0);
+    expect(without.tasteSek).toBeLessThan(0.05 * (without.resaleSek as number) - 0.02 * (without.resaleSek as number));
+    expect((withBoth.tasteSek as number) - (without.tasteSek as number)).toBeCloseTo(0.02 * (withBoth.resaleSek as number), 4);
+  });
+
+  it("a street bedroom and one window side add nothing (this is the Folkungagatan 61 layout)", () => {
+    const row = flat({ facades: null });
+    const r = fitScore({ ...row, layout: streetLayout() }, model);
+    expect(r.tasteKorsdragPct).toBe(0);
+    expect(r.tasteQuietBedroomPct).toBe(0);
+    expect(r.tasteSek).toBe(fitScore(row, model).tasteSek);
+  });
+
+  it("an unusable layout (confidence 0,59) adds nothing", () => {
+    const row = flat({ facades: null });
+    const r = fitScore({ ...row, layout: both({ confidence: 0.59 }) }, model);
+    expect(r.tasteKorsdragPct).toBe(0);
+    expect(r.tasteQuietBedroomPct).toBe(0);
+    expect(r.tasteSek).toBe(fitScore(row, model).tasteSek);
+  });
+
+  it("a row whose taste would pass 5 % still gets exactly 5 % of resale (the cap binds)", () => {
+    // east (full sun part 3 %) + a hub within 300 m (2 %) = 5 % already; the two terms would make it 7 %.
+    const row = { ...flat({ facades: ["east"] }), layout: both() };
+    const r = fitScore(row, model);
+    expect(r.tasteSunPct + r.tasteHubPct + r.tasteKorsdragPct + r.tasteQuietBedroomPct).toBeGreaterThan(0.05);
+    expect(r.tasteSek).toBeCloseTo(TASTE_CAP_PCT * (r.resaleSek as number), 4);
+  });
+
+  it("the not-comparable branch carries 0 for both", () => {
+    const row = { ...flat({ facades: null }), layout: both() };
+    const noPrice = fitScore({ ...row, candidate: { ...row.candidate, price: null } }, model);
+    expect(noPrice.tasteKorsdragPct).toBe(0);
+    expect(noPrice.tasteQuietBedroomPct).toBe(0);
+  });
+});
+
 describe("snapshot row layout (R-08, Phase 14.4)", () => {
   it("the committed fixture has no layout record: every row reads null", () => {
     for (const row of snapshot.rows) expect(row.layout).toBeNull();

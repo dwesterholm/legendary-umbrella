@@ -153,13 +153,67 @@ describe("tasteBonus (D-06)", () => {
 
   it("unknown orientation and no coordinates give zero, never negative", () => {
     const r = tasteBonus({ latitude: null, longitude: null, orientation: null, sunPhrases: null });
-    expect(r).toEqual({ sunPct: 0, hubPct: 0, pct: 0, nearestHub: null, hubMeters: null });
+    expect(r).toEqual({
+      sunPct: 0,
+      hubPct: 0,
+      korsdragPct: 0,
+      quietBedroomPct: 0,
+      pct: 0,
+      nearestHub: null,
+      hubMeters: null,
+    });
   });
 
   it("a far-away north-facing flat gets zero, not a penalty", () => {
     const r = tasteBonus({ latitude: 59.4, longitude: 17.9, orientation: { facades: ["north"] }, sunPhrases: null });
     expect(r.pct).toBe(0);
     expect(r.nearestHub).not.toBeNull();
+  });
+});
+
+describe("layout terms (14.4, D-10, LAY-03)", () => {
+  const far = { latitude: 59.4 as number | null, longitude: 17.9 as number | null, orientation: null, sunPhrases: null };
+  const todayPct = tasteBonus(far).pct;
+
+  it("the weights are 1 % each", () => {
+    expect(TASTE_WEIGHTS.korsdragPct).toBe(0.01);
+    expect(TASTE_WEIGHTS.quietBedroomPct).toBe(0.01);
+  });
+
+  it("korsdrag and a quiet bedroom each add 1 % of resale", () => {
+    const both = tasteBonus({ ...far, layout: { korsdrag: true, quietBedroom: true } });
+    expect(both.korsdragPct).toBe(0.01);
+    expect(both.quietBedroomPct).toBe(0.01);
+    expect(both.pct).toBeCloseTo(todayPct + 0.02, 12);
+    const one = tasteBonus({ ...far, layout: { korsdrag: true, quietBedroom: false } });
+    expect(one.korsdragPct).toBe(0.01);
+    expect(one.quietBedroomPct).toBe(0);
+    expect(one.pct).toBeCloseTo(todayPct + 0.01, 12);
+  });
+
+  it("false, unknown (null), a null layout and no layout all add 0 and leave pct at today's value", () => {
+    for (const layout of [
+      { korsdrag: false, quietBedroom: false },
+      { korsdrag: null, quietBedroom: null },
+      null,
+      undefined,
+    ]) {
+      const r = tasteBonus({ ...far, layout });
+      expect(r.korsdragPct).toBe(0);
+      expect(r.quietBedroomPct).toBe(0);
+      expect(r.pct).toBe(todayPct);
+    }
+  });
+
+  it("the layout terms are added on top; the cap is not applied here (the best sun and hub part plus both terms is 7 %)", () => {
+    const r = tasteBonus({
+      latitude: FOLKUNGAGATAN.lat,
+      longitude: FOLKUNGAGATAN.lng,
+      orientation: { facades: ["east"] },
+      sunPhrases: null,
+      layout: { korsdrag: true, quietBedroom: true },
+    });
+    expect(r.pct).toBeCloseTo(0.07, 12);
   });
 });
 

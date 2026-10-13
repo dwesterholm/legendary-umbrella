@@ -50,7 +50,13 @@ import {
 import type { HedonicModel, InnerstanDistrict, OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
-import { formatSolCellWithLayout } from "@/lib/discovery/layout-fact";
+import {
+  formatKorsdragCell,
+  formatSolCellWithLayout,
+  formatSovrumCell,
+  korsdragOf,
+  quietBedroomOf,
+} from "@/lib/discovery/layout-fact";
 import { formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
@@ -392,6 +398,10 @@ export interface FitTableRow {
    * "<nominal> (<low>–<high>)" joined by " / ", then " usäker" and/or " höjd uppskattad"; "-" when unknown.
    */
   readonly solObstructed: string;
+  /** LAY-03 "Korsdrag": windows on two opposite sides, "ja" / "nej" / "okänd" (okänd adds nothing to taste). */
+  readonly korsdrag: string;
+  /** LAY-03 "Sovrum": which side the bedroom is on, "gård" (quiet) / "gata" / "okänd" (okänd adds nothing to taste). */
+  readonly sovrum: string;
   readonly flags: string[];
   /** WATCH-03 "Varför här": the reasons, "oförklarat fynd" on a flagged row with none, "-" on an unflagged one. */
   readonly reasons: string;
@@ -445,6 +455,8 @@ export function toFitTableRows(
       sol: formatSolCellWithLayout(r.sun, r.layout, r.layoutAppliedToSun),
       solTheoretical: solHours.theoretical,
       solObstructed: solHours.obstructed,
+      korsdrag: formatKorsdragCell(korsdragOf(r.layout)),
+      sovrum: formatSovrumCell(quietBedroomOf(r.layout)),
       flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
       reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
       link: r.sourceListingUrl ?? "-",
@@ -453,7 +465,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -486,6 +498,8 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         r.sol,
         r.solTheoretical,
         r.solObstructed,
+        r.korsdrag,
+        r.sovrum,
         r.flags.join(", ") || "-",
         r.reasons,
         r.link,
