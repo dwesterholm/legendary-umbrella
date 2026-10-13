@@ -6,6 +6,34 @@
 
 ---
 
+## ▶️ PICK UP HERE (2026-10-13, written just before Daniel cleared the session)
+
+Daniel's instruction: **run autonomously until there is a finished table of trustworthy candidates.**
+Phase 14.2 ("Trustworthy Weekly Table", ROADMAP) is the vehicle; plan 1 MUST be the local browser
+rung (verified to work from this Mac, memory `booli-local-browser-works`). Question budget: 0 — do
+not ask; decide, record, report.
+
+Resume with: `/gsd-plan-phase 14.2 --auto` (auto-advance is on → execute follows). If plans already
+exist in `.planning/phases/14.2-trustworthy-weekly-table/`, run `/gsd-execute-phase 14.2 --auto`.
+Then 14.3 (sun & orientation) only if the table still lacks sun data after 14.2 plan 2.
+
+Decisions taken on Daniel's behalf for 14.1's open UAT items (record in 14.1-UAT.md when
+verify-work runs; he can overturn):
+1. Folkungagatan 61 at 33/75 = accepted as measured (R-02); ROADMAP 14.1 wording to be softened.
+2. 20 % credit cap kept; the uncapped gap is printed beside it (14.2 plan 4).
+3. Vision SEK in the in-app run: accepted on code; 14.2 plan 2 logs SEK for the headless run.
+4. Size sign rule: DROP (market-derived, t = 8.4) and refit — 14.2 plan 4.
+
+Phase 14.1 is `human_needed` (12/13), NOT marked complete; 14.1-UAT.md holds the four items.
+Code review 14.1-REVIEW.md: 6 warnings worth fixing in 14.2 plan 2/3 (reno-tier negation across
+clauses, "genomgående renoverad" sun bonus, puller empty-page resume gap, spend read too early).
+
+Apify headroom 2.71 USD until the monthly reset — the local rung is also what unblocks any run.
+The weekly-list preview Daniel saw: `.planning/calibration/data/weekly-preview-2026-10-13.md`.
+Dev server may still be running on :3001 (browser pane); local Supabase up; job d32ae1fe done.
+
+---
+
 ## ▶️ STATUS 2026-10-13 — Phase 14.1 executed (10/10 plans), verification pending
 
 All on `main` (ff-merged + pushed after every wave; phase branch `gsd/phase-14.1-personal-fit-score`

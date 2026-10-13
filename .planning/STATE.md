@@ -6,10 +6,10 @@ current_phase: "14.1"
 current_phase_name: Personal Fit Score
 status: executing
 stopped_at: 14.1-10 Task 1 done (live run, replay, readout); Task 2 browser run pending
-last_updated: "2026-10-13T00:42:45.214Z"
+last_updated: "2026-10-13T08:40:10.518Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 14.1 execution started
-state_head: e999e5d5260b18eb21a39770c453aded4ab221d4
+state_head: db25200e5ccf968f31bb63c93c1f0556d9449097
 progress:
   total_phases: 8
   completed_phases: 1
@@ -33,7 +33,7 @@ Phase: 14.1 (Personal Fit Score) — EXECUTING
 Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-10-12 — Phase 14.1 execution started
-Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-12 around Daniel's own hunt: 14.1 fit score → 14.2 daily email watch → 14.3 orientation spike; 15–17 deferred. Calibration listing: .planning/calibration/folkungagatan-61-5tr.md
+Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
 
 ## Roadmap Summary (v1.2 — CURRENT)
 

@@ -45,7 +45,7 @@ Deferred operator verification (legal go/no-go, live validation gates, UAT): [mi
 - [ ] **Phase 13: Discovery UX / Poll-Timeout Fix** — the live discovery flow finishes inside the client poll window (no forced reload) and every job state shows a Swedish status label.
 - [x] **Phase 14: Holistic Analysis Brain** — fold re-resolved area comps (R_med/U_med) + per-candidate BRF into the value case; no candidate leaves analysis with empty `claims: []`; low kr/m² normalized against confounders before any reno attribution. (6 plans executed 2026-08-06, verification `gaps_found` 2/4 → gap-closure plans 14-07..14-10 executed 2026-08-08, re-verification `gaps_found` 3/4 → code-review fix pass closed the last ANL-04 defect by splitting `IMPLAUSIBLE_BRF_DEBT_PER_SQM` from the SPEC §2.2 alarm threshold; final verification 4/4 with the four live-operator items deferred to `14-UAT.md`) (completed 2026-08-10)
 - [ ] **Phase 14.1: Personal Fit Score** (INSERTED 2026-10-12) — rank by estimated flip profit (resale from hedonic slutpris model − purchase − reno cost via vision), ~5 % taste bonus; Folkungagatan 61 5tr in the top quarter.
-- [ ] **Phase 14.2: Daily Watch by Email** (INSERTED 2026-10-12) — scheduled innerstan run, seen-listing memory, email only new/price-changed listings.
+- [ ] **Phase 14.2: Trustworthy Weekly Table** (INSERTED 2026-10-12, rescoped 2026-10-13) — local browser rung first, every candidate read, problem-listing vs reno separation, model decisions applied, seen-memory + weekly email.
 - [ ] **Phase 14.3: Sun & Orientation Spike** (INSERTED 2026-10-12) — infer facade bearing when unstated + obstructed sun hours from 3D building data; go/no-go.
 - [ ] **Phase 15: ROI-Aware Opportunity Brief** (DEFERRED 2026-10-12 behind 14.1–14.3) — prioritized, buyer-segment-tailored opportunities with tiered cost/uplift, profit ±22% tax, freshness-based bathroom scoring, interior-designer specifics; `OpportunityBrief` schema passes a live Anthropic strict-output smoke.
 - [ ] **Phase 16: Value-Gap Scoring & Ranking** (DEFERRED 2026-10-12) — §2.6 value-gap headline metric that re-orders results on the separate read path, with a "från bildtolkning" UI marker; separation static-grep test extended.
@@ -154,11 +154,17 @@ Plans:
 
 - [x] 14.1-10-PLAN.md — Live innerstan run, Folkungagatan 61 readout, in-app smoke closing 13-03 and 14-UAT test 1
 
-### Phase 14.2: Daily Watch by Email (INSERTED)
+### Phase 14.2: Trustworthy Weekly Table (INSERTED)
 
-**Goal**: The fit-score search over innerstan runs on a schedule without anyone logged in, remembers which listings it has already reported, and emails Daniel only new or price-changed listings with fit score, key facts and Booli links. Zero mail on a quiet day.
-**Requirements**: TBD
-**Depends on:** Phase 14.1 (the score), existing headless path in `scripts/find-reno.ts`, Apify + Anthropic cost caps
+**Goal**: The weekly innerstan list becomes something Daniel can act on, produced without Apify and delivered by email with only new/changed flats. Today's list (14.1, 2026-10-13) ranks "big and cheap for its location" correctly but cannot tell a reno object from a problem listing, reads pictures/sun for only the top 20, has no BRF debt, and expects most of the top 20 to close above 4 M.
+**Plans, in this order (plan 1 is mandatory first — Daniel 2026-10-13):**
+1. **Local browser rung.** A headed local Playwright Chromium rung (`headless: false`, AutomationControlled disabled, sv-SE) as rung 0 for the HEADLESS scripts only (`scripts/fit-score.ts`, pull/enrich); Apify stays the fallback and the in-app job is untouched. Verified 2026-10-13: search, slutpris and detail pages all 200 with full data in ~5 s from this Mac; headless detail → 403 "Vänta...". Spend ledger prints 0 USD for local pages. Memory: `booli-local-browser-works`.
+2. **Every candidate read, not only the top 20.** With local pages ≈ free, fetch the detail + broker page for ALL filtered candidates (~75): stated orientation/sun phrases, floor, balcony, build year, tenure, avgift, listing age/"budgivning pågår"; run vision on all of them within `CAP_VISION_SEK_MAX` (raise if needed, log the SEK). The taste and reno inputs stop being "unknown" for most rows.
+3. **Problem-listing vs reno-object separation.** Explain every `kredit-tak` / `dold-defekt-risk` row: tomträtt/andelsrätt, stale listing (days on market), price cut history, BRF debt per kvm and avgift per kvm (from Booli's detail payload where present; Allabrf is dead), new-production. Rows the model cannot explain stay flagged with a plain-Swedish reason column ("varför här").
+4. **Model decisions applied (orchestrator calls, Daniel to confirm):** drop the sign rule for size (data t = 8.4, market-derived per the north star) and refit for free; keep the 20 % credit cap but print the uncapped gap beside it; show "under 4 M förväntat" as its own section at the top of the table since that is what Daniel can actually win; Folkungagatan 61 stays a watched listing, measured.
+5. **Seen-listing memory + weekly email.** Persist seen Booli ids + last asking price (local JSON or the local Supabase); weekly run on this Mac (launchd/cron, Mac is the E2E runner and stays awake); email only new or price-changed rows with the full column set + the "varför här" reason + Booli link; zero mail on a quiet week.
+**Requirements**: TBD (derive from 14.1's FIT-0x + this goal; prefix WATCH-)
+**Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
 **Plans:** 0 plans
 
 Plans:
