@@ -1,13 +1,19 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  HEIGHT_PARAMS,
   OSM_ATTRIBUTION,
   buildOsmIndex,
+  buildingHeight,
+  heightOf,
   levelsOf,
   normalizeStreetName,
   parseOsmExtract,
   pointInBuilding,
   projectFrom,
   unprojectFrom,
+  wallsNear,
   type OsmExtract,
 } from "@/lib/discovery/osm-buildings";
 
@@ -274,5 +280,248 @@ describe("buildOsmIndex: courtyard multipolygons (RESEARCH Pitfalls 2 and 3)", (
   it("takes the building tags (levels) from the relation", () => {
     const rel = relation(16, [member(1, "outer", rect(0, 0, 40, 30))], { building: "apartments", "building:levels": "5" });
     expect(index({ relations: [rel] }).buildings[0].levels).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Heights (D-06 / R-04) and walls around a point (plan 14.3-04, task 1)
+// ---------------------------------------------------------------------------
+
+describe("heightOf (D-06: tag, then levels x 3 + 2, then small types)", () => {
+  it.each([
+    ["a dot decimal", { height: "18.5" }, 18.5],
+    ["a comma decimal", { height: "5,5" }, 5.5],
+    ["a trailing ' m'", { height: "21 m" }, 21],
+    ["the first number of a list", { height: "21;24" }, 21],
+  ])("reads the height tag with %s as it is, not estimated", (_name, tags, expected) => {
+    expect(heightOf(tags)).toEqual({ heightM: expected, estimated: false });
+  });
+
+  it("lets the height tag win over the storey count", () => {
+    expect(heightOf({ height: "18.5", "building:levels": "9" })).toEqual({ heightM: 18.5, estimated: false });
+  });
+
+  it("falls back to the storey count when the height tag is not a positive number", () => {
+    expect(heightOf({ height: "tall", "building:levels": "4" })).toEqual({ heightM: 14, estimated: false });
+    expect(heightOf({ height: "0", "building:levels": "4" })).toEqual({ heightM: 14, estimated: false });
+  });
+
+  it("turns 6 storeys into 20 m (6 x 3 + 2), a tag-derived figure that is not estimated", () => {
+    expect(heightOf({ "building:levels": "6" })).toEqual({ heightM: 20, estimated: false });
+    expect(heightOf({ "building:levels": "5,5" })).toEqual({ heightM: 18.5, estimated: false });
+  });
+
+  it("adds no roof allowance: 6 storeys plus 1 roof level is still 20 m", () => {
+    expect(heightOf({ "building:levels": "6", "roof:levels": "1" })).toEqual({ heightM: 20, estimated: false });
+    expect(HEIGHT_PARAMS.storeyM).toBe(3);
+    expect(HEIGHT_PARAMS.baseM).toBe(2);
+  });
+
+  it.each(["shed", "garage", "garages", "hut", "kiosk", "carport", "roof", "allotment_house", "greenhouse"])(
+    "gives a %s without a height or storey tag 3 m, marked estimated",
+    (kind) => {
+      expect(heightOf({ building: kind })).toEqual({ heightM: 3, estimated: true });
+    },
+  );
+
+  it("lets a storey count beat the small-type default", () => {
+    expect(heightOf({ building: "garage", "building:levels": "2" })).toEqual({ heightM: 8, estimated: false });
+  });
+
+  it("returns null when only the neighbourhood can tell (no tags, an ordinary building type)", () => {
+    expect(heightOf({})).toBeNull();
+    expect(heightOf({ building: "yes" })).toBeNull();
+    expect(heightOf({ building: "apartments" })).toBeNull();
+  });
+});
+
+describe("buildingHeight (local median within 150 m, then the innerstan median)", () => {
+  /** An untagged 10 x 10 m building centred at (cx, cy), plus tagged ones around it. */
+  const square = (cx: number, cy: number): XY[] => rect(cx - 5, cy - 5, cx + 5, cy + 5);
+  const tagged = (id: number, cx: number, cy: number, tags: Record<string, string>) => way(id, square(cx, cy), { building: "yes", ...tags });
+  const centre = way(1, square(0, 0));
+  const find = (idx: ReturnType<typeof index>, id: string) => {
+    const b = idx.buildings.find((x) => x.id === id);
+    if (b === undefined) throw new Error(`no building ${id}`);
+    return b;
+  };
+
+  it("returns a tagged building's own height and does not flag it", () => {
+    const idx = index({ buildings: [tagged(2, 0, 0, { "building:levels": "5" })] });
+    expect(buildingHeight(idx, find(idx, "way/2"))).toEqual({ heightM: 17, estimated: false });
+  });
+
+  it("takes the median of 14, 17, 20 and 23 m (even count: mean of the two middle values) = 18.5, estimated", () => {
+    const idx = index({
+      buildings: [
+        centre,
+        tagged(2, 50, 0, { height: "14" }),
+        tagged(3, 0, 50, { height: "17" }),
+        tagged(4, -50, 0, { height: "20" }),
+        tagged(5, 0, -50, { height: "23" }),
+      ],
+    });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 18.5, estimated: true });
+  });
+
+  it("takes the middle value for an odd count", () => {
+    const idx = index({
+      buildings: [centre, tagged(2, 50, 0, { height: "14" }), tagged(3, 0, 50, { height: "20" }), tagged(4, -50, 0, { height: "30" })],
+    });
+    expect(buildingHeight(idx, find(idx, "way/1")).heightM).toBe(20);
+  });
+
+  it("counts a neighbour whose centre is exactly 150.0 m away (the 150 m boundary is inclusive)", () => {
+    const idx = index({ buildings: [centre, tagged(2, 150, 0, { height: "30" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 30, estimated: true });
+  });
+
+  it("ignores a neighbour whose centre is 150.1 m away: the 150 m boundary is not off by a step", () => {
+    const idx = index({ buildings: [centre, tagged(2, 150.1, 0, { height: "30" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 17, estimated: true });
+  });
+
+  it("measures the distance in a straight line, not along the axes (a neighbour at (110, 110) is 155.6 m away)", () => {
+    const idx = index({ buildings: [centre, tagged(2, 110, 110, { height: "30" })] });
+    expect(buildingHeight(idx, find(idx, "way/1")).heightM).toBe(17);
+  });
+
+  it("does not count shed-like neighbours, even when they carry a height tag", () => {
+    const idx = index({
+      buildings: [centre, tagged(2, 40, 0, { height: "20" }), tagged(3, -40, 0, { building: "shed", height: "3" }), tagged(4, 0, 40, { building: "garage", "building:levels": "1" })],
+    });
+    expect(buildingHeight(idx, find(idx, "way/1")).heightM).toBe(20);
+  });
+
+  it("does not count untagged neighbours, so one estimate never feeds another", () => {
+    const idx = index({ buildings: [centre, tagged(2, 40, 0, { height: "26" }), way(3, square(0, 40)), way(4, square(0, -40))] });
+    expect(buildingHeight(idx, find(idx, "way/1")).heightM).toBe(26);
+    expect(buildingHeight(idx, find(idx, "way/3")).heightM).toBe(26);
+  });
+
+  it("falls back to the innerstan median of 5 storeys = 17 m, estimated, when no tagged neighbour is in reach", () => {
+    expect(HEIGHT_PARAMS.fallbackLevels).toBe(5);
+    const alone = index({ buildings: [centre] });
+    expect(buildingHeight(alone, alone.buildings[0])).toEqual({ heightM: 17, estimated: true });
+    const idx = index({ buildings: [centre, tagged(2, 300, 0, { height: "30" }), tagged(3, 0, 160, { height: "30" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 17, estimated: true });
+  });
+
+  it("gives a shed 3 m, estimated, without looking at the neighbours", () => {
+    const idx = index({ buildings: [way(1, square(0, 0), { building: "shed" }), tagged(2, 30, 0, { height: "40" })] });
+    expect(buildingHeight(idx, find(idx, "way/1"))).toEqual({ heightM: 3, estimated: true });
+  });
+
+  it("uses the building's centroid, so a long building looks at its own surroundings", () => {
+    const idx = index({
+      buildings: [way(1, rect(-60, -5, 60, 5)), tagged(2, 0, 100, { height: "24" }), tagged(3, 200, 0, { height: "40" })],
+    });
+    expect(buildingHeight(idx, find(idx, "way/1")).heightM).toBe(24);
+  });
+
+  it("returns the same object on the second call (memoised per building)", () => {
+    const idx = index({ buildings: [centre, tagged(2, 50, 0, { height: "14" })] });
+    const b = find(idx, "way/1");
+    expect(buildingHeight(idx, b)).toBe(buildingHeight(idx, b));
+  });
+
+  it("gives every building the same height whatever the order of the buildings array", () => {
+    const list = [
+      centre,
+      tagged(2, 50, 0, { height: "14" }),
+      tagged(3, 0, 50, { height: "17" }),
+      tagged(4, -50, 0, { height: "20" }),
+      tagged(5, 0, -50, { height: "23" }),
+      way(6, square(120, 120)),
+      tagged(7, 140, 0, { "building:levels": "7" }),
+      way(8, square(-90, 30), { building: "shed" }),
+    ];
+    const forward = index({ buildings: list });
+    const backward = index({ buildings: [...list].reverse() });
+    for (const b of forward.buildings) {
+      expect(buildingHeight(backward, find(backward, b.id))).toEqual(buildingHeight(forward, b));
+    }
+  });
+
+  it("works on the real Folkungagatan fixture: every building gets a finite height and the estimated share is the minority", () => {
+    const idx = buildOsmIndex(parseOsmExtract(JSON.parse(readFileSync(join(__dirname, "__fixtures__", "osm-folkungagatan-61.fixture.json"), "utf8"))));
+    const heights = idx.buildings.map((b) => buildingHeight(idx, b));
+    expect(heights.every((h) => Number.isFinite(h.heightM) && h.heightM > 0)).toBe(true);
+    const estimated = heights.filter((h) => h.estimated).length;
+    expect(estimated).toBeGreaterThan(0);
+    expect(estimated).toBeLessThan(heights.length / 2);
+  });
+});
+
+describe("wallsNear (every ring edge of the buildings within reach, in metres around the point)", () => {
+  const tagged = (id: number, pts: XY[], height = "20") => way(id, pts, { building: "yes", height });
+
+  it("returns the four edges of a square building in metres east/north of the point, with its height", () => {
+    const idx = index({ buildings: [tagged(1, rect(100, -5, 110, 5), "22")] });
+    const walls = wallsNear(idx, LAT0, LNG0, 250);
+    expect(walls).toHaveLength(4);
+    for (const w of walls) {
+      expect(w.heightM).toBe(22);
+      expect(w.estimated).toBe(false);
+      for (const x of [w.x1, w.x2]) expect(x).toBeGreaterThan(99.9);
+      for (const x of [w.x1, w.x2]) expect(x).toBeLessThan(110.1);
+      for (const y of [w.y1, w.y2]) expect(Math.abs(y)).toBeLessThan(5.1);
+    }
+  });
+
+  it("measures around the asked point, not around the extract centre", () => {
+    const idx = index({ buildings: [tagged(1, rect(100, -5, 110, 5))] });
+    const [lng, lat] = unproj(100, 0);
+    const xs = wallsNear(idx, lat, lng, 250).flatMap((w) => [w.x1, w.x2]);
+    expect(Math.min(...xs)).toBeCloseTo(0, 1);
+    expect(Math.max(...xs)).toBeCloseTo(10, 1);
+  });
+
+  it("includes the edges of the courtyard hole as well as the outer ring", () => {
+    const rel = relation(7, [member(1, "outer", rect(60, -30, 120, 30)), member(2, "inner", rect(80, -10, 100, 10))], { building: "yes", height: "18", type: "multipolygon" });
+    const idx = index({ relations: [rel] });
+    const walls = wallsNear(idx, LAT0, LNG0, 250);
+    expect(walls).toHaveLength(8);
+    const inner = walls.filter((w) => Math.max(Math.abs(w.y1), Math.abs(w.y2)) <= 10.1 && Math.min(w.x1, w.x2) >= 79.9 && Math.max(w.x1, w.x2) <= 100.1);
+    expect(inner).toHaveLength(4);
+  });
+
+  it("carries the estimated flag of untagged buildings (the local estimate)", () => {
+    const idx = index({ buildings: [tagged(1, rect(60, -5, 70, 5), "24"), way(2, rect(-70, -5, -60, 5))] });
+    const walls = wallsNear(idx, LAT0, LNG0, 250);
+    expect(walls.filter((w) => w.estimated)).toHaveLength(4);
+    expect(walls.filter((w) => w.estimated).every((w) => w.heightM === 24)).toBe(true);
+  });
+
+  it("takes a building with a vertex at 299 m (radius 250 + margin 50) and leaves one whose nearest vertex is 301 m away", () => {
+    expect(HEIGHT_PARAMS.wallMarginM).toBe(50);
+    const idx = index({ buildings: [tagged(1, rect(299, 0, 310, 10)), tagged(2, rect(-301, 0, -310, 10))] });
+    const walls = wallsNear(idx, LAT0, LNG0, 250);
+    expect(walls).toHaveLength(4);
+    expect(Math.min(...walls.flatMap((w) => [w.x1, w.x2]))).toBeGreaterThan(298.9);
+  });
+
+  it("finds a long building whose centre is far away but whose end is near (the grid is not centroid-only)", () => {
+    const idx = index({ buildings: [tagged(1, rect(200, -5, 900, 5))] });
+    expect(wallsNear(idx, LAT0, LNG0, 250)).toHaveLength(4);
+  });
+
+  it("returns nothing for an empty extract and for a point far from every building", () => {
+    expect(wallsNear(index({}), LAT0, LNG0, 250)).toEqual([]);
+    expect(wallsNear(index({ buildings: [tagged(1, rect(1000, 1000, 1010, 1010))] }), LAT0, LNG0, 250)).toEqual([]);
+  });
+
+  it("returns the same walls whatever the order of the buildings array", () => {
+    const list = [tagged(1, rect(50, 0, 60, 10)), tagged(2, rect(-80, 20, -60, 40), "12"), way(3, rect(0, 120, 30, 140)), tagged(4, rect(150, -90, 170, -60), "9")];
+    const key = (ws: ReturnType<typeof wallsNear>) => ws.map((w) => JSON.stringify(w)).sort();
+    expect(key(wallsNear(index({ buildings: [...list].reverse() }), LAT0, LNG0, 250))).toEqual(key(wallsNear(index({ buildings: list }), LAT0, LNG0, 250)));
+  });
+
+  it("lists the walls around Folkungagatan 61 on the real fixture", () => {
+    const idx = buildOsmIndex(parseOsmExtract(JSON.parse(readFileSync(join(__dirname, "__fixtures__", "osm-folkungagatan-61.fixture.json"), "utf8"))));
+    const walls = wallsNear(idx, 59.3147546, 18.07681659, 250);
+    expect(walls.length).toBeGreaterThan(500);
+    expect(walls.every((w) => Number.isFinite(w.x1 + w.y1 + w.x2 + w.y2) && w.heightM > 0)).toBe(true);
+    expect(Math.max(...walls.flatMap((w) => [Math.hypot(w.x1, w.y1)]))).toBeGreaterThan(150);
   });
 });
