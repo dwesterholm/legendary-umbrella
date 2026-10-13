@@ -678,6 +678,32 @@ describe("runVisionPass", () => {
     errorSpy.mockRestore();
   });
 
+  it("WR-08 (14.2): onBilledFailure receives the exact billed spend of a refused read; a clean read and a transport failure before billing report nothing", async () => {
+    const REFUSAL_USAGE = {
+      input_tokens: 400_000,
+      output_tokens: 100,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    };
+    parse
+      .mockResolvedValueOnce({ parsed_output: null, usage: REFUSAL_USAGE, stop_reason: "refusal" })
+      .mockResolvedValueOnce({ parsed_output: { worthDeepPass: false }, usage: baseUsage(), stop_reason: "end_turn" })
+      .mockRejectedValueOnce(new Error("network exploded"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const billed: number[] = [];
+    const candidates = ["refuse", "ok", "down"].map((id) => makeCandidate({ sourceListingUrl: `https://www.booli.se/annons/${id}` }));
+
+    await runVisionPass(candidates, { onBilledFailure: (sek) => billed.push(sek) });
+
+    // The refusal followed a completed, charged call: that exact figure. The clean read is in its candidate's
+    // costSek. The transport failure never reached billing: 0.
+    expect(billed).toHaveLength(2);
+    expect(billed[0]).toBeCloseTo(costSek(REFUSAL_USAGE), 10);
+    expect(billed[0]).toBeGreaterThan(0);
+    expect(billed[1]).toBe(0);
+    errorSpy.mockRestore();
+  });
+
   it("WR-03: a transport failure BEFORE any model answer charges 0 (billedVisionSekOf stays honest downward too)", () => {
     expect(billedVisionSekOf(new VisionCallError("CLAUDE_CALL_FAILED", 0))).toBe(0);
     expect(billedVisionSekOf(new VisionCallError("CLAUDE_REFUSAL", 0.42))).toBeCloseTo(0.42, 10);

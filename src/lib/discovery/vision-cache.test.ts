@@ -316,6 +316,32 @@ describe("runVisionChunks", () => {
     );
   });
 
+  it("money billed for reads that then failed is added to the spend (WR-08): spentSek is the real bill, failedSek shows the part", async () => {
+    const candidates = Array.from({ length: 6 }, (_, i) => cand(i));
+    const runPass: VisionPassFn = async (cs, o) =>
+      cs.map((c) => {
+        if (c.address === "Testgatan 1" || c.address === "Testgatan 2") {
+          o.onBilledFailure?.(0.25); // a refused read after a charged call
+          return { ...c, vision: null, visionSkippedReason: "vision_error" as const };
+        }
+        return { ...c, vision: visionResult(0.4), visionSkippedReason: null };
+      });
+    const r = await runVisionChunks(candidates, { brokerImagesOf: noBroker, cache: emptyCache(), runPass, keyOf: listingKeyOf, today: "2026-10-13" });
+    expect(r.calls).toBe(4);
+    expect(r.failedSek).toBeCloseTo(0.5, 10);
+    expect(r.spentSek).toBeCloseTo(4 * 0.4 + 0.5, 10);
+    expect(renderVisionLine(r)).toContain("2,10 kr av tak 60 kr");
+    // A failed read is still never cached.
+    expect(Object.keys(r.cacheNext.entries)).toHaveLength(4);
+  });
+
+  it("no failed reads: failedSek is 0 and spentSek is unchanged", async () => {
+    const { runPass } = fakePass({ cost: 0.4 });
+    const r = await runVisionChunks([cand(0), cand(1)], { brokerImagesOf: noBroker, cache: emptyCache(), runPass, keyOf: listingKeyOf, today: "2026-10-13" });
+    expect(r.failedSek).toBe(0);
+    expect(r.spentSek).toBeCloseTo(0.8, 10);
+  });
+
   it("a lane whose pass throws marks only its candidates vision_error; the other lanes still deliver", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const candidates = Array.from({ length: 6 }, (_, i) => cand(i));

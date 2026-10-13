@@ -24,9 +24,11 @@
  * candidate has `costSek` 0. The stored entry keeps the original cost. The spend
  * printed for a run is therefore only what this run paid.
  *
- * Known gap: money billed for a call that then failed (refused, truncated) is
- * counted inside `runVisionPass` against its cap, but is not visible in the
- * returned candidates, so it is not in `spentSek` here either.
+ * Failed calls (WR-08): money billed for a call that then failed (refused,
+ * truncated) is counted inside `runVisionPass` against its cap but is invisible in
+ * the returned candidates. The pass reports it through `onBilledFailure`, and it is
+ * added to `spentSek` (and shown separately as `failedSek`), so the printed spend
+ * is what Anthropic actually charged.
  *
  * Script-side only: loaded by `scripts/fit-score.ts`. The vision pass itself is
  * injected as `runPass`, so this module never loads the Anthropic client.
@@ -178,6 +180,8 @@ export type VisionPassFn = (
   opts: {
     brokerImagesOf: (candidate: DiscoveryCandidate, index: number) => BrokerImageBytes[];
     capSek: number;
+    /** Reports SEK billed for a read that then failed (WR-08). */
+    onBilledFailure?: (billedSek: number) => void;
   },
 ) => Promise<DiscoveryCandidate[]>;
 
@@ -199,8 +203,10 @@ export interface RunVisionChunksOptions {
 export interface VisionChunksResult {
   /** Same length and order as the input. */
   candidates: DiscoveryCandidate[];
-  /** What this run paid, SEK (cache hits are 0). */
+  /** What this run paid, SEK (cache hits are 0), including calls that were billed and then failed. */
   spentSek: number;
+  /** The part of `spentSek` that was billed for reads that failed (refused, truncated, parse-empty). */
+  failedSek: number;
   /** Candidates that got a fresh vision result. */
   calls: number;
   cacheHits: number;
@@ -234,6 +240,7 @@ export async function runVisionChunks(
   const keyed = new Map<number, { listingKey: string; imageKey: string }>();
   const pending = new Set<number>();
   let cacheHits = 0;
+  let failedSek = 0;
 
   candidates.forEach((c, i) => {
     const rawKey = opts.keyOf(c);
@@ -261,7 +268,13 @@ export async function runVisionChunks(
       try {
         result = await opts.runPass(
           todo.map((i) => candidates[i]),
-          { brokerImagesOf: (c, local) => opts.brokerImagesOf(c, todo[local] ?? local), capSek: laneCapSek },
+          {
+            brokerImagesOf: (c, local) => opts.brokerImagesOf(c, todo[local] ?? local),
+            capSek: laneCapSek,
+            onBilledFailure: (billedSek) => {
+              if (Number.isFinite(billedSek) && billedSek > 0) failedSek += billedSek;
+            },
+          },
         );
       } catch (error) {
         console.error("[vision-cache] lane failed (non-fatal)", { code: error instanceof Error ? error.name : "UNKNOWN" });
@@ -302,7 +315,9 @@ export async function runVisionChunks(
     entries[f.id] = { listingKey: f.listingKey, imageKey: f.imageKey, promptVersion: VISION_PROMPT_VERSION, storedAt: opts.today, result: f.result };
   }
 
-  return { candidates: out, spentSek, calls, cacheHits, skipped, chunkSizes, cacheNext: { version: 1, entries } };
+  spentSek += failedSek;
+
+  return { candidates: out, spentSek, failedSek, calls, cacheHits, skipped, chunkSizes, cacheNext: { version: 1, entries } };
 }
 
 /**

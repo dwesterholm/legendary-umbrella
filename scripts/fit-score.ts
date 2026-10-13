@@ -700,6 +700,7 @@ async function printSpend(
   transport: Pick<typeof import("@/lib/booli/transport"), "apifySpendSince" | "formatApifyRunsLine" | "waitForLedgerSettle">,
   local: LocalLedger | null,
   visionLine: string | null,
+  visionSek: number,
 ): Promise<void> {
   console.log("\nKostnad:");
   if (local) {
@@ -728,8 +729,8 @@ async function printSpend(
     console.log(transport.formatApifyRunsLine(null, `${APIFY_ENV} saknas`));
   }
   if (visionLine !== null) console.log(visionLine);
-  console.log(`  Anthropic (bildtolkning): ${result.visionSek.toFixed(2)} kr`);
-  console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + result.visionSek)} kr`);
+  console.log(`  Anthropic (bildtolkning): ${visionSek.toFixed(2)} kr`);
+  console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + visionSek)} kr`);
 }
 
 async function runLive(args: Args): Promise<void> {
@@ -937,6 +938,9 @@ async function runLive(args: Args): Promise<void> {
     });
   };
 
+  /** The vision spend to print: what the vision lanes paid, failed-but-billed calls included (WR-08). */
+  const visionSekOf = (result: FitPipelineResult): number => (visionStats as VisionChunksResult | null)?.spentSek ?? result.visionSek;
+
   try {
     const t0 = new Date();
     console.log(`\nStart: ${t0.toISOString()}`);
@@ -947,7 +951,7 @@ async function runLive(args: Args): Promise<void> {
     const everyDistrictFailed = result.areas.length > 0 && result.areas.every((a) => !a.ok);
     if (everyDistrictFailed) {
       console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
-      await printSpend(t0, result, transport, ledger(), visionLineOf());
+      await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result));
       process.exitCode = 1;
       return;
     }
@@ -971,7 +975,7 @@ async function runLive(args: Args): Promise<void> {
     if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
     console.log("");
     printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
-    await printSpend(t0, result, transport, ledger(), visionLineOf());
+    await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result));
     if (cacheSaveError !== null) {
       console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);
       process.exitCode = 1;

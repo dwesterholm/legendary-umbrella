@@ -551,6 +551,10 @@ export async function runVisionPass(
      * together can never pass the run ceiling. Omitted, non-finite or <= 0 all
      * fall back to `CAP_VISION_SEK_MAX`, so every in-app call is unchanged. */
     capSek?: number;
+    /** OPTIONAL (WR-08 of the 14.2 review). Called with the SEK Anthropic already billed for a candidate whose
+     * read then failed (refused, truncated, parse-empty). Those candidates come back with no `vision`, so the
+     * caller cannot see this money in the returned candidates; the headless run adds it to the printed spend. */
+    onBilledFailure?: (billedSek: number) => void;
   } = {},
 ): Promise<DiscoveryCandidate[]> {
   const capSek =
@@ -639,6 +643,8 @@ export async function runVisionPass(
       // D-14-08 sharing ONE pool across comps + BRF + vision, silently
       // recording 0 here let the biggest spender overrun the cap.
       runningVisionSek += billedVisionSekOf(error);
+      // The exact billed figure only (an unexpected error shape has none): the printed spend is the real bill.
+      if (error instanceof VisionCallError) opts.onBilledFailure?.(error.billedSek);
       out.push({ ...candidate, vision: null, visionSkippedReason: "vision_error" });
     }
   }
