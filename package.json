@@ -45,6 +45,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "jsdom": "^29.1.1",
+    "playwright": "1.60.0",
     "promptfoo": "^0.120.19",
     "shadcn": "^3.8.5",
     "tailwindcss": "^4",

@@ -7,14 +7,24 @@
  *   model, scores every row and prints the ranked table.
  *     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model data/hedonic-model.json] [--track 150148]
  *
- *   Live (PAID): scrapes the four innerstan districts on Apify, ranks every
- *   comparable flat for free, detail-fetches and picture-reads only the top
- *   FIT_VISION_WINDOW, re-ranks by profit, writes a snapshot under
- *   .planning/calibration/data/ and prints the real spend. It first compares
- *   the Apify monthly headroom with the run's worst-case cost and exits with
- *   code 2 when the headroom is smaller (R-13). `--dry-run` stops right after
- *   that check, before the first paid call.
+ *   Live: scrapes the four innerstan districts, ranks every comparable flat
+ *   for free, detail-fetches and picture-reads only the top FIT_VISION_WINDOW,
+ *   re-ranks by profit, writes a snapshot under .planning/calibration/data/
+ *   and prints the spend.
  *     npx tsx scripts/fit-score.ts [--window 20] [--budget-usd N] [--out <file>] [--dry-run]
+ *         [--renderer local|apify] [--allow-apify] [--apify-max-renders N]
+ *
+ *   Renderer (Phase 14.2, D-03, R-03): Booli pages are read by a headed
+ *   Chromium on this Mac by default (BOOLI_RENDERER or --renderer override;
+ *   see src/lib/booli/local-browser.ts). That is free: no Apify token is
+ *   needed and the Apify monthly-headroom check is skipped. A page the local
+ *   browser cannot get after one retry goes to Apify only with --allow-apify,
+ *   capped at --apify-max-renders (default 10), and then the token and the
+ *   headroom (cap x observed cost per render) are checked first. With
+ *   --renderer apify the 14.1 behaviour is unchanged: the run first compares the
+ *   Apify monthly headroom with its worst-case cost and exits with code 2 when
+ *   the headroom is smaller (R-13). `--dry-run` stops right after the checks,
+ *   before the first page is read.
  *
  * The orchestration (order of paid calls, filters, table) lives in
  * src/lib/discovery/fit-pipeline.ts so the Phase 14.2 email can reuse it.
@@ -31,7 +41,7 @@ import { dirname, resolve, sep } from "node:path";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { toCandidate } from "@/lib/discovery/candidate";
-import { observedApifyUsdEstimate } from "@/lib/discovery/cost";
+import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
 import {
   FIT_TABLE_MAX_ROWS,
   checkApifyHeadroom,
@@ -71,12 +81,14 @@ const APIFY_ENV = "APIFY_API_TOKEN";
 const ANTHROPIC_ENV = "ANTHROPIC_API_KEY";
 const EXPECTED_RENDER_MEMORY_MB = 2048;
 const MAX_WINDOW = 100;
+const DEFAULT_APIFY_MAX_RENDERS = 10;
+const MAX_APIFY_MAX_RENDERS = 100;
 
 const USAGE = `Användning:
   Uppspelning (gratis, offline):
     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
-  Live-körning (BETALD: Apify + Anthropic):
-    npx tsx scripts/fit-score.ts [--window ${FIT_VISION_WINDOW}] [--budget-usd <n>] [--out <fil>] [--dry-run] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+  Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
+    npx tsx scripts/fit-score.ts [--window ${FIT_VISION_WINDOW}] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
 
   --replay <fil>     Spela upp en sparad snapshot av bostäder till salu (inga nätverksanrop)
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
@@ -84,10 +96,13 @@ const USAGE = `Användning:
   --window <n>       Live: antal annonser som får detaljsida och bildtolkning, standard ${FIT_VISION_WINDOW} (0-${MAX_WINDOW})
   --budget-usd <n>   Live: kan bara höja det Apify-utrymme som krävs, aldrig sänka det under värsta-fall-uppskattningen
   --out <fil>        Live: snapshot att skriva, standard ${DATA_DIR}/forsale-snapshot-<datum>.json (måste ligga under ${DATA_DIR}/)
-  --dry-run          Live: gör förkontrollerna och Apify-utrymmeskontrollen, avsluta sedan innan första betalda anrop
+  --dry-run          Live: gör förkontrollerna (med Apify även utrymmeskontrollen), avsluta sedan innan första sidan hämtas
+  --renderer <r>     Live: local (standard när en skärm finns; gratis) eller apify (betald). Alternativ: miljövariabeln BOOLI_RENDERER
+  --allow-apify      Live, lokal webbläsare: låt en sida som blockerats två gånger gå till Apify (betald, kräver token och utrymme)
+  --apify-max-renders <n>  Live: tak för Apify-renderingar med --allow-apify, standard ${DEFAULT_APIFY_MAX_RENDERS} (1-${MAX_APIFY_MAX_RENDERS})
   --help             Visa den här texten
 
-Slutkoder: 0 klart (även med noll kandidater), 1 fel (argument, fil, nyckel saknas, alla distrikt misslyckades),
+Slutkoder: 0 klart (även med noll kandidater), 1 fel (argument, fil, nyckel saknas, alla distrikt misslyckades, ingen skärm),
 2 Apify-utrymmet för månaden är mindre än körningens uppskattade kostnad (inget betalt anrop gjordes).`;
 
 const sek = (n: number) => Math.round(n).toLocaleString("sv-SE");
@@ -106,6 +121,9 @@ interface Args {
   budgetUsd: number | null;
   out: string | null;
   dryRun: boolean;
+  renderer: string | null;
+  allowApify: boolean;
+  apifyMaxRenders: number;
   help: boolean;
 }
 
@@ -118,6 +136,9 @@ function parseArgs(argv: string[]): Args | null {
     budgetUsd: null,
     out: null,
     dryRun: false,
+    renderer: null,
+    allowApify: false,
+    apifyMaxRenders: DEFAULT_APIFY_MAX_RENDERS,
     help: false,
   };
   let liveOnly = false;
@@ -134,6 +155,15 @@ function parseArgs(argv: string[]): Args | null {
     } else if (flag === "--budget-usd" && value !== undefined && Number.isFinite(Number(value)) && Number(value) > 0) {
       out.budgetUsd = Number(value); liveOnly = true; i++;
     } else if (flag === "--out" && value !== undefined) { out.out = value; liveOnly = true; i++; }
+    else if (flag === "--renderer" && value !== undefined) { out.renderer = value; liveOnly = true; i++; }
+    else if (flag === "--allow-apify") { out.allowApify = true; liveOnly = true; }
+    else if (
+      flag === "--apify-max-renders" &&
+      value !== undefined &&
+      Number.isInteger(Number(value)) &&
+      Number(value) >= 1 &&
+      Number(value) <= MAX_APIFY_MAX_RENDERS
+    ) { out.apifyMaxRenders = Number(value); liveOnly = true; i++; }
     else return null;
   }
   if (out.replay !== null && liveOnly) return null;
@@ -308,29 +338,66 @@ function districtOf(name: string): InnerstanDistrict | null {
   return INNERSTAN_DISTRICTS.find((d) => d.toLowerCase() === name.trim().toLowerCase()) ?? null;
 }
 
+/** Local-browser counters for the spend block, or null when Apify rendered everything (14.1 mode). */
+interface LocalLedger {
+  stats: { pages: number; challenged: number; retried: number; failed: number; refused: number; apifyFallbacks: number };
+  apifyMaxRenders: number;
+}
+
+/**
+ * The spend block. Every ledger line starts at column 0 so evidence greps can
+ * anchor on it. Local mode prints the free local pages first, then (after the
+ * shared settle delay, WR-05) the real Apify bill from the runs API in the one
+ * pinned format `formatApifyRunsLine`.
+ */
 async function printSpend(
   t0: Date,
   result: FitPipelineResult,
-  apifySpendSince: (since: Date) => Promise<{ usd: number; runs: number; succeeded: number; timedOut: number; failed: number } | null>,
+  transport: Pick<typeof import("@/lib/booli/transport"), "apifySpendSince" | "formatApifyRunsLine" | "waitForLedgerSettle">,
+  local: LocalLedger | null,
 ): Promise<void> {
-  const real = await apifySpendSince(t0);
-  let apifyUsd: number;
   console.log("\nKostnad:");
-  if (real) {
-    apifyUsd = real.usd;
+  if (local) {
+    const s = local.stats;
     console.log(
-      `  Apify (från körnings-API:t, kontot som helhet, kan inkludera andra körningar sedan ${t0.toISOString()}): ${apifyUsd.toFixed(2)} USD (≈ ${sek(apifyUsd * USD_SEK_RATE)} kr), ${real.runs} körningar (${real.succeeded} lyckade, ${real.timedOut} timeout, ${real.failed} misslyckade)`,
+      `Lokal webbläsare: ${s.pages} sidor (${s.challenged} utmaningar, ${s.retried} omförsök, ${s.failed} misslyckade, ${s.refused} vägrade), 0,00 USD`,
     );
+    console.log(`Apify-reserv: ${s.apifyFallbacks} renderingar (tak ${local.apifyMaxRenders})`);
+  }
+  let apifyUsd = 0;
+  if (process.env[APIFY_ENV]) {
+    // WR-05: Apify books a run's usage a few seconds after it ends - wait before reading the bill, in every mode.
+    await transport.waitForLedgerSettle();
+    const real = await transport.apifySpendSince(t0);
+    if (real) {
+      apifyUsd = real.usd;
+      console.log(transport.formatApifyRunsLine(real));
+      console.log(`Obs: runs-API-siffran gäller hela kontot sedan ${t0.toISOString()} och kan inkludera andra körningar.`);
+    } else {
+      console.log(transport.formatApifyRunsLine(null, "körnings-API:t svarade inte"));
+      const renders = local ? local.stats.apifyFallbacks : result.areas.reduce((n, a) => n + a.renders, 0) + result.window.detailFetched;
+      apifyUsd = observedApifyUsdEstimate({ succeeded: renders, timedOut: 0 });
+      console.log(`Apify: uppskattning ${apifyUsd.toFixed(2)} USD (≈ ${sek(apifyUsd * USD_SEK_RATE)} kr)`);
+    }
   } else {
-    const renders = result.areas.reduce((n, a) => n + a.renders, 0) + result.window.detailFetched;
-    apifyUsd = observedApifyUsdEstimate({ succeeded: renders, timedOut: 0 });
-    console.log(`  Apify: uppskattning (körnings-API:t svarade inte) ${apifyUsd.toFixed(2)} USD (≈ ${sek(apifyUsd * USD_SEK_RATE)} kr)`);
+    console.log(transport.formatApifyRunsLine(null, `${APIFY_ENV} saknas`));
   }
   console.log(`  Anthropic (bildtolkning): ${result.visionSek.toFixed(2)} kr`);
   console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + result.visionSek)} kr`);
 }
 
 async function runLive(args: Args): Promise<void> {
+  // W5: the renderer line is the FIRST line runLive writes to stdout, so every dry run and every live log opens with it.
+  // local-browser.ts is loaded by dynamic import only here, so --replay stays offline (FIT-06).
+  const localBrowser = await import("@/lib/booli/local-browser");
+  const choice = localBrowser.resolveRendererChoice({ flag: args.renderer, env: process.env, platform: process.platform });
+  if ("error" in choice) {
+    console.error(choice.error);
+    process.exit(1);
+  }
+  const localMode = choice.renderer === "local";
+  console.log(localMode ? "Renderare: lokal webbläsare" : "Renderare: Apify");
+
   const outPath = guardedOutPath(args.out ?? `${DATA_DIR}/forsale-snapshot-${new Date().toISOString().slice(0, 10)}.json`);
   if (outPath === null) {
     console.error(`--out måste vara en .json-fil under ${DATA_DIR}/`);
@@ -343,26 +410,38 @@ async function runLive(args: Args): Promise<void> {
   const anthropicState = process.env[ANTHROPIC_ENV] ? "satt" : "saknas";
   console.log(`${APIFY_ENV}: ${apifyState}`);
   console.log(`${ANTHROPIC_ENV}: ${anthropicState}`);
-  if (apifyState === "saknas") process.exit(1);
+  // R-03: the local browser needs no Apify token. Only the paid modes do.
+  if (apifyState === "saknas" && (!localMode || args.allowApify)) process.exit(1);
   if (anthropicState === "saknas") console.log("Bildtolkning hoppas över: nyckel saknas");
 
   // Free: loading modules and reading limits spends nothing.
   const transport = await import("@/lib/booli/transport");
-  if (transport.RENDER_MEMORY_MB !== EXPECTED_RENDER_MEMORY_MB) {
-    console.error(`FEL: RENDER_MEMORY_MB är ${transport.RENDER_MEMORY_MB}, förväntade ${EXPECTED_RENDER_MEMORY_MB} (D-17). Ingen körning startad.`);
-    process.exit(1);
-  }
   const { splitAreaQuery } = await import("@/lib/discovery/resolve-area");
   const names = splitAreaQuery(AREA_QUERY);
 
-  // R-13: the headroom check runs before the first paid call.
-  const requiredUsd = Math.max(estimateFitRunUsd({ districts: names.length, window: args.window }), args.budgetUsd ?? 0);
-  console.log(`Uppskattad Apify-kostnad (värsta fall): ${requiredUsd.toFixed(2)} USD (${names.length} distrikt, fönster ${args.window})`);
-  const check = await checkApifyHeadroom(transport.apifyMonthlyHeadroomUsd, requiredUsd);
-  console.log(check.message);
-  if (!check.proceed) process.exit(2);
+  if (!localMode) {
+    if (transport.RENDER_MEMORY_MB !== EXPECTED_RENDER_MEMORY_MB) {
+      console.error(`FEL: RENDER_MEMORY_MB är ${transport.RENDER_MEMORY_MB}, förväntade ${EXPECTED_RENDER_MEMORY_MB} (D-17). Ingen körning startad.`);
+      process.exit(1);
+    }
+    // R-13: the headroom check runs before the first paid call.
+    const requiredUsd = Math.max(estimateFitRunUsd({ districts: names.length, window: args.window }), args.budgetUsd ?? 0);
+    console.log(`Uppskattad Apify-kostnad (värsta fall): ${requiredUsd.toFixed(2)} USD (${names.length} distrikt, fönster ${args.window})`);
+    const check = await checkApifyHeadroom(transport.apifyMonthlyHeadroomUsd, requiredUsd);
+    console.log(check.message);
+    if (!check.proceed) process.exit(2);
+  } else if (args.allowApify) {
+    // The only money that can be spent in local mode is the capped Apify fallback: check room for exactly that.
+    const requiredUsd = args.apifyMaxRenders * OBSERVED_USD_PER_TIMED_OUT_RENDER;
+    console.log(`Apify-reserv (--allow-apify): högst ${args.apifyMaxRenders} renderingar, värsta fall ${requiredUsd.toFixed(2)} USD`);
+    const check = await checkApifyHeadroom(transport.apifyMonthlyHeadroomUsd, requiredUsd);
+    console.log(check.message);
+    if (!check.proceed) process.exit(2);
+  } else {
+    console.log("Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.");
+  }
   if (args.dryRun) {
-    console.log("--dry-run: förkontrollerna är klara, ingen betald körning startades.");
+    console.log(localMode ? "--dry-run: förkontrollerna är klara, ingen webbläsare startades." : "--dry-run: förkontrollerna är klara, ingen betald körning startades.");
     return;
   }
 
@@ -422,40 +501,55 @@ async function runLive(args: Args): Promise<void> {
         : async (candidates) => candidates,
   };
 
-  const t0 = new Date();
-  console.log(`\nStart: ${t0.toISOString()}`);
-  const result = await runFitPipeline(deps, { model, asOf, window: args.window });
+  // Local mode: install the headed-Chromium renderer into transport.ts. From here every Booli read in
+  // this process (scrape, detail, vision enrichment) goes through it; Apify is touched only by an
+  // explicit --allow-apify fallback. Nothing may process.exit past this point: the browser must close.
+  const handle = localMode
+    ? localBrowser.installLocalRenderer({ allowApify: args.allowApify, apifyMaxRenders: args.apifyMaxRenders })
+    : null;
+  const disposeSignals = handle ? localBrowser.closeOnSignals(handle) : null;
+  const ledger = (): LocalLedger | null => (handle ? { stats: handle.stats(), apifyMaxRenders: args.apifyMaxRenders } : null);
 
-  printModelLine(model);
-  console.log(renderAreaReport(result.areas));
-  const everyDistrictFailed = result.areas.length > 0 && result.areas.every((a) => !a.ok);
-  if (everyDistrictFailed) {
-    console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
-    await printSpend(t0, result, transport.apifySpendSince);
-    process.exit(1);
-  }
-
-  // The snapshot is written before the long printout, so a paid result survives a printing bug.
-  // A failed write is reported at the end (exit 1) but never hides the paid result.
-  let writeError: string | null = null;
   try {
-    writeJsonAtomic(outPath, result.snapshot satisfies FitSnapshot);
-  } catch (e) {
-    writeError = e instanceof Error ? e.message : String(e);
-  }
+    const t0 = new Date();
+    console.log(`\nStart: ${t0.toISOString()}`);
+    const result = await runFitPipeline(deps, { model, asOf, window: args.window });
 
-  console.log(
-    `\nAnnonser: ${result.counts.scraped} hämtade, ${result.counts.deduped} efter dubblettstädning, ${result.counts.filtered} efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); ${result.ranking.ranked.length} jämförbara, ${result.ranking.notComparable.length} ej jämförbara`,
-  );
-  console.log(`\n${renderWindowReport(result)}`);
-  console.log("");
-  printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track);
-  await printSpend(t0, result, transport.apifySpendSince);
-  if (writeError === null) {
-    console.log(`\nSnapshot skriven: ${outPath}`);
-  } else {
-    console.error(`\nFEL: snapshoten kunde inte skrivas till ${outPath}: ${writeError}`);
-    process.exit(1);
+    printModelLine(model);
+    console.log(renderAreaReport(result.areas));
+    const everyDistrictFailed = result.areas.length > 0 && result.areas.every((a) => !a.ok);
+    if (everyDistrictFailed) {
+      console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
+      await printSpend(t0, result, transport, ledger());
+      process.exitCode = 1;
+      return;
+    }
+
+    // The snapshot is written before the long printout, so a paid result survives a printing bug.
+    // A failed write is reported at the end (exit 1) but never hides the paid result.
+    let writeError: string | null = null;
+    try {
+      writeJsonAtomic(outPath, result.snapshot satisfies FitSnapshot);
+    } catch (e) {
+      writeError = e instanceof Error ? e.message : String(e);
+    }
+
+    console.log(
+      `\nAnnonser: ${result.counts.scraped} hämtade, ${result.counts.deduped} efter dubblettstädning, ${result.counts.filtered} efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); ${result.ranking.ranked.length} jämförbara, ${result.ranking.notComparable.length} ej jämförbara`,
+    );
+    console.log(`\n${renderWindowReport(result)}`);
+    console.log("");
+    printRanking(result.ranking, result.snapshot.rows, result.preRankPositions, args.track);
+    await printSpend(t0, result, transport, ledger());
+    if (writeError === null) {
+      console.log(`\nSnapshot skriven: ${outPath}`);
+    } else {
+      console.error(`\nFEL: snapshoten kunde inte skrivas till ${outPath}: ${writeError}`);
+      process.exitCode = 1;
+    }
+  } finally {
+    disposeSignals?.();
+    await handle?.close();
   }
 }
 

@@ -20,6 +20,15 @@
  * retried. The cache is the only thing written, and only inside
  * `.planning/calibration/data/` (gitignored, T-14.1-04, T-14.1-12).
  *
+ * Renderer (Phase 14.2, D-03, R-03): pages are read by a headed Chromium on this
+ * Mac by default (--renderer local|apify or BOOLI_RENDERER; see
+ * src/lib/booli/local-browser.ts). That costs nothing: the Apify token, the
+ * RENDER_MEMORY_MB check, the monthly-headroom check and the --budget-usd
+ * arithmetic are all skipped. A page the local browser cannot get after one
+ * retry goes to Apify only with --allow-apify (capped by --apify-max-renders,
+ * default 10). With --renderer apify everything below is as in 14.1. The local
+ * browser serves 2 pages at a time whatever --concurrency says.
+ *
  * Secret posture: prints "satt"/"saknas" for the Apify token, never the value.
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
@@ -29,12 +38,14 @@ import {
   runPlaywrightRender,
   apifyMonthlyHeadroomUsd,
   apifySpendSince,
+  formatApifyRunsLine,
+  waitForLedgerSettle,
 } from "@/lib/booli/transport";
 import { APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
 import { isBooliUrl } from "@/lib/booli/client";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { INNERSTAN_DISTRICTS, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
-import { observedApifyUsdEstimate } from "@/lib/discovery/cost";
+import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import {
   SLUTPRIS_CONCURRENCY,
@@ -62,7 +73,6 @@ const DATA_DIR = join(process.cwd(), ".planning", "calibration", "data");
 const DEFAULT_CACHE = join(DATA_DIR, "slutpriser-cache.json");
 /** PROBES SLUTPRIS_ORDER: newest-first (page 30 held strictly descending dates). */
 const NEWEST_FIRST = true;
-const LEDGER_SETTLE_MS = 10_000;
 /** Re-read the real bill from the runs API after this many finished renders. */
 const SPEND_REFRESH_EVERY = 15;
 /** Fixed seed for the enrichment sample, so the same rows are drawn on every run (14.1-08). */
@@ -76,6 +86,111 @@ function argValue(name: string): string | null {
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
 }
 const hasFlag = (name: string): boolean => process.argv.includes(name);
+
+/** The local browser's counters for the ledger. */
+interface LocalStats {
+  pages: number;
+  challenged: number;
+  retried: number;
+  failed: number;
+  refused: number;
+  apifyFallbacks: number;
+}
+
+/** What the renderer choice means for one run (D-03, R-03). */
+interface RendererContext {
+  /** True when Booli pages are read by the local browser (free). */
+  local: boolean;
+  allowApify: boolean;
+  apifyMaxRenders: number;
+}
+
+/**
+ * Resolves --renderer / BOOLI_RENDERER and prints the renderer line. Exits 1
+ * with a Swedish message when no display is available and nothing was chosen.
+ */
+async function resolveRenderer(): Promise<RendererContext> {
+  const { resolveRendererChoice } = await import("@/lib/booli/local-browser");
+  const choice = resolveRendererChoice({ flag: argValue("--renderer"), env: process.env, platform: process.platform });
+  if ("error" in choice) {
+    console.error(choice.error);
+    process.exit(1);
+  }
+  const local = choice.renderer === "local";
+  console.log(local ? "Renderare: lokal webbläsare" : "Renderare: Apify");
+  return { local, allowApify: hasFlag("--allow-apify"), apifyMaxRenders: intArg("--apify-max-renders", 10, 1, 100) };
+}
+
+/**
+ * Installs the local renderer when `ctx.local` and returns a closer that is safe to call from `finally`
+ * (it also unregisters the SIGINT/SIGTERM handlers). Nothing may process.exit while the browser is open.
+ */
+async function installRenderer(ctx: RendererContext): Promise<{
+  stats: () => LocalStats | null;
+  close: () => Promise<void>;
+}> {
+  if (!ctx.local) return { stats: () => null, close: async () => undefined };
+  const lb = await import("@/lib/booli/local-browser");
+  const handle = lb.installLocalRenderer({ allowApify: ctx.allowApify, apifyMaxRenders: ctx.apifyMaxRenders });
+  const dispose = lb.closeOnSignals(handle);
+  return {
+    stats: () => handle.stats(),
+    close: async () => {
+      dispose();
+      await handle.close();
+    },
+  };
+}
+
+/** Whether the Apify checks apply: always in apify mode, and in local mode only for the capped fallback. */
+const needsApifyToken = (ctx: RendererContext): boolean => !ctx.local || ctx.allowApify;
+
+/** The local-mode ledger: free pages first, then the settled real Apify bill in the one pinned format. */
+async function printLocalLedger(t0: Date, stats: LocalStats, ctx: RendererContext): Promise<void> {
+  console.log("\n=== KOSTNAD ===");
+  console.log(
+    `Lokal webbläsare: ${stats.pages} sidor (${stats.challenged} utmaningar, ${stats.retried} omförsök, ${stats.failed} misslyckade, ${stats.refused} vägrade), 0,00 USD`,
+  );
+  console.log(`Apify-reserv: ${stats.apifyFallbacks} renderingar (tak ${ctx.apifyMaxRenders})`);
+  if (process.env[TOKEN_ENV_NAME]) {
+    await waitForLedgerSettle();
+    const real = await apifySpendSince(t0);
+    console.log(real ? formatApifyRunsLine(real) : formatApifyRunsLine(null, "körnings-API:t svarade inte"));
+    if (real) console.log(`Obs: runs-API-siffran gäller hela kontot sedan ${t0.toISOString()} och kan inkludera andra körningar.`);
+  } else {
+    console.log(formatApifyRunsLine(null, `${TOKEN_ENV_NAME} saknas`));
+  }
+}
+
+/**
+ * The pre-run Apify checks (T-14.1-01: token presence only, never the value; D-17: 2048 MB; R-13: headroom).
+ * Apify mode: all three, against `budgetUsd`. Local mode: skipped entirely (R-03) unless --allow-apify, where
+ * the token and the headroom for exactly the capped fallback (cap x observed cost per render) are checked.
+ * Exits the process, so call it BEFORE the local browser starts.
+ */
+async function apifyPreflight(ctx: RendererContext, budgetUsd: number): Promise<void> {
+  const tokenState = process.env[TOKEN_ENV_NAME] ? "satt" : "saknas";
+  console.log(`${TOKEN_ENV_NAME}: ${tokenState}`);
+  if (!needsApifyToken(ctx)) {
+    console.log("Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.");
+    return;
+  }
+  if (tokenState === "saknas") process.exit(1);
+  if (!ctx.local && RENDER_MEMORY_MB !== 2048) {
+    console.error(`FEL: RENDER_MEMORY_MB är ${RENDER_MEMORY_MB}, förväntade 2048 (D-17). Ingen körning startad.`);
+    process.exit(1);
+  }
+  // R-13: the headroom check runs before the first paid render.
+  const requiredUsd = ctx.local ? ctx.apifyMaxRenders * OBSERVED_USD_PER_TIMED_OUT_RENDER : budgetUsd;
+  const headroom = await apifyMonthlyHeadroomUsd();
+  console.log(
+    `Apify månadsutrymme: ${headroom === null ? "okänt" : `${headroom.toFixed(2)} USD`}, ${ctx.local ? `reserv (${ctx.apifyMaxRenders} renderingar)` : "budget"} ${requiredUsd.toFixed(2)} USD`,
+  );
+  if (headroom !== null && headroom < requiredUsd) {
+    console.error(`FEL: månadsutrymmet (${headroom.toFixed(2)} USD) är mindre än ${ctx.local ? "Apify-reserven" : "--budget-usd"} (${requiredUsd.toFixed(2)} USD). Ingen körning startad.`);
+    process.exit(1);
+  }
+}
 
 function intArg(name: string, fallback: number, min: number, max: number): number {
   const raw = argValue(name);
@@ -271,6 +386,7 @@ async function runEnrichment(opts: {
   budgetUsd: number;
   concurrency: number;
   dryRun: boolean;
+  renderer: RendererContext;
 }): Promise<void> {
   const { cache, cachePath } = opts;
   if (!cache) throw new Error(`Ingen cache att berika på ${cachePath} (kör själva hämtningen först)`);
@@ -289,20 +405,7 @@ async function runEnrichment(opts: {
     return;
   }
 
-  const tokenState = process.env[TOKEN_ENV_NAME] ? "satt" : "saknas";
-  console.log(`${TOKEN_ENV_NAME}: ${tokenState}`);
-  if (tokenState === "saknas") process.exit(1);
-  if (RENDER_MEMORY_MB !== 2048) {
-    console.error(`FEL: RENDER_MEMORY_MB är ${RENDER_MEMORY_MB}, förväntade 2048 (D-17). Ingen körning startad.`);
-    process.exit(1);
-  }
-  // R-13: the headroom check runs before the first paid render.
-  const headroom = await apifyMonthlyHeadroomUsd();
-  console.log(`Apify månadsutrymme: ${headroom === null ? "okänt" : `${headroom.toFixed(2)} USD`}, budget ${opts.budgetUsd.toFixed(2)} USD`);
-  if (headroom !== null && headroom < opts.budgetUsd) {
-    console.error(`FEL: månadsutrymmet (${headroom.toFixed(2)} USD) är mindre än --budget-usd (${opts.budgetUsd.toFixed(2)} USD). Ingen körning startad.`);
-    process.exit(1);
-  }
+  await apifyPreflight(opts.renderer, opts.budgetUsd);
 
   const persist = persistTo(cachePath);
   const t0 = new Date();
@@ -311,7 +414,8 @@ async function runEnrichment(opts: {
   let failedRenders = 0;
   let lastRealUsd = 0;
   let refreshing = false;
-  const spentUsd = (): number => Math.max(lastRealUsd, observedApifyUsdEstimate({ succeeded, timedOut: failedRenders }));
+  // Local pages cost nothing; the capped Apify fallback is bounded by the renderer's own cap, not by this guard.
+  const spentUsd = (): number => (opts.renderer.local ? 0 : Math.max(lastRealUsd, observedApifyUsdEstimate({ succeeded, timedOut: failedRenders })));
   const refreshReal = (): void => {
     if (refreshing) return;
     refreshing = true;
@@ -336,25 +440,31 @@ async function runEnrichment(opts: {
       failedRenders += 1;
       throw e;
     } finally {
-      if ((succeeded + failedRenders) % SPEND_REFRESH_EVERY === 0) refreshReal();
+      if (!opts.renderer.local && (succeeded + failedRenders) % SPEND_REFRESH_EVERY === 0) refreshReal();
     }
   };
 
   let done = 0;
-  const result = await enrichSoldRows({
-    rows: cache.rows,
-    sample,
-    render,
-    concurrency: opts.concurrency,
-    maxRenders: opts.maxRenders,
-    persist: () => {
-      persist(cache);
-      done += 1;
-      if (done % 10 === 0) console.log(`  ${done} berikade (render ${succeeded + failedRenders}, uppskattat ${spentUsd().toFixed(2)} USD)`);
-    },
-    budgetExceeded: () => spentUsd() >= opts.budgetUsd,
-    onProgress: (msg) => console.log(`  ${msg}`),
-  });
+  const browser = await installRenderer(opts.renderer);
+  let result: Awaited<ReturnType<typeof enrichSoldRows>>;
+  try {
+    result = await enrichSoldRows({
+      rows: cache.rows,
+      sample,
+      render,
+      concurrency: opts.concurrency,
+      maxRenders: opts.maxRenders,
+      persist: () => {
+        persist(cache);
+        done += 1;
+        if (done % 10 === 0) console.log(`  ${done} berikade (render ${succeeded + failedRenders}, uppskattat ${spentUsd().toFixed(2)} USD)`);
+      },
+      budgetExceeded: () => spentUsd() >= opts.budgetUsd,
+      onProgress: (msg) => console.log(`  ${msg}`),
+    });
+  } finally {
+    await browser.close();
+  }
   persist(cache);
 
   console.log(`\nBerikning klar. Renders: ${result.rendersUsed} (lyckade ${succeeded}, misslyckade ${failedRenders}). Berikade rader: ${result.enriched}, misslyckade: ${result.failed}.`);
@@ -368,22 +478,27 @@ async function runEnrichment(opts: {
       `balkong angiven ${withBalcony}, ingen balkong angiven ${withoutBalcony}, utgångspris ${withList} (${pct(withList, enrichedRows.length)}).`,
   );
 
-  console.log("\n=== KOSTNAD ===");
-  await new Promise((r) => setTimeout(r, LEDGER_SETTLE_MS));
-  const spend = await apifySpendSince(t0);
-  if (spend) {
-    console.log(
-      `Apify-kostnad: ${spend.usd.toFixed(4)} USD (runs-api) = ${(spend.usd * USD_SEK_RATE).toFixed(2)} SEK` +
-        ` | körningar ${spend.runs} (ok ${spend.succeeded}, timeout ${spend.timedOut}, fel ${spend.failed}, övrigt ${spend.other}, saknar kostnad ${spend.missingUsage})` +
-        ` | per render ${spend.runs > 0 ? (spend.usd / spend.runs).toFixed(4) : "-"} USD`,
-    );
-    console.log("Obs: huvudboken är kontoomfattande - en samtidig körning från annat verktyg i samma fönster räknas också.");
+  const localStats = browser.stats();
+  if (localStats) {
+    await printLocalLedger(t0, localStats, opts.renderer);
   } else {
-    const est = observedApifyUsdEstimate({ succeeded, timedOut: failedRenders });
-    console.log(`Apify-kostnad: ${est.toFixed(4)} USD (estimate) - uppskattning (runs-API:t svarade inte), ${(est * USD_SEK_RATE).toFixed(2)} SEK`);
+    console.log("\n=== KOSTNAD ===");
+    await waitForLedgerSettle();
+    const spend = await apifySpendSince(t0);
+    if (spend) {
+      console.log(
+        `Apify-kostnad: ${spend.usd.toFixed(4)} USD (runs-api) = ${(spend.usd * USD_SEK_RATE).toFixed(2)} SEK` +
+          ` | körningar ${spend.runs} (ok ${spend.succeeded}, timeout ${spend.timedOut}, fel ${spend.failed}, övrigt ${spend.other}, saknar kostnad ${spend.missingUsage})` +
+          ` | per render ${spend.runs > 0 ? (spend.usd / spend.runs).toFixed(4) : "-"} USD`,
+      );
+      console.log("Obs: huvudboken är kontoomfattande - en samtidig körning från annat verktyg i samma fönster räknas också.");
+    } else {
+      const est = observedApifyUsdEstimate({ succeeded, timedOut: failedRenders });
+      console.log(`Apify-kostnad: ${est.toFixed(4)} USD (estimate) - uppskattning (runs-API:t svarade inte), ${(est * USD_SEK_RATE).toFixed(2)} SEK`);
+    }
+    const after = await apifyMonthlyHeadroomUsd();
+    console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
   }
-  const after = await apifyMonthlyHeadroomUsd();
-  console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
   if (result.failed > 0 || result.rendersUsed < sample.length) {
     console.log("Kör samma kommando igen för att fortsätta (redan berikade rader renderas inte om).");
   }
@@ -408,6 +523,11 @@ async function main(): Promise<void> {
 
   const existing = loadCache(cachePath);
 
+  // D-03: the renderer line comes before any dry-run return. --report-only reads the cache only and needs none.
+  const rctx: RendererContext = hasFlag("--report-only")
+    ? { local: false, allowApify: false, apifyMaxRenders: 10 }
+    : await resolveRenderer();
+
   const enrichSample = intArg("--enrich-sample", 0, 0, 300);
   if (enrichSample > 0) {
     const since = argValue("--enrich-since");
@@ -421,6 +541,7 @@ async function main(): Promise<void> {
       budgetUsd,
       concurrency,
       dryRun: hasFlag("--dry-run"),
+      renderer: rctx,
     });
     return;
   }
@@ -439,7 +560,11 @@ async function main(): Promise<void> {
       `${upperCount} övre band med max ${SLUTPRIS_UPPER_BAND_MAX_PAGES} sidor), högst ${SLUTPRIS_MAX_PAGES_PER_SLICE} sidor per delmängd, ` +
       `övre gräns ${maxPlanned} sidor, render-tak ${maxRenders}, budget ${budgetUsd.toFixed(2)} USD, samtidighet ${concurrency}`,
   );
-  console.log(`Render: ${SLUTPRIS_WAIT_SECS} s väntan, ${SLUTPRIS_MAX_RETRIES} Apify-omförsök, ${RENDER_MEMORY_MB} MB`);
+  console.log(
+    rctx.local
+      ? `Render: lokal webbläsare, 2 sidor åt gången, Apify-reserv ${rctx.allowApify ? `högst ${rctx.apifyMaxRenders} renderingar` : "av"}`
+      : `Render: ${SLUTPRIS_WAIT_SECS} s väntan, ${SLUTPRIS_MAX_RETRIES} Apify-omförsök, ${RENDER_MEMORY_MB} MB`,
+  );
 
   const asOf = new Date().toISOString().slice(0, 10);
   let cache: SlutprisCache;
@@ -465,20 +590,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Preflight (T-14.1-01: presence only, never the value; D-17: respect the 2048 MB fix).
-  const tokenState = process.env[TOKEN_ENV_NAME] ? "satt" : "saknas";
-  console.log(`${TOKEN_ENV_NAME}: ${tokenState}`);
-  if (tokenState === "saknas") process.exit(1);
-  if (RENDER_MEMORY_MB !== 2048) {
-    console.error(`FEL: RENDER_MEMORY_MB är ${RENDER_MEMORY_MB}, förväntade 2048 (D-17). Ingen körning startad.`);
-    process.exit(1);
-  }
-  const headroom = await apifyMonthlyHeadroomUsd();
-  console.log(`Apify månadsutrymme: ${headroom === null ? "okänt" : `${headroom.toFixed(2)} USD`}, budget ${budgetUsd.toFixed(2)} USD`);
-  if (headroom !== null && headroom < budgetUsd) {
-    console.error(`FEL: månadsutrymmet (${headroom.toFixed(2)} USD) är mindre än --budget-usd (${budgetUsd.toFixed(2)} USD). Ingen körning startad.`);
-    process.exit(1);
-  }
+  // Preflight (T-14.1-01: presence only, never the value; D-17: respect the 2048 MB fix). Skipped in local mode (R-03).
+  await apifyPreflight(rctx, budgetUsd);
 
   mkdirSync(dirname(cachePath), { recursive: true });
   const persist = persistTo(cachePath);
@@ -492,7 +605,8 @@ async function main(): Promise<void> {
   let failedRenders = 0;
   let lastRealUsd = 0;
   let refreshing = false;
-  const spentUsd = (): number => Math.max(lastRealUsd, observedApifyUsdEstimate({ succeeded, timedOut: failedRenders }));
+  // Local pages cost nothing; the capped Apify fallback is bounded by the renderer's own cap, not by this guard.
+  const spentUsd = (): number => (rctx.local ? 0 : Math.max(lastRealUsd, observedApifyUsdEstimate({ succeeded, timedOut: failedRenders })));
   const refreshReal = (): void => {
     if (refreshing) return;
     refreshing = true;
@@ -517,23 +631,29 @@ async function main(): Promise<void> {
       failedRenders += 1;
       throw e;
     } finally {
-      if ((succeeded + failedRenders) % SPEND_REFRESH_EVERY === 0) refreshReal();
+      if (!rctx.local && (succeeded + failedRenders) % SPEND_REFRESH_EVERY === 0) refreshReal();
     }
   };
 
-  const result = await pullSlutpriser({
-    slices,
-    render,
-    cache,
-    cutoffIso: cache.cutoff,
-    concurrency,
-    maxPagesPerSlice: SLUTPRIS_MAX_PAGES_PER_SLICE,
-    maxRenders,
-    newestFirst: NEWEST_FIRST,
-    persist,
-    onProgress: (msg) => console.log(`  ${msg}`),
-    budgetExceeded: () => spentUsd() >= budgetUsd,
-  });
+  const browser = await installRenderer(rctx);
+  let result: Awaited<ReturnType<typeof pullSlutpriser>>;
+  try {
+    result = await pullSlutpriser({
+      slices,
+      render,
+      cache,
+      cutoffIso: cache.cutoff,
+      concurrency,
+      maxPagesPerSlice: SLUTPRIS_MAX_PAGES_PER_SLICE,
+      maxRenders,
+      newestFirst: NEWEST_FIRST,
+      persist,
+      onProgress: (msg) => console.log(`  ${msg}`),
+      budgetExceeded: () => spentUsd() >= budgetUsd,
+    });
+  } finally {
+    await browser.close();
+  }
   persist(result.cache);
 
   const stopText =
@@ -548,21 +668,26 @@ async function main(): Promise<void> {
   printSummary(result.cache);
 
   // Spend ledger: the real bill from the runs API; labelled estimate only if that fails.
-  console.log("\n=== KOSTNAD ===");
-  await new Promise((r) => setTimeout(r, LEDGER_SETTLE_MS));
-  const spend = await apifySpendSince(t0);
-  if (spend) {
-    console.log(
-      `Apify-kostnad: ${spend.usd.toFixed(4)} USD (runs-api) = ${(spend.usd * USD_SEK_RATE).toFixed(2)} SEK` +
-        ` | körningar ${spend.runs} (ok ${spend.succeeded}, timeout ${spend.timedOut}, fel ${spend.failed}, övrigt ${spend.other}, saknar kostnad ${spend.missingUsage})`,
-    );
-    console.log("Obs: huvudboken är kontoomfattande - en samtidig körning från annat verktyg i samma fönster räknas också.");
+  const localStats = browser.stats();
+  if (localStats) {
+    await printLocalLedger(t0, localStats, rctx);
   } else {
-    const est = observedApifyUsdEstimate({ succeeded, timedOut: failedRenders });
-    console.log(`Apify-kostnad: ${est.toFixed(4)} USD (estimate) - uppskattning (runs-API:t svarade inte), ${(est * USD_SEK_RATE).toFixed(2)} SEK`);
+    console.log("\n=== KOSTNAD ===");
+    await waitForLedgerSettle();
+    const spend = await apifySpendSince(t0);
+    if (spend) {
+      console.log(
+        `Apify-kostnad: ${spend.usd.toFixed(4)} USD (runs-api) = ${(spend.usd * USD_SEK_RATE).toFixed(2)} SEK` +
+          ` | körningar ${spend.runs} (ok ${spend.succeeded}, timeout ${spend.timedOut}, fel ${spend.failed}, övrigt ${spend.other}, saknar kostnad ${spend.missingUsage})`,
+      );
+      console.log("Obs: huvudboken är kontoomfattande - en samtidig körning från annat verktyg i samma fönster räknas också.");
+    } else {
+      const est = observedApifyUsdEstimate({ succeeded, timedOut: failedRenders });
+      console.log(`Apify-kostnad: ${est.toFixed(4)} USD (estimate) - uppskattning (runs-API:t svarade inte), ${(est * USD_SEK_RATE).toFixed(2)} SEK`);
+    }
+    const after = await apifyMonthlyHeadroomUsd();
+    console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
   }
-  const after = await apifyMonthlyHeadroomUsd();
-  console.log(`Apify månadsutrymme kvar: ${after === null ? "okänt" : `${after.toFixed(2)} USD`}`);
 
   if (result.stoppedBy !== "done" || Object.values(result.cache.pages).some((p) => p.status === "failed")) {
     console.log("Kör samma kommando igen för att återuppta (färdiga sidor renderas inte om, misslyckade försöks på nytt).");

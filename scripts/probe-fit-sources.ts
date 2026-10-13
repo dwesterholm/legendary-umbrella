@@ -26,6 +26,7 @@ import {
   runPlaywrightRender,
   apifySpendSince,
   apifyMonthlyHeadroomUsd,
+  waitForLedgerSettle,
 } from "@/lib/booli/transport";
 import { isBooliUrl } from "@/lib/booli/client";
 import { observedApifyUsdEstimate } from "@/lib/discovery/cost";
@@ -44,7 +45,6 @@ const SLUTPRIS_PAGES = [10, 30, 60];
 const TRACKED_BOOLI_ID = "150148";
 const DATA_DIR = join(process.cwd(), ".planning", "calibration", "data");
 const PROTOTYPE_COPY = join(DATA_DIR, "prototype-budget-2026-10-12.json");
-const LEDGER_SETTLE_MS = 8000;
 /** Name only; the value is never read into a variable that is printed. */
 const TOKEN_ENV_NAME = "APIFY_API_TOKEN";
 
@@ -666,7 +666,7 @@ async function main() {
 
   // Spend ledger: the real bill from the runs API; labelled estimate only if that fails.
   console.log("\n=== KOSTNAD ===");
-  await new Promise((resolve) => setTimeout(resolve, LEDGER_SETTLE_MS));
+  await waitForLedgerSettle();
   const spend = await apifySpendSince(t0);
   if (spend) {
     console.log(

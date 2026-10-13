@@ -339,6 +339,15 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/reno-tier",
     "discovery/taste",
     "discovery/fit-pipeline",
+    // Phase 14.2 (2026-10-13): the local browser rung, the BRF page reader and the
+    // watch modules are script-side only; ranking and flags must never import them.
+    // The matcher is a substring match, so "discovery/watch-" covers every watch module.
+    "booli/local-browser",
+    "booli/brf-page",
+    "discovery/listing-facts",
+    "discovery/watch-",
+    "discovery/vision-cache",
+    "discovery/json-store",
   ];
 
   // Matches a whole `import ... from "..."` / `export ... from "..."`
