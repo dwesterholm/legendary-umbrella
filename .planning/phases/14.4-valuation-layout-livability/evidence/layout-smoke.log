@@ -1,0 +1,6 @@
+ANTHROPIC_API_KEY: satt
+Smoke Folkungagatan 61 (read): balkong courtyard, vardagsrum på balkongsidan ja, kök nej, sovrum ja, fönster one, sovrumssida courtyard, bevis courtyardGreenery, konfidens 0,55
+Smoke syntetisk planritning (read): balkong unknown, vardagsrum på balkongsidan nej, kök nej, sovrum nej, fönster unknown, sovrumssida unknown, bevis none, konfidens 0,10
+Folkungagatan 61 mot sanningen (balkong gata, fönster en sida, sovrum gata): balkong nej, fönster ja, sovrum nej
+Efter spärren (konfidens ≥ 0,6 och fotobevis): balkongsida okänd, sovrumssida okänd
+Smoke: 2 av 2 tolkade, schemat gick igenom, 2 anrop, 0 från cache, 0,11 kr denna körning (totalt 0,11 kr, taket 1,00 kr gäller körningen; körtak i vanlig körning 40,00 kr)
