@@ -207,12 +207,12 @@ describe("renderWatchHtml", () => {
   });
 
   it("the three Sol columns sit right after 'Smak' and before 'Flaggor', and each row's cells are at the same index as the headings", () => {
-    const headings = [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
+    const headings = [...firstTable.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
     const smak = headings.indexOf("Smak");
     expect(headings.slice(smak, smak + 5)).toEqual(["Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor"]);
     expect(headings[headings.length - 1]).toBe("Booli");
     // The first body row of the first table: one <td> per heading, the Sol cells at the heading indexes.
-    const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
     const firstRow = firstTable.split("<tr>")[2];
     const cells = [...firstRow.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
     expect(cells).toHaveLength(headings.length);

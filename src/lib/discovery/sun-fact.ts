@@ -427,3 +427,44 @@ export function formatSolCell(fact: SunFact | null): string {
   }
   return cell;
 }
+
+// ---------------------------------------------------------------------------
+// The hour cells (D-08)
+// ---------------------------------------------------------------------------
+
+/** Hours with one decimal and a decimal comma: 5.5 prints "5,5". */
+const hours1 = (h: number): string => h.toFixed(1).replace(".", ",");
+
+/** The dates the Sol hour cells print, in order (21 March, June and December). */
+const SOL_CELL_DATES = ["mar", "jun", "dec"] as const;
+
+/** A range wider than this many hours (strictly) is marked "usäker". */
+const SOL_UNCERTAIN_WIDTH_H = 2;
+
+/**
+ * The two hour cells of the table and the mail (D-08), from the first side of the fact, for the morning and
+ * midday window (06:00-15:00 local):
+ *
+ * - theoretical: "6,0/5,5/4,1", the hours with nothing in the way on 21 March, June and December.
+ * - obstructed: per date "<nominal> (<low>-<high>)" (an en dash) joined by " / ", then " usäker" when any of the
+ *   three dates is wider than 2,0 h, then " höjd uppskattad" when a neighbour's height is our estimate.
+ *
+ * "-" when the run did not look (null), the flat is okänd, or the side has no hours; a flat with hours but no
+ * obstructed range (floor unknown) gets its theoretical cell and "-" for the obstructed one. The text holds only
+ * digits, commas, an en dash, brackets, slashes and Swedish words.
+ */
+export function formatSolHours(fact: SunFact | null): { theoretical: string; obstructed: string } {
+  const none = { theoretical: "-", obstructed: "-" };
+  if (fact === null || fact.source === "okänd") return none;
+  const hours = fact.sides[0]?.hours ?? null;
+  if (hours === null) return none;
+  const theoretical = SOL_CELL_DATES.map((d) => hours1(hours[d].theoreticalWindow)).join("/");
+  const ranges = SOL_CELL_DATES.map((d) => hours[d].obstructedWindow);
+  if (ranges.some((r) => r === null)) return { theoretical, obstructed: "-" };
+  const present = ranges as HoursRange[];
+  let obstructed = present.map((r) => `${hours1(r.nominal)} (${hours1(r.low)}\u2013${hours1(r.high)})`).join(" / ");
+  // Compared in tenths of an hour: 4,4 - 2,4 is 2,0000000000000004 in floating point, and exactly 2,0 h is not usäker.
+  if (present.some((r) => Math.round((r.high - r.low) * 10) > SOL_UNCERTAIN_WIDTH_H * 10)) obstructed += " usäker";
+  if (hours.heightsEstimated) obstructed += " höjd uppskattad";
+  return { theoretical, obstructed };
+}

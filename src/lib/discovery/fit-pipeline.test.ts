@@ -403,7 +403,7 @@ describe("table rows and rendering (FIT-03)", () => {
   it("the header puts 'Sol' right after 'Smak'; a row prints '-' without a sun record and the formatted cell with one (D-02)", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
     expect(headerCells.indexOf("Sol")).toBe(headerCells.indexOf("Smak") + 1);
-    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 1);
+    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 3); // two hour columns in between (plan 07)
     const none = renderFitTable(toFitTableRows({ ranked: [sample[0]] }, new Map())).split("\n")[1].split(" | ");
     expect(none).toHaveLength(headerCells.length);
     expect(none[headerCells.indexOf("Sol")]).toBe("-");
@@ -815,15 +815,15 @@ describe("coverage (R-05)", () => {
     expect(renderCoverage(computeCoverage(hand))).toBe(
       "Täckning (3 annonser): detaljsida 2 av 3 (66,7 %), balkong känd 3 av 3 (100,0 %), skick känt 1 av 3 (33,3 %), " +
         "beskrivning läst 2 av 3 (66,7 %), sol/orientering angiven 2 av 3 (66,7 %), avgift 1 av 3 (33,3 %), upplåtelseform 2 av 3 (66,7 %), " +
-        "föreningsskuld känd 0 av 3 (0,0 %)",
+        "föreningsskuld känd 0 av 3 (0,0 %), sol härledd 0 av 3 (0,0 %)",
     );
   });
 
   it("N = 0 prints '0 av 0 (0,0 %)' for every item and never divides by zero", () => {
     const text = renderCoverage(computeCoverage([]));
     expect(text.startsWith("Täckning (0 annonser): ")).toBe(true);
-    // The seven plan-05 items plus "föreningsskuld känd".
-    expect(text.match(/ 0 av 0 \(0,0 %\)/g)).toHaveLength(COVERAGE_LABELS.length + 1);
+    // The seven plan-05 items plus "föreningsskuld känd" and (plan 14.3-07) "sol härledd".
+    expect(text.match(/ 0 av 0 \(0,0 %\)/g)).toHaveLength(COVERAGE_LABELS.length + 2);
     expect(text).not.toMatch(/NaN|Infinity/);
   });
 
@@ -913,7 +913,7 @@ describe("coverage: association debt and reasons on flagged rows (WATCH-03, R-07
     expect(text).toBe(
       "Täckning (2 annonser): detaljsida 0 av 2 (0,0 %), balkong känd 0 av 2 (0,0 %), skick känt 0 av 2 (0,0 %), " +
         "beskrivning läst 0 av 2 (0,0 %), sol/orientering angiven 0 av 2 (0,0 %), avgift 0 av 2 (0,0 %), upplåtelseform 0 av 2 (0,0 %), " +
-        "föreningsskuld känd 1 av 2 (50,0 %), anledning på flaggade rader: 1 förklarade, 1 oförklarat fynd av 2",
+        "föreningsskuld känd 1 av 2 (50,0 %), sol härledd 0 av 2 (0,0 %), anledning på flaggade rader: 1 förklarade, 1 oförklarat fynd av 2",
     );
     expect(text.endsWith("1 förklarade, 1 oförklarat fynd av 2")).toBe(true);
   });

@@ -50,7 +50,7 @@ import {
 import type { HedonicModel, InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
-import { formatSolCell, type SunFact } from "@/lib/discovery/sun-fact";
+import { formatSolCell, formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
 // ---------------------------------------------------------------------------
@@ -376,6 +376,16 @@ export interface FitTableRow {
   readonly tasteKr: number;
   /** The D-02 "Sol" cell: facade, source and confidence ("S gata/N gård (fastighet/gata, 0,95)"), "okänd", or "-" when the run did not look. */
   readonly sol: string;
+  /**
+   * D-08 "Soltim. fri (mar/jun/dec)": hours of direct sun on 21 March, June and December with nothing in the way,
+   * morning and midday (06-15 local), first side of the fact. "6,0/5,5/4,1", or "-".
+   */
+  readonly solTheoretical: string;
+  /**
+   * D-08 "Soltim. med grannhus (mar/jun/dec)": the same hours with the neighbouring buildings in the way, per date
+   * "<nominal> (<low>–<high>)" joined by " / ", then " usäker" and/or " höjd uppskattad"; "-" when unknown.
+   */
+  readonly solObstructed: string;
   readonly flags: string[];
   /** WATCH-03 "Varför här": the reasons, "oförklarat fynd" on a flagged row with none, "-" on an unflagged one. */
   readonly reasons: string;
@@ -395,33 +405,38 @@ export function toFitTableRows(
   preRankPositions: ReadonlyMap<string, number>,
   opts: { reasonsOf?: (r: FitScoreResult) => string[] } = {},
 ): FitTableRow[] {
-  return ranking.ranked.map((r, i) => ({
-    rank: i + 1,
-    preRank: preRankPositions.get(r.sourceListingUrl ?? `${r.address}|${r.askingSek}`) ?? null,
-    address: r.address ?? "-",
-    district: r.district,
-    kvm: r.livingArea,
-    floor: r.floor,
-    askingKr: roundOrNull(r.askingSek),
-    expectedFinalKr: roundOrNull(r.purchaseSek),
-    resaleKr: roundOrNull(r.resaleSek),
-    gapKr: roundOrNull(r.gapSek),
-    creditKr: roundOrNull(r.creditSek),
-    renoTier: r.renoTier,
-    renoMidKr: roundKr(r.renoSek),
-    renoLowKr: roundKr(r.renoLowSek),
-    renoHighKr: roundKr(r.renoHighSek),
-    profitKr: roundOrNull(r.profitSek),
-    tasteKr: roundKr(r.tasteSek),
-    sol: formatSolCell(r.sun),
-    flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
-    reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
-    link: r.sourceListingUrl ?? "-",
-  }));
+  return ranking.ranked.map((r, i) => {
+    const solHours = formatSolHours(r.sun);
+    return {
+      rank: i + 1,
+      preRank: preRankPositions.get(r.sourceListingUrl ?? `${r.address}|${r.askingSek}`) ?? null,
+      address: r.address ?? "-",
+      district: r.district,
+      kvm: r.livingArea,
+      floor: r.floor,
+      askingKr: roundOrNull(r.askingSek),
+      expectedFinalKr: roundOrNull(r.purchaseSek),
+      resaleKr: roundOrNull(r.resaleSek),
+      gapKr: roundOrNull(r.gapSek),
+      creditKr: roundOrNull(r.creditSek),
+      renoTier: r.renoTier,
+      renoMidKr: roundKr(r.renoSek),
+      renoLowKr: roundKr(r.renoLowSek),
+      renoHighKr: roundKr(r.renoHighSek),
+      profitKr: roundOrNull(r.profitSek),
+      tasteKr: roundKr(r.tasteSek),
+      sol: formatSolCell(r.sun),
+      solTheoretical: solHours.theoretical,
+      solObstructed: solHours.obstructed,
+      flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
+      reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
+      link: r.sourceListingUrl ?? "-",
+    };
+  });
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Sol | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Förv. slutpris | Värde renoverad | Okapad skillnad | Krediterad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -452,6 +467,8 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         orDash(r.profitKr),
         kr(r.tasteKr),
         r.sol,
+        r.solTheoretical,
+        r.solObstructed,
         r.flags.join(", ") || "-",
         r.reasons,
         r.link,
@@ -582,6 +599,11 @@ export interface Coverage {
   readonly items: readonly CoverageItem[];
   /** Rows whose association debt per kvm is known (Phase 14.2, R-07), printed after the seven pinned items. */
   readonly brfDebt: number;
+  /**
+   * Phase 14.3 (SUN-05): rows whose sun fact has a source other than okänd, i.e. a facade was derived or stated.
+   * Printed after föreningsskuld. "sol/orientering angiven" above stays the stated-only count.
+   */
+  readonly sunInferred: number;
   /** Reasons on flagged rows; null until {@link withReasonsOnFlagged} sets it (it needs the table rows). */
   readonly reasonsOnFlagged: ReasonsOnFlagged | null;
 }
@@ -616,6 +638,7 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
     n: rows.length,
     items: COVERAGE_LABELS.map((label, i) => ({ label, known: rows.filter(COVERAGE_KNOWN[i]).length })),
     brfDebt: rows.filter((r) => r.facts?.brf?.debtPerSqm != null).length,
+    sunInferred: rows.filter((r) => r.sun !== null && r.sun.source !== "okänd").length,
     reasonsOnFlagged: null,
   };
 }
@@ -648,12 +671,17 @@ const percent = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 
  * "Täckning (N annonser): detaljsida k av N (p %), balkong känd k av N (p %), ..." with every item
  * "<label> <k> av <N> (<p> %)", p to one decimal with a decimal comma, and N = 0 printing
  * "0 av 0 (0,0 %)" instead of dividing by zero. After the seven plan-05 items (text and order
- * unchanged) comes "föreningsskuld känd k av N (p %)" in the same shape, and, when the reason counts
+ * unchanged) comes "föreningsskuld känd k av N (p %)" in the same shape, then (Phase 14.3, SUN-05)
+ * "sol härledd k av N (p %)" (rows whose sun fact is not okänd), and, when the reason counts
  * are known, last: "anledning på flaggade rader: E förklarade, U oförklarat fynd av F".
  */
 export function renderCoverage(coverage: Coverage): string {
   const item = (label: string, known: number): string => `${label} ${known} av ${coverage.n} (${percent(known, coverage.n)} %)`;
-  const items = [...coverage.items.map((i) => item(i.label, i.known)), item("föreningsskuld känd", coverage.brfDebt)];
+  const items = [
+    ...coverage.items.map((i) => item(i.label, i.known)),
+    item("föreningsskuld känd", coverage.brfDebt),
+    item("sol härledd", coverage.sunInferred),
+  ];
   const r = coverage.reasonsOnFlagged;
   if (r !== null) items.push(`anledning på flaggade rader: ${r.explained} förklarade, ${r.unexplained} oförklarat fynd av ${r.flagged}`);
   return `Täckning (${coverage.n} annonser): ${items.join(", ")}`;
