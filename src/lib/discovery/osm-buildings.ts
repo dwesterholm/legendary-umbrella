@@ -321,3 +321,248 @@ export function pointInBuilding(building: OsmBuilding, lng: number, lat: number)
   if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) return false;
   return booleanPointInPolygon(point([lng, lat]), polygon([building.outer, ...building.inners]));
 }
+
+// ---------------------------------------------------------------------------
+// Heights and walls (Phase 14.3, SUN-03)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tunable numbers of the height model, in one table (functions own no constants).
+ *
+ * D-06 / R-04: a `height` tag is used as it is; else `building:levels` x 3 m +
+ * 2 m; else a small building type gets 3 m; else the median of the tag-derived
+ * heights of ordinary buildings whose centre lies within 150 m; else the
+ * innerstan median of 5 storeys (17 m). Every height that does not come from a
+ * tag is marked `estimated`, which prints as "höjd uppskattad".
+ *
+ * The research prototype also added 1,5 m per `roof:levels`. That term is
+ * left out on purpose: the locked formula is levels x 3 + 2, and the +-3 m
+ * envelope the hours engine applies to every neighbour already covers an attic
+ * storey. A reader should therefore expect 6 storeys + 1 roof level = 20 m.
+ *
+ * HOW OFTEN THE ESTIMATE IS USED (RESEARCH, measured on the 78-flat snapshot):
+ * 73,8 % of innerstan buildings carry a height or storey tag - 86 % around
+ * Södermalm flats, 78 % Vasastan, 59,5 % Kungsholmen. The remaining quarter
+ * (more than 40 % on Kungsholmen) gets the local median, whose leave-one-out
+ * error is 3 m (median), 4,5 m (p75) and 9 m (p90).
+ */
+export const HEIGHT_PARAMS = {
+  storeyM: 3,
+  baseM: 2,
+  smallTypes: ["shed", "garage", "garages", "hut", "kiosk", "carport", "roof", "allotment_house", "greenhouse"] as readonly string[],
+  smallM: 3,
+  neighbourRadiusM: 150,
+  fallbackLevels: 5,
+  gridCellM: 150,
+  wallMarginM: 50,
+} as const;
+
+/** A building's height in metres and whether it is our estimate rather than a tag. */
+export interface BuildingHeight {
+  readonly heightM: number;
+  readonly estimated: boolean;
+}
+
+/** A wall segment in metres east/north of a point, with the height of its building. */
+export interface OsmWall {
+  readonly x1: number;
+  readonly y1: number;
+  readonly x2: number;
+  readonly y2: number;
+  readonly heightM: number;
+  readonly estimated: boolean;
+}
+
+/** The first number of a tag value, comma or dot as decimal separator ("21 m", "5,5", "21;24"). */
+function firstNumber(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const m = /^\s*(\d+(?:[.,]\d+)?)/.exec(raw);
+  if (m === null) return null;
+  const n = Number(m[1].replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+const isSmallType = (tags: Readonly<Record<string, string>>): boolean =>
+  tags.building !== undefined && HEIGHT_PARAMS.smallTypes.includes(tags.building);
+
+/**
+ * The height a building's own tags give, or null when only its neighbourhood
+ * can tell. Order: `height` (a positive number, used as it is) -> `building:levels`
+ * x 3 + 2 -> a small type's 3 m (estimated).
+ */
+export function heightOf(tags: Readonly<Record<string, string>>): BuildingHeight | null {
+  const tagged = firstNumber(tags.height);
+  if (tagged !== null && tagged > 0) return { heightM: tagged, estimated: false };
+  const levels = levelsOf(tags);
+  if (levels !== null) return { heightM: levels * HEIGHT_PARAMS.storeyM + HEIGHT_PARAMS.baseM, estimated: false };
+  if (isSmallType(tags)) return { heightM: HEIGHT_PARAMS.smallM, estimated: true };
+  return null;
+}
+
+interface GeometryContext {
+  /** Projection around the extract's bounding-box centre; only used to find neighbours. */
+  readonly proj: (lng: number, lat: number) => [number, number];
+  readonly centroids: ReadonlyArray<readonly [number, number]>;
+  /** Projected outer-ring vertices of each building, [x0, y0, x1, y1, ...]. */
+  readonly outerXY: readonly Float64Array[];
+  /** Tag-derived height of an ordinary (not small) building, else null: what a neighbour contributes to a median. */
+  readonly neighbourHeight: ReadonlyArray<number | null>;
+  /** Grid cell -> positions of the buildings whose bounding box touches the cell. */
+  readonly cells: ReadonlyMap<number, readonly number[]>;
+  /** Position of each building object in `index.buildings` (O(1) instead of a scan per lookup). */
+  readonly position: ReadonlyMap<OsmBuilding, number>;
+  readonly memo: Map<string, BuildingHeight>;
+}
+
+const contexts = new WeakMap<OsmIndex, GeometryContext>();
+
+const cellKey = (cx: number, cy: number): number => (cx + 32768) * 65536 + (cy + 32768);
+
+function geometryContextOf(index: OsmIndex): GeometryContext {
+  const cached = contexts.get(index);
+  if (cached !== undefined) return cached;
+  const proj = projectFrom((index.bbox.south + index.bbox.north) / 2, (index.bbox.west + index.bbox.east) / 2);
+  const cell = HEIGHT_PARAMS.gridCellM;
+  const centroids: Array<readonly [number, number]> = [];
+  const outerXY: Float64Array[] = [];
+  const neighbourHeight: Array<number | null> = [];
+  const cells = new Map<number, number[]>();
+  const position = new Map<OsmBuilding, number>();
+  index.buildings.forEach((b, i) => {
+    position.set(b, i);
+    const xy = new Float64Array(b.outer.length * 2);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let sx = 0;
+    let sy = 0;
+    b.outer.forEach(([lng, lat], k) => {
+      const [x, y] = proj(lng, lat);
+      xy[2 * k] = x;
+      xy[2 * k + 1] = y;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (k < b.outer.length - 1) {
+        sx += x;
+        sy += y;
+      }
+    });
+    const distinct = Math.max(1, b.outer.length - 1);
+    centroids.push([sx / distinct, sy / distinct]);
+    outerXY.push(xy);
+    neighbourHeight.push(isSmallType(b.tags) ? null : (heightOf(b.tags)?.heightM ?? null));
+    for (let cx = Math.floor(minX / cell); cx <= Math.floor(maxX / cell); cx++) {
+      for (let cy = Math.floor(minY / cell); cy <= Math.floor(maxY / cell); cy++) {
+        const key = cellKey(cx, cy);
+        const list = cells.get(key);
+        if (list === undefined) cells.set(key, [i]);
+        else list.push(i);
+      }
+    }
+  });
+  const ctx: GeometryContext = { proj, centroids, outerXY, neighbourHeight, cells, position, memo: new Map() };
+  contexts.set(index, ctx);
+  return ctx;
+}
+
+/** Median of a non-empty list; an even count averages the two middle values. */
+function median(values: number[]): number {
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * The height of a building, resolved lazily and memoised per building id: its
+ * own tags first, else the median of the tag-derived heights of ordinary
+ * buildings whose centre is within 150 m (inclusive, compared at one decimal
+ * so 150,0 m counts and 150,1 m does not), else 5 storeys = 17 m. The result
+ * does not depend on the order of `index.buildings`. Neighbours are found
+ * through a 150 m grid (3 x 3 cells), never an all-pairs scan.
+ */
+export function buildingHeight(index: OsmIndex, building: OsmBuilding): BuildingHeight {
+  const ctx = geometryContextOf(index);
+  const memoised = ctx.memo.get(building.id);
+  if (memoised !== undefined) return memoised;
+
+  let result: BuildingHeight;
+  const own = heightOf(building.tags);
+  if (own !== null) {
+    result = own;
+  } else {
+    const at = ctx.position.get(building);
+    const [cx0, cy0] = at !== undefined ? ctx.centroids[at] : centroidOf(building, ctx.proj);
+    const cell = HEIGHT_PARAMS.gridCellM;
+    const seen = new Set<number>();
+    const values: number[] = [];
+    for (let cx = Math.floor(cx0 / cell) - 1; cx <= Math.floor(cx0 / cell) + 1; cx++) {
+      for (let cy = Math.floor(cy0 / cell) - 1; cy <= Math.floor(cy0 / cell) + 1; cy++) {
+        for (const j of ctx.cells.get(cellKey(cx, cy)) ?? []) {
+          if (seen.has(j)) continue;
+          seen.add(j);
+          const h = ctx.neighbourHeight[j];
+          if (h === null) continue;
+          const [x, y] = ctx.centroids[j];
+          if (Math.round(Math.hypot(x - cx0, y - cy0) * 10) <= HEIGHT_PARAMS.neighbourRadiusM * 10) values.push(h);
+        }
+      }
+    }
+    const heightM = values.length > 0 ? median(values) : HEIGHT_PARAMS.fallbackLevels * HEIGHT_PARAMS.storeyM + HEIGHT_PARAMS.baseM;
+    result = { heightM, estimated: true };
+  }
+  ctx.memo.set(building.id, result);
+  return result;
+}
+
+function centroidOf(building: OsmBuilding, proj: (lng: number, lat: number) => [number, number]): [number, number] {
+  const pts = building.outer.slice(0, Math.max(1, building.outer.length - 1)).map(([lng, lat]) => proj(lng, lat));
+  return [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+}
+
+/**
+ * Every edge of the outer AND inner (courtyard) rings of each building that has
+ * a vertex within `radiusM` + the wall margin (50 m) of (lat, lng), in metres
+ * east/north of that point, each with its building's height and estimated flag.
+ * The buildings come from a 150 m grid over their bounding boxes, so a long
+ * building whose centre is far away is still found. Order: buildings in the
+ * index's order, rings outer first.
+ */
+export function wallsNear(index: OsmIndex, lat: number, lng: number, radiusM: number): OsmWall[] {
+  const ctx = geometryContextOf(index);
+  const reach = radiusM + HEIGHT_PARAMS.wallMarginM;
+  const cell = HEIGHT_PARAMS.gridCellM;
+  const [qx, qy] = ctx.proj(lng, lat);
+  const hits = new Set<number>();
+  for (let cx = Math.floor((qx - reach) / cell); cx <= Math.floor((qx + reach) / cell); cx++) {
+    for (let cy = Math.floor((qy - reach) / cell); cy <= Math.floor((qy + reach) / cell); cy++) {
+      for (const i of ctx.cells.get(cellKey(cx, cy)) ?? []) {
+        if (hits.has(i)) continue;
+        const xy = ctx.outerXY[i];
+        for (let k = 0; k < xy.length; k += 2) {
+          if (Math.hypot(xy[k] - qx, xy[k + 1] - qy) <= reach) {
+            hits.add(i);
+            break;
+          }
+        }
+      }
+    }
+  }
+  const proj = projectFrom(lat, lng);
+  const walls: OsmWall[] = [];
+  for (const i of [...hits].sort((a, b) => a - b)) {
+    const building = index.buildings[i];
+    const { heightM, estimated } = buildingHeight(index, building);
+    for (const ring of [building.outer, ...building.inners]) {
+      for (let k = 0; k < ring.length - 1; k++) {
+        const [x1, y1] = proj(ring[k][0], ring[k][1]);
+        const [x2, y2] = proj(ring[k + 1][0], ring[k + 1][1]);
+        if (x1 === x2 && y1 === y2) continue;
+        walls.push({ x1, y1, x2, y2, heightM, estimated });
+      }
+    }
+  }
+  return walls;
+}
