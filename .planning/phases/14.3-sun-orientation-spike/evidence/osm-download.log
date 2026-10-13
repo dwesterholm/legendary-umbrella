@@ -1,0 +1,12 @@
+Overpass buildings: lz4.overpass-api.de HTTP 200, 15148 element, 11,0 MB, 4,3 s
+Overpass relations: lz4.overpass-api.de HTTP 200, 265 element, 0,5 MB, 0,4 s
+Overpass roads: lz4.overpass-api.de HTTP 504 (7,2 s)
+Overpass roads: z.overpass-api.de HTTP 200, 11644 element, 8,5 MB, 1,8 s
+OSM-cache: hämtad 2026-10-13T15:15:33.296Z (byggnader 15148, relationer 265, gator 11644, OSM-tid 2026-10-13T15:13:51Z)
+Filstorlek: 12,9 MB, 22,8 s
+Kartdata: © OpenStreetMap contributors, ODbL
+npx tsx scripts/osm-download.ts --force  1.12s user 0.29s system 6% cpu 23.139 total
+--- rerun with fetch disabled (any request would exit 99) ---
+OSM-cache: 0,0 dagar gammal, ingen hämtning (gräns 31 dagar)
+--- rerun, normal ---
+OSM-cache: 0,0 dagar gammal, ingen hämtning (gräns 31 dagar)
