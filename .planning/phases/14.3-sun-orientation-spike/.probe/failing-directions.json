@@ -1,0 +1,147 @@
+{
+  "status": "ok",
+  "commands": [
+    {
+      "command": "npx vitest run src/lib/discovery/sun-facade.test.ts src/lib/discovery/fit-score.test.ts src/lib/discovery/fit-pipeline.test.ts src/lib/discovery/watch-report.test.ts && npx tsc --noEmit && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json --osm src/lib/discovery/__fixtures__/osm-folkungagatan-61.fixture.json) && printf '%s\\n' \"$out\" | grep \"Folkungagatan 61\" | grep -q \"S gata/N gård (fastighet/gata, \" && out0=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json) && printf '%s\\n' \"$out0\" | grep -q \"Folkungagatan 61\"",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (Folkungagatan 61 resolving to another way, a bearing outside 161.2-171.2, a facade other than south, confidence under 0.90, a snapshot row with an invalid sun record failing to parse); \"error TS\"; no line containing both \"Folkungagatan 61\" and \"S gata/N gård (fastighet/gata, \" in the --osm replay; the replay without --osm no longer printing Folkungagatan 61",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-01-PLAN.md",
+      "task": "Task 1: End-to-end \"Folkungagatan 61 faces south\" - OSM fixture to the replay table's Sol column (one path: point inside a way polygon)"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/osm-buildings.test.ts src/lib/discovery/sun-facade.test.ts src/lib/discovery/niche-score.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a hole counted as inside, an unclosed relation not skipped or not counted, a 25.0 m point not snapping or a 25.1 m point snapping, a 35.0 m road not qualifying, a corner not flagged, a sector boundary landing in the wrong facade, a reason string differing by any character, a different result after shuffling buildings, the separation test failing or not listing the two prefixes); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-01-PLAN.md",
+      "task": "Task 2: Every row gets a facade or an honest okänd - courtyard relations, snapping, corners, wrong building, no street; separation test registration"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/osm-overpass.test.ts src/lib/discovery/osm-cache.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (an endpoint outside the allowlist requested, wrong endpoint order, an XML/HTML/oversized/out-of-range/remark-error answer accepted, the 31-day boundary off by one in either direction, the download spy called for a fresh cache, an old cache file changed after a failed refresh, a write outside the osm dir accepted, a pretty-printed cache file); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-02-PLAN.md",
+      "task": "Task 1: Overpass client and cache rules - endpoint list, validation, 31-day age rule, atomic save (network and clock injected)"
+    },
+    {
+      "command": "npx tsx scripts/osm-download.ts && out=$(npx tsx scripts/osm-download.ts) && printf '%s\\n' \"$out\" | grep -q \"ingen hämtning (gräns 31 dagar)\" && node -e 'const f=JSON.parse(require(\"fs\").readFileSync(\".planning/calibration/data/osm/innerstan.json\",\"utf8\")); if(f.version!==1||!/OpenStreetMap contributors/.test(f.attribution)||!Array.isArray(f.relations)||f.buildings.length<5000||f.roads.length<1000||Number.isNaN(Date.parse(f.fetchedAt))) process.exit(1)' && grep -q \"OSM-cache: \" .planning/phases/14.3-sun-orientation-spike/evidence/osm-download.log && test -z \"$(git ls-files .planning/calibration/data)\"",
+      "statement": "non-zero exit; the second run not printing \"ingen hämtning (gräns 31 dagar)\"; the cache file missing, not version 1, without the attribution, with fewer than 5 000 buildings or 1 000 roads, or with an unparsable fetchedAt; the evidence log missing its \"OSM-cache: \" line; any file under .planning/calibration/data tracked by git",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-02-PLAN.md",
+      "task": "Task 2: scripts/osm-download.ts and the real one-off download (free), then a rerun that makes no request"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-floorplan.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a nullable, union or numeric constraint in the JSON schema, the entrance-arrow warning missing from prompt or description, a call made past the cap or for a cached or non-allowlisted image, the 10 % rule wrong at 1 of 10 or 1 of 11, a plan bearing off for any of the listed cases); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-03-PLAN.md",
+      "task": "Task 1: Slim floor-plan compass module - schema, prompt, injected call, cache, 2 kr cap, verdict and plan bearing"
+    },
+    {
+      "command": "grep -q \"^Smoke: 2 av 2 tolkade\" .planning/phases/14.3-sun-orientation-spike/evidence/floorplan-smoke.log && grep -q \"^Planritningsprobe: \" .planning/phases/14.3-sun-orientation-spike/evidence/floorplan-probe.log && node -e 'const p=require(\"./.planning/phases/14.3-sun-orientation-spike/evidence/floorplan-probe.json\"); if(!(p.spentSek<=2&&p.sampled>=10&&[\"go\",\"dropped\"].includes(p.verdict)&&!JSON.stringify(p).includes(\"bcdn.se\"))) process.exit(1)' && out=$(env -u RUN_LLM_EVALS npx tsx scripts/sun-floorplan-probe.ts --smoke) && printf '%s\\n' \"$out\" | grep -q \"Hoppar över: RUN_LLM_EVALS=1\" && npx vitest run src/lib/discovery/sun-floorplan.test.ts && npx tsc --noEmit",
+      "statement": "non-zero exit; the smoke log lacking \"Smoke: 2 av 2 tolkade\" (an HTTP 400, refusal or parse failure); the probe log lacking its spend line; the evidence JSON with spentSek above 2, fewer than 10 sampled, a verdict other than go/dropped, or any bcdn.se URL; the ungated run making a call instead of printing the skip line; a failing test or \"error TS\"",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-03-PLAN.md",
+      "task": "Task 2: Live smoke on 2 images, the 12-plan probe (at most 2 kr), and the verdict written into code and evidence"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/osm-buildings.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a roof allowance added, a shed counted as a neighbour, the 150 m boundary off by one step, the median of an even list not averaged, a height changing with array order, inner-ring edges missing from wallsNear); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-04-PLAN.md",
+      "task": "Task 1: Building heights with the estimated flag, a 150 m grid, and walls around a point"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-hours.test.ts src/lib/discovery/osm-buildings.test.ts && TZ=America/New_York npx vitest run src/lib/discovery/sun-hours.test.ts -t \"DST\" && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a window boundary off by an hour in either DST state or under the New York TZ, a north facade lit in December, a wall at exactly 250 m excluded or at 250.5 m included, an equal-height wall counted as blocking, low > nominal or nominal > high anywhere, output changing with wall order, a non one-decimal hour figure, 100 calls taking 5 000 ms or more); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-04-PLAN.md",
+      "task": "Task 2: sun-hours.ts - theoretical and obstructed hours per facade and date, low/nominal/high, DST-safe windows"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-fact.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a lower source winning, exactly 90 degrees flagged as konflikt or 90.1 not flagged, confidence not halved on conflict, an unknown footprint producing anything but okänd with the footprint's reason, a stated west flat not taking the courtyard bearing, a fact that does not round-trip through sunFactSchema); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-05-PLAN.md",
+      "task": "Task 1: resolveSunFact - stated > plan > footprint, conflict over 90 degrees, okänd when nothing is known"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-fact.test.ts src/lib/discovery/sun-facade.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (facades out of the fixed order or duplicated, an empty list not giving null, a Sol cell differing by any character from the listed strings, a non-NFC label); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-05-PLAN.md",
+      "task": "Task 2: statedFacadesOf and the Sol cell for stated, plan and konflikt rows"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/taste.test.ts src/lib/discovery/sun-path.test.ts && npx tsc --noEmit && npm run lint",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (any existing taste case changing, the Folkungagatan case not 0.009975, a sun part above 0.03, a stated row differing from today's path, NaN leaking into sunPct); \"error TS\"; eslint errors",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-06-PLAN.md",
+      "task": "Task 1: taste.ts - inferred sun input with streetOnlyFactor 0,5, confidence and obstruction factor; today's output unchanged without it"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/fit-score.test.ts src/lib/discovery/taste.test.ts src/lib/discovery/sun-path.test.ts src/lib/discovery/niche-score.test.ts src/lib/discovery/fit-pipeline.test.ts && npx tsc --noEmit && npm run test && out=$(npx tsx scripts/fit-score.ts --replay src/lib/discovery/__fixtures__/forsale-snapshot.fixture.json --model data/hedonic-model.json) && printf '%s\\n' \"$out\" | grep -q \"Folkungagatan 61\"",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (an obstruction factor outside [0, 1], a sun-null row changing profit, the Folkungagatan-like row not giving 0.009975, a separation-test failure); \"error TS\"; the replay no longer printing Folkungagatan 61",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-06-PLAN.md",
+      "task": "Task 2: fit-score.ts passes the row's sun fact to taste (obstruction factor from 21 March)"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-fact.test.ts src/lib/discovery/fit-pipeline.test.ts && npx tsc --noEmit && out=$(npx tsx scripts/fit-score.ts --replay .planning/calibration/data/forsale-snapshot-2026-10-13.json --model data/hedonic-model.json --track 150148) && printf '%s\\n' \"$out\" | grep -q '^Sol: OSM-cache ' && printf '%s\\n' \"$out\" | grep -qE '^Sol: beräknat för [0-9]+ rader på [0-9]+ ms' && printf '%s\\n' \"$out\" | grep \"Folkungagatan 61\" | grep -q \"S gata/N gård (fastighet/gata, \" && dry=$(npx tsx scripts/fit-score.ts --renderer local --window all --email --dry-run) && printf '%s\\n' \"$dry\" | grep -q \"ingen hämtning (gräns 31 dagar)\"",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (sunOf not called for every row, ranking computed before the sun fact is attached, a side without hours when point and floor are known, obstructed hours present with floor null); \"error TS\"; the replay of the real snapshot missing the \"Sol: OSM-cache \" line, the timing line, or a Folkungagatan 61 line with \"S gata/N gård (fastighet/gata, \"; the dry run not printing \"ingen hämtning (gräns 31 dagar)\"",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-07-PLAN.md",
+      "task": "Task 1: computeSunFact and the sun stage before ranking - replay reads the cache, the weekly run refreshes only when it is 31 days old"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-fact.test.ts src/lib/discovery/fit-pipeline.test.ts src/lib/discovery/watch-report.test.ts src/lib/discovery/watch-state.test.ts src/lib/discovery/watch-mail.test.ts && npx tsc --noEmit && npm run lint && out=$(npx tsx scripts/fit-score.ts --replay .planning/calibration/data/forsale-snapshot-2026-10-13.json --model data/hedonic-model.json) && printf '%s\\n' \"$out\" | grep -qE 'föreningsskuld känd [0-9]+ av [0-9]+ \\([0-9]+,[0-9] %\\), sol härledd [0-9]+ av [0-9]+ \\([0-9]+,[0-9] %\\)' && printf '%s\\n' \"$out\" | grep -q '| Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Flaggor |'",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a column at a different index in header and row, a missing or misplaced coverage item, a changed 14.2 label, an hours cell differing by any character, the 2,0 h boundary marked usäker); \"error TS\"; eslint errors; the real-snapshot replay missing the \"sol härledd\" item right after föreningsskuld or the new header order",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-07-PLAN.md",
+      "task": "Task 2: Sol hour columns in the printed table and the HTML mail, and \"sol härledd\" in the coverage line"
+    },
+    {
+      "command": "npx vitest run src/lib/discovery/sun-fact.test.ts && npx tsc --noEmit && npm run lint && out=$(npx tsx scripts/fit-score.ts --replay .planning/calibration/data/forsale-snapshot-2026-10-13.json --model data/hedonic-model.json --track 150148) && printf '%s\\n' \"$out\" | grep -qE '^Sol \\([0-9]+ annonser\\): fasad härledd [0-9]+ av [0-9]+ \\([0-9]+,[0-9] %\\)' && printf '%s\\n' \"$out\" | grep -q 'Kartdata: © OpenStreetMap contributors, ODbL' && printf '%s\\n' \"$out\" | grep -qE '^  Sol: +S gata/N gård' && npm run test",
+      "statement": "non-zero exit; \"failed\" in a vitest summary (a count, order or percentage in the report differing from the behaviour list, a crash on zero rows); \"error TS\"; eslint errors; the real replay missing the report's first line, the attribution line, or the tracked Sol line for Folkungagatan 61; any test in the full suite failing",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-07-PLAN.md",
+      "task": "Task 3: The sun report block and the tracked-listing Sol line"
+    },
+    {
+      "command": "E=.planning/phases/14.3-sun-orientation-spike/evidence && grep -q 'ingen hämtning (gräns 31 dagar)' $E/sun-live-run.log && grep -q '^Apify-reserv: 0 ' $E/sun-live-run.log && grep -qE 'sol härledd [0-9]+ av [0-9]+ \\(' $E/sun-live-run.log && grep -qE '^Sol \\([0-9]+ annonser\\): fasad härledd' $E/sun-replay.log && grep \"Folkungagatan 61\" $E/sun-replay.log | grep -q \"S gata/N gård (fastighet/gata, \" && node -e 'const fs=require(\"fs\");for(const f of [\"sun-live-run.log\",\"sun-replay.log\"]){const t=fs.readFileSync(process.argv[1]+\"/\"+f,\"utf8\");const m=t.match(/^Sol: beräknat för \\d+ rader på (\\d+) ms/m);if(!m||Number(m[1])>=5000){console.error(f);process.exit(1)}}' $E && grep -q 'Soltim. med grannhus (mar/jun/dec)' $E/weekly-sun.html && test -z \"$(grep -i '<script' $E/weekly-sun.html)\" && grep -q 'ingen hämtning (gräns 31 dagar)' $E/weekly-dry-run.log && test -z \"$(git ls-files .planning/calibration/data)\"",
+      "statement": "non-zero exit; the live log missing the no-download OSM line, \"Apify-reserv: 0 \", or the \"sol härledd\" item; the replay missing the sun report or a Folkungagatan 61 line with \"S gata/N gård (fastighet/gata, \"; either timing line missing or at 5 000 ms or more; the HTML without the Sol column or with a script tag; the dry run missing the no-download line; anything under .planning/calibration/data tracked by git",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-08-PLAN.md",
+      "task": "Task 1: The evidence runs - live weekly command with the sun stage, replay of the 2026-10-13 snapshot, the mail body, the dry run"
+    },
+    {
+      "command": "E=.planning/phases/14.3-sun-orientation-spike/evidence && node -e 'const fs=require(\"fs\");const g=f=>{const m=fs.readFileSync(f,\"utf8\").match(/sol härledd (\\d+) av (\\d+) \\(/);if(!m)process.exit(1);return [Number(m[1]),Number(m[2])]};const [k,n]=g(process.argv[1]+\"/sun-live-run.log\");const [k2,n2]=g(process.argv[1]+\"/sun-replay.log\");const met=n>0&&n2>0&&k*100>=80*n&&k2*100>=80*n2;const fu=fs.readFileSync(\".planning/phases/14.2-trustworthy-weekly-table/14.2-FOLLOWUPS.md\",\"utf8\").split(\"\\n\").filter(l=>l.includes(\"14.3-08\")&&l.includes(\"D-17 sun clause\"));if(fu.length!==1)process.exit(2);const l=fu[0];if(!l.includes(`live sol härledd ${k} av ${n} `)||!l.includes(`sol härledd ${k2} av ${n2} `))process.exit(3);if(met!==/-> met \\(/.test(l))process.exit(4)' $E",
+      "statement": "non-zero exit: exit 1 = a log without the \"sol härledd\" item; 2 = not exactly one 14.3-08 closing line in 14.2-FOLLOWUPS.md; 3 = the line's k/N differ from the logs; 4 = the line says met when the exact 80 % comparison says not met, or the reverse",
+      "status": "ok",
+      "severity": "none",
+      "plan": "14.3-08-PLAN.md",
+      "task": "Task 2: The readout - D-17 sun clause verdict from the exact 80 % comparison, closing line in 14.2-FOLLOWUPS.md, plain-language SUMMARY for Daniel"
+    }
+  ],
+  "counts": {
+    "blocker": 0,
+    "warning": 0,
+    "total": 17
+  },
+  "readError": null
+}
