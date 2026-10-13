@@ -224,6 +224,10 @@ export function closeOnSignals(
     proc.off("SIGTERM", onTerm);
   };
 }
+
+/** What a render started after `close()` is told (CR-01): the run is over, nothing is sent to Apify. */
+export const CLOSED_RENDERER_MESSAGE = "Lokala webblasaren ar stangd";
+
 /** Fixed viewport (D-02). */
 const VIEWPORT = { width: 1280, height: 900 } as const;
 
@@ -402,7 +406,7 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
           continue;
         }
         // Challenged twice: the paid rung runs only when the caller asked for it and the cap has room (D-04, R-03).
-        if (allowApify && stats.apifyFallbacks < apifyMaxRenders) {
+        if (!closed && allowApify && stats.apifyFallbacks < apifyMaxRenders) {
           stats.apifyFallbacks += 1;
           return runApifyRender(url, pageFunction, opts);
         }
@@ -422,7 +426,13 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
     async close() {
       if (closed) return;
       closed = true;
-      setRenderer(null);
+      // CR-01: a closed local renderer must REFUSE, never hand the URL back to the
+      // Apify default. close() runs on SIGINT/SIGTERM while the pipeline is still
+      // starting renders; restoring the default (setRenderer(null)) re-routed every
+      // one of them to a paid actor run, past the --allow-apify gate and the cap.
+      setRenderer(async () => {
+        throw new Error(CLOSED_RENDERER_MESSAGE);
+      });
       try {
         await context?.close();
       } catch {

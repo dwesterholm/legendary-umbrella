@@ -16,6 +16,7 @@ vi.mock("@/lib/apify/booli-scraper", () => ({ scrapeBooli: vi.fn() }));
 // Imported AFTER the mocks above are registered.
 import {
   ChallengeError,
+  CLOSED_RENDERER_MESSAGE,
   closeOnSignals,
   displayAvailable,
   installLocalRenderer,
@@ -451,12 +452,12 @@ describe("cleanup", () => {
     expect(h.stats().failed).toBe(1);
   });
 
-  it("close() twice closes the browser once; afterwards runPlaywrightRender goes back to Apify", async () => {
+  it("close() twice closes the browser once; afterwards runPlaywrightRender REFUSES and never reaches Apify (CR-01)", async () => {
     actorCall.mockResolvedValue({ status: "SUCCEEDED", defaultDatasetId: "ds-1" });
     listItems.mockResolvedValue({ items: [{ hasApollo: true, __APOLLO_STATE__: STATE }] });
     const clock = makeClock();
     const b = makeBrowser(clock, () => ({}));
-    const h = install(clock, b.launcher);
+    const h = install(clock, b.launcher, { allowApify: true });
     await clock.run(render());
     expect(actorCall).not.toHaveBeenCalled();
 
@@ -465,8 +466,25 @@ describe("cleanup", () => {
     expect(b.log.browserCloses).toBe(1);
     expect(b.log.contextCloses).toBe(1);
 
-    await render();
-    expect(actorCall).toHaveBeenCalledTimes(1);
+    await expect(render()).rejects.toThrow(CLOSED_RENDERER_MESSAGE);
+    await expect(render(`${BOOLI_URL}&page=2`)).rejects.toThrow(CLOSED_RENDERER_MESSAGE);
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("a signal closes the renderer while the pipeline keeps asking: the later renders are refused, not sent to paid Apify (CR-01)", async () => {
+    actorCall.mockResolvedValue({ status: "SUCCEEDED", defaultDatasetId: "ds-1" });
+    listItems.mockResolvedValue({ items: [{ hasApollo: true, __APOLLO_STATE__: STATE }] });
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({}));
+    const h = install(clock, b.launcher, { allowApify: true });
+    await clock.run(render());
+    const handlers = new Map<string, () => void>();
+    const proc = { once: (sig: string, fn: () => void) => void handlers.set(sig, fn), off: vi.fn() };
+    // exit never really happens in the test, so the "pipeline" is still running afterwards
+    closeOnSignals(h, { proc, exit: vi.fn() });
+    handlers.get("SIGTERM")!();
+    await expect(render(`${BOOLI_URL}&page=3`)).rejects.toThrow(CLOSED_RENDERER_MESSAGE);
+    expect(actorCall).not.toHaveBeenCalled();
   });
 
   it("relaunches once after the browser disconnects", async () => {
