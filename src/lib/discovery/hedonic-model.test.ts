@@ -1222,6 +1222,89 @@ describe("fitBidPremium: days on market (VAL-03)", () => {
     expect(Math.abs(fit.b! + 0.2)).toBeLessThan(0.05);
     expect(fit.terms.dom!.cvRmse.with).toBeLessThan(fit.terms.dom!.cvRmse.without);
   });
+
+  const stripDays = (rows: readonly BidRow[]): BidRow[] => rows.map((r) => ({ ...r, domLn: null }));
+
+  it("a days effect with the WRONG sign is rejected even though the CV error improves", () => {
+    const rows = domRows({ seed: 13, domBeta: 0.03, withAsk: false });
+    const fit = fitBidPremium(rows);
+    const dom = fit.terms.dom!;
+    expect(dom.beta).toBeGreaterThan(0);
+    expect(dom.cvRmse.with).toBeLessThan(dom.cvRmse.without);
+    expect(dom.kept).toBe(false);
+    expect(dom.note).toBe("prövad, förkastad: fel tecken");
+    // Rejected: kind, b and every intercept are exactly what they were without the term.
+    const plain = fitBidPremium(stripDays(rows));
+    expect(fit.kind).toBe(plain.kind);
+    expect(fit.b).toBe(plain.b);
+    expect(fit.overallA).toBe(plain.overallA);
+    expect(fit.perDistrict).toEqual(plain.perDistrict);
+  });
+
+  it("pure-noise days are rejected on cross-validation and leave the base untouched", () => {
+    for (const seed of [21, 22, 23, 24]) {
+      const rows = domRows({ seed, domBeta: 0, withAsk: false });
+      const fit = fitBidPremium(rows);
+      const dom = fit.terms.dom!;
+      expect(dom.kept, `seed ${seed}`).toBe(false);
+      expect(dom.cvRmse.with, `seed ${seed}`).toBeGreaterThanOrEqual(dom.cvRmse.without);
+      expect(dom.note, `seed ${seed}`).toBe("prövad, förkastad: korsvalidering");
+      expect(fit.perDistrict).toEqual(fitBidPremium(stripDays(rows)).perDistrict);
+    }
+  });
+
+  it("base and base-plus-days are scored on the same held-out rows: the 'without' error is the base form's own CV error", () => {
+    // Flat base, no asking prices: every row is held out once.
+    const flat = fitBidPremium(domRows({ seed: 31, domBeta: -0.02, withAsk: false }));
+    expect(flat.terms.dom!.cvRmse.without).toBe(flat.cvRmse.flat);
+    // Slope base: held-out rows are the ones with an asking price.
+    const slope = fitBidPremium(domRows({ seed: 32, domBeta: -0.02, slopeB: -0.2 }));
+    expect(slope.kind).toBe("slope");
+    expect(slope.terms.dom!.cvRmse.without).toBe(slope.cvRmse.slope);
+    // Mixed: a third of the rows lack an asking price and are never held out when a slope exists.
+    const g = lcg(33);
+    const mixed = domRows({ seed: 33, domBeta: -0.02, slopeB: 0 }).map((r) => (g.uniform() < 0.33 ? { ...r, askLnKrm2: null } : r));
+    const m = fitBidPremium(mixed);
+    expect(m.kind).toBe("flat");
+    expect(m.terms.dom!.cvRmse.without).toBe(m.cvRmse.flat);
+    const mixedSlope = domRows({ seed: 34, domBeta: -0.02, slopeB: -0.3 }).map((r) => (g.uniform() < 0.33 ? { ...r, askLnKrm2: null } : r));
+    const ms = fitBidPremium(mixedSlope);
+    expect(ms.kind).toBe("slope");
+    expect(ms.terms.dom!.cvRmse.without).toBe(ms.cvRmse.slope);
+  });
+
+  it("fewer than MIN_DISTRICT_N rows with days (and an asking price) give no days term and an unchanged base", () => {
+    const rows = domRows({ seed: 41, domBeta: -0.02, slopeB: -0.2, knownDaysShare: 0.04 });
+    const withDays = rows.filter((r) => r.domLn !== null && r.askLnKrm2 !== null).length;
+    expect(withDays).toBeLessThan(MIN_DISTRICT_N);
+    expect(withDays).toBeGreaterThan(0);
+    const fit = fitBidPremium(rows);
+    expect(fit.terms.dom).toBeNull();
+    expect(fit).toEqual(fitBidPremium(stripDays(rows)));
+    // Rows with days but no asking price do not count towards a slope base's term.
+    const noAsk = rows.map((r, i) => (i % 2 === 0 ? { ...r, domLn: Math.log(1 + (i % 60)) } : r));
+    expect(fitBidPremium(noAsk).kind).toBe("slope");
+  });
+
+  it("no days at all gives no days term", () => {
+    expect(fitBidPremium(stripDays(domRows({ seed: 42, domBeta: -0.02 }))).terms.dom).toBeNull();
+    expect(fitBidPremium([]).terms.dom).toBeNull();
+  });
+
+  it("a flat base still tries the days term on days alone, even when asking prices exist", () => {
+    // Asking prices are present but carry no information about the premium, so flat wins the base contest
+    // (the seed is a fixed piece of test data; the test is about the days path on a flat base).
+    const fit = fitBidPremium(domRows({ seed: 55, domBeta: -0.03, slopeB: 0 }));
+    expect(fit.kind).toBe("flat");
+    expect(fit.b).toBeNull();
+    expect(fit.terms.dom!.kept).toBe(true);
+    expect(Math.abs(fit.terms.dom!.beta + 0.03)).toBeLessThan(0.006);
+  });
+
+  it("is deterministic with the days term", () => {
+    const rows = domRows({ seed: 61, domBeta: -0.02, slopeB: -0.2 });
+    expect(fitBidPremium(rows)).toEqual(fitBidPremium(rows));
+  });
 });
 
 describe("fitHedonicModel: bid premium and null labels (R-07)", () => {

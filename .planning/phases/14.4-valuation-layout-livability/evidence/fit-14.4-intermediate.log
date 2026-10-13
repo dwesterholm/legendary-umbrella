@@ -35,8 +35,9 @@ Koefficienter och slutsatser i klartext:
   - Prisutveckling per månad ≈ +0,8 % (SE 0,0 %), källa: data; priset avser 2026-10-12.
   - Balkong ≈ +8,0 %, källa: data.
   - Byggår, jämfört med en genomsnittlig lägenhet: före 1931 +4,2 %, 1931–1960 -3,1 %, 1961–1990 -8,0 %, 1991 och senare -6,3 %, källa: data.
-  - Budpremie (slutpris över utgångspris), lutande (b = -0,18: ju lägre utgångspris mot modellens pris, desto högre bud); siffrorna gäller när utgångspriset är lika med modellens pris: Södermalm +11,0 % (n 1791), Kungsholmen +5,7 % (n 1570), Vasastan +6,1 % (n 1361), Östermalm +4,2 % (n 640).
+  - Budpremie (slutpris över utgångspris), lutande (b = -0,09: ju lägre utgångspris mot modellens pris, desto högre bud); siffrorna gäller när utgångspriset är lika med modellens pris: Södermalm +12,3 % (n 1791), Kungsholmen +6,5 % (n 1570), Vasastan +7,0 % (n 1361), Östermalm +5,2 % (n 640).
   - Budpremiens korsvalidering (logskala): fast 0,076, lutande 0,074.
+  - Dagar på marknaden i budpremien: används (med: korsvalidering 0,0737 -> 0,0728; koefficient -0,0352 per ln-dag, 836 försäljningar med dagar och utgångspris). Gäller förväntat slutpris, inte lägenhetens värde.
   - 27,3 % av försäljningarna saknar uppgift om slutpris mot utgångspris och är utelämnade ur budpremien; de räknas inte som noll.
   - Smearing (omräkning från logskala) 1,007. En renoverad lägenhet prissätts högst +8,2 % över modellens pris (75:e percentilen av avvikelserna).
   - Reservvärde, avgiftPerSqmMonth (saknas i underlaget): avgift kr/kvm/mån: för få kända värden i underlaget (0; minst 20 krävs).
@@ -47,12 +48,20 @@ Nya egenskaper (14.4): utelämnade i den här körningen (mellanmodell, R-05).
 
 Budpremie, vald form: lutande (premien beror på hur långt utgångspriset ligger från modellens pris). Korsvalideringsfel (logskala): fast 0,0758, lutande 0,0737.
 Budpremie per område (modellen) mot rå median av slutpris mot utgångspris och studiens siffra (CONTEXT D-03):
-  Södermalm    modell +11,0 % (n 1791, anpassad)   rå median +13,9 %   studien +7 till +10 %
-  Kungsholmen  modell +5,7 % (n 1570, anpassad)   rå median +7,0 %   studien +3 till +4 %
-  Vasastan     modell +6,1 % (n 1361, anpassad)   rå median +8,1 %   studien (ingen studiesiffra)
-  Östermalm    modell +4,2 % (n 640, anpassad)   rå median +5,8 %   studien (ingen studiesiffra)
-  (Lutande form: modellens siffra gäller när utgångspriset är lika med modellens pris, b = -0,18; den är därför inte direkt jämförbar med råmedianen.)
+  Södermalm    modell +12,3 % (n 1791, anpassad)   rå median +13,9 %   studien +7 till +10 %
+  Kungsholmen  modell +6,5 % (n 1570, anpassad)   rå median +7,0 %   studien +3 till +4 %
+  Vasastan     modell +7,0 % (n 1361, anpassad)   rå median +8,1 %   studien (ingen studiesiffra)
+  Östermalm    modell +5,2 % (n 640, anpassad)   rå median +5,8 %   studien (ingen studiesiffra)
+  (Lutande form: modellens siffra gäller när utgångspriset är lika med modellens pris, b = -0,09; den är därför inte direkt jämförbar med råmedianen.)
 Andel försäljningar utan etikett (utelämnade ur budpremien, räknas inte som noll): 27,3 %
+
+Budpremie: dagar på marknaden
+  Rader med dagar: 1 177 av 7 430; av dem med utgångspris: 889.
+  Försäljningar i skattningen: 836 (basform: lutande).
+  Korsvalideringsfel (logskala, samma hållna rader): utan dagar 0,07372, med dagar 0,07285 (lägre).
+  Koefficient per ln(1 + dagar): -0,03518 (negativ: längre annons, lägre premie).
+  Beslut: behålls - med: korsvalidering 0,0737 -> 0,0728
+  Effekt på premien för en median-lägenhet, 7 mot 60 dagar: -7,62 procentenheter (+10,5 % -> +2,9 %).
 
 Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):
   alla 7 430 försäljningar:
