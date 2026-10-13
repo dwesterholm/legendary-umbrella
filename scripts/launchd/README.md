@@ -9,12 +9,14 @@ agenten rör dina egna användaragenter, så du gör det själv med en rad (se "
 - **När:** måndag 07:00 lokal tid (`StartCalendarInterval`, `Weekday` 1). Agenten startar inte vid
   inläsning (`RunAtLoad` saknas), så `launchctl bootstrap` startar ingen körning.
 - **Vad:** `scripts/launchd/run-weekly.sh`, som kör
-  `caffeinate -i ./node_modules/.bin/tsx scripts/fit-score.ts --renderer local --window all --email`.
+  `./node_modules/.bin/tsx scripts/fit-score.ts --renderer local --window all --email` (med `caffeinate -i -w` vid sidan om).
   - `--renderer local`: Booli läses av en synlig Chromium på den här Macen. Gratis.
   - `--window all`: alla jämförbara annonser får detaljsida, mäklarsida och bildtolkning.
   - `--email`: bevakningsminnet avgör vad som är nytt; mejlet innehåller bara nya eller prisändrade annonser.
   - `--allow-apify` skickas **aldrig** med. Veckojobbet kan inte kosta Apify-pengar (R-03).
-- **Sömn:** `caffeinate -i` håller Macen vaken precis så länge körningen pågår och inte längre.
+- **Sömn:** `caffeinate -i -w <skriptets pid>` håller Macen vaken precis så länge skriptet lever och inte längre.
+- **Stopp:** när launchd stoppar jobbet (utloggning, avstängning) skickar den SIGTERM till skriptet, som
+  vidarebefordrar den till körningen. Körningen stänger då webbläsaren och släpper låset innan den avslutar (kod 143).
 - **Miljön:** skriptet läser `~/.zshenv` (API-nyckel och SMTP-variabler ligger där). Inga hemligheter
   finns i plisten, och skriptet skriver aldrig ut miljön.
 - **Tider:** loggen får raderna `Start: <tid>` och `Slut: <tid>, kod <n>`, så en försenad körning syns.
@@ -93,7 +95,7 @@ export WATCH_EMAIL_TO='din@adress.se'
 
 Utan båda variablerna skrivs samma HTML i stället till
 `.planning/calibration/data/weekly-<datum>.html`, körningen säger vilken variabel som saknas och avslutar med
-kod 4. Bevakningsminnet lämnas orört, så annonserna mejlas första gången variablerna fungerar (en stavfel i
+kod 4. Bevakningsminnet lämnas orört, så annonserna mejlas första gången variablerna fungerar (ett stavfel i
 `~/.zshenv` får inte göra att veckans annonser räknas som sedda utan att någon fått dem). Vill du ändå markera
 dem som sedda utan mejl, kör med `WATCH_MARK_SEEN_WITHOUT_SMTP=1`.
 

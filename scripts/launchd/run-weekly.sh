@@ -38,8 +38,28 @@ ARGS+=("$@")
 
 echo "Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+# launchd stops a job by sending SIGTERM to THIS shell, not to the programs it started. A shell that is
+# only waiting for a foreground child dies on SIGTERM and leaves the child to be killed hard, so the
+# browser is never closed gracefully and the lock file stays behind (WR-09). Therefore the run is started
+# in the background and TERM/INT are forwarded to it; fit-score.ts then closes Chromium and exits 143/130.
+# Keeping the Mac awake is a separate caffeinate tied to this shell's pid (-w): it ends when the shell ends,
+# however that happens, so it never needs to relay signals.
+caffeinate -i -w $$ &
+CAFFEINATE_PID=$!
+
+./node_modules/.bin/tsx scripts/fit-score.ts "${ARGS[@]}" &
+CHILD=$!
+trap 'kill -TERM "$CHILD" 2>/dev/null || true' TERM INT
+
 CODE=0
-caffeinate -i ./node_modules/.bin/tsx scripts/fit-score.ts "${ARGS[@]}" || CODE=$?
+wait "$CHILD" || CODE=$?
+# A forwarded signal ends the first wait at once (status 128+n) while the run is still closing the browser;
+# wait again to collect its own exit code.
+if kill -0 "$CHILD" 2>/dev/null; then
+  wait "$CHILD" || CODE=$?
+fi
+trap - TERM INT
+kill "$CAFFEINATE_PID" 2>/dev/null || true
 
 echo "Slut: $(date -u +%Y-%m-%dT%H:%M:%SZ), kod $CODE"
 exit "$CODE"
