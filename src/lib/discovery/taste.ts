@@ -25,6 +25,20 @@
  * about 200 m from Medborgarplatsen. The decay shape (full within 300 m, linear
  * to zero at 800 m) is also a judgement call, not a measured preference.
  *
+ * INFERRED SUN (Phase 14.3, D-07, R-03, SUN-04): fit-score.ts may pass an
+ * `inferredSun` input (the resolved sun fact reduced to plain numbers). The sun
+ * part is then, per side, the facade weight times that side's obstruction
+ * factor (the March morning-and-midday sun the neighbours leave), best side
+ * wins, times the source factor times the confidence, plus the stated-phrase
+ * credit, capped at 1. The source factor is `streetOnlyFactor` (0.5) when only
+ * the footprint is known (we do not know whether the living room or the
+ * balcony faces the street or the yard) and 1 for stated text and a floor
+ * plan. A stated fact with confidence 1 and no shade keeps today's numbers.
+ * The sun part stays at most `sunMaxPct` (3 % of resale) and the total taste
+ * cap is untouched. With no `inferredSun` (or source "okänd") the output is
+ * exactly what it was before. The input is already rounded where it is stored
+ * (confidence 2 decimals, hours 1 decimal); this module does no rounding.
+ *
  * Every number lives in {@link TASTE_WEIGHTS}; the functions own no constants
  * (same discipline as NICHE_WEIGHTS in niches.ts).
  */
@@ -49,6 +63,12 @@ export const TASTE_WEIGHTS: {
   readonly hubMaxPct: 0.02;
   readonly facade: Readonly<Record<Facade, number>>;
   readonly phraseAdd: 0.3;
+  /**
+   * R-03 / research assumption A4, to be confirmed by Daniel: when only the
+   * footprint is known, the best side counts half (the rooms may face the other
+   * side). Stated text and a floor plan use 1.
+   */
+  readonly streetOnlyFactor: 0.5;
   readonly hubFullM: 300;
   readonly hubZeroM: 800;
 } = {
@@ -58,6 +78,7 @@ export const TASTE_WEIGHTS: {
   facade: { east: 1.0, south: 0.7, west: 0, north: 0 },
   // "sol hela dagen" / "genomgående": stated by the broker, credited once.
   phraseAdd: 0.3,
+  streetOnlyFactor: 0.5,
   hubFullM: 300,
   hubZeroM: 800,
 };
@@ -106,6 +127,45 @@ export function sunScore(
   return Math.min(1, best + (stated ? TASTE_WEIGHTS.phraseAdd : 0));
 }
 
+/**
+ * The resolved sun fact as plain numbers (built in fit-score.ts from the stored
+ * SunFact). `obstructionFactor` per side is obstructed / theoretical morning and
+ * midday hours in [0, 1], 1 when unknown. The source union is a local literal
+ * so this module imports nothing from the sun modules.
+ */
+export interface InferredSunInput {
+  source: "angiven" | "planritning" | "fastighet/gata" | "okänd";
+  confidence: number;
+  sides: ReadonlyArray<{ facade: Facade; obstructionFactor: number }>;
+}
+
+/** A finite number clamped to [0, 1]; NaN, infinity and negatives count as 0. */
+function unit(x: number): number {
+  if (!Number.isFinite(x) || x <= 0) return 0;
+  return Math.min(1, x);
+}
+
+/**
+ * Sun score in [0, 1] from an inferred fact: the best side's facade weight x
+ * obstruction factor (not the sum), x the source factor (`streetOnlyFactor` for
+ * "fastighet/gata", else 1) x confidence, plus `phraseAdd` once for a stated
+ * all-day-sun / through-flat phrase, capped at 1. An "okänd" source has no
+ * facade and scores only the phrase credit.
+ */
+export function inferredSunScore(inferred: InferredSunInput, phrases: SunPhrases | null): number {
+  let best = 0;
+  if (inferred.source !== "okänd") {
+    for (const side of inferred.sides) {
+      const weight = TASTE_WEIGHTS.facade[side.facade] ?? 0;
+      best = Math.max(best, weight * unit(side.obstructionFactor));
+    }
+  }
+  const sourceFactor = inferred.source === "fastighet/gata" ? TASTE_WEIGHTS.streetOnlyFactor : 1;
+  const stated = phrases !== null && (phrases.allDaySun || phrases.throughFlat);
+  const score = best * sourceFactor * unit(inferred.confidence) + (stated ? TASTE_WEIGHTS.phraseAdd : 0);
+  return Math.min(1, score);
+}
+
 export interface TasteResult {
   /** Sun part, fraction of resale (0 to 0.03). */
   sunPct: number;
@@ -123,9 +183,16 @@ export function tasteBonus(input: {
   longitude: number | null;
   orientation: { facades: Facade[] } | null;
   sunPhrases: SunPhrases | null;
+  /** Phase 14.3: the resolved sun fact; absent, null or source "okänd" means today's formula. */
+  inferredSun?: InferredSunInput | null;
 }): TasteResult {
   const hub = nearestLovedHub(input.latitude, input.longitude);
-  const sunPct = TASTE_WEIGHTS.sunMaxPct * sunScore(input.orientation, input.sunPhrases);
+  const inferred = input.inferredSun ?? null;
+  const score =
+    inferred !== null && inferred.source !== "okänd"
+      ? inferredSunScore(inferred, input.sunPhrases)
+      : sunScore(input.orientation, input.sunPhrases);
+  const sunPct = TASTE_WEIGHTS.sunMaxPct * score;
   const hubPct = hubProximityPct(hub ? hub.meters : null);
   return {
     sunPct,
