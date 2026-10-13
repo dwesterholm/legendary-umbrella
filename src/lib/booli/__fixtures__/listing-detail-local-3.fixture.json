@@ -1,0 +1,702 @@
+{
+  "__typename": "Listing",
+  "id": "6294081",
+  "addressId": "1924963",
+  "adTargetingProperties": [
+    {
+      "__typename": "KeyValueOutput",
+      "key": "municipality",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "county",
+      "value": "2"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "suburb",
+      "value": "115341"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "district",
+      "value": "115341,883816"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "room",
+      "value": "2"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "priceGroup",
+      "value": "4"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "constructionYearEra",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "objectType",
+      "value": "4"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "plotAreaGroup",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "status",
+      "value": "1"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "address",
+      "value": "Fatburs Kvarngata 18"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "livingAreaGroup",
+      "value": "2"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "zipCode",
+      "value": "851571"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "upcomingSale",
+      "value": "0"
+    },
+    {
+      "__typename": "KeyValueOutput",
+      "key": "brokerAgency",
+      "value": "16"
+    }
+  ],
+  "booliId": "6294081",
+  "buildingFloors": 5,
+  "residenceId": "572581",
+  "breadcrumbs": [
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Stockholms län",
+      "url": "/sok/till-salu?areaIds=2&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Stockholms kommun",
+      "url": "/sok/till-salu?areaIds=1&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Södermalm",
+      "url": "/sok/till-salu?areaIds=115341&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "Fatburs kvarngata",
+      "url": "/sok/till-salu?areaIds=100000&objectType=Lägenhet"
+    },
+    {
+      "__typename": "BreadcrumbItem",
+      "label": "BRF Brinckan-Lehusen",
+      "url": "/bostadsrattsforening/46799"
+    }
+  ],
+  "relatedSearchUrl": "/sok/till-salu?areaIds=115341&objectType=Lägenhet",
+  "breadcrumbsJsonLd": "{\"@context\":\"http://schema.org\",\"@type\":\"BreadcrumbList\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Stockholms län\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=2&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Stockholms kommun\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=1&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":3,\"name\":\"Södermalm\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=115341&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":4,\"name\":\"Fatburs kvarngata\",\"item\":\"https://www.booli.se/sok/till-salu?areaIds=100000&objectType=Lägenhet\"},{\"@type\":\"ListItem\",\"position\":5,\"name\":\"BRF Brinckan-Lehusen\",\"item\":\"https://www.booli.se/bostadsrattsforening/46799\"}]}",
+  "propertyType": "active",
+  "objectType": "Lägenhet",
+  "streetAddress": "Fatburs Kvarngata 18",
+  "descriptiveAreaName": "Södermalm",
+  "latitude": 59.31287849,
+  "longitude": 18.05989466,
+  "constructionYear": 1992,
+  "housingCoop": {
+    "__typename": "HousingCoop",
+    "id": "46799"
+  },
+  "rooms": {
+    "__typename": "FormattedValue",
+    "formatted": "2 rum",
+    "value": "2",
+    "raw": 2,
+    "unit": "rum"
+  },
+  "livingArea": {
+    "__typename": "FormattedValue",
+    "formatted": "50 m²",
+    "value": "50",
+    "raw": 50,
+    "unit": "m²"
+  },
+  "additionalArea": null,
+  "plotArea": null,
+  "rent": {
+    "__typename": "FormattedValue",
+    "raw": 4043,
+    "value": "4 043",
+    "unit": "kr/mån"
+  },
+  "operatingCost": {
+    "__typename": "FormattedValue",
+    "raw": 458,
+    "value": "458",
+    "unit": "kr/mån"
+  },
+  "primaryArea": {
+    "__typename": "Area_V3",
+    "name": "Södermalm",
+    "preposition": "på"
+  },
+  "displayAttributes": {
+    "__typename": "DisplayAttributes",
+    "dataPoints": [
+      {
+        "__typename": "DataPoint",
+        "key": "livingArea",
+        "label": "Boarea",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "50 m²",
+          "markdown": "**50 m²**"
+        }
+      },
+      {
+        "__typename": "DataPoint",
+        "key": "rooms",
+        "label": "Rum",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "2 rum",
+          "markdown": "**2 rum**"
+        }
+      },
+      {
+        "__typename": "DataPoint",
+        "key": "rent",
+        "label": "Avgift",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "4 043 kr/mån",
+          "markdown": "**4 043 kr/mån**"
+        }
+      },
+      {
+        "__typename": "DataPoint",
+        "key": "constructionYear",
+        "label": "Byggår",
+        "value": {
+          "__typename": "DisplayText",
+          "plainText": "1992",
+          "markdown": "**1992**"
+        }
+      }
+    ]
+  },
+  "areas": [
+    {
+      "__typename": "Area_V3",
+      "id": "1",
+      "name": "Stockholm",
+      "parent": "2",
+      "type": "municipality"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "2",
+      "name": "Stockholms län",
+      "parent": "77104",
+      "type": "county"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "143",
+      "name": "Stockholms innerstad",
+      "parent": "1",
+      "type": "userDefined"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "8069",
+      "name": "Maria",
+      "parent": "1",
+      "type": "userDefined"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "77104",
+      "name": "Sverige",
+      "parent": null,
+      "type": "country"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "100000",
+      "name": "Fatburs kvarngata",
+      "parent": "1",
+      "type": "streetName"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "115341",
+      "name": "Södermalm",
+      "parent": "1",
+      "type": "suburb"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "851571",
+      "name": "11864",
+      "parent": "851502",
+      "type": "postcode"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "883816",
+      "name": "Innanför tullarna",
+      "parent": "1",
+      "type": "locality"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "905784",
+      "name": "Södra Station",
+      "parent": "1",
+      "type": "userDefined"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "973576",
+      "name": "Storstockholm",
+      "parent": "77104",
+      "type": "indexArea"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "1002244",
+      "name": "SE3",
+      "parent": "77104",
+      "type": "electricityBiddingZone"
+    },
+    {
+      "__typename": "Area_V3",
+      "id": "1016337",
+      "name": "0180C3350",
+      "parent": "77104",
+      "type": "deso"
+    }
+  ],
+  "location": {
+    "__typename": "Location",
+    "namedAreas": [
+      "Södermalm"
+    ],
+    "region": {
+      "__typename": "Region",
+      "municipalityName": "Stockholm"
+    }
+  },
+  "salesOfResidence": null,
+  "url": "/bostad/572581",
+  "tenureForm": "Bostadsrätt",
+  "infoSections": [
+    {
+      "__typename": "InfoSection",
+      "key": "propertyInfo",
+      "title": "Bostaden",
+      "type": "tab",
+      "lazyLoad": false,
+      "tracking": {
+        "__typename": "TrackingEvent",
+        "eventName": "component_clicked",
+        "properties": {
+          "component": "tab",
+          "name": "property_info",
+          "section": "info_section"
+        }
+      },
+      "content": {
+        "__typename": "InfoSectionContent",
+        "infoPoints": [
+          {
+            "__typename": "InfoPoint",
+            "key": "tenureForm",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Den här lägenheten är en **bostadsrätt**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "ApartmentFilled",
+                "svg": "https://bcdn.se/assets/shared/icons/ApartmentFilled.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "rent",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Den har **4 043** kr/mån i avgift"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "CreditCard",
+                "svg": "https://bcdn.se/assets/shared/icons/CreditCard.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "operatingCost",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Driftskostnaden är **458** kr/mån"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "SizeSelect",
+                "svg": "https://bcdn.se/assets/shared/icons/SizeSelect.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "listSqmPrice",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Utropspriset per kvadratmeter är **69 900** kr/m²"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "AreaChart",
+                "svg": "https://bcdn.se/assets/shared/icons/AreaChart.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "propertyCalculator",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "[Räkna på ditt boende](#property-calculator)"
+            },
+            "logos": [],
+            "icons": [],
+            "sponsored": false,
+            "url": "#property-calculator",
+            "action": "scrollToTarget",
+            "tracking": {
+              "__typename": "TrackingEvent",
+              "eventName": "link_clicked",
+              "properties": {
+                "text": "Räkna på ditt boende",
+                "type": "anchor",
+                "href": "#property-calculator"
+              }
+            },
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "floor",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Den ligger på **våning 3 av 5 med hiss**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "ElevatorOutlined",
+                "svg": "https://bcdn.se/assets/shared/icons/ElevatorOutlined.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "apartmentNumber",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Lägenhetsnumret är **1302**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "Hashtag",
+                "svg": "https://bcdn.se/assets/shared/icons/Hashtag.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "energyScore",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Huset har **energiklass D**"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "BookWithBookmark",
+                "svg": "https://bcdn.se/assets/shared/icons/BookWithBookmark.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "pageviews",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Bostaden har **2059** sidvisningar på Booli"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "MagnifyingGlassInBox",
+                "svg": "https://bcdn.se/assets/shared/icons/MagnifyingGlassInBox.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          },
+          {
+            "__typename": "InfoPoint",
+            "key": "daysActive",
+            "displayText": {
+              "__typename": "DisplayText",
+              "markdown": "Bostaden har varit till salu i **11** dagar"
+            },
+            "logos": [],
+            "icons": [
+              {
+                "__typename": "CrossPlatformIcon",
+                "key": "Calendar",
+                "svg": "https://bcdn.se/assets/shared/icons/Calendar.svg"
+              }
+            ],
+            "sponsored": false,
+            "url": null,
+            "action": null,
+            "tracking": null,
+            "tooltip": null
+          }
+        ],
+        "ctas": [
+          {
+            "__typename": "Cta",
+            "key": "listingUrlLink",
+            "label": "Läs mer hos mäklaren",
+            "type": "primary",
+            "url": "https://www.husmanhagberg.se/objekt/annons/OBJ5PZMVSS3DVKDXP6FB8?utm_source=booli&utm_medium=referral&utm_campaign=till-salu&utm_content=fatburs%2Bkvarngata%2B18",
+            "action": "openExternalUrl",
+            "tracking": {
+              "__typename": "TrackingEvent",
+              "eventName": "link_clicked",
+              "properties": {
+                "destination": "agency_outbound",
+                "type": "external",
+                "href": "https://www.husmanhagberg.se/objekt/annons/OBJ5PZMVSS3DVKDXP6FB8?utm_source=booli&utm_medium=referral&utm_campaign=till-salu&utm_content=fatburs%2Bkvarngata%2B18"
+              }
+            }
+          }
+        ],
+        "tracking": null
+      }
+    },
+    {
+      "__typename": "InfoSection",
+      "key": "housingCoopInfo",
+      "title": "Föreningen",
+      "type": "tab",
+      "lazyLoad": true,
+      "tracking": {
+        "__typename": "TrackingEvent",
+        "eventName": "component_clicked",
+        "properties": {
+          "component": "tab",
+          "name": "housing_coop_info",
+          "section": "info_section"
+        }
+      },
+      "content": {
+        "__typename": "InfoSectionContent",
+        "infoPoints": [],
+        "ctas": [],
+        "tracking": null
+      }
+    }
+  ],
+  "priceInfo": {
+    "__typename": "PriceInfo",
+    "label": "Utropspris",
+    "displayPrice": "3 495 000 kr",
+    "displayPriceChange": null,
+    "positivePriceChange": null,
+    "description": null
+  },
+  "amenities": [
+    {
+      "__typename": "Amenity",
+      "key": "elevator",
+      "label": "Hiss",
+      "icons": [
+        {
+          "__typename": "CrossPlatformIcon",
+          "svg": "https://bcdn.se/assets/shared/icons/ElevatorOutlined.svg"
+        }
+      ]
+    },
+    {
+      "__typename": "Amenity",
+      "key": "balcony",
+      "label": "Balkong",
+      "icons": [
+        {
+          "__typename": "CrossPlatformIcon",
+          "svg": "https://bcdn.se/assets/shared/icons/BalconyOutlined.svg"
+        }
+      ]
+    }
+  ],
+  "apartmentNumber": {
+    "__typename": "FormattedValue",
+    "value": "1302"
+  },
+  "agencyId": "16",
+  "agency": {
+    "__typename": "Agency",
+    "name": "HusmanHagberg",
+    "thumbnail": "https://hm.bcdn.se/rails/active_storage/representations/proxy/eyJfcmFpbHMiOnsiZGF0YSI6ODYxNTcsInB1ciI6ImJsb2JfaWQifX0=--160b23b6a54f140e4eb76d9ea4fbe3f88592c8f9/eyJfcmFpbHMiOnsiZGF0YSI6eyJmb3JtYXQiOiJqcGciLCJyZXNpemVfdG9fZml0IjpbNTQwLDI4MF0sInNhdmVyIjp7InF1YWxpdHkiOjg1fX0sInB1ciI6InZhcmlhdGlvbiJ9fQ==--856a9a7a1c6c1cdb4e974d0932ebe29a76f862dd/HH_logo_1rad_neg_RGB_medbakgrund.jpg"
+  },
+  "assessments": [],
+  "isNewConstruction": false,
+  "biddingOpen": 1,
+  "blockedImages": false,
+  "enableStreetView": true,
+  "floor": {
+    "__typename": "FormattedValue",
+    "raw": 3
+  },
+  "heating": null,
+  "images": [
+    {
+      "__typename": "Image",
+      "id": "56658096",
+      "primaryLabel": "balcony/view",
+      "width": 5000,
+      "height": 3333,
+      "alt": "Balkong eller utsiktsbild"
+    },
+    {
+      "__typename": "Image",
+      "id": "56658097",
+      "primaryLabel": "balcony/view",
+      "width": 5000,
+      "height": 3333,
+      "alt": "Balkong eller utsiktsbild"
+    }
+  ],
+  "listPrice": {
+    "__typename": "FormattedValue",
+    "value": "3 495 000",
+    "unit": "kr",
+    "raw": 3495000,
+    "formatted": "3 495 000 kr"
+  },
+  "listSqmPrice": {
+    "__typename": "FormattedValue",
+    "raw": 69900,
+    "value": "69 900",
+    "unit": "kr/m²",
+    "formatted": "69 900 kr/m²"
+  },
+  "listingUrl": "https://www.husmanhagberg.se/objekt/annons/OBJ5PZMVSS3DVKDXP6FB8",
+  "phase": "Till salu",
+  "published": "2026-10-02 14:08:35",
+  "showingsV2": [],
+  "attribution": {
+    "__typename": "Attribution",
+    "thumbnailUrl": "https://hm.bcdn.se/rails/active_storage/representations/proxy/eyJfcmFpbHMiOnsiZGF0YSI6ODYxNTcsInB1ciI6ImJsb2JfaWQifX0=--160b23b6a54f140e4eb76d9ea4fbe3f88592c8f9/eyJfcmFpbHMiOnsiZGF0YSI6eyJmb3JtYXQiOiJqcGciLCJyZXNpemVfdG9fZml0IjpbNTQwLDI4MF0sInNhdmVyIjp7InF1YWxpdHkiOjg1fX0sInB1ciI6InZhcmlhdGlvbiJ9fQ==--856a9a7a1c6c1cdb4e974d0932ebe29a76f862dd/HH_logo_1rad_neg_RGB_medbakgrund.jpg",
+    "title": "HusmanHagberg",
+    "description": null
+  },
+  "upcomingSale": false,
+  "listPriceChange": null,
+  "listPricePercentageDiff": null,
+  "source": {
+    "__typename": "Source",
+    "id": "1610",
+    "name": "HusmanHagberg",
+    "type": "Broker"
+  },
+  "estimate": {
+    "__typename": "Estimate",
+    "price": null,
+    "low": null,
+    "high": null,
+    "show": "PRICERANGE",
+    "basis": {
+      "__typename": "EstimateBasis",
+      "water": null,
+      "sewer": null
+    }
+  },
+  "mortgageDeed": null
+}
