@@ -1,0 +1,10 @@
+Renderare: lokal webbläsare
+APIFY_API_TOKEN: satt
+ANTHROPIC_API_KEY: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+WATCH_SMTP_URL: saknas
+WATCH_EMAIL_TO: saknas
+watch-state: .planning/calibration/data/watch-state.json: 77 annonser sedda, senast 2026-10-13
+Lås: ledigt
+OSM-cache: 0,0 dagar gammal, ingen hämtning (gräns 31 dagar)
+--dry-run: förkontrollerna är klara, ingen webbläsare startades.
