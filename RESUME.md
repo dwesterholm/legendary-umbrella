@@ -22,7 +22,13 @@ Sun coverage is solved without on-site visits: `sol härledd 74 av 76 (97,4 %)` 
 - Table + mail have three Sol columns; coverage line has `sol härledd`. 14.2's D-17 sun clause closed.
 - Spend this phase: 0 USD Apify, 0,37 kr vision. Tests 2 430 passed.
 
-Pending when written: 14.3-REVIEW.md and 14.3-VERIFICATION.md, then phase.complete.
+DONE after this was written: 14.3-VERIFICATION 8/8 (human_needed: two judgment items pre-decided in 14.3-UAT.md —
+keep streetOnlyFactor 0.5; compass override accepted); code review 1 critical + 5 warnings ALL FIXED
+(14.3-REVIEW-FIX.md): a mis-tagged 151 m 'Ringen centrum' no longer shades Skanstull flats (height sanity
+rule + landmark allowlist), window points pushed outside buildings, latitude metres fixed, per-flat sun
+errors → okänd (fel), probe cap cumulative, unusable OSM cache → re-download. 26/78 flats' hours moved
+≥ 0,5 h; Folkungagatan 61 unchanged. `phase.complete` refuses while UAT is open → run
+`/gsd-verify-work 14.3` (and 14.1) to close them.
 Daniel's one-time steps are unchanged (SMTP env, watch-state, launchctl, pmset — scripts/launchd/README.md).
 Open knobs for Daniel: streetOnlyFactor 0.5 vs 1.0; the two text-stated flats both face WEST on the
 courtyard side (supports keeping 0.5); Kungsbro Strand 19 has no floor → no shade check.
