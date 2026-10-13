@@ -167,7 +167,7 @@ Plans:
 
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 7/9 plans executed
+**Plans:** 8/9 plans executed
 
 Plans:
 **Wave 1**
@@ -194,7 +194,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 14.2-08-PLAN.md — Seen-listing memory, run lock, weekly HTML e-mail via nodemailer (HTML-file fallback), quiet weeks send nothing
+- [x] 14.2-08-PLAN.md — Seen-listing memory, run lock, weekly HTML e-mail via nodemailer (HTML-file fallback), quiet weeks send nothing
 
 **Wave 7** *(blocked on Wave 6 completion)*
 

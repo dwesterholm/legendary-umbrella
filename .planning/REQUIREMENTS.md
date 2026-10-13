@@ -35,7 +35,7 @@
 - [x] **WATCH-02**: The headless run reads Booli's own total count per district and pages until complete (cap 15 pages/district, flagged `ofullständig` if short), then fetches detail (+ broker page) for EVERY filtered candidate and runs vision on all of them (cached by Booli id, 3 parallel chunks, ≤ 60 SEK logged); a separate `CandidateFacts` record carries tenure, avgift, build year, balcony, floor, listing age, price history, bidding status, BRF name, orientation and sun phrases without widening `DiscoveryCandidate`.
 - [x] **WATCH-03**: Every `kredit-tak` / `dold-defekt-risk` row carries a deterministic plain-Swedish "varför här" reason (tenure, nyproduktion, days on market, price cuts, avgift/kvm vs district median, BRF debt/kvm from Booli's public BRF page, bidding, rooms-per-kvm) or the explicit `oförklarat fynd` marker.
 - [x] **WATCH-04**: The hedonic model is refitted without the size sign rule (committed `data/hedonic-model.json`, Swedish description updated), the uncapped gap is printed beside the credited one, and the table is split into "Förväntat under 4 M" and "Över 4 M förväntat" sections with Folkungagatan 61 still tracked.
-- [ ] **WATCH-05**: A seen-listing store (Booli id, last asking, first seen) under `.planning/calibration/data/watch-state.json` makes the weekly run idempotent per day; the HTML email (nodemailer, SMTP URL + recipient from env, never printed) lists only new or price-changed rows with the full column set, reason and Booli link, falls back to writing the HTML file when SMTP env is absent, and sends nothing on a quiet week; first mail = top 15 per section.
+- [x] **WATCH-05**: A seen-listing store (Booli id, last asking, first seen) under `.planning/calibration/data/watch-state.json` makes the weekly run idempotent per day; the HTML email (nodemailer, SMTP URL + recipient from env, never printed) lists only new or price-changed rows with the full column set, reason and Booli link, falls back to writing the HTML file when SMTP env is absent, and sends nothing on a quiet week; first mail = top 15 per section.
 - [ ] **WATCH-06**: A documented LaunchAgent plist under `scripts/launchd/` runs the weekly job Monday 07:00 under `caffeinate -i` with `~/.zshenv` sourced and logs to a file; installing it is a one-line documented command, not done by the phase.
 - [ ] **WATCH-07**: One real local run (0 USD Apify) produces the phase-exit evidence under the phase directory: coverage numbers (completeness per district, sun/condition/balcony known %), the two sections with reasons, the mail/HTML, and the tracked listing's decomposition — measured, not tuned.
 
@@ -97,7 +97,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | WATCH-02 | Phase 14.2 — Trustworthy Weekly Table | Complete |
 | WATCH-03 | Phase 14.2 — Trustworthy Weekly Table | Complete |
 | WATCH-04 | Phase 14.2 — Trustworthy Weekly Table | Complete |
-| WATCH-05 | Phase 14.2 — Trustworthy Weekly Table | Pending |
+| WATCH-05 | Phase 14.2 — Trustworthy Weekly Table | Complete |
 | WATCH-06 | Phase 14.2 — Trustworthy Weekly Table | Pending |
 | WATCH-07 | Phase 14.2 — Trustworthy Weekly Table | Pending |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
