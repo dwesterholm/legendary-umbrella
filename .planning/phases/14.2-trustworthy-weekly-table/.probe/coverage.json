@@ -14,8 +14,8 @@
       "category": "precision",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "Ledger prints 'Lokal webbläsare: N sidor (...), 0,00 USD' (two decimals, decimal comma) and 'Apify-reserv: K renderingar'; the runs-API read waits LEDGER_SETTLE_MS (10 000 ms). Parity test: deep-equal candidate objects from both transports on the same fixture.",
-      "reason": "14.2-01 must_haves.truths; renderer-parity.test.ts; tracer probe output",
+      "resolution": "Ledger lines start at column 0: 'Lokal webbläsare: N sidor (...), 0,00 USD' and 'Apify-reserv: K renderingar'; after LEDGER_SETTLE_MS (10 000 ms) the runs-API bill is printed by transport.ts formatApifyRunsLine as ONE pinned decimal-comma line, zero bill exactly 'Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)' (USD toFixed(2), point replaced by a comma). Parity test: deep-equal candidate objects from both transports on the same fixture.",
+      "reason": "14.2-01 must_haves.truths; transport.test.ts 'runs-API line'; renderer-parity.test.ts; tracer probe output; 14.2-09 grep -x of the zero line",
       "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
     },
     {
@@ -41,8 +41,8 @@
       "category": "empty",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "Zero candidates after filtering: no enrichment, no vision, both sections print '0 kandidater', vision spend 0,00, exit 0. A district page with totalCount 0 is a genuine empty result, not a dead source.",
-      "reason": "14.2-02 and 14.2-05 must_haves.truths; fit-pipeline.test.ts and page-functions.test.ts",
+      "resolution": "Zero candidates after filtering: no enrichment, no vision call, both sections print '0 kandidater', exit 0; the vision line then reads 'Bildtolkning: 0 anrop, 0 från cache, 0 hoppades över, 0,00 kr av tak 60 kr (delar: 0/0/0 kandidater)'. A district page that carries Booli's total count but zero cards is a DEAD page in both transports (SearchMeta never sets the extractor's found flag, so hasApollo stays false and the 14.1 HIGH-1 error is unchanged in-app); the headless run reports that district as failed and the list as OFULLSTÄNDIG, never as '0 av 0'.",
+      "reason": "14.2-02 must_haves.truths and prohibitions (tests 'totalCount-only page' in page-functions.test.ts and client.test.ts); 14.2-05 and 14.2-06 must_haves.truths; fit-pipeline.test.ts; vision-cache.test.ts",
       "probe": "What is the result for empty, single-element, or null input?"
     },
     {
@@ -51,7 +51,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "Swedish letters (å, ä, ö) in addresses, area labels and BRF names survive the fixtures' JSON round trip and factsFromDetail byte for byte; watch-state fingerprints are NFC-normalised (decomposed ö matches precomposed ö).",
-      "reason": "14.2-02 must_haves.truths (encoding); 14.2-07 watch-state.test.ts",
+      "reason": "14.2-02 must_haves.truths (encoding); 14.2-08 watch-state.test.ts",
       "probe": "Whose definition of length/equality applies — bytes, code points, grapheme clusters, or normalized form?"
     },
     {
@@ -60,7 +60,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "runVisionChunks returns candidates in input order whatever the chunk completion order; the final ranking (profit desc, then Booli id asc) equals an unchunked pass over the same fake results.",
-      "reason": "14.2-05 must_haves.truths (ordering); vision-cache.test.ts",
+      "reason": "14.2-06 must_haves.truths (ordering); vision-cache.test.ts",
       "probe": "When elements compare equal, is output order specified and stable?"
     },
     {
@@ -68,8 +68,8 @@
       "category": "precision",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "Vision cap compared in floats as 'running + estimate > cap' (equal allowed), 3 chunks x 20 SEK = 60 SEK per run; spend printed with 2 decimals; table money integer kronor (Math.round once).",
-      "reason": "14.2-05 must_haves.truths (precision); vision.test.ts capSek cases",
+      "resolution": "Vision cap compared in floats as 'running + estimate > cap' (equal allowed), 3 chunks x 20 SEK = 60 SEK per run; spend printed with 2 decimals and a decimal comma in the pinned Bildtolkning line; table money integer kronor (Math.round once); coverage items '<label> <k> av <N> (<p> %)' with one decimal, N = 0 -> '0 av 0 (0,0 %)'.",
+      "reason": "14.2-06 must_haves.truths (precision); vision.test.ts capSek cases; vision-cache.test.ts renderVisionLine; 14.2-05 renderCoverage tests",
       "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
     },
     {
@@ -78,7 +78,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "REASON_THRESHOLDS: 60 days (59 none, 60 fires); avgift ratio > 1.25 x district median (1.25 none); BRF debt > 10 000 kr/kvm (10 000 none); m² per room < 14 or > 30 (14.0 and 30.0 none); price cut >= 1 kr; median needs >= 5 rows. No elevator listed on the detail page with floor >= 4 -> 'ingen hiss angiven' (floor 3 none; unknown elevator none).",
-      "reason": "14.2-06 must_haves.truths (boundary); watch-reasons.test.ts",
+      "reason": "14.2-07 must_haves.truths (boundary); watch-reasons.test.ts",
       "probe": "What happens exactly at each min/max/threshold — and one step either side?"
     },
     {
@@ -86,8 +86,8 @@
       "category": "adjacency",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "A row with two reasons lists both, comma-joined, in REASON_ORDER regardless of evaluation order; bidding status from card and detail yields one reason, not two.",
-      "reason": "14.2-06 must_haves.truths (ordering and adjacency)",
+      "resolution": "A row with two reasons lists both, comma-joined, in REASON_ORDER regardless of evaluation order; bidding status from card and detail yields one reason, not two; the card status key 'upcomingSale' and the candidate upcomingSale flag together yield one 'snart till salu (ej budgivning än)', not two.",
+      "reason": "14.2-07 must_haves.truths (ordering, adjacency, W3)",
       "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
     },
     {
@@ -96,7 +96,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "Flagged row (kredit-tak or dold-defekt-risk) with no reason -> exactly 'oförklarat fynd'; unflagged row with no reason -> '-'; null facts -> no reasons, no crash.",
-      "reason": "14.2-06 must_haves.truths (empty); watch-reasons.test.ts",
+      "reason": "14.2-07 must_haves.truths (empty); watch-reasons.test.ts",
       "probe": "What is the result for empty, single-element, or null input?"
     },
     {
@@ -104,8 +104,8 @@
       "category": "ordering",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "Fixed priority: upplåtelseform, tomträtt, nyproduktion, budgivning pågår, prissänkt, ute i N dagar, hög avgift, hög föreningsskuld, ingen hiss angiven, ovanlig planlösning.",
-      "reason": "14.2-06 REASON_ORDER",
+      "resolution": "Fixed priority: upplåtelseform, tomträtt, nyproduktion, budgivning pågår, prissänkt, ute i N dagar, hög avgift, hög föreningsskuld, ingen hiss angiven, ovanlig planlösning, snart till salu (ej budgivning än) (informational, always last, W3).",
+      "reason": "14.2-07 REASON_ORDER; watch-reasons.test.ts",
       "probe": "When elements compare equal, is output order specified and stable?"
     },
     {
@@ -114,7 +114,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "debtPerSqm = Math.round(loanSek / areaSqm) in whole kronor, null when either is missing or area is 0; avgift per kvm per year = monthly x 12 / area, printed in whole kronor.",
-      "reason": "14.2-06 must_haves.truths (precision); brf-page.test.ts, watch-reasons.test.ts",
+      "reason": "14.2-07 must_haves.truths (precision); brf-page.test.ts, watch-reasons.test.ts",
       "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
     },
     {
@@ -132,7 +132,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "Price-changed when both prices known and |new - old| >= 1 kr (0 kr unchanged); stale entries pruned after 90 days (90 kept, 91 pruned); first mail 15 per section.",
-      "reason": "14.2-07 must_haves.truths; watch-state.test.ts",
+      "reason": "14.2-08 must_haves.truths; watch-state.test.ts",
       "probe": "What happens exactly at each min/max/threshold — and one step either side?"
     },
     {
@@ -141,7 +141,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "The same listing from two districts or two URL forms (/annons/ vs /bostad/, matched by NFC fingerprint) counts once and is not 'new'.",
-      "reason": "14.2-07 must_haves.truths (adjacency)",
+      "reason": "14.2-08 must_haves.truths (adjacency)",
       "probe": "When two things are exactly equal or just touch, do they merge, collide, or separate?"
     },
     {
@@ -150,7 +150,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "No new and no changed rows -> no mail, no HTML file, log 'inget nytt: 0 nya, 0 prisändrade, ingen e-post', exit 0.",
-      "reason": "14.2-07 must_haves.truths (quiet week); offline e2e second run",
+      "reason": "14.2-08 must_haves.truths (quiet week); offline e2e second run",
       "probe": "What is the result for empty, single-element, or null input?"
     },
     {
@@ -159,7 +159,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "Inside each section the mail keeps the table order (profit desc, then Booli id asc); 'Förväntat under 4 M' first.",
-      "reason": "14.2-07 must_haves.truths (ordering); watch-report.test.ts",
+      "reason": "14.2-08 must_haves.truths (ordering); watch-report.test.ts",
       "probe": "When elements compare equal, is output order specified and stable?"
     },
     {
@@ -167,8 +167,8 @@
       "category": "precision",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "Prices as integer kronor with space separators; changed rows 'old → new'; ASCII hyphen for negatives; -0 prints 0.",
-      "reason": "14.2-07 must_haves.truths (precision); watch-report.test.ts formatKr cases",
+      "resolution": "Prices as integer kronor with space separators; a changed row is labelled 'prisändrad (old → new)', a new row 'nya sedan förra veckan' (W2, D-15 wording); ASCII hyphen for negatives; -0 prints 0.",
+      "reason": "14.2-08 must_haves.truths (precision, W2); watch-report.test.ts formatKr and statusLabel cases",
       "probe": "Where can precision loss, overflow, or rounding/tie-breaking occur — and what is the exact contract (e.g. half-up vs half-to-even, ceil/floor/truncate)?"
     },
     {
@@ -176,8 +176,8 @@
       "category": "idempotency",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "State written only after delivery (mail accepted or HTML file written) and not with --no-state-write; firstSeen never rewritten; a same-day rerun with the same prices sends nothing and writes no HTML (proven offline in 14.2-07 and live in 14.2-08 with unchanged HTML sha256).",
-      "reason": "14.2-07 and 14.2-08 must_haves.truths",
+      "resolution": "State written only after delivery (mail accepted or HTML file written) and not with --no-state-write; firstSeen never rewritten; a same-day rerun with the same prices sends nothing and writes no HTML (proven offline in 14.2-08 and live in 14.2-09 with unchanged HTML sha256).",
+      "reason": "14.2-08 and 14.2-09 must_haves.truths",
       "probe": "What happens if this runs twice on the same input?"
     },
     {
@@ -186,7 +186,7 @@
       "status": "resolved",
       "verification": "explicit",
       "resolution": "Exclusive-create lock next to the state (pid + start time); a second run exits 3 with a Swedish message; a dead-pid lock is taken over with a warning; released in finally. A failed send keeps the state untouched (retry next run, at-least-once).",
-      "reason": "14.2-07 must_haves.truths (concurrency); offline e2e lock check",
+      "reason": "14.2-08 must_haves.truths (concurrency); offline e2e lock check",
       "probe": "If interrupted or run in parallel, what is guaranteed?"
     },
     {
@@ -194,8 +194,8 @@
       "category": "concurrency",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "launchd StartCalendarInterval (Monday 07:00) starts one instance; the plan-07 lock makes an overlapping manual run exit 3 (proven live in evidence/lock-check.log); caffeinate -i holds the sleep assertion only for the run; SIGTERM from launchd closes the browser.",
-      "reason": "14.2-08 must_haves.truths; 14.2-01 closeOnSignals",
+      "resolution": "launchd StartCalendarInterval (Monday 07:00) starts one instance; the plan-08 lock makes an overlapping manual run exit 3 (proven live in evidence/lock-check.log); caffeinate -i holds the sleep assertion only for the run; SIGTERM from launchd closes the browser.",
+      "reason": "14.2-09 must_haves.truths; 14.2-01 closeOnSignals",
       "probe": "If interrupted or run in parallel, what is guaranteed?"
     },
     {
@@ -203,8 +203,8 @@
       "category": "unclassified",
       "status": "resolved",
       "verification": "explicit",
-      "resolution": "One real local run of the scheduled command: exit 0, Apify-reserv 0 and 0 runs on the runs API, picture reading <= 60 SEK, completeness per district and the coverage line copied to evidence/; Folkungagatan 61 decomposition recorded; D-17 clauses reported with numbers, sun < 80 % reported as 'not met - 14.3 scope' (R-05).",
-      "reason": "14.2-08 must_haves.truths and evidence assertions",
+      "resolution": "One real local run of the scheduled command: exit 0, Apify-reserv 0 and the exact line 'Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)', picture reading <= 60 SEK, completeness per district and the coverage line copied to evidence/; Folkungagatan 61 decomposition recorded; D-17 clauses reported with numbers. Closing rule (W1): sun/orientation < 80 % -> 'not met — 14.3 scope' (R-05), the phase may close; condition or balcony < 80 % -> the phase is NOT closed: a '## Gaps' section marked gaps_found with the measured 'k av N (p %)', so verify-phase returns gaps_found. A node gate check enforces it.",
+      "reason": "14.2-09 must_haves.truths and evidence / SUMMARY gate assertions",
       "probe": "unclassified — review manually"
     }
   ],
