@@ -1,21 +1,39 @@
-# 14.4-02 task 3: sålda sidor, 1 200-radersbatchen (stratifierad, lokal webbläsare, utan --allow-apify)
-# Körd 2026-10-13 21:00 lokal tid. Stoppad av D-04-regeln efter 50 försök (exit 2). Föreningspasset kördes inte (stoppregeln: ingen ny körning samma dag).
-# Kommando: caffeinate -i npx tsx scripts/pull-slutpriser.ts --enrich-sample 1200 --enrich-max 1200 --enrich-since 2025-10-01 --re-enrich --stratify --renderer local --concurrency 2 --max-minutes 150
+# 14.4-02 task 3 (omkörning efter R-10, 2026-10-13 kväll): sålda sidor, stratifierat urval, lokal webbläsare, utan --allow-apify
+# Första körningen (50 sidor, stoppad av den gamla regeln, 3 sidor utan säljobjekt) finns i föregående version av den här filen i git (commit 5c0cc40).
+# Kommando: caffeinate -i npx tsx scripts/pull-slutpriser.ts --enrich-sample 1200 --enrich-max 1200 --enrich-since 2025-10-20 --re-enrich --stratify --renderer local --concurrency 2 --max-minutes 150
 Renderare: lokal webbläsare
-Berikning: 1195 av 7431 rader väljs (frö "14.1", sålda från 2025-10-01, äldre poster läses om, stratifierat urval, 5 redan berikade i v2), render-tak 1200, budget 25.00 USD, samtidighet 2, tidsgräns 150 min
+Berikning: 1150 av 7431 rader väljs (frö "14.1", sålda från 2025-10-20, äldre poster läses om, stratifierat urval, 52 redan berikade i v2), render-tak 1200, budget 25.00 USD, samtidighet 2, tidsgräns 150 min
 APIFY_API_TOKEN: satt
 Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
-Start: 2026-10-13T19:00:14.308Z
 ...
-Berikning klar. Renders: 50 (lyckade 50, misslyckade 0). Berikade rader: 47, misslyckade: 3.
-Rader med berikning i cachen: 52. Byggår 49 (94.2 %), balkong angiven 24, ingen balkong angiven 28, utgångspris 27 (51.9 %).
-Rader i v2: 52. Avgift 52 (100.0 %), förenings-id 51 (98.1 %), upplåtelseform 52 (100.0 %), dagar ute 51 (98.1 %), bild-id 22 (42.3 %).
-Sekunder per sida: 1,5 (73 s för 50 renderingar)
+Berikning klar. Renders: 1150 (lyckade 1150, misslyckade 0). Berikade rader: 1148, misslyckade: 0, no_data: 2.
+Rader med berikning i cachen: 1200. Byggår 1126 (93.8 %), balkong angiven 606, ingen balkong angiven 594, utgångspris 872 (72.7 %).
+Rader i v2: 1200. Avgift 1192 (99.3 %), förenings-id 1183 (98.6 %), upplåtelseform 1156 (96.3 %), dagar ute 1177 (98.1 %), bild-id 463 (38.6 %).
+Sekunder per sida: 1,5 (1727 s för 1150 renderingar)
 
 === KOSTNAD ===
-Lokal webbläsare: 50 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
+Lokal webbläsare: 1150 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
 Apify-reserv: 0 renderingar (tak 10)
 Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
-Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T19:00:14.308Z och kan inkludera andra körningar.
-Stopp: 6,0 % misslyckade efter 50 försök (gräns 5 %) - körningen avbröts (D-04).
-Utgångskod: 2
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T19:07:07.529Z och kan inkludera andra körningar.
+Kör samma kommando igen för att fortsätta (redan berikade rader renderas inte om).
+Utgångskod: 0
+
+# ---- Föreningspasset ----
+# Kommando: caffeinate -i npx tsx scripts/pull-slutpriser.ts --brf-pass --brf-max 1500 --renderer local --concurrency 2 --max-minutes 120
+Renderare: lokal webbläsare
+Föreningspass: 787 distinkta föreningar bland v2-raderna, 5 redan lästa, 782 kvar att läsa, högst 1500 i den här körningen, tidsgräns 120 min, samtidighet 2
+APIFY_API_TOKEN: satt
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+Start: 2026-10-13T19:36:14.386Z
+...
+Föreningspass klart. Läsningar: 782 (lagrade 782, misslyckade 0, hoppade över 0).
+Föreningar i cachen: 787, med skuld per kvm 649.
+Sekunder per sida: 1,6 (1276 s för 782 sidor)
+
+=== KOSTNAD ===
+Lokal webbläsare: 782 sidor (0 utmaningar, 0 omförsök, 0 misslyckade, 0 vägrade), 0,00 USD
+Apify-reserv: 0 renderingar (tak 10)
+Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-13T19:36:14.386Z och kan inkludera andra körningar.
+Utgångskod: 0
