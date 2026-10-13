@@ -4,17 +4,17 @@ milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 current_phase: "14.2"
 current_phase_name: Trustworthy Weekly Table
-status: executing
-stopped_at: Completed 14.2-08-PLAN.md
-last_updated: "2026-10-13T12:11:27.327Z"
+status: verifying
+stopped_at: Completed 14.2-09-PLAN.md
+last_updated: "2026-10-13T12:52:56.637Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.2 execution started
-state_head: 81d50f9a6ceefb5a4199ece12163200f9f61c060
+state_head: 5dc11f31a22ca2218d0229ab91a2df79c3ecd4b4
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 34
-  completed_plans: 33
+  completed_plans: 34
   percent: 13
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 Phase: 14.2 (Trustworthy Weekly Table) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-13 — Phase 14.2 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
 
@@ -95,6 +95,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.2 P06 | 22 min | 2 tasks | 10 files |
 | Phase 14.2 P07 | 14 min | 3 tasks | 13 files |
 | Phase 14.2 P08 | 30min | 3 tasks | 14 files |
+| Phase 14.2 P09 | 28 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -244,6 +245,8 @@ Recent decisions affecting current work:
 - [Phase 14.2]: 14.2-07: BRF debt per kvm = Booli BRF page loans / boarea (label and value on separate lines); 2 of 30 pages show no Lån line so debt stays null; reasons are pure rules with one thresholds table, snart till salu last and informational; 'ovanlig planlösning' fires on 10 of 35 (1-room flats over 30 kvm) and is flagged for review
 - [Phase 14.2]: 14.2-08: a fingerprint match (same-run twin or URL-form switch) also needs an equal-or-unknown asking price and non-contradicting floor; found live (Gyllenborgsgatan 15, two flats at 38 kvm)
 - [Phase 14.2]: 14.2-08: nodemailer pinned exactly to 9.0.5 (published 2026-08-07), dynamic import only; watch memory is written only after delivery (mail accepted or HTML file written)
+- [Phase 14.2]: 14.2-09: D-17 measured on the first real local run: condition 93,5 %, balcony 100 %, sun 2,6 % (not met, 14.3 scope per R-05); 0 USD Apify, 33,01 kr picture reading; LaunchAgent documented, not installed
+- [Phase 14.2]: 14.2-09: the evidence run filled the default watch-state.json (77 flats), so the first scheduled Monday mail carries only new or changed flats
 
 ### Pending Todos
 
@@ -275,8 +278,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T12:11:27.202Z
-Stopped at: Completed 14.2-08-PLAN.md
+Last session: 2026-10-13T12:52:56.510Z
+Stopped at: Completed 14.2-09-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

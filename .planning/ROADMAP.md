@@ -167,7 +167,7 @@ Plans:
 
 **Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
-**Plans:** 8/9 plans executed
+**Plans:** 9/9 plans executed
 
 Plans:
 **Wave 1**
@@ -198,7 +198,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 14.2-09-PLAN.md — LaunchAgent (Monday 07:00, documented, not installed) + the real evidence run, quiet rerun, lock check and D-17 readout (condition/balcony under 80 % = gaps, sun under 80 % = 14.3 scope)
+- [x] 14.2-09-PLAN.md — LaunchAgent (Monday 07:00, documented, not installed) + the real evidence run, quiet rerun, lock check and D-17 readout (condition/balcony under 80 % = gaps, sun under 80 % = 14.3 scope)
 
 ### Phase 14.3: Sun & Orientation Spike (INSERTED)
 
