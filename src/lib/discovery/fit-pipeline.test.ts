@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
 import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
-import { unknownSunFact } from "@/lib/discovery/sun-fact";
+import { resolveSunFact, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
 import { AREA_MAX_RENDERS_PER_AREA, OBSERVED_USD_PER_TIMED_OUT_RENDER } from "@/lib/discovery/cost";
 import {
   COVERAGE_LABELS,
@@ -981,5 +981,54 @@ describe("module hygiene", () => {
       .split("\n")
       .filter((l) => /^import [^t].*from "@\/lib\/(booli\/|discovery\/job"|discovery\/vision")/.test(l));
     expect(runtimeImports).toEqual([]);
+  });
+});
+
+describe("deps.sunOf: the sun stage before ranking (Phase 14.3, plan 07)", () => {
+  const SOUTH: SunFact = resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } });
+  const rowKey = (r: { sourceListingUrl: string | null; address: string | null; askingSek: number | null }) => r.sourceListingUrl ?? `${r.address}|${r.askingSek}`;
+
+  it("is called once per row in the snapshot (window, outside and not comparable), and every snapshot row carries the fact it returned", async () => {
+    const rows = [
+      ...fixtureScraped.slice(0, 8),
+      scrapedWith(fixtureScraped[0], 900001, { price: 100_000, livingArea: 60 }), // not comparable: far under the model value
+    ];
+    const sunOf = vi.fn((row: { candidate: DiscoveryCandidate }): SunFact | null => (row.candidate.address === "Testgatan 900001" ? unknownSunFact("ingen byggnad inom 25 m") : SOUTH));
+    const { deps } = fakeDeps(rows);
+    const result = await run({ ...deps, sunOf }, 3); // a window of 3: the other rows are outside it
+
+    expect(result.snapshot.rows.length).toBe(sunOf.mock.calls.length);
+    expect(result.snapshot.rows.filter((r) => r.inVisionWindow)).toHaveLength(3);
+    expect(result.snapshot.rows.filter((r) => !r.inVisionWindow).length).toBeGreaterThan(0);
+    for (const r of result.snapshot.rows) {
+      expect(r.sun).toEqual(r.candidate.address === "Testgatan 900001" ? unknownSunFact("ingen byggnad inom 25 m") : SOUTH);
+    }
+    expect(result.ranking.notComparable.length).toBeGreaterThan(0);
+  });
+
+  it("is applied BEFORE rankFit: a fact that adds taste changes that row's taste in the ranking", async () => {
+    const rows = fixtureScraped.slice(0, 8);
+    const without = await run(fakeDeps(rows).deps, "all");
+    const { deps } = fakeDeps(rows);
+    const withSun = await run({ ...deps, sunOf: () => SOUTH }, "all");
+
+    const tasteOf = (res: typeof without) => new Map(res.ranking.ranked.map((r) => [rowKey(r), r.tasteSek]));
+    const before = tasteOf(without);
+    const after = tasteOf(withSun);
+    expect([...after.entries()].some(([key, taste]) => taste > (before.get(key) ?? 0))).toBe(true);
+    for (const r of withSun.ranking.ranked) expect(r.sun).toEqual(SOUTH);
+  });
+
+  it("without sunOf every row keeps sun null and the ranking is what it was", async () => {
+    const rows = fixtureScraped.slice(0, 6);
+    const a = await run(fakeDeps(rows).deps, "all");
+    expect(a.snapshot.rows.every((r) => r.sun === null)).toBe(true);
+    expect(a.ranking.ranked.every((r) => r.sun === null)).toBe(true);
+  });
+
+  it("a sunOf that returns null leaves the row's sun null", async () => {
+    const { deps } = fakeDeps(fixtureScraped.slice(0, 4));
+    const result = await run({ ...deps, sunOf: () => null }, "all");
+    expect(result.snapshot.rows.every((r) => r.sun === null)).toBe(true);
   });
 });

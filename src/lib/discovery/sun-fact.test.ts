@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { buildOsmIndex, parseOsmExtract } from "@/lib/discovery/osm-buildings";
 import type { FootprintOk, FootprintResult } from "@/lib/discovery/sun-facade";
 import {
   SUN_PRECEDENCE_PARAMS,
   SUN_SOURCES,
+  computeSunFact,
   formatSolCell,
   resolveSunFact,
   statedFacadesOf,
@@ -467,5 +471,84 @@ describe("SUN_SOURCES", () => {
 
   it("are exactly the four D-01 labels", () => {
     expect([...SUN_SOURCES]).toEqual(["angiven", "planritning", "fastighet/gata", "okänd"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeSunFact (plan 07): footprint -> stated -> precedence -> hours
+// ---------------------------------------------------------------------------
+
+// Real OSM data (c) OpenStreetMap contributors, ODbL: a 220 m cut around Folkungagatan 61.
+const OSM_FIXTURE = join(__dirname, "__fixtures__", "osm-folkungagatan-61.fixture.json");
+const osmIndex = buildOsmIndex(parseOsmExtract(JSON.parse(readFileSync(OSM_FIXTURE, "utf8"))));
+const FOLKUNGAGATAN_61 = { lat: 59.3147546, lng: 18.07681659, address: "Folkungagatan 61", floor: 5, candidateOrientation: null, factsFacades: null };
+
+describe("computeSunFact: Folkungagatan 61 on the real fixture", () => {
+  const fact = computeSunFact(osmIndex, FOLKUNGAGATAN_61, { plan: null });
+
+  it("is the footprint route with a street side (south) and a courtyard side (north)", () => {
+    expect(fact.source).toBe("fastighet/gata");
+    expect(fact.sides.map((s) => `${s.side}:${s.facade}`)).toEqual(["gata:south", "gård:north"]);
+    roundTrips(fact);
+  });
+
+  it("gives every side hours, with an obstructed range ordered low <= nominal <= high on the street side", () => {
+    for (const side of fact.sides) expect(side.hours).not.toBeNull();
+    const street = fact.sides[0].hours;
+    if (street === null) throw new Error("street side must have hours");
+    expect(street.z).toBe(16.5);
+    expect(street.mar.theoreticalWindow).toBeGreaterThan(0);
+    const range = street.mar.obstructedWindow;
+    if (range === null) throw new Error("obstructed range expected with a floor and a point");
+    expect(range.low).toBeLessThanOrEqual(range.nominal);
+    expect(range.nominal).toBeLessThanOrEqual(range.high);
+  });
+
+  it("with the floor unknown keeps the theoretical hours and gives no obstructed range on either side", () => {
+    const noFloor = computeSunFact(osmIndex, { ...FOLKUNGAGATAN_61, floor: null }, { plan: null });
+    expect(noFloor.source).toBe("fastighet/gata");
+    expect(noFloor.sides[0].hours?.mar.theoreticalWindow).toBeGreaterThan(0); // the south street side
+    for (const side of noFloor.sides) {
+      expect(side.hours).not.toBeNull();
+      expect(side.hours?.z).toBeNull();
+      expect(side.hours?.mar.theoreticalWindow).toBeGreaterThanOrEqual(0);
+      for (const key of ["mar", "jun", "sep", "dec"] as const) {
+        expect(side.hours?.[key].obstructedWindow).toBeNull();
+        expect(side.hours?.[key].obstructedDay).toBeNull();
+      }
+    }
+  });
+
+  it("with latitude unknown is okänd 'koordinater saknas' and has no hours", () => {
+    const none = computeSunFact(osmIndex, { ...FOLKUNGAGATAN_61, lat: null }, { plan: null });
+    expect(none.source).toBe("okänd");
+    expect(none.unknownReason).toBe("koordinater saknas");
+    expect(none.sides).toEqual([]);
+  });
+
+  it("a stated west facade wins, is one side with a bearing and hours", () => {
+    const stated = computeSunFact(osmIndex, { ...FOLKUNGAGATAN_61, candidateOrientation: { facades: ["west"] } }, { plan: null });
+    expect(stated.source).toBe("angiven");
+    expect(stated.sides).toHaveLength(1);
+    expect(stated.sides[0].facade).toBe("west");
+    expect(stated.sides[0].bearingDeg).not.toBeNull();
+    expect(stated.sides[0].hours).not.toBeNull();
+    roundTrips(stated);
+  });
+
+  it("a stated facade far from both footprint sides has no point, so only theoretical hours", () => {
+    // street ~166 / courtyard ~346: east (90) is more than 45 degrees from both
+    const stated = computeSunFact(osmIndex, { ...FOLKUNGAGATAN_61, factsFacades: ["east"] }, { plan: null });
+    expect(stated.sides[0].point).toBeNull();
+    expect(stated.sides[0].hours?.z).toBeNull();
+    expect(stated.sides[0].hours?.mar.obstructedWindow).toBeNull();
+    expect(stated.sides[0].hours?.mar.theoreticalWindow).toBeGreaterThan(0);
+  });
+
+  it("is deterministic and does not change its input", () => {
+    const input = JSON.parse(JSON.stringify(FOLKUNGAGATAN_61));
+    const before = JSON.stringify(input);
+    expect(computeSunFact(osmIndex, input, { plan: null })).toEqual(fact);
+    expect(JSON.stringify(input)).toBe(before);
   });
 });
