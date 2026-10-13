@@ -163,7 +163,7 @@ Plans:
 3. **Problem-listing vs reno-object separation.** Explain every `kredit-tak` / `dold-defekt-risk` row: tomträtt/andelsrätt, stale listing (days on market), price cut history, BRF debt per kvm and avgift per kvm (from Booli's detail payload where present; Allabrf is dead), new-production. Rows the model cannot explain stay flagged with a plain-Swedish reason column ("varför här").
 4. **Model decisions applied (orchestrator calls, Daniel to confirm):** drop the sign rule for size (data t = 8.4, market-derived per the north star) and refit for free; keep the 20 % credit cap but print the uncapped gap beside it; show "under 4 M förväntat" as its own section at the top of the table since that is what Daniel can actually win; Folkungagatan 61 stays a watched listing, measured.
 5. **Seen-listing memory + weekly email.** Persist seen Booli ids + last asking price (local JSON or the local Supabase); weekly run on this Mac (launchd/cron, Mac is the E2E runner and stays awake); email only new or price-changed rows with the full column set + the "varför här" reason + Booli link; zero mail on a quiet week.
-**Requirements**: TBD (derive from 14.1's FIT-0x + this goal; prefix WATCH-)
+**Requirements**: WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05, WATCH-06, WATCH-07
 **Depends on:** Phase 14.1 (done 2026-10-13: model `data/hedonic-model.json`, `scripts/fit-score.ts`, `fit-pipeline.ts` with injected renderer)
 **Plans:** 0 plans
 
