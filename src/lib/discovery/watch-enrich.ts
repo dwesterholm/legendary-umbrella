@@ -57,9 +57,11 @@ import {
 /**
  * The broker-leg bounds, redeclared from `job.ts` (where they are module-private
  * and WR-02 explains them): the direct GET is cut at 15 s, each photo at 10 s,
- * and the headless escalation at 45 s with one retry. Locally the headless leg
- * is refused for non-Booli hosts and returns null, so these bound the direct GET
- * and the photos in practice. Keep in step with `job.ts` if it ever changes.
+ * and the headless escalation at 45 s with one retry. In the local run the
+ * headless leg is the local browser, which since 14.2-06 opens broker pages for
+ * the broker page function (one attempt, no Apify); before that it refused every
+ * non-Booli host and a client-rendered broker page gave no text. Keep in step
+ * with `job.ts` if it ever changes.
  */
 const BROKER_DIRECT_TIMEOUT_MS = 15_000;
 const BROKER_IMAGE_TIMEOUT_MS = 10_000;

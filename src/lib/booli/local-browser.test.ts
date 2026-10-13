@@ -8,6 +8,7 @@ import {
   apifyClientMockFactory,
 } from "@/lib/booli/__mocks__/apify-client";
 import { APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
+import { BROKER_RENDER_PAGE_FUNCTION } from "@/lib/broker/fetch-broker-page";
 
 vi.mock("apify-client", () => apifyClientMockFactory());
 vi.mock("@/lib/apify/booli-scraper", () => ({ scrapeBooli: vi.fn() }));
@@ -130,6 +131,7 @@ function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, 
                   if (sc.durationMs) await clock.sleep(sc.durationMs);
                   return { status: () => sc.status ?? 200 };
                 },
+                waitForTimeout: async () => undefined,
                 evaluate: async (arg: unknown) => {
                   if (typeof arg === "string") return sc.text ?? "Booli bostäder till salu";
                   if (sc.throwInExtract) throw new Error("evaluation failed");
@@ -351,6 +353,63 @@ describe("Booli-only (T-14.2-02)", () => {
       expect(actorCall).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("broker pages (14.2-06)", () => {
+  const BROKER_URL = "https://www.erikolsson.se/objekt/123";
+  const renderBroker = (url = BROKER_URL) => runPlaywrightRender(url, BROKER_RENDER_PAGE_FUNCTION);
+
+  it("opens a broker https page when the broker page function is used, counts it as a page, not as refused", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({}));
+    const h = install(clock, b.launcher);
+    const items = await clock.run(renderBroker());
+    expect(items).toHaveLength(1);
+    expect(b.log.urls).toEqual([BROKER_URL]);
+    expect(h.stats()).toMatchObject({ pages: 1, refused: 0, failed: 0, apifyFallbacks: 0 });
+  });
+
+  it("still refuses a broker URL with the Booli page function, and an http or look-alike URL with the broker function", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({}));
+    const h = install(clock, b.launcher, { allowApify: true });
+    await expect(clock.run(render(BROKER_URL))).rejects.toThrow();
+    await expect(clock.run(renderBroker("http://www.erikolsson.se/x"))).rejects.toThrow();
+    await expect(clock.run(renderBroker("file:///etc/passwd"))).rejects.toThrow();
+    expect(b.log.opened).toBe(0);
+    expect(h.stats().refused).toBe(3);
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("a challenged broker page gets one attempt: no wait, no retry, and never the paid Apify rung", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    const h = install(clock, b.launcher, { allowApify: true });
+    await expect(clock.run(renderBroker())).rejects.toThrow("lokal webblasare");
+    expect(clock.sleeps).not.toContain(5_000);
+    expect(b.log.opened).toBe(1);
+    expect(h.stats()).toMatchObject({ challenged: 1, retried: 0, failed: 1, apifyFallbacks: 0 });
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("a failed broker page logs the error name only, never the message (which can carry the URL)", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 500 }));
+    install(clock, b.launcher);
+    await expect(clock.run(renderBroker("https://user:secret@www.erikolsson.se/objekt/1"))).rejects.toThrow();
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).not.toContain("secret");
+    expect(logged).toContain("broker");
+  });
+
+  it("broker pages go through the same two-page gate and pacing as Booli pages", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ durationMs: 100 }));
+    install(clock, b.launcher, { random: () => 0 });
+    await clock.run(Promise.all([1, 2, 3, 4].map((n) => renderBroker(`https://broker.example/o/${n}`))));
+    expect(b.log.maxOpen).toBeLessThanOrEqual(2);
+    for (let k = 1; k < b.log.starts.length; k++) expect(b.log.starts[k] - b.log.starts[k - 1]).toBeGreaterThanOrEqual(1_000);
+  });
 });
 
 describe("pacing and concurrency (D-02, T-14.2-06)", () => {

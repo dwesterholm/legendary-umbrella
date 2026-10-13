@@ -134,7 +134,7 @@ async function fetchViaDirect(url: string, timeoutMs?: number): Promise<BrokerFi
  * the SAME static extractor to parse. `hasApollo: true` is a marker so the
  * transport's "usable item" filter keeps it (it isn't Booli Apollo data).
  */
-const BROKER_RENDER_PAGE_FUNCTION = `async function pageFunction(context){
+export const BROKER_RENDER_PAGE_FUNCTION = `async function pageFunction(context){
   const { page } = context;
   await page.waitForTimeout(3500);
   const html = await page.evaluate(() => document.documentElement.outerHTML);

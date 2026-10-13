@@ -1,4 +1,5 @@
 import { isBooliUrl } from "@/lib/booli/client";
+import { BROKER_RENDER_PAGE_FUNCTION } from "@/lib/broker/fetch-broker-page";
 import { runApifyRender, setRenderer, usableItems, type RenderFn, type RenderOpts } from "@/lib/booli/transport";
 
 /**
@@ -26,6 +27,14 @@ import { runApifyRender, setRenderer, usableItems, type RenderFn, type RenderOpt
  * `transport.ts` or `client.ts` (a test enforces it): the browser toolchain
  * must not enter the Next.js server bundle. The browser library itself is
  * loaded lazily, inside the first render, never at module load.
+ *
+ * Broker pages (14.2-06): the one non-Booli page the renderer opens is a
+ * broker's own listing page, and only when the caller passes the repo-owned
+ * `BROKER_RENDER_PAGE_FUNCTION` for an https URL (fetch-broker-page.ts has
+ * already refused unsafe hosts). Same pacing and the same 2-page gate, the same
+ * throwaway context (broker sites set no cookie on Booli and vice versa), one
+ * attempt with no retry, and never the paid Apify rung. Without that function a
+ * non-Booli URL is refused as before.
  *
  * Privacy / secret posture: one throwaway browser context per run
  * (`chromium.launch`, never a persistent profile, no storage state saved,
@@ -368,10 +377,13 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
   }
 
   const render: RenderFn = async (url: string, pageFunction: string, opts?: RenderOpts) => {
-    // T-14.2-02: only Booli hosts are ever opened locally, and a refused URL never reaches Apify.
-    if (!isBooliUrl(url)) {
+    // T-14.2-02: Booli pages, plus ONE other kind of page: a broker's own listing page, opened by the
+    // repo-owned broker page function (the only description and photo source, 14.2-06). Any other
+    // host, or a broker URL that is not https, is refused. A refused URL never reaches Apify.
+    const broker = !isBooliUrl(url) && pageFunction === BROKER_RENDER_PAGE_FUNCTION && /^https:\/\//i.test(url);
+    if (!isBooliUrl(url) && !broker) {
       stats.refused += 1;
-      throw new Error("Lokala webblasaren hamtar bara Booli-sidor");
+      throw new Error("Lokala webblasaren hamtar bara Booli-sidor och maklarsidor");
     }
     let lastError: unknown;
     // At most two attempts, and only a challenge earns the second one (D-04).
@@ -382,6 +394,8 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
         lastError = error;
         if (!(error instanceof ChallengeError)) break;
         stats.challenged += 1;
+        // A broker page is a bonus: one attempt, no wait, no retry, and never the paid Apify rung.
+        if (broker) break;
         if (tryNo === 1) {
           stats.retried += 1;
           await sleep(LOCAL_CHALLENGE_RETRY_MS);
@@ -395,8 +409,9 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
       }
     }
     stats.failed += 1;
-    // Log the error object only; never an env value (secret posture).
-    console.error("[booli-local]", lastError);
+    // Log the error object only; never an env value (secret posture). A broker URL is attacker-influenceable
+    // (it comes from a listing), so for a broker page only the error name is logged, never the message.
+    console.error("[booli-local]", broker ? { broker: true, code: lastError instanceof Error ? lastError.name : "UNKNOWN" } : lastError);
     throw new Error("Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.");
   };
 
