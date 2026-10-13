@@ -51,6 +51,8 @@
  * "discovery/watch-" specifier is registered there.
  */
 
+import { RESIDUAL_FLAG_SD, type FitScoreResult, type ResidualFlagBasis } from "@/lib/discovery/fit-score";
+import type { HedonicModel } from "@/lib/discovery/hedonic-model";
 import type { CandidateFacts } from "@/lib/discovery/listing-facts";
 
 /** The one table of numbers this module uses (all guesses, see ASSUMPTIONS). */
@@ -115,6 +117,13 @@ export const NO_REASON_MARK = "-";
 /** The informational reason (W3). */
 export const UPCOMING_SALE_REASON = "snart till salu (ej budgivning än)";
 
+/**
+ * Appended to a reason about a feature the loaded model actually fitted: its effect is already inside
+ * the valuation, so the row is not "cheap for an unexplained reason" on that count (D-05). Never added
+ * to tomträtt or tenure: the model carries no tomträtt effect and a tenure form is not a model feature (R-02).
+ */
+export const IN_VALUATION_SUFFIX = " (redan i värderingen)";
+
 /** The flags that make a row need an explanation (the two a cheap-for-a-reason row carries). */
 const REASON_FLAGS = ["residualFlag", "hiddenDefectRisk"] as const;
 
@@ -133,8 +142,19 @@ export interface ReasonRow {
 /** Per district: the median avgift per kvm per year, or null when too few rows know it. */
 export type DistrictAvgiftMedians = ReadonlyMap<string, number | null>;
 
+/** Which of the reason features the loaded model fitted (source "fit" or "prior"), so its effect is in the valuation. */
+export interface CoveredByModel {
+  readonly avgift: boolean;
+  readonly brfDebt: boolean;
+}
+
 export interface ReasonContext {
   readonly medians: DistrictAvgiftMedians;
+  /**
+   * What the loaded model already prices. Absent means "unknown": no reason claims to be in the valuation.
+   * Tomträtt is deliberately not here (R-02: it is never in the valuation).
+   */
+  readonly coveredByModel?: CoveredByModel;
 }
 
 // ---------------------------------------------------------------------------
@@ -228,14 +248,17 @@ export function reasonsFor(row: ReasonRow, ctx: ReasonContext): string[] {
       if (perSqm > districtMedian * REASON_THRESHOLDS.avgiftHighRatio) {
         found.set(
           "highAvgift",
-          `hög avgift (${formatSek(perSqm)} kr/kvm/år mot ${formatSek(districtMedian)} i ${row.district})`,
+          `hög avgift (${formatSek(perSqm)} kr/kvm/år mot ${formatSek(districtMedian)} i ${row.district})${ctx.coveredByModel?.avgift === true ? IN_VALUATION_SUFFIX : ""}`,
         );
       }
     }
 
     const debt = facts.brf?.debtPerSqm;
     if (isNumber(debt) && debt > REASON_THRESHOLDS.brfDebtHighPerSqm) {
-      found.set("highBrfDebt", `hög föreningsskuld (${formatSek(debt)} kr/kvm)`);
+      found.set(
+        "highBrfDebt",
+        `hög föreningsskuld (${formatSek(debt)} kr/kvm)${ctx.coveredByModel?.brfDebt === true ? IN_VALUATION_SUFFIX : ""}`,
+      );
     }
 
     // `elevatorListed` is false only after a detail read; a card's missing elevator is null.
@@ -278,4 +301,50 @@ export function isReasonFlagged(flags: readonly string[]): boolean {
 export function reasonCell(reasons: readonly string[], flagged: boolean): string {
   if (reasons.length > 0) return reasons.join(", ");
   return flagged ? UNEXPLAINED_LABEL : NO_REASON_MARK;
+}
+
+// ---------------------------------------------------------------------------
+// What the valuation already contains, and the reason line of a residual-flagged row
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the loaded model fitted avgift and association debt (source "fit" or "prior"). A feature whose
+ * source is "zeroed", or that the file does not list, is not in the valuation. Pure.
+ */
+export function coveredByModelOf(model: Pick<HedonicModel, "features">): CoveredByModel {
+  const fitted = (name: string): boolean =>
+    model.features.some((f) => f.name === name && (f.source === "fit" || f.source === "prior"));
+  return { avgift: fitted("avgiftPerSqmMonth"), brfDebt: fitted("brfDebtPerSqm") };
+}
+
+/** A signed percentage with one decimal and a decimal comma: -0.25 gives "-25,0 %", 0.042 gives "+4,2 %". */
+function signedPercent(fraction: number): string {
+  return `${fraction < 0 ? "-" : "+"}${(Math.abs(fraction) * 100).toFixed(1).replace(".", ",")} %`;
+}
+
+/**
+ * The reason line of a row flagged "ovanligt långt under modellpris" (R-04): how far below the model the
+ * compared price is and the limit it crossed, the whole gap in kr, and which of avgift and association debt
+ * the valuation already contains. The percentage follows the basis the flag was raised on. Pure.
+ */
+export function residualReason(
+  r: Pick<FitScoreResult, "expectedFinalToPred" | "askToPred" | "gapSek" | "residualPct">,
+  opts: { residualSdLog: number; basis: ResidualFlagBasis; covered: CoveredByModel },
+): string {
+  const label = "ovanligt långt under modellpris";
+  const ratio = opts.basis === "asking" ? r.askToPred : r.expectedFinalToPred;
+  if (ratio === null) return label;
+  const priceLabel = opts.basis === "asking" ? "utgångspris" : "förv. slutpris";
+  const limit = Math.exp(-RESIDUAL_FLAG_SD * opts.residualSdLog) - 1;
+  const gap = r.gapSek === null ? "" : `, skillnad ${formatSek(r.gapSek)} kr`;
+  const { avgift, brfDebt } = opts.covered;
+  const covered =
+    avgift && brfDebt
+      ? "avgift och föreningsskuld redan i värderingen"
+      : avgift
+        ? "avgift redan i värderingen"
+        : brfDebt
+          ? "föreningsskuld redan i värderingen"
+          : "varken avgift eller föreningsskuld i värderingen";
+  return `${label}: ${priceLabel} ${signedPercent(ratio - 1)} mot modellen (gräns ${signedPercent(limit)})${gap}; ${covered}`;
 }

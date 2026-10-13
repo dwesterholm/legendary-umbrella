@@ -154,7 +154,14 @@ import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discove
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
 import { fitRunRecordOf } from "@/lib/discovery/valuation-report";
-import { districtAvgiftMedians, isReasonFlagged, reasonCell, reasonsFor } from "@/lib/discovery/watch-reasons";
+import {
+  coveredByModelOf,
+  districtAvgiftMedians,
+  isReasonFlagged,
+  reasonCell,
+  reasonsFor,
+  residualReason,
+} from "@/lib/discovery/watch-reasons";
 import { WATCH_MAIL_ENV, WATCH_MARK_SEEN_WITHOUT_SMTP, decideAfterSend, sendWatchMail } from "@/lib/discovery/watch-mail";
 import {
   renderWatchHtml,
@@ -429,6 +436,7 @@ function printHealth(health: ModelHealth): void {
 function makeReasonsOf(
   rows: readonly FitInputRow[],
   ranked: readonly FitScoreResult[],
+  model: ReturnType<typeof parseHedonicModel>,
 ): (r: FitScoreResult) => string[] {
   const keyOfResult = (r: FitScoreResult): string => r.sourceListingUrl ?? `${r.address}|${r.askingSek}`;
   const byKey = new Map(rows.map((row) => [fitRowKey(row.candidate), row] as const));
@@ -437,9 +445,13 @@ function makeReasonsOf(
     return row ? [row] : [];
   });
   const medians = districtAvgiftMedians(comparable);
+  // Which of avgift and association debt the loaded model really fitted: only those reasons say "redan i värderingen".
+  const covered = coveredByModelOf(model);
   return (r) => {
     const row = byKey.get(keyOfResult(r));
-    return row ? reasonsFor(row, { medians }) : [];
+    const rowReasons = row ? reasonsFor(row, { medians, coveredByModel: covered }) : [];
+    if (!r.flags.includes("residualFlag")) return rowReasons;
+    return [...rowReasons, residualReason(r, { residualSdLog: model.residualSdLog, basis: RESIDUAL_FLAG_BASIS, covered })];
   };
 }
 
@@ -930,7 +942,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   );
   for (const line of solLines) console.log(line);
   console.log("");
-  const reasonsOf = makeReasonsOf(rows, ranking.ranked);
+  const reasonsOf = makeReasonsOf(rows, ranking.ranked, model);
   const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });
   printRanking(model, ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
   const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
@@ -1284,7 +1296,7 @@ async function runLive(args: Args): Promise<void> {
     );
     console.log(sunStage.timingLine());
     console.log(`\n${renderWindowReport(result)}`);
-    const reasonsOf = makeReasonsOf(result.snapshot.rows, result.ranking.ranked);
+    const reasonsOf = makeReasonsOf(result.snapshot.rows, result.ranking.ranked, model);
     const tableRows = toFitTableRows(result.ranking, result.preRankPositions, { reasonsOf });
     console.log(`\n${renderCoverage(withReasonsOnFlagged(result.coverage, tableRows))}`);
     console.log(residualCountLine(result.ranking.ranked, model));

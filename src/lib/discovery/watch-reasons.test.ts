@@ -12,14 +12,17 @@ import { reshapeListingEntity } from "@/lib/booli/client";
 import { toCandidate } from "@/lib/discovery/candidate";
 import { candidateFactsSchema, factsFromDetail, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
+  IN_VALUATION_SUFFIX,
   REASON_ORDER,
   REASON_THRESHOLDS,
   UPCOMING_SALE_REASON,
   avgiftPerSqmYear,
+  coveredByModelOf,
   districtAvgiftMedians,
   isReasonFlagged,
   reasonCell,
   reasonsFor,
+  residualReason,
   type ReasonRow,
 } from "@/lib/discovery/watch-reasons";
 
@@ -387,5 +390,100 @@ describe("source hygiene", () => {
   it("has one thresholds table and the literal reason text", () => {
     expect(source.match(/export const REASON_THRESHOLDS/g)).toHaveLength(1);
     expect(source).toContain("snart till salu (ej budgivning än)");
+  });
+});
+
+describe("'redan i värderingen' only for what the fitted model contains (D-05, R-02, T-14.4-17)", () => {
+  const ctxMedian = { medians: new Map<string, number | null>([["Södermalm", 1000]]) };
+  const everything = row({
+    livingArea: 48,
+    rooms: 2,
+    facts: {
+      avgiftMonthlySek: 5001,
+      brf: { loanSek: 1, areaSqm: 1, reportYear: 2024, debtPerSqm: 12_000 },
+      landLease: true,
+      tenureForm: "Äganderätt",
+    },
+  });
+
+  it("the suffix is the pinned text", () => {
+    expect(IN_VALUATION_SUFFIX).toBe(" (redan i värderingen)");
+  });
+
+  it("with avgift and debt both in the model, both reasons end with the suffix", () => {
+    const reasons = reasonsFor(everything, { ...ctxMedian, coveredByModel: { avgift: true, brfDebt: true } });
+    expect(reasons).toContain("hög avgift (1 250 kr/kvm/år mot 1 000 i Södermalm) (redan i värderingen)");
+    expect(reasons).toContain("hög föreningsskuld (12 000 kr/kvm) (redan i värderingen)");
+  });
+
+  it("the tomträtt reason is exactly 'tomträtt' and the tenure reason never says it, even with everything covered", () => {
+    const reasons = reasonsFor(everything, { ...ctxMedian, coveredByModel: { avgift: true, brfDebt: true } });
+    expect(reasons).toContain("tomträtt");
+    expect(reasons).toContain("upplåtelseform: äganderätt");
+    const others = reasons.filter((r) => r === "tomträtt" || r.startsWith("upplåtelseform"));
+    expect(others.some((r) => r.includes("redan i värderingen"))).toBe(false);
+  });
+
+  it("a feature the model did not fit gets no suffix; only the covered one does", () => {
+    const onlyAvgift = reasonsFor(everything, { ...ctxMedian, coveredByModel: { avgift: true, brfDebt: false } });
+    expect(onlyAvgift.filter((r) => r.includes("redan i värderingen"))).toHaveLength(1);
+    expect(onlyAvgift.find((r) => r.startsWith("hög föreningsskuld"))).toBe("hög föreningsskuld (12 000 kr/kvm)");
+  });
+
+  it("without coveredByModel, or with both false, no reason contains the suffix (today's texts unchanged)", () => {
+    for (const ctx of [ctxMedian, { ...ctxMedian, coveredByModel: { avgift: false, brfDebt: false } }]) {
+      const reasons = reasonsFor(everything, ctx);
+      expect(reasons.some((r) => r.includes("redan i värderingen"))).toBe(false);
+    }
+  });
+
+  it("coveredByModelOf is true for source 'fit' or 'prior', false for 'zeroed' or a missing feature", () => {
+    const feat = (name: string, source: "fit" | "prior" | "zeroed") => ({ name, mean: 0, beta: 0, se: null, source });
+    const covered = (features: ReturnType<typeof feat>[]) =>
+      coveredByModelOf({ features } as unknown as Parameters<typeof coveredByModelOf>[0]);
+    expect(covered([feat("avgiftPerSqmMonth", "fit"), feat("brfDebtPerSqm", "prior")])).toEqual({ avgift: true, brfDebt: true });
+    expect(covered([feat("avgiftPerSqmMonth", "zeroed"), feat("brfDebtPerSqm", "fit")])).toEqual({ avgift: false, brfDebt: true });
+    expect(covered([feat("brfDebtPerSqm", "zeroed")])).toEqual({ avgift: false, brfDebt: false });
+    expect(covered([])).toEqual({ avgift: false, brfDebt: false });
+  });
+});
+
+describe("residualReason (R-04)", () => {
+  const result = { expectedFinalToPred: 0.75, askToPred: 0.6, gapSek: 812_345.6, residualPct: -0.25 };
+  const bothCovered = { avgift: true, brfDebt: true };
+
+  it("expected-final basis, both features in the valuation", () => {
+    expect(residualReason(result, { residualSdLog: 0.115, basis: "expectedFinal", covered: bothCovered })).toBe(
+      "ovanligt långt under modellpris: förv. slutpris -25,0 % mot modellen (gräns -20,5 %), skillnad 812 346 kr; avgift och föreningsskuld redan i värderingen",
+    );
+  });
+
+  it("neither feature in the valuation", () => {
+    expect(
+      residualReason(result, { residualSdLog: 0.115, basis: "expectedFinal", covered: { avgift: false, brfDebt: false } }),
+    ).toMatch(/; varken avgift eller föreningsskuld i värderingen$/);
+  });
+
+  it("one feature in the valuation names only that one", () => {
+    expect(
+      residualReason(result, { residualSdLog: 0.115, basis: "expectedFinal", covered: { avgift: true, brfDebt: false } }),
+    ).toMatch(/; avgift redan i värderingen$/);
+    expect(
+      residualReason(result, { residualSdLog: 0.115, basis: "expectedFinal", covered: { avgift: false, brfDebt: true } }),
+    ).toMatch(/; föreningsskuld redan i värderingen$/);
+  });
+
+  it("the asking basis says utgångspris and measures the asking ratio", () => {
+    expect(residualReason(result, { residualSdLog: 0.115, basis: "asking", covered: bothCovered })).toBe(
+      "ovanligt långt under modellpris: utgångspris -40,0 % mot modellen (gräns -20,5 %), skillnad 812 346 kr; avgift och föreningsskuld redan i värderingen",
+    );
+  });
+
+  it("a missing ratio or gap does not crash and does not invent a number", () => {
+    const text = residualReason(
+      { expectedFinalToPred: null, askToPred: null, gapSek: null, residualPct: null },
+      { residualSdLog: 0.115, basis: "expectedFinal", covered: bothCovered },
+    );
+    expect(text).toBe("ovanligt långt under modellpris");
   });
 });
