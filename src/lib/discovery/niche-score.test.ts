@@ -354,6 +354,13 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     // existing "discovery/sun-path" entries stay.
     "discovery/sun-",
     "discovery/osm-",
+    // Phase 14.4 (2026-10-13): the layout read (layout-read, layout-fact, layout-call), the
+    // sold-photo condition read (sold-condition, sold-condition-call) and the before/after
+    // valuation report are registered BEFORE they exist; substring match, so each prefix covers
+    // every module that starts with it.
+    "discovery/layout-",
+    "discovery/sold-condition",
+    "discovery/valuation-",
   ];
 
   // Matches a whole `import ... from "..."` / `export ... from "..."`

@@ -149,6 +149,7 @@ import { INNERSTAN_DISTRICTS, parseHedonicModel, type InnerstanDistrict } from "
 import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
+import { fitRunRecordOf } from "@/lib/discovery/valuation-report";
 import { districtAvgiftMedians, isReasonFlagged, reasonCell, reasonsFor } from "@/lib/discovery/watch-reasons";
 import { WATCH_MAIL_ENV, WATCH_MARK_SEEN_WITHOUT_SMTP, decideAfterSend, sendWatchMail } from "@/lib/discovery/watch-mail";
 import {
@@ -211,6 +212,8 @@ import type { PlanBearing } from "@/lib/discovery/sun-fact";
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
 const DEFAULT_TRACK_ID = 150148;
 const DATA_DIR = ".planning/calibration/data";
+/** Where `--json` may write a run record (14.4-01, T-14.4-01): the phase evidence dirs and the gitignored data dir. */
+const RUN_RECORD_ROOTS = [".planning/phases", ".planning/calibration/data"] as const;
 const AREA_QUERY = "innerstan (innanför tullarna)";
 const APIFY_ENV = "APIFY_API_TOKEN";
 const ANTHROPIC_ENV = "ANTHROPIC_API_KEY";
@@ -221,7 +224,7 @@ const MAX_APIFY_MAX_RENDERS = 100;
 
 const USAGE = `Användning:
   Uppspelning (gratis, offline):
-    npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>]
+    npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>] [--json <fil.json>]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
     npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--osm <utdrag.json>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Veckomejl med bevakningsminne (båda lägena):
@@ -240,6 +243,9 @@ const USAGE = `Användning:
                      och hämtar aldrig; en live-körning hämtar bara när den saknas eller är 31 dagar gammal. Kolumnerna "Sol",
                      "Soltim. fri" och "Soltim. med grannhus" visar väderstreck, källa och säkerhet samt timmar sol (mar/jun/dec).
                      Data (c) OpenStreetMap contributors, ODbL
+  --json <fil>       Uppspelning: skriv körningen (varje rad med okapad skillnad, krediterad del, vinst och flaggor, samt modell och snapshot)
+                     som en körningspost. Filen måste sluta på .json och ligga under ${RUN_RECORD_ROOTS.map((r) => `${r}/`).join(" eller ")}.
+                     Tabellen som skrivs ut är oförändrad; raden "Körningspost: <fil>" läggs till efter täckningsraden
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
   --track <id>       Booli-id att visa uppdelat i detalj, standard ${DEFAULT_TRACK_ID}
   --window all|<n>   Live: antal annonser som får detaljsida (och bildtolkning). Standard: all (alla jämförbara) med lokal webbläsare,
@@ -284,6 +290,8 @@ interface Args {
   replay: string | null;
   /** OSM extract file for the sun stage (14.3-01); null = the cache. Read only, no refresh, replay and live. */
   osm: string | null;
+  /** Replay only (14.4-01, R-05): where to write the run record; null = write none. */
+  json: string | null;
   model: string;
   track: number;
   /** null = the default for the renderer in use (all with the local browser, FIT_VISION_WINDOW with Apify). */
@@ -308,6 +316,7 @@ function parseArgs(argv: string[]): Args | null {
   const out: Args = {
     replay: null,
     osm: null,
+    json: null,
     model: DEFAULT_MODEL_PATH,
     track: DEFAULT_TRACK_ID,
     window: null,
@@ -332,6 +341,7 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--dry-run") { out.dryRun = true; liveOnly = true; }
     else if (flag === "--replay" && value !== undefined) { out.replay = value; i++; }
     else if (flag === "--osm" && value !== undefined && value.toLowerCase().endsWith(".json")) { out.osm = value; i++; }
+    else if (flag === "--json" && value !== undefined) { out.json = value; i++; }
     else if (flag === "--model" && value !== undefined) { out.model = value; i++; }
     else if (flag === "--track" && value !== undefined && Number.isInteger(Number(value))) { out.track = Number(value); i++; }
     else if (flag === "--window" && value === "all") { out.window = "all"; liveOnly = true; i++; }
@@ -357,6 +367,8 @@ function parseArgs(argv: string[]): Args | null {
     else return null;
   }
   if (out.replay !== null && liveOnly) return null;
+  // --json records a replay; a live run does not write one, so refuse it rather than ignore it silently.
+  if (out.json !== null && out.replay === null) return null;
   // The memory flags mean nothing without the mail: refuse them rather than ignore them silently.
   if (!out.email && (out.state !== null || out.noStateWrite)) return null;
   return out;
@@ -822,6 +834,15 @@ function osmCacheDescribe(meta: OsmCacheMeta | null, now: Date): string {
 // Replay
 // ---------------------------------------------------------------------------
 
+/** The absolute path a `--json` value may write to, or null when it is outside the allowed roots or not a .json file. */
+function runRecordPathOf(path: string): string | null {
+  for (const root of RUN_RECORD_ROOTS) {
+    const abs = guardedDataPath(path, { dir: join(process.cwd(), root), ext: ".json" });
+    if (abs !== null) return abs;
+  }
+  return null;
+}
+
 async function runReplay(args: Args): Promise<void> {
   // --email: the lock is taken before anything else, exactly as in a live run (exit 3 when another run holds it).
   const statePath = args.email ? resolveStatePath(args) : null;
@@ -856,6 +877,22 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
 
   const ranking = rankFit(rows, model);
 
+  // 14.4-01 (R-05): freeze the ranking as a machine-readable record. Written before anything is printed;
+  // the table below is unchanged by it.
+  const recordPath = args.json === null ? null : runRecordPathOf(args.json);
+  if (recordPath !== null) {
+    writeJsonAtomic(
+      recordPath,
+      fitRunRecordOf({
+        snapshotAsOf: snapshot.asOf,
+        snapshotFile: relative(process.cwd(), snapshotPath),
+        model,
+        sunLine: solLines[0],
+        ranking,
+      }),
+    );
+  }
+
   // The free pre-rank is recomputed from the stored rows (their detail-page
   // facts are included, so it can differ slightly from the live run's own).
   const preRankPositions = new Map<string, number>();
@@ -873,6 +910,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
   console.log(`\n${coverageLine}`);
   console.log(sunReportOf(ranking.ranked));
+  if (recordPath !== null) console.log(`Körningspost: ${relative(process.cwd(), recordPath)}`);
 
   if (statePath !== null) {
     console.log("");
@@ -1283,6 +1321,11 @@ async function main(): Promise<void> {
   // 14.3: an --osm file is read in both modes, so a wrong path stops the run before anything else happens.
   if (args.osm !== null && !existsSync(resolve(args.osm))) {
     console.error(`OSM-utdrag saknas: ${args.osm}`);
+    process.exit(1);
+  }
+  // 14.4-01 (T-14.4-01): a --json path is a write target, so it is checked before any work happens.
+  if (args.json !== null && runRecordPathOf(args.json) === null) {
+    console.error(`--json måste ligga under ${RUN_RECORD_ROOTS.map((r) => `${r}/`).join(" eller ")} och sluta på .json`);
     process.exit(1);
   }
   if (args.replay !== null) await runReplay(args);
