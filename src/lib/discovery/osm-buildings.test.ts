@@ -18,7 +18,6 @@ import {
 const LAT0 = 59.3;
 const LNG0 = 18.0;
 const unproj = unprojectFrom(LAT0, LNG0);
-const proj = projectFrom(LAT0, LNG0);
 
 type XY = [number, number];
 const geo = (pts: XY[]): Array<{ lat: number; lon: number }> =>

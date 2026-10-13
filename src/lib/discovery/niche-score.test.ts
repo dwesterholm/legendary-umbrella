@@ -348,6 +348,12 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/watch-",
     "discovery/vision-cache",
     "discovery/json-store",
+    // Phase 14.3 (2026-10-13): the sun and OSM modules (sun-facade, sun-fact, sun-hours,
+    // sun-floorplan, osm-buildings, osm-cache, osm-overpass) are registered BEFORE some of them
+    // exist; the matcher is a substring match, so these two prefixes cover all of them and the
+    // existing "discovery/sun-path" entries stay.
+    "discovery/sun-",
+    "discovery/osm-",
   ];
 
   // Matches a whole `import ... from "..."` / `export ... from "..."`

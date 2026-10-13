@@ -225,16 +225,21 @@ export interface FacadeInput {
 
 const unknown = (reason: SunUnknownReason): FootprintUnknown => ({ status: "unknown", reason });
 
-interface Edge {
-  /** Position in the building's wall list (outer ring first, then holes). */
+/** One wall of the building (outer ring first, then courtyard holes) of at least edgeMinM. */
+interface Wall {
+  /** Position in the building's wall list. */
   readonly order: number;
   readonly a: XY;
   readonly b: XY;
   readonly lengthM: number;
+  /** Unit normal pointing out of the building. */
   readonly normal: XY;
   readonly bearing: number;
+}
+
+/** A wall that faces a same-name road. */
+interface Edge extends Wall {
   readonly roadDistM: number;
-  readonly facing: number;
   readonly weight: number;
 }
 
@@ -255,6 +260,42 @@ function circularMean(edges: readonly Edge[]): number {
   return ((Math.atan2(sx, sy) * 180) / Math.PI + 360) % 360;
 }
 
+const toXY = (proj: (lng: number, lat: number) => XY, ring: readonly [number, number][]): XY[] => ring.map(([x, y]) => proj(x, y));
+
+/**
+ * The building the point belongs to: the smallest polygon containing it (tie:
+ * lower id), else the building with the nearest wall (outer ring or hole) at
+ * most snapMaxM away (compared at stored precision, so 25,0 m snaps whatever the
+ * float noise). Null when neither exists.
+ */
+function findOwnBuilding(index: OsmIndex, lat: number, lng: number): { building: OsmBuilding; inside: boolean; snapM: number } | null {
+  const P = SUN_FACADE_PARAMS;
+  const containing = index.buildings.filter((b) => pointInBuilding(b, lng, lat));
+  if (containing.length > 0) {
+    containing.sort((a, b) => a.areaM2 - b.areaM2 || compareIds(a.id, b.id));
+    return { building: containing[0], inside: true, snapM: 0 };
+  }
+  const proj = projectFrom(lat, lng);
+  const origin: XY = [0, 0];
+  // Cheap prefilter: the building's box grown by the snap distance must contain the point.
+  const dLat = (P.snapMaxM + 1) / 110_574;
+  const dLng = (P.snapMaxM + 1) / (111_320 * Math.cos((lat * Math.PI) / 180));
+  let best: { building: OsmBuilding; d: number } | null = null;
+  for (const b of index.buildings) {
+    const [minLng, minLat, maxLng, maxLat] = b.bbox;
+    if (lng < minLng - dLng || lng > maxLng + dLng || lat < minLat - dLat || lat > maxLat + dLat) continue;
+    let d = Infinity;
+    for (const ring of [b.outer, ...b.inners]) {
+      const xy = toXY(proj, ring);
+      for (let i = 0; i < xy.length - 1; i++) d = Math.min(d, closestOnSegment(origin, xy[i], xy[i + 1]).d);
+    }
+    if (best === null || d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && compareIds(b.id, best.building.id) < 0)) best = { building: b, d };
+  }
+  if (best === null) return null;
+  const snapM = roundTo(best.d, P.decimals.distance);
+  return snapM <= P.snapMaxM ? { building: best.building, inside: false, snapM } : null;
+}
+
 /**
  * The street facade and the courtyard facade of the building a flat belongs to.
  *
@@ -264,32 +305,31 @@ function circularMean(edges: readonly Edge[]): number {
 export function inferStreetFacade(index: OsmIndex, input: FacadeInput): FootprintResult {
   const P = SUN_FACADE_PARAMS;
   const { lat, lng } = input;
-  // Task 1 slice: only the inside-polygon path exists; every other case is "no building".
-  if (lat === null || lng === null) return unknown("ingen byggnad inom 25 m");
-
-  const containing = index.buildings.filter((b) => pointInBuilding(b, lng, lat));
-  containing.sort((a, b) => a.areaM2 - b.areaM2 || compareIds(a.id, b.id));
-  const own: OsmBuilding | undefined = containing[0];
-  if (own === undefined) return unknown("ingen byggnad inom 25 m");
+  if (lat === null || lng === null || !Number.isFinite(lat) || !Number.isFinite(lng)) return unknown("koordinater saknas");
+  const street = streetNameOf(input.address);
+  if (street === "") return unknown("adress saknas");
+  const { south, west, north, east } = index.bbox;
+  if (lat < south || lat > north || lng < west || lng > east) return unknown("utanför OSM-utdraget");
+  const found = findOwnBuilding(index, lat, lng);
+  if (found === null) return unknown("ingen byggnad inom 25 m");
+  const own = found.building;
 
   const proj = projectFrom(lat, lng);
   const unproj = unprojectFrom(lat, lng);
   const origin: XY = [0, 0];
-  const toXY = (ring: readonly [number, number][]): XY[] => ring.map(([x, y]) => proj(x, y));
-  const outerXY = toXY(own.outer);
-  const innersXY = own.inners.map(toXY);
+  const outerXY = toXY(proj, own.outer);
+  const innersXY = own.inners.map((h) => toXY(proj, h));
 
   // Same-name road segments (the street is matched by NAME, never by tag).
-  const street = streetNameOf(input.address);
   const roads: readonly OsmRoad[] = index.roadsByName.get(normalizeStreetName(street)) ?? [];
   const segments: Array<[XY, XY]> = [];
   for (const road of roads) {
-    const pts = toXY(road.points);
+    const pts = toXY(proj, road.points);
     for (let i = 0; i < pts.length - 1; i++) segments.push([pts[i], pts[i + 1]]);
   }
 
   // Walls: the outer ring, then the courtyard holes.
-  const edges: Edge[] = [];
+  const walls: Wall[] = [];
   let order = 0;
   for (const ring of [outerXY, ...innersXY]) {
     for (let i = 0; i < ring.length - 1; i++) {
@@ -305,31 +345,27 @@ export function inferStreetFacade(index: OsmIndex, input: FacadeInput): Footprin
       let normal: XY = [dy / lengthM, -dx / lengthM];
       const probe: XY = [mid[0] + P.normalProbeM * normal[0], mid[1] + P.normalProbeM * normal[1]];
       if (inSolidXY(probe, outerXY, innersXY)) normal = [-normal[0], -normal[1]];
-      // The nearest point on any same-name road.
-      let best: { d: number; c: XY } | null = null;
-      for (const [s0, s1] of segments) {
-        const hit = closestOnSegment(mid, s0, s1);
-        if (best === null || hit.d < best.d) best = hit;
-      }
-      if (best === null) continue;
-      const toStreet: XY = best.d > 0 ? [(best.c[0] - mid[0]) / best.d, (best.c[1] - mid[1]) / best.d] : [0, 0];
-      const facing = normal[0] * toStreet[0] + normal[1] * toStreet[1];
-      // Compared at stored precision so 35,0 m qualifies whatever the float noise.
-      if (!(facing > P.frontDotMin) || roundTo(best.d, P.decimals.distance) > P.streetMaxM) continue;
-      edges.push({
-        order: myOrder,
-        a,
-        b,
-        lengthM,
-        normal,
-        bearing: bearingOfXY(normal[0], normal[1]),
-        roadDistM: best.d,
-        facing,
-        weight: lengthM * Math.exp(-best.d / P.decayM),
-      });
+      walls.push({ order: myOrder, a, b, lengthM, normal, bearing: bearingOfXY(normal[0], normal[1]) });
     }
   }
-  if (edges.length === 0) return unknown("ingen byggnad inom 25 m");
+
+  // Frontage: walls with a same-name road in front of them and close enough.
+  const edges: Edge[] = [];
+  for (const w of walls) {
+    const mid: XY = [(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2];
+    let best: { d: number; c: XY } | null = null;
+    for (const [s0, s1] of segments) {
+      const hit = closestOnSegment(mid, s0, s1);
+      if (best === null || hit.d < best.d) best = hit;
+    }
+    if (best === null) continue;
+    const toStreet: XY = best.d > 0 ? [(best.c[0] - mid[0]) / best.d, (best.c[1] - mid[1]) / best.d] : [0, 0];
+    const facing = w.normal[0] * toStreet[0] + w.normal[1] * toStreet[1];
+    // Compared at stored precision so 35,0 m qualifies whatever the float noise.
+    if (!(facing > P.frontDotMin) || roundTo(best.d, P.decimals.distance) > P.streetMaxM) continue;
+    edges.push({ ...w, roadDistM: best.d, weight: w.lengthM * Math.exp(-best.d / P.decayM) });
+  }
+  if (edges.length === 0) return unknown("ingen gata med samma namn inom 35 m");
 
   // Greedy grouping over edges sorted by weight desc, then wall order.
   const sorted = [...edges].sort((x, y) => y.weight - x.weight || x.order - y.order);
@@ -345,36 +381,38 @@ export function inferStreetFacade(index: OsmIndex, input: FacadeInput): Footprin
     g.bearing = circularMean(g.edges);
   }
   const minDist = (g: Group): number => Math.min(...g.edges.map((e) => e.roadDistM));
+  // Top group: highest weight, then the nearer street, then the lower bearing.
   groups.sort((g1, g2) => {
     const tie = Math.abs(g1.weight - g2.weight) <= P.weightTieRel * Math.max(g1.weight, g2.weight);
     if (!tie) return g2.weight - g1.weight;
-    return minDist(g1) - minDist(g2) || g1.bearing - g2.bearing;
+    // Distances compare at stored precision so float noise cannot decide a tie.
+    return roundTo(minDist(g1), P.decimals.distance) - roundTo(minDist(g2), P.decimals.distance) || g1.bearing - g2.bearing;
   });
   const top = groups[0];
+  const second: Group | undefined = groups[1];
   const totalWeight = groups.reduce((s, g) => s + g.weight, 0);
   const share = top.weight / totalWeight;
-  const streetDist = minDist(top);
-  const frontage = top.edges.reduce((s, e) => s + e.lengthM, 0);
+  const streetDist = roundTo(minDist(top), P.decimals.distance);
+  const frontage = roundTo(
+    top.edges.reduce((s, e) => s + e.lengthM, 0),
+    P.decimals.distance,
+  );
+  const ambiguous = second !== undefined && second.weight > P.ambiguousRatio * top.weight;
 
   const streetBearingDeg = roundBearing(top.bearing);
   const courtyardBearingDeg = roundBearing(streetBearingDeg + 180);
 
   // The street point: the nearest spot on the winning walls to the Booli point, pushed out of the wall.
-  const first = top.edges[0];
-  let nearest = { ...closestOnSegment(origin, first.a, first.b), normal: first.normal };
-  for (const e of top.edges.slice(1)) {
-    const hit = closestOnSegment(origin, e.a, e.b);
-    if (hit.d < nearest.d) nearest = { ...hit, normal: e.normal };
-  }
-  const streetXY: XY = [nearest.c[0] + nearest.normal[0] * P.outwardPushM, nearest.c[1] + nearest.normal[1] * P.outwardPushM];
-  const [sLng, sLat] = unproj(streetXY[0], streetXY[1]);
+  const streetPoint = pushedPoint(top.edges, origin, P.outwardPushM, unproj);
+  // The courtyard point: the same on any wall whose normal is within the tolerance of the courtyard bearing.
+  const courtyardWalls = walls.filter((w) => angularDistance(w.bearing, courtyardBearingDeg) <= P.courtyardTolDeg);
+  const courtyardPoint = courtyardWalls.length > 0 ? pushedPoint(courtyardWalls, origin, P.outwardPushM, unproj) : null;
 
   const c = P.confidence;
-  const levels = own.levels;
-  const floorAboveLevels = input.floor !== null && levels !== null && input.floor > levels;
+  const floorAboveLevels = input.floor !== null && own.levels !== null && input.floor > own.levels;
   const confidence = roundTo(
     clamp01(
-      1 *
+      (found.inside ? 1 : c.snapped) *
         (c.shareBase + c.shareWeight * share) *
         (streetDist <= c.nearStreetM ? 1 : c.farStreet) *
         (frontage >= c.frontageMinM ? 1 : c.shortFrontage) *
@@ -386,18 +424,34 @@ export function inferStreetFacade(index: OsmIndex, input: FacadeInput): Footprin
   return {
     status: "ok",
     osmId: own.id,
-    inside: true,
-    snapM: 0,
+    inside: found.inside,
+    snapM: found.snapM,
     streetBearingDeg,
     streetFacade: bearingToFacade(streetBearingDeg),
     courtyardBearingDeg,
     courtyardFacade: bearingToFacade(courtyardBearingDeg),
     confidence,
-    frontageM: roundTo(frontage, P.decimals.distance),
-    streetDistM: roundTo(streetDist, P.decimals.distance),
-    ambiguous: false,
+    frontageM: frontage,
+    streetDistM: streetDist,
+    ambiguous,
     floorAboveLevels,
-    streetPoint: { lat: roundTo(sLat, P.decimals.point), lng: roundTo(sLng, P.decimals.point) },
-    courtyardPoint: null,
+    streetPoint,
+    courtyardPoint,
   };
+}
+
+/** The point on the nearest of `walls` to `from`, pushed `push` metres along that wall's normal, as stored lat/lng. */
+function pushedPoint(
+  walls: readonly Wall[],
+  from: XY,
+  push: number,
+  unproj: (x: number, y: number) => [number, number],
+): { lat: number; lng: number } {
+  let best = { ...closestOnSegment(from, walls[0].a, walls[0].b), normal: walls[0].normal };
+  for (const w of walls.slice(1)) {
+    const hit = closestOnSegment(from, w.a, w.b);
+    if (hit.d < best.d) best = { ...hit, normal: w.normal };
+  }
+  const [lng, lat] = unproj(best.c[0] + best.normal[0] * push, best.c[1] + best.normal[1] * push);
+  return { lat: roundTo(lat, SUN_FACADE_PARAMS.decimals.point), lng: roundTo(lng, SUN_FACADE_PARAMS.decimals.point) };
 }

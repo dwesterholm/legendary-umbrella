@@ -430,17 +430,19 @@ describe("inferStreetFacade: courtyard buildings (relations)", () => {
   });
 
   it("uses the walls of the block, not of its courtyard, for the street side", () => {
+    // A 50 x 40 block with a courtyard hole; the point is in the solid south wing (y -8..2), Testgatan 6 m south of the block.
     const rel = {
       type: "relation" as const,
       id: 7,
       tags: { building: "apartments", type: "multipolygon" },
-      members: [member(1, "outer", rect(-25, -40, 25, 0)), member(2, "inner", rect(-15, -30, 15, -10))],
+      members: [member(1, "outer", rect(-25, -8, 25, 32)), member(2, "inner", rect(-15, 2, 15, 22))],
     };
-    // The point is in the solid south wing; Testgatan runs 6 m south of the block.
-    const idx = scene({ relations: [rel], roads: [road(200, [[-60, -46], [60, -46]])] });
+    const idx = scene({ relations: [rel], roads: [road(200, [[-60, -14], [60, -14]])] });
     const r = ok(inferStreetFacade(idx, at("Testgatan 3", 1)));
+    expect(r.osmId).toBe("relation/7");
     expect(r.inside).toBe(true);
     expect(r.streetFacade).toBe("south");
+    expect(r.frontageM).toBe(50);
   });
 });
 
@@ -513,9 +515,11 @@ describe("inferStreetFacade: determinism on the real fixture", () => {
     expect(inferStreetFacade(buildOsmIndex(rotated), input)).toEqual(expected);
   });
 
-  it("counts what the fixture's relations gave", () => {
+  it("assembles the fixture's two courtyard relations", () => {
     const idx = buildOsmIndex(extract);
-    expect(idx.skipped.relationsWithoutOuter).toBeGreaterThanOrEqual(0);
-    expect(idx.buildings.length).toBeGreaterThanOrEqual(extract.buildings.length);
+    expect(extract.relations).toHaveLength(2);
+    expect(idx.skipped.relationsWithoutOuter).toBe(0);
+    expect(idx.buildings.filter((b) => b.id.startsWith("relation/")).length).toBeGreaterThanOrEqual(2);
+    expect(idx.buildings.filter((b) => b.id.startsWith("way/"))).toHaveLength(extract.buildings.length - idx.skipped.invalidWays);
   });
 });

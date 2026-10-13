@@ -225,6 +225,49 @@ function makeBuilding(id: string, outer: Ring, inners: Ring[], tags: Readonly<Re
   return { id, outer, inners, tags, levels: levelsOf(tags), areaM2: ringAreaM2(outer), bbox: bboxOfRing(outer) };
 }
 
+/** Joins per decimals-7 endpoint equality; a stitched ring is capped at this many joins. */
+const MAX_STITCH_JOINS = 500;
+const MIN_RING_POINTS = 4;
+
+const pointKey = (p: readonly [number, number]): string => `${p[0].toFixed(7)},${p[1].toFixed(7)}`;
+
+/**
+ * Joins member fragments into closed rings (RESEARCH Pitfall 2): a fragment is
+ * appended when its start equals the ring's end at 7 decimals, reversed when
+ * its END matches. Fragments that never close, and rings under 4 points, are
+ * dropped. The returned rings end exactly on their first point.
+ */
+function stitchRings(fragments: readonly Ring[]): Ring[] {
+  const pool = fragments.filter((f) => f.length >= 2).map((f) => f.slice());
+  const rings: Ring[] = [];
+  while (pool.length > 0) {
+    let current = pool.shift() as Ring;
+    let joins = 0;
+    while (pointKey(current[0]) !== pointKey(current[current.length - 1]) && joins++ < MAX_STITCH_JOINS) {
+      const end = pointKey(current[current.length - 1]);
+      let at = pool.findIndex((f) => pointKey(f[0]) === end);
+      let reverse = false;
+      if (at < 0) {
+        at = pool.findIndex((f) => pointKey(f[f.length - 1]) === end);
+        reverse = true;
+      }
+      if (at < 0) break;
+      let next = pool.splice(at, 1)[0];
+      if (reverse) next = next.slice().reverse();
+      current = current.concat(next.slice(1));
+    }
+    if (current.length >= MIN_RING_POINTS && pointKey(current[0]) === pointKey(current[current.length - 1])) {
+      current[current.length - 1] = current[0];
+      rings.push(current);
+    }
+  }
+  return rings;
+}
+
+function ringContains(ring: Ring, p: readonly [number, number]): boolean {
+  return booleanPointInPolygon(point([p[0], p[1]]), polygon([ring]));
+}
+
 /** Builds the building and road index from a parsed extract. */
 export function buildOsmIndex(extract: OsmExtract): OsmIndex {
   const skipped = { invalidWays: 0, relationsWithoutOuter: 0 };
@@ -236,6 +279,25 @@ export function buildOsmIndex(extract: OsmExtract): OsmIndex {
       continue;
     }
     buildings.push(makeBuilding(`way/${way.id}`, ring, [], way.tags));
+  }
+
+  // Courtyard buildings: one entry per closed outer ring, holes attached to the outer that contains them.
+  for (const rel of extract.relations) {
+    const fragments = (role: string): Ring[] =>
+      rel.members.filter((m) => m.role === role && m.geometry !== undefined).map((m) => toRing(m.geometry ?? []));
+    const outers = stitchRings(fragments("outer"));
+    if (outers.length === 0) {
+      skipped.relationsWithoutOuter += 1;
+      continue;
+    }
+    const holes: Ring[][] = outers.map(() => []);
+    for (const inner of stitchRings(fragments("inner"))) {
+      const owner = outers.findIndex((outer) => ringContains(outer, inner[0]));
+      if (owner >= 0) holes[owner].push(inner);
+    }
+    outers.forEach((outer, k) => {
+      buildings.push(makeBuilding(k === 0 ? `relation/${rel.id}` : `relation/${rel.id}#${k + 1}`, outer, holes[k], rel.tags));
+    });
   }
 
   const roads: OsmRoad[] = [];
