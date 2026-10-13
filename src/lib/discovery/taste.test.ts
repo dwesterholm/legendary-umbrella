@@ -5,9 +5,11 @@ import {
   LOVED_HUBS,
   TASTE_WEIGHTS,
   hubProximityPct,
+  inferredSunScore,
   nearestLovedHub,
   sunScore,
   tasteBonus,
+  type InferredSunInput,
 } from "@/lib/discovery/taste";
 import { haversineMeters } from "@/lib/discovery/hedonic-model";
 
@@ -158,6 +160,201 @@ describe("tasteBonus (D-06)", () => {
     const r = tasteBonus({ latitude: 59.4, longitude: 17.9, orientation: { facades: ["north"] }, sunPhrases: null });
     expect(r.pct).toBe(0);
     expect(r.nearestHub).not.toBeNull();
+  });
+});
+
+describe("inferred sun (14.3-06: D-07, R-03, SUN-04)", () => {
+  const none = { allDaySun: false, throughFlat: false };
+  const side = (facade: "north" | "east" | "south" | "west", obstructionFactor = 1) => ({ facade, obstructionFactor });
+  const inferred = (
+    source: InferredSunInput["source"],
+    confidence: number,
+    sides: InferredSunInput["sides"],
+  ): InferredSunInput => ({ source, confidence, sides });
+  const base = { latitude: FOLKUNGAGATAN.lat as number | null, longitude: FOLKUNGAGATAN.lng as number | null };
+
+  it("streetOnlyFactor is 0.5 and the 3 % and 5 % ceilings are unchanged", () => {
+    expect(TASTE_WEIGHTS.streetOnlyFactor).toBe(0.5);
+    expect(TASTE_WEIGHTS.sunMaxPct).toBe(0.03);
+    expect(TASTE_WEIGHTS.sunMaxPct + TASTE_WEIGHTS.hubMaxPct).toBeCloseTo(0.05, 12);
+  });
+
+  it("absent, undefined and null inferredSun give today's output for the same input", () => {
+    const today = tasteBonus({ ...base, orientation: { facades: ["south"] }, sunPhrases: none });
+    expect(tasteBonus({ ...base, orientation: { facades: ["south"] }, sunPhrases: none, inferredSun: null })).toEqual(today);
+    expect(tasteBonus({ ...base, orientation: { facades: ["south"] }, sunPhrases: none, inferredSun: undefined })).toEqual(today);
+  });
+
+  it("source okänd falls back to today's formula (phrase-only when no facade is known)", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: null,
+      sunPhrases: { allDaySun: true, throughFlat: false },
+      inferredSun: inferred("okänd", 0, []),
+    });
+    expect(r.sunPct).toBeCloseTo(0.03 * 0.3, 12);
+    const withOrientation = tasteBonus({
+      ...base,
+      orientation: { facades: ["east"] },
+      sunPhrases: null,
+      inferredSun: inferred("okänd", 0, []),
+    });
+    expect(withOrientation.sunPct).toBeCloseTo(0.03, 12);
+  });
+
+  it("Folkungagatan: footprint, street south 0.95 and courtyard north, confidence 1 -> sunPct 0.009975", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: null,
+      sunPhrases: null,
+      inferredSun: inferred("fastighet/gata", 1, [side("south", 0.95), side("north", 1)]),
+    });
+    expect(r.sunPct).toBeCloseTo(0.009975, 9);
+    expect(r.hubPct).toBeCloseTo(0.02, 12);
+    expect(r.pct).toBeCloseTo(r.sunPct + r.hubPct, 12);
+  });
+
+  it("footprint-only east street side with no shade earns half the east weight: 0.015", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: null,
+      sunPhrases: null,
+      inferredSun: inferred("fastighet/gata", 1, [side("east"), side("west")]),
+    });
+    expect(r.sunPct).toBeCloseTo(0.015, 12);
+  });
+
+  it("the best side counts, not the sum", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: null,
+      sunPhrases: null,
+      inferredSun: inferred("fastighet/gata", 1, [side("east"), side("south")]),
+    });
+    expect(r.sunPct).toBeCloseTo(0.015, 12);
+  });
+
+  it("shade on the better side can make the other side the best one", () => {
+    // east 1.0 x 0.2 = 0.2, south 0.7 x 1 = 0.7
+    expect(inferredSunScore(inferred("angiven", 1, [side("east", 0.2), side("south", 1)]), null)).toBeCloseTo(0.7, 12);
+  });
+
+  it("stated east, confidence 1, no shade gives 0.03 and equals today's sunScore path", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: { facades: ["east"] },
+      sunPhrases: null,
+      inferredSun: inferred("angiven", 1, [side("east")]),
+    });
+    const today = tasteBonus({ ...base, orientation: { facades: ["east"] }, sunPhrases: null });
+    expect(r.sunPct).toBeCloseTo(0.03, 12);
+    expect(r.sunPct).toBeCloseTo(today.sunPct, 12);
+    expect(r.sunPct).toBeCloseTo(0.03 * sunScore({ facades: ["east"] }, null), 12);
+  });
+
+  it("stated east plus a stated all-day-sun phrase is capped at 1 and gives exactly 0.03", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: { facades: ["east"] },
+      sunPhrases: { allDaySun: true, throughFlat: false },
+      inferredSun: inferred("angiven", 1, [side("east")]),
+    });
+    expect(r.sunPct).toBe(0.03);
+  });
+
+  it("a plan south side with confidence 0.8 gives 0.7 x 0.8 = 0.56 -> 0.0168 (planritning keeps 1.0)", () => {
+    const r = tasteBonus({
+      ...base,
+      orientation: null,
+      sunPhrases: null,
+      inferredSun: inferred("planritning", 0.8, [side("south")]),
+    });
+    expect(r.sunPct).toBeCloseTo(0.0168, 12);
+  });
+
+  it("halving the obstruction factor halves the sun part", () => {
+    const full = inferredSunScore(inferred("angiven", 1, [side("south", 1)]), null);
+    const half = inferredSunScore(inferred("angiven", 1, [side("south", 0.5)]), null);
+    expect(half).toBeCloseTo(full / 2, 12);
+  });
+
+  it("the phrase credit is added once, outside the confidence and street-only scaling", () => {
+    const s = inferredSunScore(inferred("fastighet/gata", 0.5, [side("south")]), { allDaySun: true, throughFlat: true });
+    expect(s).toBeCloseTo(0.7 * 0.5 * 0.5 + 0.3, 12);
+  });
+
+  it("confidence 0 or obstruction factor 0 removes the sun part (phrase credit stays)", () => {
+    expect(inferredSunScore(inferred("angiven", 0, [side("east")]), null)).toBe(0);
+    expect(inferredSunScore(inferred("angiven", 1, [side("east", 0)]), null)).toBe(0);
+    expect(inferredSunScore(inferred("angiven", 0, [side("east")]), { allDaySun: true, throughFlat: false })).toBeCloseTo(0.3, 12);
+  });
+
+  it("north and west weigh 0 whatever the confidence", () => {
+    expect(inferredSunScore(inferred("angiven", 1, [side("north"), side("west")]), null)).toBe(0);
+  });
+
+  it("non-finite and negative inputs count as 0, never NaN", () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1]) {
+      const a = inferredSunScore(inferred("angiven", bad, [side("east")]), null);
+      const b = inferredSunScore(inferred("angiven", 1, [side("east", bad)]), null);
+      expect(a).toBe(0);
+      expect(b).toBe(0);
+    }
+    const r = tasteBonus({
+      ...base,
+      orientation: null,
+      sunPhrases: null,
+      inferredSun: inferred("angiven", Number.NaN, [side("east", Number.POSITIVE_INFINITY)]),
+    });
+    expect(r.sunPct).toBe(0);
+    expect(Number.isNaN(r.pct)).toBe(false);
+  });
+
+  it("no sides gives 0; confidence and factors above 1 are clamped so the score never passes 1", () => {
+    expect(inferredSunScore(inferred("angiven", 1, []), null)).toBe(0);
+    expect(inferredSunScore(inferred("angiven", 5, [side("east", 9)]), null)).toBe(1);
+  });
+
+  it("the sun part never exceeds 3 % over a grid of every source, facade, confidence, factor and phrase", () => {
+    const sources: InferredSunInput["source"][] = ["angiven", "planritning", "fastighet/gata", "okänd"];
+    const facades = ["north", "east", "south", "west"] as const;
+    const phraseSets = [null, none, { allDaySun: true, throughFlat: false }, { allDaySun: true, throughFlat: true }];
+    for (const source of sources) {
+      for (const facade of facades) {
+        for (let c = 0; c <= 1.0001; c += 0.25) {
+          for (let f = 0; f <= 1.0001; f += 0.25) {
+            for (const phrases of phraseSets) {
+              const r = tasteBonus({
+                ...base,
+                orientation: null,
+                sunPhrases: phrases,
+                inferredSun: inferred(source, c, [side(facade, f)]),
+              });
+              expect(r.sunPct).toBeGreaterThanOrEqual(0);
+              expect(r.sunPct).toBeLessThanOrEqual(0.03);
+              expect(r.pct).toBeLessThanOrEqual(0.05 + 1e-12);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("the hub part is untouched by any sun input", () => {
+    const a = tasteBonus({ ...base, orientation: null, sunPhrases: null });
+    const b = tasteBonus({ ...base, orientation: null, sunPhrases: null, inferredSun: inferred("angiven", 1, [side("east")]) });
+    expect(b.hubPct).toBe(a.hubPct);
+    expect(b.nearestHub).toBe(a.nearestHub);
+    expect(b.hubMeters).toBe(a.hubMeters);
+  });
+
+  it("taste.ts imports no runtime code from the sun or OSM modules", () => {
+    const raw = readFileSync(join(process.cwd(), "src/lib/discovery/taste.ts"), "utf-8");
+    const runtimeImports = raw
+      .split("\n")
+      .filter((l) => /^import\s/.test(l) && !/^import type\s/.test(l))
+      .filter((l) => /discovery\/(sun-(facade|fact|hours|floorplan)|osm-)/.test(l));
+    expect(runtimeImports).toEqual([]);
   });
 });
 
