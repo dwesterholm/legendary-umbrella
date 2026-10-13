@@ -9,6 +9,12 @@
  *
  * NO NETWORK. This file imports nothing from the Booli transport or client, and
  * `slutpriser.ts` (schemas only here) is pure. Free to run as often as you like.
+ * Because it renders no Booli page it takes no `--renderer` flag (D-03 of Phase
+ * 14.2 names it, but the renderer choice lives in `fit-score.ts` and
+ * `pull-slutpriser.ts`, where the data is fetched).
+ *
+ * Size (D-10, 14.1 review WR-06): the direction rule for the size coefficient was
+ * dropped, so the size effect now comes from the data and the model's note says so.
  *
  * What goes into the committed file: coefficients, summary statistics and a point
  * cloud of [lat 3 dp, lng 3 dp, ln kr/m2]. No address, URL, sold date or price
@@ -286,6 +292,22 @@ function main(): void {
   const sizeAll = sizeCheck(training, asOf, null);
   const sizeRecent = sizeCheck(training, asOf, windowFrom);
   const notes: string[] = [];
+  let sizeNote: string | null = null;
+  if (sizeFeature && sizeFeature.source === "fit") {
+    const recent = sizeRecent.bands;
+    const big = recent[recent.length - 1];
+    const mid = recent[recent.length - 2];
+    const t = sizeFeature.se !== null && sizeFeature.se > 0 ? Math.abs(sizeFeature.beta / sizeFeature.se) : null;
+    sizeNote =
+      `Storlek: koefficienten tas från data (beslut D-10, ${fittedAt}). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen ${fittedAt} ` +
+      `(granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm ` +
+      `(koefficient ${sv(sizeFeature.beta, 4)}${sizeFeature.se !== null ? `, SE ${sv(sizeFeature.se, 4)}` : ""}${t !== null ? `, t = ${sv(t, 1)}` : ""}, härledd ur marknaden), ` +
+      `och regeln nollställde den säkraste koefficienten i modellen. ` +
+      `Mätt på försäljningar sedan ${windowFrom}, då alla storlekar finns sida vid sida: ${mid.label} ${svPct(mid.pct)} och ${big.label} ${svPct(big.pct)} mot 35-40 kvm. ` +
+      `Mellan 35 och 50 kvm är effekten nära noll (${recent.slice(0, 2).map((b) => `${b.label} ${svPct(b.pct)}`).join(", ")}), så för lägenheter i den storleken ändras priserna lite; ` +
+      `för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.`;
+    notes.push(sizeNote);
+  }
   if (sizeFeature && sizeFeature.source !== "fit") {
     const recent = sizeRecent.bands;
     const big = recent[recent.length - 1];
@@ -363,7 +385,7 @@ function main(): void {
   for (const l of [...describeSizeCheck(sizeAll), ...describeSizeCheck(sizeRecent)]) console.log(l);
   const sizeSource = sizeFeature?.source ?? "fit";
   console.log(
-    `  Storleksvalet i modellen: ${sizeSource === "fit" ? "koefficienten från data används" : sizeSource === "zeroed" ? "NOLLSTÄLLD av riktningsregeln (D-18); förklaringen ligger i modellfilens note" : "ersatt av studiens värde"}.`,
+    `  Storleksvalet i modellen: ${sizeSource === "fit" ? (sizeNote ?? "koefficienten från data används") : sizeSource === "zeroed" ? "NOLLSTÄLLD av riktningsregeln (D-18); förklaringen ligger i modellfilens note" : "ersatt av studiens värde"}`,
   );
 
   console.log("\nReservvärden (fallbacks):");

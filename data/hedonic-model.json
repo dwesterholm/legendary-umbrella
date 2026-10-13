@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "fittedAt": "2026-10-12",
-  "asOf": "2026-10-12",
+  "fittedAt": "2026-10-13",
+  "asOf": "2026-10-13",
   "n": 7380,
-  "r2": 0.6058230219206366,
-  "cvRmseLog": 0.11569286887725493,
-  "residualSdLog": 0.11561264285335666,
-  "smearing": 1.0066796645093234,
-  "residualP75Log": 0.0796215877908697,
+  "r2": 0.6095480203454127,
+  "cvRmseLog": 0.11517550213413906,
+  "residualSdLog": 0.11506507259105811,
+  "smearing": 1.00660617389835,
+  "residualP75Log": 0.07923310662742145,
   "minLivingArea": 35,
   "maxLivingArea": 120,
   "intercept": 11.67714977314149,
@@ -15,44 +15,43 @@
     {
       "name": "nbLevel",
       "mean": 11.680230924114023,
-      "beta": 1.0855207169164398,
-      "se": 0.011767937229220536,
+      "beta": 1.0703887701991037,
+      "se": 0.011851031139523663,
       "source": "fit"
     },
     {
       "name": "floor",
       "mean": 2.694265436479756,
-      "beta": 0.015384678460508722,
-      "se": 0.0008825069537846425,
+      "beta": 0.014812906911706355,
+      "se": 0.0008810262822373298,
       "source": "fit"
     },
     {
       "name": "groundOrBelow",
       "mean": 0.033640880056777574,
-      "beta": -0.06637106540841615,
-      "se": 0.008028755129356935,
+      "beta": -0.06769900914747828,
+      "se": 0.0079928380094415,
       "source": "fit"
     },
     {
       "name": "lnArea",
       "mean": 3.8958113024321723,
-      "beta": 0,
-      "se": null,
-      "source": "zeroed",
-      "note": "storlek: koefficienten pekar åt fel håll (koefficient 0,0461, SE 0,0055, t = 8,4); ersatt med noll."
+      "beta": 0.04609168008675589,
+      "se": 0.005493485363296221,
+      "source": "fit"
     },
     {
       "name": "monthsAgo",
-      "mean": 7.531078223513202,
-      "beta": -0.008537893014592676,
-      "se": 0.0002548231356784358,
+      "mean": 7.563932432958791,
+      "beta": -0.007747250888176474,
+      "se": 0.0002705732266199272,
       "source": "fit"
     },
     {
       "name": "centralityKm",
       "mean": 0.7229609429940155,
-      "beta": -0.007230937808374065,
-      "se": 0.004238324616475998,
+      "beta": -0.008143072950370154,
+      "se": 0.004219937478368912,
       "source": "fit"
     }
   ],
@@ -7460,40 +7459,35 @@
     "kind": "slope",
     "perDistrict": {
       "Södermalm": {
-        "a": 0.10459093111654713,
+        "a": 0.10420184792805333,
         "n": 1791,
         "source": "fit"
       },
       "Kungsholmen": {
-        "a": 0.055347364015689515,
+        "a": 0.05569187579399333,
         "n": 1570,
         "source": "fit"
       },
       "Vasastan": {
-        "a": 0.05888352216471805,
+        "a": 0.05872204067847638,
         "n": 1361,
         "source": "fit"
       },
       "Östermalm": {
-        "a": 0.038763435962100135,
+        "a": 0.0400033157716215,
         "n": 640,
         "source": "fit"
       }
     },
-    "b": -0.18679298356471277,
-    "overallA": 0.06891542843000595,
+    "b": -0.18483739670413757,
+    "overallA": 0.06896548548317441,
     "cvRmse": {
       "flat": 0.07578833372735738,
-      "slope": 0.07346150835092924
+      "slope": 0.07358854731675883
     },
     "nullLabelShare": 0.27344173441734415
   },
   "fallbacks": [
-    {
-      "item": "lnArea",
-      "reason": "wrong-sign",
-      "detail": "storlek: koefficienten pekar åt fel håll (koefficient 0,0461, SE 0,0055, t = 8,4); ersatt med noll."
-    },
     {
       "item": "balcony",
       "reason": "absent",
@@ -7505,5 +7499,5 @@
       "detail": "byggår: detaljurvalet (32 försäljningar, 25 av dem byggda före 1931) har under 20 försäljningar i 3 av 4 byggårsgrupper; ingen byggårsjustering görs."
     }
   ],
-  "note": "Storlek: nollställd. Sålda lägenheter är i snitt DYRARE per kvm ju större de är (60-80 kvm +3,4 %, 80-120 kvm +4,9 % mot 35-40 kvm, mätt på försäljningar sedan 2026-07-12 då alla storlekar finns sida vid sida, så det beror inte på att stora lägenheter råkar vara nyare). Modellen förväntar sig tvärtom (större = billigare per kvm), så regeln i D-18 sätter storlekseffekten till noll i stället för att lita på riktningen. Mellan 35 och 50 kvm är skillnaden nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken spelar nollställningen ingen roll; för 60-120 kvm räknar modellen ungefär 5 % för lågt. Daniel avgör om riktningsregeln ska släppas för storlek. Balkong och byggår: detaljurvalet (32 försäljningar med båda uppgifterna) var för litet för att mäta byggårsgrupperna (minst 20 per grupp krävs), så balkong = studiens värde +1,9 % och ingen byggårsjustering görs. I urvalet gav Booli säljobjektet bara för försäljningar från oktober 2025 och senare, och 25 av 32 är byggda före 1931."
+  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0461, SE 0,0055, t = 8,4, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-13, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +5,0 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +1,0 %, 45-50 kvm +0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Balkong och byggår: detaljurvalet (32 försäljningar med båda uppgifterna) var för litet för att mäta byggårsgrupperna (minst 20 per grupp krävs), så balkong = studiens värde +1,9 % och ingen byggårsjustering görs. I urvalet gav Booli säljobjektet bara för försäljningar från oktober 2025 och senare, och 25 av 32 är byggda före 1931."
 }
