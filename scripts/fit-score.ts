@@ -183,7 +183,6 @@ import {
   saveVisionCache,
   type VisionChunksResult,
 } from "@/lib/discovery/vision-cache";
-import { isAllowedImageHost } from "@/lib/booli/image-host";
 import { buildOsmIndex, parseOsmExtract, type OsmIndex } from "@/lib/discovery/osm-buildings";
 import {
   OSM_CACHE_PATH,
@@ -745,7 +744,8 @@ function makePlanOf(): (row: FitInputRow) => PlanBearing | null {
       if (loaded.warning) console.log(`OBS: ${loaded.warning}`);
       cache = loaded.cache;
     }
-    const url = (row.candidate.imageUrls ?? []).find((u) => isAllowedImageHost(u));
+    // The first Booli image is the floor plan for most flats (research); a cache entry exists only for allowed hosts.
+    const url = row.candidate.imageUrls?.[0];
     if (url === undefined) return null;
     const entry = cache.entries[floorPlanImageId(url)];
     if (!entry || entry.promptVersion !== FLOORPLAN_PROBE_VERSION) return null;
