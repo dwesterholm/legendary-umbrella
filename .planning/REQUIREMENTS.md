@@ -24,7 +24,7 @@
 
 - [x] **FIT-01**: A cached, sign-correct slutpris dataset (4 innerstan districts, ≥35 m², 12–18 months; floor, sold price, asking price, sold date, lat/lng) is pulled by a script through the existing Apify transport with bounded concurrency (≤8) and can be refit offline without re-scraping.
 - [x] **FIT-02**: A hedonic ridge-stabilised OLS on log(kr/m²) is fitted from that dataset; coefficients, standard errors, R², cross-validated error and sign checks are reported in plain language, with a documented neutral fallback for any wrong-signed or unstable coefficient.
-- [ ] **FIT-03**: A pure `fit-score` module returns estimated flip profit in kr (resale − expected final purchase − reno cost) plus a taste bonus ≤5 % of resale and explicit flags (expected final > 4.0 M, ej bildtolkad, hidden-defect risk), reusing `valueGap()`; `niche-score.ts`/`flags.ts` stay import-banned and the separation test is amended, not removed.
+- [x] **FIT-03**: A pure `fit-score` module returns estimated flip profit in kr (resale − expected final purchase − reno cost) plus a taste bonus ≤5 % of resale and explicit flags (expected final > 4.0 M, ej bildtolkad, hidden-defect risk), reusing `valueGap()`; `niche-score.ts`/`flags.ts` stay import-banned and the separation test is amended, not removed.
 - [x] **FIT-04**: Renovation cost is chosen deterministically from the vision condition verdict (fresh / ok / dated / unknown per kitchen, bathroom, overall) as severity bundles at the mid price band of `RENO_COST_MATRIX`; unknown = mid bundle and flagged.
 - [ ] **FIT-05**: A headless script ranks an innerstan run: deterministic pre-rank of all filtered candidates, detail + vision on the top ~20 (`FIT_VISION_WINDOW`, in-app `VISION_ENRICH_LIMIT` unchanged), then a profit re-sort, printing the table (address, kvm, floor, asking, expected final, resale, reno, profit, taste, flags, Booli link) and the real Apify/Anthropic spend.
 - [ ] **FIT-06**: Ordering is proven by fixture tests (D-15), an offline replay of a cached for-sale snapshot, and one live innerstan run whose Folkungagatan 61 (Booli 150148) rank is recorded with a per-component decomposition — measured, not tuned.
@@ -79,7 +79,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | ANL-04 | Phase 14 — Holistic Analysis Brain | Complete |
 | FIT-01 | Phase 14.1 — Personal Fit Score | Complete |
 | FIT-02 | Phase 14.1 — Personal Fit Score | Complete |
-| FIT-03 | Phase 14.1 — Personal Fit Score | Pending |
+| FIT-03 | Phase 14.1 — Personal Fit Score | Complete |
 | FIT-04 | Phase 14.1 — Personal Fit Score | Complete |
 | FIT-05 | Phase 14.1 — Personal Fit Score | Pending |
 | FIT-06 | Phase 14.1 — Personal Fit Score | Pending |

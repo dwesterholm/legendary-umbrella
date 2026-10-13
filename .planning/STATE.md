@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.1"
 current_phase_name: Personal Fit Score
 status: executing
-stopped_at: Completed 14.1-08-PLAN.md
-last_updated: "2026-10-12T23:56:40.086Z"
+stopped_at: Completed 14.1-09-PLAN.md
+last_updated: "2026-10-13T00:09:05.092Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 14.1 execution started
-state_head: d1b5b6f4710de90fc56f05b35df5fe78793166c8
+state_head: b839224888274b5b63bdfa3ecc75516429c1fe0b
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 25
-  completed_plans: 22
+  completed_plans: 23
   percent: 13
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 ## Current Position
 
 Phase: 14.1 (Personal Fit Score) — EXECUTING
-Plan: 9 of 10
+Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-10-12 — Phase 14.1 execution started
 Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-12 around Daniel's own hunt: 14.1 fit score → 14.2 daily email watch → 14.3 orientation spike; 15–17 deferred. Calibration listing: .planning/calibration/folkungagatan-61-5tr.md
@@ -86,6 +86,7 @@ Next step: /gsd-plan-phase 14.1 (Personal Fit Score). Roadmap reshaped 2026-10-1
 | Phase 14.1 P06 | 10 min | 3 tasks | 9 files |
 | Phase 14.1 P07 | 7 min | 2 tasks | 3 files |
 | Phase 14.1 P08 | 50min | 2 tasks | 6 files |
+| Phase 14.1 P09 | 13 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -223,6 +224,8 @@ Recent decisions affecting current work:
 - [Phase 14.1]: 14.1-07: pre-rank covers ALL comparable rows (D-10 'cap 60' read as expected count, not truncation); no automatic model-level offset; dominance check treats larger flat as better - Daniel to confirm
 - [Phase 14.1]: 14.1-08: size effect stays zeroed by the D-18 direction rule; per-band check shows larger flats really cost +3-5 % more per m2 (60-120 m2) and about 0 between 35-50 m2. Daniel to confirm.
 - [Phase 14.1]: 14.1-08: only 35 sold-detail pages enriched (4.23 USD); too thin for build year, so balcony = study +1.9 % and no build-year term. Booli returns the sold object only for sales from Oct 2025 on.
+- [Phase 14.1]: 14.1-09: fit-score live exit codes 0 done, 1 error, 2 only for Apify headroom below the worst-case estimate (5.90 USD for 4 districts x window 20); --dry-run stops after the check — The wallet guard must be testable without spending; exit 2 must mean one thing
+- [Phase 14.1]: 14.1-09: listing links are printed only in the table, so live log and snapshot replay list links in the same order (plan 10 diff) — Replay-equals-live check
 
 ### Pending Todos
 
@@ -254,8 +257,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-12T23:56:39.981Z
-Stopped at: Completed 14.1-08-PLAN.md
+Last session: 2026-10-13T00:08:50.419Z
+Stopped at: Completed 14.1-09-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
