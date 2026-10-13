@@ -70,7 +70,7 @@ export function usableSide(fact: LayoutFact | null, which: "balcony" | "bedroom"
 }
 
 /** True when the read is confident that the flat has no balcony. Needs only the confidence: nothing about street or courtyard is claimed. */
-function usablyNoBalcony(fact: LayoutFact | null): boolean {
+export function usablyNoBalcony(fact: LayoutFact | null): boolean {
   return fact !== null && confident(fact) && fact.balconySide === "none";
 }
 
@@ -130,4 +130,19 @@ export function formatSolCellWithLayout(sun: SunFact | null, layout: LayoutFact 
   if (balcony !== null) return `${base}, balkong ${SIDE_WORD[balcony]}`;
   if (usablyNoBalcony(layout)) return `${base}, ingen balkong`;
   return base;
+}
+
+const WINDOW_WORD = { one: "en sida", twoOpposite: "två motsatta sidor", corner: "hörn", unknown: "okänd" } as const;
+
+/**
+ * The tracked-flat line of the layout, believed values only: "balkong gata, fönster en sida, sovrum gata
+ * (säkerhet 0,90)", with "okänd" for what the gate does not let through, and "-" without a layout. Pure.
+ */
+export function formatLayoutSummary(fact: LayoutFact | null): string {
+  if (fact === null) return "-";
+  const balcony = usableSide(fact, "balcony");
+  const balconyWord = balcony !== null ? SIDE_WORD[balcony] : usablyNoBalcony(fact) ? "ingen" : "okänd";
+  const windows = confident(fact) ? WINDOW_WORD[fact.windowSides] : WINDOW_WORD.unknown;
+  const bedroom = usableSide(fact, "bedroom");
+  return `balkong ${balconyWord}, fönster ${windows}, sovrum ${bedroom !== null ? SIDE_WORD[bedroom] : "okänd"} (säkerhet ${commaDecimals(fact.confidence)})`;
 }

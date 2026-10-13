@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   LAYOUT_MIN_CONFIDENCE,
   formatKorsdragCell,
+  formatLayoutSummary,
   formatSolCellWithLayout,
   formatSovrumCell,
   korsdragOf,
   layoutFactSchema,
   quietBedroomOf,
   usableSide,
+  usablyNoBalcony,
   type LayoutFact,
 } from "@/lib/discovery/layout-fact";
 import { formatSolCell, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
@@ -192,5 +194,29 @@ describe("layoutFactSchema", () => {
     expect(layoutFactSchema.safeParse({ ...fact(), source: "planritning" }).success).toBe(false);
     expect(layoutFactSchema.safeParse({ ...fact(), balconySide: "roof" }).success).toBe(false);
     expect(layoutFactSchema.safeParse({ ...fact(), confidence: 1.2 }).success).toBe(false);
+  });
+});
+
+describe("formatLayoutSummary and usablyNoBalcony (14.4 plan 08)", () => {
+  it("prints believed values only, with the confidence", () => {
+    expect(formatLayoutSummary(fact())).toBe("balkong gata, fönster en sida, sovrum gata (säkerhet 0,90)");
+    expect(
+      formatLayoutSummary(fact({ balconySide: "courtyard", windowSides: "twoOpposite", bedroomSide: "courtyard", streetEvidence: "courtyardGreenery" })),
+    ).toBe("balkong gård, fönster två motsatta sidor, sovrum gård (säkerhet 0,90)");
+  });
+
+  it("below the gate everything reads okänd, and no fact prints a dash", () => {
+    expect(formatLayoutSummary(fact({ confidence: 0.59 }))).toBe("balkong okänd, fönster okänd, sovrum okänd (säkerhet 0,59)");
+    expect(formatLayoutSummary(fact({ streetEvidence: "none" }))).toBe("balkong okänd, fönster en sida, sovrum okänd (säkerhet 0,90)");
+    expect(formatLayoutSummary(null)).toBe("-");
+  });
+
+  it("a confident 'no balcony' prints ingen, and usablyNoBalcony needs only the confidence", () => {
+    const none = fact({ balconySide: "none", streetEvidence: "none" });
+    expect(formatLayoutSummary(none)).toBe("balkong ingen, fönster en sida, sovrum okänd (säkerhet 0,90)");
+    expect(usablyNoBalcony(none)).toBe(true);
+    expect(usablyNoBalcony({ ...none, confidence: 0.59 })).toBe(false);
+    expect(usablyNoBalcony(fact())).toBe(false);
+    expect(usablyNoBalcony(null)).toBe(false);
   });
 });

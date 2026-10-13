@@ -16,6 +16,7 @@ import {
   TASTE_SUN_OBSTRUCTION_DATE,
   booliIdOf,
   cappedTasteSek,
+  rowsAtTasteCap,
   clearlyWorseAbove,
   compareFinal,
   comparePreRank,
@@ -1565,6 +1566,19 @@ describe("korsdrag and a quiet bedroom in taste (14.4 LAY-03, D-10)", () => {
     const noPrice = fitScore({ ...row, candidate: { ...row.candidate, price: null } }, model);
     expect(noPrice.tasteKorsdragPct).toBe(0);
     expect(noPrice.tasteQuietBedroomPct).toBe(0);
+  });
+});
+
+describe("rowsAtTasteCap (14.4 R-09)", () => {
+  it("counts the rows whose uncapped taste share reaches 5 %, out of the rows looked at", () => {
+    const east = fitScore({ ...flat({ facades: ["east"] }), layout: null }, model); // 3 % sun + 2 % hub = 5 %
+    const plain = fitScore(flat({ facades: null }), model); // hub only
+    const boosted = fitScore(
+      { ...flat({ facades: null }), layout: streetLayout({ windowSides: "twoOpposite", bedroomSide: "courtyard" }) },
+      model,
+    ); // hub 2 % + 2 % = 4 %: below the cap
+    expect(rowsAtTasteCap([east, plain, boosted])).toEqual({ reached: 1, of: 3 });
+    expect(rowsAtTasteCap([])).toEqual({ reached: 0, of: 0 });
   });
 });
 

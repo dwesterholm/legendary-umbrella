@@ -203,7 +203,7 @@ describe("renderWatchHtml", () => {
   });
 
   it("has every column of D-15", () => {
-    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor", "Varför här", "Booli"]) {
+    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Flaggor", "Varför här", "Booli"]) {
       expect(html).toMatch(new RegExp(`<th[^>]*>${heading.replace(/[().]/g, "\\$&")}</th>`));
     }
   });
@@ -224,11 +224,27 @@ describe("renderWatchHtml", () => {
     expect(headings.some((h) => /^Okapad|^Kredit/.test(h))).toBe(false);
   });
 
-  it("the three Sol columns sit right after 'Smak' and before 'Flaggor', and each row's cells are at the same index as the headings", () => {
+  it("'Korsdrag' and 'Sovrum' follow the sun-hour columns right before 'Flaggor'; their cells sit at the heading indexes, are text, and are escaped (LAY-03)", () => {
+    const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
+    const headings = [...firstTable.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    const at = headings.indexOf("Soltim. med grannhus (mar/jun/dec)");
+    expect(headings.slice(at, at + 4)).toEqual(["Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Flaggor"]);
+    const firstRow = firstTable.split("<tr>")[2];
+    const cells = [...firstRow.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
+    expect(cells).toHaveLength(headings.length);
+    expect(cells[headings.indexOf("Korsdrag")]).toBe("nej");
+    expect(cells[headings.indexOf("Sovrum")]).toBe("gata");
+    const hostile = renderWatchHtml(input({ sections: { under: [newEntry(tableRow({ korsdrag: "<b>ja</b>", sovrum: "g & g" }))], over: [] } }));
+    expect(hostile).toContain("&lt;b&gt;ja&lt;/b&gt;");
+    expect(hostile).toContain("g &amp; g");
+    expect(hostile).not.toContain("<b>ja</b>");
+  });
+
+  it("the three Sol columns sit right after 'Smak', and each row's cells are at the same index as the headings", () => {
     const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
     const headings = [...firstTable.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
     const smak = headings.indexOf("Smak");
-    expect(headings.slice(smak, smak + 5)).toEqual(["Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Flaggor"]);
+    expect(headings.slice(smak, smak + 4)).toEqual(["Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)"]);
     expect(headings[headings.length - 1]).toBe("Booli");
     // The first body row of the first table: one <td> per heading, the Sol cells at the heading indexes.
     const firstRow = firstTable.split("<tr>")[2];
@@ -341,6 +357,10 @@ describe("renderWatchText", () => {
     expect(r).toHaveLength(h.length);
     expect(r[h.indexOf("Sol")]).toBe("S gata/N gård (fastighet/gata, 0,95)");
     expect(r[h.indexOf("Soltim. fri (mar/jun/dec)")]).toBe("6,0/5,5/4,1");
+    expect(r[h.indexOf("Korsdrag")]).toBe("nej");
+    expect(r[h.indexOf("Sovrum")]).toBe("gata");
+    expect(h.indexOf("Korsdrag")).toBe(h.indexOf("Soltim. med grannhus (mar/jun/dec)") + 1);
+    expect(h.indexOf("Flaggor")).toBe(h.indexOf("Sovrum") + 1);
   });
 });
 

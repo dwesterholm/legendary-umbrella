@@ -144,6 +144,7 @@ import {
   preRank,
   rankFit,
   residualFlagCounts,
+  rowsAtTasteCap,
   type FitInputRow,
   type FitScoreResult,
   type FitSnapshot,
@@ -151,6 +152,7 @@ import {
 } from "@/lib/discovery/fit-score";
 import { INNERSTAN_DISTRICTS, parseHedonicModel, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
+import { formatLayoutSummary } from "@/lib/discovery/layout-fact";
 import { factsFromCard } from "@/lib/discovery/listing-facts";
 import { RENO_BAND } from "@/lib/discovery/reno-tier";
 import { fitRunRecordOf } from "@/lib/discovery/valuation-report";
@@ -213,6 +215,7 @@ import {
   FLOORPLAN_PROBE_VERSION,
   FLOORPLAN_ROUTE_ENABLED,
   floorPlanImageId,
+  formatSek,
   loadFloorPlanCache,
   planBearingOf,
   type FloorPlanCache,
@@ -301,6 +304,27 @@ function residualCountLine(ranked: readonly FitScoreResult[], model: ReturnType<
   return `Residualflagga (${FIT_FLAG_LABELS.residualFlag}): ${c.primary} av ${c.n} jämförbara (bas ${BASIS_TEXT[c.primaryBasis]}); med bas ${BASIS_TEXT[c.otherBasis]}: ${c.other}`;
 }
 const orDash = (n: number | null, f: (x: number) => string) => (n === null ? "-" : f(n));
+
+/** R-09 (Phase 14.4): how many comparable rows reach the 5 % taste cap, printed after the coverage line on every run. */
+function tasteCapLine(ranked: readonly FitScoreResult[]): string {
+  const c = rowsAtTasteCap(ranked);
+  return `Smak: 5 %-taket nås av ${c.reached} av ${c.of} rader`;
+}
+
+/** The layout step's spend line (R-07): this run's calls, cache hits, rows over the cap, failures, kr and the lifetime ledger. */
+function layoutSpendLine(run: {
+  calls: number;
+  cacheHits: number;
+  reads: ReadonlyArray<{ status: string }>;
+  spentSek: number;
+  totalSpentSek: number;
+}, capSek: number): string {
+  const count = (status: string) => run.reads.filter((r) => r.status === status).length;
+  return (
+    `Planlösning: ${run.calls} anrop, ${run.cacheHits} från cache, ${count("cost_cap")} över taket, ${count("failed")} misslyckade; ` +
+    `${formatSek(run.spentSek)} kr denna körning (tak ${capSek} kr), totalt ${formatSek(run.totalSpentSek)} kr sedan start`
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Arguments
@@ -512,10 +536,13 @@ function printTracked(
   console.log(`  Försäljningskostnad: ${sek(r.salesCostsSek)} kr`);
   console.log(`  Innehavskostnad:    ${sek(r.holdingCostsSek)} kr`);
   console.log(`  Skatt:              ${sek(r.taxSek)} kr`);
-  console.log(`  Smak:               ${sek(r.tasteSek)} kr (sol ${pct(r.tasteSunPct)}, nav ${pct(r.tasteHubPct)}, närmaste nav ${r.nearestHub ?? "-"})`);
+  console.log(
+    `  Smak:               ${sek(r.tasteSek)} kr (sol ${pct(r.tasteSunPct)}, nav ${pct(r.tasteHubPct)}, korsdrag ${pct(r.tasteKorsdragPct)}, tyst sovrum ${pct(r.tasteQuietBedroomPct)}, närmaste nav ${r.nearestHub ?? "-"})`,
+  );
   // Phase 14.3: the same three cells as the table (same formatters), so the tracked block and the table never disagree.
   const solCells = toFitTableRows({ ranked: [r] }, new Map())[0];
   console.log(`  Sol:                ${solCells.sol} | fri ${solCells.solTheoretical} | med grannhus ${solCells.solObstructed}`);
+  console.log(`  Planlösning:        ${formatLayoutSummary(r.layout)}`);
   console.log(`  Vinst:              ${orDash(r.profitSek, sek)} kr`);
   console.log(`  Flaggor:            ${r.flags.map((f) => FIT_FLAG_LABELS[f]).join(", ") || "-"}`);
   console.log(`  Varför här:         ${reasonCell(reasonsOf(r), isReasonFlagged(r.flags))}`);
@@ -947,6 +974,7 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   printRanking(model, ranking, rows, preRankPositions, args.track, tableRows, reasonsOf);
   const coverageLine = renderCoverage(withReasonsOnFlagged(coverageOfRows(rows, model), tableRows));
   console.log(`\n${coverageLine}`);
+  console.log(tasteCapLine(ranking.ranked));
   console.log(residualCountLine(ranking.ranked, model));
   console.log(sunReportOf(ranking.ranked));
   if (recordPath !== null) console.log(`Körningspost: ${relative(process.cwd(), recordPath)}`);
@@ -991,6 +1019,7 @@ async function printSpend(
   local: LocalLedger | null,
   visionLine: string | null,
   visionSek: number,
+  layoutSek: number,
 ): Promise<void> {
   console.log("\nKostnad:");
   if (local) {
@@ -1020,7 +1049,8 @@ async function printSpend(
   }
   if (visionLine !== null) console.log(visionLine);
   console.log(`  Anthropic (bildtolkning): ${visionSek.toFixed(2)} kr`);
-  console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + visionSek)} kr`);
+  console.log(`  Anthropic (planlösning): ${layoutSek.toFixed(2)} kr`);
+  console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + visionSek + layoutSek)} kr`);
 }
 
 async function runLive(args: Args): Promise<void> {
@@ -1151,6 +1181,20 @@ async function runLive(args: Args): Promise<void> {
   const visionCache = loadedCache?.cache ?? { version: 1 as const, entries: {} };
   let visionStats: VisionChunksResult | null = null;
   let cacheSaveError: string | null = null;
+  // Phase 14.4 (LAY-01, R-07): the layout read runs only when the picture read does (key set and not --no-vision).
+  // Its modules are loaded by dynamic import here, so a replay and a dry run never reach the SDK.
+  const layoutMods = visionActive
+    ? {
+        read: await import("@/lib/discovery/layout-read"),
+        call: await import("@/lib/discovery/layout-call"),
+        sdk: await import("@anthropic-ai/sdk"),
+      }
+    : null;
+  const loadedLayoutCache = layoutMods === null ? null : layoutMods.read.loadLayoutCache(layoutMods.read.LAYOUT_CACHE_PATH);
+  if (loadedLayoutCache?.warning) console.log(`OBS: ${loadedLayoutCache.warning}`);
+  let layoutSpentSek = 0;
+  let layoutCacheSaveError: string | null = null;
+  if (layoutMods === null) console.log("Planlösning: avstängd (ingen bildtolkning)");
   const deps: FitPipelineDeps = {
     scrape: async () => {
       const targets: { name: string; district: InnerstanDistrict | null; areaId: string | null }[] = [];
@@ -1236,6 +1280,49 @@ async function runLive(args: Args): Promise<void> {
       : async (candidates) => candidates,
     // Phase 14.3: the sun fact for every row, from the cached map, before ranking.
     sunOf: sunStage.sunOf,
+    // Phase 14.4 (LAY-01, R-07): the layout read right after the picture read, on the same candidates and the same
+    // in-memory broker photos. Capped at LAYOUT_RUN_CAP_SEK per run, cached per flat and picture set, saved at once.
+    // The key is read from the environment by the SDK and never printed.
+    layout:
+      layoutMods === null || loadedLayoutCache === null
+        ? undefined
+        : async (candidates, opts) => {
+            const { read: layoutRead, call: layoutCall, sdk } = layoutMods;
+            const run = await layoutRead.runLayoutReads(
+              candidates.map((c, i) => {
+                const listingPath = listingPathOf(c.sourceListingUrl);
+                return {
+                  listingPath: listingPath ?? `/okänd/${i}`,
+                  // No parseable listing URL means no stable cache key: such a flat is not read (the runner reports "no_plan").
+                  imageUrls: listingPath === null ? [] : (c.imageUrls ?? []),
+                  brokerImages: opts.brokerImagesOf(c, i),
+                };
+              }),
+              {
+                call: layoutCall.makeLayoutCall(new sdk.default()),
+                cache: loadedLayoutCache.cache,
+                runCapSek: layoutRead.LAYOUT_RUN_CAP_SEK,
+                today: asOf,
+              },
+            );
+            layoutSpentSek = run.spentSek;
+            // Saved right here, before ranking and printing, so a paid result survives any later failure.
+            try {
+              layoutRead.saveLayoutCache(layoutRead.LAYOUT_CACHE_PATH, run.cacheNext);
+            } catch (e) {
+              layoutCacheSaveError = e instanceof Error ? e.message : String(e);
+            }
+            console.log(layoutSpendLine(run, layoutRead.LAYOUT_RUN_CAP_SEK));
+            return run.reads.map((r) =>
+              (r.status === "read" || r.status === "cache") && r.result !== null
+                ? layoutRead.layoutFactFromRead(r.result, {
+                    version: layoutRead.LAYOUT_READ_VERSION,
+                    booli: r.images.booli,
+                    broker: r.images.broker,
+                  })
+                : null,
+            );
+          },
   };
 
   // The run lock next to the memory, before anything is scraped (exit 3 when another run holds it).
@@ -1266,6 +1353,8 @@ async function runLive(args: Args): Promise<void> {
 
   /** The vision spend to print: what the vision lanes paid, failed-but-billed calls included (WR-08). */
   const visionSekOf = (result: FitPipelineResult): number => (visionStats as VisionChunksResult | null)?.spentSek ?? result.visionSek;
+  /** What the layout reads paid in this run, failed-but-billed calls included. */
+  const layoutSekOf = (): number => layoutSpentSek;
 
   try {
     const t0 = new Date();
@@ -1277,7 +1366,7 @@ async function runLive(args: Args): Promise<void> {
     const everyDistrictFailed = result.areas.length > 0 && result.areas.every((a) => !a.ok);
     if (everyDistrictFailed) {
       console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
-      await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result));
+      await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result), layoutSekOf());
       process.exitCode = 1;
       return;
     }
@@ -1299,14 +1388,19 @@ async function runLive(args: Args): Promise<void> {
     const reasonsOf = makeReasonsOf(result.snapshot.rows, result.ranking.ranked, model);
     const tableRows = toFitTableRows(result.ranking, result.preRankPositions, { reasonsOf });
     console.log(`\n${renderCoverage(withReasonsOnFlagged(result.coverage, tableRows))}`);
+    console.log(tasteCapLine(result.ranking.ranked));
     console.log(residualCountLine(result.ranking.ranked, model));
     if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
     console.log(sunReportOf(result.ranking.ranked));
     console.log("");
     printRanking(model, result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
-    await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result));
+    await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result), layoutSekOf());
     if (cacheSaveError !== null) {
       console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);
+      process.exitCode = 1;
+    }
+    if (layoutCacheSaveError !== null) {
+      console.error(`\nFEL: layoutcachen kunde inte skrivas: ${layoutCacheSaveError} (nästa körning betalar för samma annonser igen)`);
       process.exitCode = 1;
     }
     if (writeError === null) {

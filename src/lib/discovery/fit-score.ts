@@ -373,6 +373,18 @@ export function cappedTasteSek(tastePct: number, resaleSek: number): number {
 }
 
 /**
+ * How many of the rows reach the taste cap (R-09, Phase 14.4): rows whose uncapped taste share (sun + hub +
+ * korsdrag + quiet bedroom) is at least {@link TASTE_CAP_PCT}, so the cap clamps them. `of` is the number of
+ * rows looked at. Printed every run, so a taste term that pushes many rows into the cap is visible.
+ */
+export function rowsAtTasteCap(rows: ReadonlyArray<FitScoreResult>): { reached: number; of: number } {
+  const reached = rows.filter(
+    (r) => r.tasteSunPct + r.tasteHubPct + r.tasteKorsdragPct + r.tasteQuietBedroomPct >= TASTE_CAP_PCT - 1e-9,
+  ).length;
+  return { reached, of: rows.length };
+}
+
+/**
  * What the hedonic model is told about one for-sale row (D-01, 14.4). Besides the
  * candidate's own fields it passes the three inputs the sold side trains on, built
  * the same way: avgift per m2 and month from the listing's avgift, the association's

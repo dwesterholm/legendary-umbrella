@@ -1182,3 +1182,105 @@ describe("coverage: 'sol härledd' (Phase 14.3, SUN-05)", () => {
     expect((await run(fakeDeps(rows).deps, "all")).coverage.sunInferred).toBe(0);
   });
 });
+
+describe("deps.layout: the layout read beside the picture read (Phase 14.4, plan 08, R-07)", () => {
+  const layoutOf = (over: Partial<LayoutFact> = {}): LayoutFact => ({
+    balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
+    windowSides: "twoOpposite", bedroomSide: "courtyard", streetEvidence: "oppositeFacade", confidence: 0.9,
+    source: "planritning+foto", version: "v", images: { booli: 4, broker: 0 },
+    ...over,
+  });
+
+  it("window row 0 gets the fact the dependency returned for index 0, row 1 gets null; outside rows keep null", async () => {
+    const rows = fixtureScraped.slice(0, 8);
+    const { deps } = fakeDeps(rows);
+    const layout = vi.fn(async (cs: DiscoveryCandidate[]) => cs.map((_c, i) => (i === 0 ? layoutOf() : null)));
+    const result = await run({ ...deps, layout }, 3);
+    const windowRows = result.snapshot.rows.filter((r) => r.inVisionWindow);
+    expect(windowRows).toHaveLength(3);
+    expect(windowRows[0].layout).toEqual(layoutOf());
+    expect(windowRows[1].layout).toBeNull();
+    expect(windowRows[2].layout).toBeNull();
+    for (const r of result.snapshot.rows.filter((x) => !x.inVisionWindow)) expect(r.layout).toBeNull();
+  });
+
+  it("is called once, with exactly the candidates and the broker bytes the picture read received", async () => {
+    const rows = fixtureScraped.slice(0, 6);
+    const { deps, vision } = fakeDeps(rows);
+    const layout = vi.fn<NonNullable<FitPipelineDeps["layout"]>>(async (cs) => cs.map(() => null));
+    await run({ ...deps, layout }, 4);
+    expect(layout).toHaveBeenCalledTimes(1);
+    expect(vision).toHaveBeenCalledTimes(1);
+    expect(layout.mock.calls[0][0]).toBe(vision.mock.calls[0][0]);
+    // the fake enrichment holds no broker photo, so the bytes the dependency can ask for are none, at every index
+    const asked = layout.mock.calls[0][1].brokerImagesOf;
+    for (let i = 0; i < layout.mock.calls[0][0].length; i++) expect(asked(layout.mock.calls[0][0][i], i)).toEqual([]);
+  });
+
+  it("is not called when nothing is comparable (empty window)", async () => {
+    const { deps } = fakeDeps([]);
+    const layout = vi.fn(async () => []);
+    await run({ ...deps, layout });
+    expect(layout).not.toHaveBeenCalled();
+  });
+
+  it("without deps.layout every row has layout null", async () => {
+    const result = await run(fakeDeps(fixtureScraped.slice(0, 5)).deps, "all");
+    expect(result.snapshot.rows.every((r) => r.layout === null)).toBe(true);
+    expect(result.coverage.layout).toEqual({ read: 0, balcony: 0, windowSides: 0, bedroom: 0, appliedToSun: 0 });
+  });
+
+  it("a returned fact reaches the ranking: korsdrag and a courtyard bedroom add taste", async () => {
+    const rows = fixtureScraped.slice(0, 6);
+    const without = await run(fakeDeps(rows).deps, "all");
+    const { deps } = fakeDeps(rows);
+    const withLayout = await run({ ...deps, layout: async (cs) => cs.map(() => layoutOf()) }, "all");
+    const key = (r: { sourceListingUrl: string | null; address: string | null; askingSek: number | null }) => r.sourceListingUrl ?? `${r.address}|${r.askingSek}`;
+    const before = new Map(without.ranking.ranked.map((r) => [key(r), r]));
+    let raised = 0;
+    for (const r of withLayout.ranking.ranked) {
+      expect(r.tasteKorsdragPct).toBe(0.01);
+      expect(r.tasteQuietBedroomPct).toBe(0.01);
+      if (r.tasteSek > (before.get(key(r))?.tasteSek ?? 0)) raised += 1;
+    }
+    expect(raised).toBeGreaterThan(0);
+  });
+});
+
+describe("layout coverage (Phase 14.4, LAY-04)", () => {
+  const baseRow = (): FitInputRow => ({ ...(snapshot.rows[0] as FitInputRow), layout: null, sun: null });
+  const fact = (over: Partial<LayoutFact> = {}): LayoutFact => ({
+    balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
+    windowSides: "one", bedroomSide: "street", streetEvidence: "cars", confidence: 0.9,
+    source: "planritning+foto", version: "v", images: { booli: 4, broker: 0 },
+    ...over,
+  });
+  const footprintSun = (): SunFact => ({
+    ...resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } }),
+    source: "fastighet/gata",
+    sides: [
+      { side: "gata", facade: "south", bearingDeg: 170, share: 0.5, point: null, hours: null },
+      { side: "gård", facade: "north", bearingDeg: 350, share: 0.5, point: null, hours: null },
+    ],
+  });
+
+  it("counts usable balcony, window sides and bedroom side by the gate, and the rows where the sun used the layout", () => {
+    const rows: FitInputRow[] = [
+      { ...baseRow(), layout: fact(), sun: footprintSun() }, // all usable, applied to the sun
+      { ...baseRow(), layout: fact({ balconySide: "none", streetEvidence: "none", bedroomSide: "unknown", windowSides: "unknown" }) }, // confident no balcony only
+      { ...baseRow(), layout: fact({ confidence: 0.59 }) }, // read, nothing usable
+      { ...baseRow(), layout: fact({ balconySide: "courtyard", streetEvidence: "none", windowSides: "twoOpposite" }) }, // no photo evidence: balcony and bedroom unusable, windows usable
+      baseRow(), // no layout
+    ];
+    const c = computeCoverage(rows);
+    expect(c.layout).toEqual({ read: 4, balcony: 2, windowSides: 2, bedroom: 1, appliedToSun: 1 });
+  });
+
+  it("renderCoverage prints the Planlösning line when a layout was read, and the old text when none was", () => {
+    const rows: FitInputRow[] = [{ ...baseRow(), layout: fact(), sun: footprintSun() }, baseRow()];
+    const text = renderCoverage(computeCoverage(rows));
+    expect(text.split("\n")[1]).toBe("Planlösning: balkongsida 1, korsdrag känt 1, sovrumssida 1, sol från planlösning 1 av 2");
+    expect(text.split("\n")[0].startsWith("Täckning (2 annonser): ")).toBe(true);
+    expect(renderCoverage(computeCoverage([baseRow()]))).not.toContain("Planlösning");
+  });
+});

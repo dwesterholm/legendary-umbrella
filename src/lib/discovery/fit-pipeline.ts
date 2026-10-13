@@ -38,6 +38,7 @@ import { AREA_MAX_RENDERS_PER_AREA, OBSERVED_USD_PER_TIMED_OUT_RENDER } from "@/
 import {
   FIT_VISION_WINDOW,
   booliIdOf,
+  inferredSunWithLayout,
   preRank,
   rankFit,
   selectVisionWindow,
@@ -56,6 +57,9 @@ import {
   formatSovrumCell,
   korsdragOf,
   quietBedroomOf,
+  usableSide,
+  usablyNoBalcony,
+  type LayoutFact,
 } from "@/lib/discovery/layout-fact";
 import { formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
@@ -158,6 +162,16 @@ export interface FitPipelineDeps {
    * every row keeps `sun: null`.
    */
   sunOf?: (row: FitInputRow) => SunFact | null;
+  /**
+   * Phase 14.4 (R-07): the layout read for the window rows. Called right after `vision` with the SAME
+   * candidates and the SAME `brokerImagesOf` (broker photo bytes exist only here, in memory), and answers
+   * one stored fact per candidate, or null where the read did not run or could not be used. Rows outside
+   * the window and not-comparable rows keep `layout: null`. Absent: every row has `layout: null`.
+   */
+  layout?: (
+    candidates: DiscoveryCandidate[],
+    opts: { brokerImagesOf: (candidate: DiscoveryCandidate, index: number) => BrokerImageBytes[] },
+  ) => Promise<(LayoutFact | null)[]>;
 }
 
 export interface FitWindowStats {
@@ -278,10 +292,11 @@ export async function runFitPipeline(
     detailFetched[i] ? enrichment.candidates[i] : { ...(enrichment.candidates[i] ?? c), imageUrls: originals[i].imageUrls },
   );
 
-  const afterVision =
-    forVision.length > 0
-      ? await deps.vision(forVision, { brokerImagesOf: (_c, i) => enrichment.brokerImages.get(i) ?? [] })
-      : [];
+  const brokerImagesOf = (_c: DiscoveryCandidate, i: number): BrokerImageBytes[] => enrichment.brokerImages.get(i) ?? [];
+  const afterVision = forVision.length > 0 ? await deps.vision(forVision, { brokerImagesOf }) : [];
+  // Phase 14.4 (R-07): the layout read sits right after the picture read, on the same candidates and bytes.
+  const layouts =
+    forVision.length > 0 && deps.layout !== undefined ? await deps.layout(forVision, { brokerImagesOf }) : [];
 
   const windowRows: FitInputRow[] = inWindow.map((p, i) => ({
     district: p.row.district,
@@ -292,7 +307,7 @@ export async function runFitPipeline(
     // Card facts, with the detail page's on top when it was read (R-08).
     facts: combineFacts(p.row.facts, detailFetched[i] ? (enrichment.facts?.get(i) ?? null) : null),
     sun: null, // set below by deps.sunOf, once the window row is complete
-    layout: null, // plan 14.4-08 fills this from the layout read of the live run
+    layout: layouts[i] ?? null,
   }));
   const outsideRows: FitInputRow[] = outside.map((p) => p.row);
   const comparableRows = new Set(pre.ranked.map((p) => p.row));
@@ -635,6 +650,18 @@ export interface Coverage {
    * Printed after föreningsskuld. "sol/orientering angiven" above stays the stated-only count.
    */
   readonly sunInferred: number;
+  /**
+   * Phase 14.4 (LAY-04): what the layout read gave across the counted rows. `read` rows carry a layout record;
+   * the others count the rows where the gate (confidence >= 0,6, photo evidence for street or courtyard)
+   * lets a field through, and the rows where the layout picked the facade the sun taste used.
+   */
+  readonly layout: {
+    readonly read: number;
+    readonly balcony: number;
+    readonly windowSides: number;
+    readonly bedroom: number;
+    readonly appliedToSun: number;
+  };
   /** Reasons on flagged rows; null until {@link withReasonsOnFlagged} sets it (it needs the table rows). */
   readonly reasonsOnFlagged: ReasonsOnFlagged | null;
 }
@@ -670,6 +697,14 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
     items: COVERAGE_LABELS.map((label, i) => ({ label, known: rows.filter(COVERAGE_KNOWN[i]).length })),
     brfDebt: rows.filter((r) => r.facts?.brf?.debtPerSqm != null).length,
     sunInferred: rows.filter((r) => r.sun !== null && r.sun.source !== "okänd").length,
+    layout: {
+      read: rows.filter((r) => r.layout !== null).length,
+      // street / courtyard need the gate, "no balcony" needs only the confidence (layout-fact.ts)
+      balcony: rows.filter((r) => usableSide(r.layout, "balcony") !== null || usablyNoBalcony(r.layout)).length,
+      windowSides: rows.filter((r) => korsdragOf(r.layout) !== null).length,
+      bedroom: rows.filter((r) => quietBedroomOf(r.layout) !== null).length,
+      appliedToSun: rows.filter((r) => inferredSunWithLayout(r.sun, r.layout).applied).length,
+    },
     reasonsOnFlagged: null,
   };
 }
@@ -705,6 +740,11 @@ const percent = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 
  * unchanged) comes "föreningsskuld känd k av N (p %)" in the same shape, then (Phase 14.3, SUN-05)
  * "sol härledd k av N (p %)" (rows whose sun fact is not okänd), and, when the reason counts
  * are known, last: "anledning på flaggade rader: E förklarade, U oförklarat fynd av F".
+ *
+ * Phase 14.4 (LAY-04): when at least one row carries a layout record, a second line follows:
+ * "Planlösning: balkongsida <a>, korsdrag känt <b>, sovrumssida <c>, sol från planlösning <d> av <N>"
+ * (rows where the gate lets the field through, and rows where the layout picked the sun's facade).
+ * The Täckning line itself is unchanged, so what plan 09 parses stays as it was.
  */
 export function renderCoverage(coverage: Coverage): string {
   const item = (label: string, known: number): string => `${label} ${known} av ${coverage.n} (${percent(known, coverage.n)} %)`;
@@ -715,7 +755,14 @@ export function renderCoverage(coverage: Coverage): string {
   ];
   const r = coverage.reasonsOnFlagged;
   if (r !== null) items.push(`anledning på flaggade rader: ${r.explained} förklarade, ${r.unexplained} oförklarat fynd av ${r.flagged}`);
-  return `Täckning (${coverage.n} annonser): ${items.join(", ")}`;
+  const line = `Täckning (${coverage.n} annonser): ${items.join(", ")}`;
+  // Phase 14.4: a second line, only when the run read at least one layout (a replay of an older snapshot prints the line it always did).
+  const l = coverage.layout;
+  if (l.read === 0) return line;
+  return (
+    `${line}\nPlanlösning: balkongsida ${l.balcony}, korsdrag känt ${l.windowSides}, sovrumssida ${l.bedroom}, ` +
+    `sol från planlösning ${l.appliedToSun} av ${coverage.n}`
+  );
 }
 
 /** The pinned BRF line (R-07): "BRF-sidor: <fetched> av <distinct> lästa, <failed> misslyckades". Pure. */
