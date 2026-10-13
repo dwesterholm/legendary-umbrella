@@ -95,6 +95,8 @@ interface PageScript {
   throwInExtract?: boolean;
   /** evaluate() of the page function's extractor never settles until the page is closed. */
   hang?: boolean;
+  /** Where the page ended up after redirects (default: the URL asked for). */
+  finalUrl?: string;
 }
 
 function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, n: number) => PageScript) {
@@ -110,6 +112,8 @@ function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, 
     urls: [] as string[],
     browserCloses: 0,
     contextCloses: 0,
+    extractions: 0,
+    routeHandlers: [] as ((route: { request(): { url(): string }; continue(): Promise<void>; abort(code?: string): Promise<void> }) => Promise<void>)[],
   };
   let gotoCount = 0;
   const disconnectHandlers: (() => void)[] = [];
@@ -128,10 +132,16 @@ function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, 
               let sc: PageScript = {};
               let extractions = 0;
               let isClosed = false;
+              let currentUrl = "about:blank";
               return {
+                url: () => sc.finalUrl ?? currentUrl,
+                route: async (_pattern: string, handler: never) => {
+                  log.routeHandlers.push(handler);
+                },
                 goto: async (url: string) => {
                   gotoCount += 1;
                   sc = script(url, gotoCount);
+                  currentUrl = url;
                   log.urls.push(url);
                   log.starts.push(clock.now());
                   if (sc.durationMs) await clock.sleep(sc.durationMs);
@@ -142,6 +152,7 @@ function makeBrowser(clock: ReturnType<typeof makeClock>, script: (url: string, 
                   if (typeof arg === "string") return sc.text ?? "Booli bostäder till salu";
                   if (sc.throwInExtract) throw new Error("evaluation failed");
                   if (sc.hang) return new Promise(() => undefined);
+                  log.extractions += 1;
                   const states = sc.states ?? [STATE];
                   const state = states[Math.min(extractions, states.length - 1)];
                   extractions += 1;
@@ -429,6 +440,107 @@ describe("broker pages (14.2-06)", () => {
     const logged = JSON.stringify(errorSpy.mock.calls);
     expect(logged).not.toContain("secret");
     expect(logged).toContain("broker");
+  });
+
+  describe("final URL and private addresses (WR-06)", () => {
+    const makeRoute = (url: string) => {
+      const route = { request: () => ({ url: () => url }), continue: vi.fn(async () => undefined), abort: vi.fn(async () => undefined) };
+      return route;
+    };
+
+    it("a broker page redirected to a private or unresolvable host is not read: the page function never runs", async () => {
+      const clock = makeClock();
+      const b = makeBrowser(clock, () => ({ finalUrl: "https://router.home.example/admin" }));
+      const isSafeUrl = vi.fn(async () => false);
+      const h = install(clock, b.launcher, { isSafeUrl });
+      await expect(clock.run(renderBroker())).rejects.toThrow("lokal webblasare");
+      expect(b.log.extractions).toBe(0);
+      expect(isSafeUrl).toHaveBeenCalled();
+      expect(h.stats()).toMatchObject({ failed: 1, challenged: 0 });
+      expect(JSON.stringify(errorSpy.mock.calls)).toContain("UnsafeBrokerUrlError");
+      expect(b.log.opened).toBe(b.log.closed);
+    });
+
+    it("a redirect to a plain http page is refused", async () => {
+      const clock = makeClock();
+      const b = makeBrowser(clock, () => ({ finalUrl: "http://www.erikolsson.se/objekt/123" }));
+      install(clock, b.launcher, { isSafeUrl: async () => true });
+      await expect(clock.run(renderBroker())).rejects.toThrow("lokal webblasare");
+      expect(b.log.extractions).toBe(0);
+    });
+
+    it("a redirect to another PUBLIC https host (canonical domain) is read as before", async () => {
+      const clock = makeClock();
+      const b = makeBrowser(clock, () => ({ finalUrl: "https://www.erikolsson.com/objekt/123" }));
+      const isSafeUrl = vi.fn(async () => true);
+      install(clock, b.launcher, { isSafeUrl });
+      const items = await clock.run(renderBroker());
+      expect(items).toHaveLength(1);
+      expect(isSafeUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it("a redirect that stays on the start host needs no lookup", async () => {
+      const clock = makeClock();
+      const b = makeBrowser(clock, () => ({ finalUrl: "https://www.erikolsson.se/objekt/123/" }));
+      const isSafeUrl = vi.fn(async () => false);
+      install(clock, b.launcher, { isSafeUrl });
+      await clock.run(renderBroker());
+      expect(isSafeUrl).not.toHaveBeenCalled();
+    });
+
+    it("sub-requests: own host and inline content pass, private hosts and file:/ftp: are aborted, verdicts are cached", async () => {
+      const clock = makeClock();
+      const b = makeBrowser(clock, () => ({}));
+      const isSafeUrl = vi.fn(async (u: string) => !u.includes("127.0.0.1") && !u.includes("192.168."));
+      install(clock, b.launcher, { isSafeUrl });
+      await clock.run(renderBroker());
+      expect(b.log.routeHandlers).toHaveLength(1);
+      const handler = b.log.routeHandlers[0];
+      const cases: [string, boolean][] = [
+        ["https://www.erikolsson.se/img/a.jpg", true],
+        ["https://cdn.example.com/a.js", true],
+        ["data:image/png;base64,AAAA", true],
+        ["http://127.0.0.1:54321/rest/v1/", false],
+        ["http://192.168.1.1/admin", false],
+        ["http://192.168.1.1/other", false],
+        ["file:///etc/passwd", false],
+        ["ftp://example.com/x", false],
+      ];
+      for (const [url, allowed] of cases) {
+        const route = makeRoute(url);
+        await handler(route);
+        expect(route.continue.mock.calls.length, url).toBe(allowed ? 1 : 0);
+        expect(route.abort.mock.calls.length, url).toBe(allowed ? 0 : 1);
+      }
+      // cdn.example.com, 127.0.0.1:... and 192.168.1.1 were looked up once per host, not per request.
+      expect(isSafeUrl).toHaveBeenCalledTimes(3);
+    });
+
+    it("fails closed: a browser page without route()/url() support never opens a broker page", async () => {
+      const goto = vi.fn(async () => ({ status: () => 200 }));
+      const launcher: LocalLauncher = {
+        launch: async () => ({
+          newContext: async () => ({
+            newPage: async () => ({ goto, evaluate: async () => "text", close: async () => undefined }),
+            close: async () => undefined,
+          }),
+          close: async () => undefined,
+          version: () => "148.0.7778.96",
+        }),
+      };
+      const clock = makeClock();
+      install(clock, launcher);
+      await expect(clock.run(renderBroker())).rejects.toThrow("lokal webblasare");
+      expect(goto).not.toHaveBeenCalled();
+    });
+
+    it("Booli pages get no interception (they are the allowed target)", async () => {
+      const clock = makeClock();
+      const b = makeBrowser(clock, () => ({}));
+      install(clock, b.launcher);
+      await clock.run(render());
+      expect(b.log.routeHandlers).toHaveLength(0);
+    });
   });
 
   it("broker pages go through the same two-page gate and pacing as Booli pages", async () => {

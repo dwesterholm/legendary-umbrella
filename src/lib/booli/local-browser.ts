@@ -1,5 +1,6 @@
 import { isBooliUrl } from "@/lib/booli/client";
 import { BROKER_RENDER_PAGE_FUNCTION } from "@/lib/broker/fetch-broker-page";
+import { isSafeExternalUrl } from "@/lib/broker/url-guard";
 import { NonRetryableRenderError, runApifyRender, setRenderer, usableItems, type RenderFn, type RenderOpts } from "@/lib/booli/transport";
 
 /**
@@ -34,7 +35,13 @@ import { NonRetryableRenderError, runApifyRender, setRenderer, usableItems, type
  * already refused unsafe hosts). Same pacing and the same 2-page gate, the same
  * throwaway context (broker sites set no cookie on Booli and vice versa), one
  * attempt with no retry, and never the paid Apify rung. Without that function a
- * non-Booli URL is refused as before.
+ * non-Booli URL is refused as before. The browser sits on the home network, so
+ * (WR-06) the final URL after redirects must be https and either the start host or
+ * a host that resolves to a public address, and every sub-request is routed
+ * through the same host check (private, loopback and link-local hosts, and any
+ * scheme other than http(s) and inline data, are aborted). A residual window
+ * remains where Chromium resolves a name differently from Node; the page text is
+ * only ever parsed as data.
  *
  * Privacy / secret posture: one throwaway browser context per run
  * (`chromium.launch`, never a persistent profile, no storage state saved,
@@ -52,6 +59,17 @@ export interface LocalPage {
   goto(url: string, opts: { waitUntil: "domcontentloaded"; timeout: number }): Promise<{ status(): number } | null>;
   evaluate(arg: unknown): Promise<unknown>;
   close(): Promise<void>;
+  /** Final URL after redirects. Needed (with `route`) for broker pages, which are refused without them (WR-06). */
+  url?(): string;
+  /** Request interception for this page; used for broker pages only (WR-06). */
+  route?(pattern: string, handler: (route: LocalRoute) => Promise<void>): Promise<void>;
+}
+
+/** The part of a Playwright route this module uses. */
+export interface LocalRoute {
+  request(): { url(): string };
+  continue(): Promise<void>;
+  abort(errorCode?: string): Promise<void>;
 }
 
 /** A browser context (one per run). */
@@ -89,6 +107,8 @@ export interface LocalRendererOptions {
   mode?: LocalMode;
   /** Test seam: replaces the real browser launcher. */
   launcher?: LocalLauncher;
+  /** Test seam: whether a URL's host resolves to a public address (WR-06). Default `isSafeExternalUrl`. */
+  isSafeUrl?: (url: string) => Promise<boolean>;
   /** Ceiling for one page call (WR-01). Default `LOCAL_PAGE_CALL_TIMEOUT_MS`; tests lower it. */
   pageCallTimeoutMs?: number;
   /** Test seams: wait, clock and randomness for the retry wait and pacing. */
@@ -188,6 +208,21 @@ export function withTimeout<T>(work: Promise<T>, ms: number, label: string): Pro
     );
   });
 }
+
+/**
+ * A broker page that, after redirects, sits somewhere the start URL was not
+ * allowed to be, or whose browser support for the check is missing (WR-06).
+ * Not a challenge, never retried.
+ */
+export class UnsafeBrokerUrlError extends Error {
+  constructor() {
+    super("Maklarsidan hamnade pa en otillaten adress");
+    this.name = "UnsafeBrokerUrlError";
+  }
+}
+
+/** Schemes a page may load without a host check (inline content only). */
+const INLINE_SCHEMES = new Set(["data:", "blob:", "about:"]);
 
 /**
  * Pure challenge test. Returns the marker (a short description of why) or
@@ -341,6 +376,7 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
   const allowApify = options.allowApify ?? false;
   const apifyMaxRenders = options.apifyMaxRenders ?? DEFAULT_APIFY_MAX_RENDERS;
   const pageCallTimeoutMs = options.pageCallTimeoutMs ?? LOCAL_PAGE_CALL_TIMEOUT_MS;
+  const isSafeUrl = options.isSafeUrl ?? isSafeExternalUrl;
   const windowMode = options.window ?? readWindow();
   const mode = options.mode ?? readMode();
   const stats: LocalRendererStats = { pages: 0, challenged: 0, retried: 0, apifyFallbacks: 0, failed: 0, refused: 0 };
@@ -414,15 +450,64 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
     else active -= 1;
   }
 
+  /**
+   * WR-06: the broker page runs in a browser on Daniel's own network, next to local services (local
+   * Supabase, the dev server, the router). The start URL was checked once in Node; this adds the two
+   * checks Chromium's own behaviour needs. Per-host verdicts are cached for the run.
+   */
+  const hostVerdicts = new Map<string, Promise<boolean>>();
+  function hostIsPublic(host: string, sampleUrl: string): Promise<boolean> {
+    let verdict = hostVerdicts.get(host);
+    if (!verdict) {
+      verdict = isSafeUrl(sampleUrl).catch(() => false);
+      hostVerdicts.set(host, verdict);
+    }
+    return verdict;
+  }
+  /** Same host as the start URL, or a host that resolves to a public address. https/http only. */
+  async function brokerUrlAllowed(candidate: string, startHost: string): Promise<boolean> {
+    let parsed: URL;
+    try {
+      parsed = new URL(candidate);
+    } catch {
+      return false;
+    }
+    if (INLINE_SCHEMES.has(parsed.protocol)) return true;
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    if (parsed.hostname === startHost) return true;
+    return hostIsPublic(parsed.hostname, parsed.toString());
+  }
+
   /** One attempt on a fresh page. Throws ChallengeError for a challenge, a plain Error otherwise. */
-  async function attempt(url: string, pageFunction: string): Promise<unknown[]> {
+  async function attempt(url: string, pageFunction: string, broker: boolean): Promise<unknown[]> {
     await acquire();
     try {
       const ctx = await ensureContext();
       const page = await withTimeout(ctx.newPage(), pageCallTimeoutMs, "ny flik");
       try {
+        if (broker) {
+          // Fail closed: without the final-URL and request hooks a broker page is not opened at all.
+          if (typeof page.route !== "function" || typeof page.url !== "function") throw new UnsafeBrokerUrlError();
+          const startHost = new URL(url).hostname;
+          await withTimeout(
+            page.route("**/*", async (route) => {
+              const ok = await brokerUrlAllowed(route.request().url(), startHost).catch(() => false);
+              if (ok) await route.continue().catch(() => undefined);
+              else await route.abort("blockedbyclient").catch(() => undefined);
+            }),
+            pageCallTimeoutMs,
+            "natverkskontroll",
+          );
+        }
         const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: LOCAL_NAV_TIMEOUT_MS });
         stats.pages += 1;
+        if (broker) {
+          // Redirects are followed by the browser, so check where it actually ended up before reading it.
+          const finalUrl = (page.url as () => string)();
+          if (!/^https:\/\//i.test(finalUrl) || !(await brokerUrlAllowed(finalUrl, new URL(url).hostname).catch(() => false))) {
+            throw new UnsafeBrokerUrlError();
+          }
+        }
         const status = response?.status() ?? 0;
         if (CHALLENGE_STATUSES.includes(status)) throw new ChallengeError(status, `HTTP ${status}`);
         if (status >= 400) throw new Error(`Booli svarade HTTP ${status}`);
@@ -462,7 +547,7 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
     // At most two attempts, and only a challenge earns the second one (D-04).
     for (let tryNo = 1; tryNo <= 2; tryNo++) {
       try {
-        return await attempt(url, pageFunction);
+        return await attempt(url, pageFunction, broker);
       } catch (error) {
         lastError = error;
         if (!(error instanceof ChallengeError)) break;
