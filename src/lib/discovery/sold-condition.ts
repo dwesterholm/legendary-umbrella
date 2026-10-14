@@ -292,6 +292,27 @@ export function soldConditionSpentSek(cache: SoldConditionCache): number {
 }
 
 /**
+ * The cap to hand {@link runSoldConditionReads} for a run that has its OWN small allowance (the smoke test). The runner
+ * compares a LIFETIME cap against what is paid before plus this run, so a per-run allowance must be added on top of
+ * the ledger: `ledger + min(allowance, what is left of the lifetime budget)`. Passing the bare allowance would refuse
+ * every call as soon as the ledger holds more than the allowance (WR-01).
+ */
+export function runCapSek(ledgerSek: number, allowanceSek: number, lifetimeCapSek: number = SOLD_CONDITION_CAP_SEK): number {
+  const prior = Number.isFinite(ledgerSek) && ledgerSek > 0 ? ledgerSek : 0;
+  const left = Math.max(0, lifetimeCapSek - prior);
+  const allowance = Number.isFinite(allowanceSek) && allowanceSek > 0 ? allowanceSek : 0;
+  return prior + Math.min(allowance, left);
+}
+
+/**
+ * True when a run did not get to try anything: it had flats to read and every one was refused by the cap. Such a run
+ * says nothing about whether the pictures and the schema work, so it must not overwrite earlier evidence (WR-01).
+ */
+export function allRefusedByCap(reads: ReadonlyArray<Pick<SoldConditionOutcome, "status">>): boolean {
+  return reads.length > 0 && reads.every((r) => r.status === "cost_cap");
+}
+
+/**
  * Reads the condition of each sold flat, within a LIFETIME ceiling and never paying twice.
  *
  *  - No usable photo id: "no_images", never handed to `call`.

@@ -22,8 +22,10 @@ import {
   SOLD_CONDITION_USER_INSTRUCTION,
   SOLD_CONDITION_VERSION,
   SoldConditionCallError,
+  allRefusedByCap,
   conditionIndexOfRead,
   loadSoldConditionCache,
+  runCapSek,
   runSoldConditionReads,
   saveSoldConditionCache,
   selectConditionSample,
@@ -265,6 +267,46 @@ describe("runSoldConditionReads", () => {
     const id = soldConditionEntryId("6277037", ["3", "1", "2"]);
     expect(id).toMatch(/^booli:6277037\|[0-9a-f]{16}$/);
     expect(id).toBe(soldConditionEntryId("6277037", ["1", "2", "3"]));
+  });
+});
+
+describe("per-run allowance on top of the lifetime ledger (WR-01)", () => {
+  it("a 1 kr smoke allowance on a 26,12 kr ledger still lets a call through (it used to be refused as cost_cap)", async () => {
+    const { call, seen } = fakeCall(0.09);
+    const cache: SoldConditionCache = { version: 1, entries: {}, spentSekTotal: 26.12 };
+    const capSek = runCapSek(soldConditionSpentSek(cache), 1);
+    expect(capSek).toBeCloseTo(27.12, 12);
+    const out = await runSoldConditionReads([{ booliId: "1", imageIds: ["1"] }, { booliId: "2", imageIds: ["2"] }], { call, cache, capSek, today: "d" });
+    expect(seen).toHaveLength(2);
+    expect(out.reads.map((r) => r.status)).toEqual(["read", "read"]);
+    expect(out.spentSek).toBeCloseTo(0.18, 12);
+    expect(allRefusedByCap(out.reads)).toBe(false);
+  });
+
+  it("the run allowance is spent in this run only: 1 kr stops after ten 0,1 kr estimates, whatever the ledger holds", async () => {
+    const { call, seen } = fakeCall(0.1);
+    const cache: SoldConditionCache = { version: 1, entries: {}, spentSekTotal: 12 };
+    const items = Array.from({ length: 12 }, (_, i) => ({ booliId: String(i + 1), imageIds: [String(i + 1)] }));
+    const out = await runSoldConditionReads(items, { call, cache, capSek: runCapSek(12, 1), today: "d" });
+    expect(seen).toHaveLength(10);
+    expect(out.reads.filter((r) => r.status === "cost_cap")).toHaveLength(2);
+  });
+
+  it("the allowance is cut to what is left of the lifetime budget", () => {
+    expect(runCapSek(29.5, 1)).toBeCloseTo(30, 12);
+    expect(runCapSek(30, 1)).toBeCloseTo(30, 12);
+    expect(runCapSek(31, 1)).toBeCloseTo(31, 12);
+    expect(runCapSek(Number.NaN, 1)).toBeCloseTo(1, 12);
+  });
+
+  it("a run where the cap refused every flat is flagged so the smoke leaves the evidence file alone", async () => {
+    const { call, seen } = fakeCall();
+    const cache: SoldConditionCache = { version: 1, entries: {}, spentSekTotal: 30 };
+    const out = await runSoldConditionReads([{ booliId: "1", imageIds: ["1"] }], { call, cache, capSek: runCapSek(30, 1), today: "d" });
+    expect(seen).toEqual([]);
+    expect(allRefusedByCap(out.reads)).toBe(true);
+    expect(allRefusedByCap([])).toBe(false);
+    expect(allRefusedByCap([{ status: "cost_cap" }, { status: "cache" }])).toBe(false);
   });
 });
 

@@ -44,7 +44,9 @@ import {
   SOLD_CONDITION_VERSION,
   SoldConditionCallError,
   isConditionEligible,
+  allRefusedByCap,
   loadSoldConditionCache,
+  runCapSek,
   runSoldConditionReads,
   saveSoldConditionCache,
   selectConditionSample,
@@ -170,7 +172,6 @@ async function smoke(realCall: SoldConditionCallFn, today: string): Promise<numb
   const sample = selectConditionSample(loadSoldRows(), SOLD_CONDITION_SAMPLE_N).slice(0, SOLD_CONDITION_SMOKE_N);
   const { cache, warning } = loadSoldConditionCache(SOLD_CONDITION_CACHE_PATH);
   if (warning) console.log(warning);
-  const remaining = Math.max(0, SOLD_CONDITION_CAP_SEK - soldConditionSpentSek(cache));
 
   if (sample.length === 0) {
     writeEvidence({
@@ -208,10 +209,18 @@ async function smoke(realCall: SoldConditionCallFn, today: string): Promise<numb
 
   const out = await runSoldConditionReads(
     sample.map((r) => ({ booliId: r.booliId, imageIds: r.enriched?.imageIds ?? [] })),
-    { call, cache, capSek: Math.min(SMOKE_CAP_SEK, remaining), today },
+    { call, cache, capSek: runCapSek(soldConditionSpentSek(cache), SMOKE_CAP_SEK), today },
   );
   // Saved whatever happened: a billed-and-failed call must stay in the lifetime ledger.
   saveSoldConditionCache(SOLD_CONDITION_CACHE_PATH, out.cacheNext);
+
+  // Every flat refused by the cap means nothing was tried: keep the evidence of the earlier smoke (WR-01).
+  if (allRefusedByCap(out.reads)) {
+    console.log(
+      `Smoke: inget anrop gjordes, taket stoppade alla ${out.reads.length} (totalt ${formatSek(out.totalSpentSek)} kr av ${formatSek(SOLD_CONDITION_CAP_SEK)} kr). Bevisfilen skrevs inte över.`,
+    );
+    return 0;
+  }
 
   const readCount = out.reads.filter((r) => r.result !== null).length;
   const failed = out.reads.filter((r) => r.status === "failed").length;
