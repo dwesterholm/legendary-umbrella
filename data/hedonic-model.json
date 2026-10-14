@@ -7535,9 +7535,12 @@
         "beta": 0,
         "source": "prior",
         "kept": false,
-        "n": 37,
-        "cvRmse": null,
-        "note": "budpremie: skick ej mätt: för få märkta försäljningar (37 av minst 100). corr(skick, utgångspris/modell) = 0,11; en effekt under ≈ 2 pp kan inte ses med n = 37."
+        "n": 186,
+        "cvRmse": {
+          "without": 0.06358923295924183,
+          "with": 0.06362127976544038
+        },
+        "note": "budpremie: skick ej mätt: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186."
       }
     }
   },
@@ -7548,5 +7551,5 @@
       "detail": "tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)"
     }
   ],
-  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-14). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-14 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 1 192 försäljningar, skuld för 1 014 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd. Dagar på marknaden i budpremien: används (med: korsvalidering 0,0736 -> 0,0727). Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat). Skick i budpremien: används inte, budpremien säger \"skick ej mätt\" (för få märkta försäljningar (37 av minst 100). corr(skick, utgångspris/modell) = 0,11; en effekt under ≈ 2 pp kan inte ses med n = 37.)"
+  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-14). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-14 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 1 192 försäljningar, skuld för 1 014 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd. Dagar på marknaden i budpremien: används (med: korsvalidering 0,0736 -> 0,0727). Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat). Skick i budpremien: används inte, budpremien säger \"skick ej mätt\" (korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186.)"
 }

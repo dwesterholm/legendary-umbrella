@@ -1438,7 +1438,7 @@ describe("fitBidPremium: condition stage on sold-photo labels (BID-01, R-08)", (
       expect(c.kept, `seed ${seed}`).toBe(false);
       expect(c.n, `seed ${seed}`).toBe(150);
       expect(c.note, `seed ${seed}`).toMatch(
-        /^budpremie: skick ej mätt: korsvalidering förkastade termen \(\d,\d{4} -> \d,\d{4}, skattning -?\d,\d{4}\)/,
+        /^budpremie: skick ej mätt: korsvalidering förkastade termen \(\d,\d{5} -> \d,\d{5}, skattning -?\d,\d{4}\)/,
       );
       expect(c.note, `seed ${seed}`).toContain("corr(skick, utgångspris/modell)");
       expect(c.note, `seed ${seed}`).toContain("under ≈ 2 pp");

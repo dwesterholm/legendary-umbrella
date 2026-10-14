@@ -566,8 +566,10 @@ function main(): void {
   const conditionCache = conditionCacheLoaded.cache;
   const withNew = trainingSource.map((r) => toTrainingRow(r, brfTable, conditionLookup(conditionCache)));
   // The intermediate model sees the same rows with the three new columns blanked, so they come out "absent".
+  // It also sees no condition labels: the bid-premium condition term belongs to neither "refit" nor "new
+  // features", and a term kept there by a hair would leak into the before/after split of the VAL-05 report (T-14.4-40).
   const training = intermediate
-    ? withNew.map((r) => ({ ...r, avgiftPerSqmMonth: null, brfDebtPerSqm: null, tomtratt: null }))
+    ? withNew.map((r) => ({ ...r, avgiftPerSqmMonth: null, brfDebtPerSqm: null, tomtratt: null, condition: null }))
     : withNew;
   const enrichedRows = training.filter((r) => r.enriched);
 

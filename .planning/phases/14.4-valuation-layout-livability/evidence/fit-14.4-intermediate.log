@@ -1,6 +1,6 @@
 Mellanmodell: de tre nya egenskaperna utelämnade (R-05)
 === MODELLANPASSNING (offline, inga nätverksanrop) ===
-Cache: .planning/calibration/data/slutpriser-cache.json (sålda 2025-04-12 till 2026-10-12), prisnivå per 2026-10-12, anpassad 2026-10-13
+Cache: .planning/calibration/data/slutpriser-cache.json (sålda 2025-04-12 till 2026-10-12), prisnivå per 2026-10-12, anpassad 2026-10-14
 Rader i cachen: 7 431. Uteslutna som kalibreringsobjekt (Folkungagatan 61, 34-36 kvm): 1
 Rader med detaljuppgifter (byggår/balkong från försäljningssidan): 1 200
 
@@ -63,6 +63,15 @@ Budpremie: dagar på marknaden
   Beslut: behålls - med: korsvalidering 0,0737 -> 0,0728
   Effekt på premien för en median-lägenhet, 7 mot 60 dagar: -7,62 procentenheter (+10,5 % -> +2,9 %).
 
+Budpremie: skick
+  Sålda lägenheter med läst skick (nuvarande läsversion): 300; säkerhet under 0,6 (utesluts, räknas aldrig som 0): 113 (37,7 %).
+  Användbara avläsningar: 187 - föråldrat 8 (4,3 %), vanligt 39 (20,9 %), fräscht 140 (74,9 %).
+  Betalt för skicksläsningen hittills: 26,56 kr av 30,00 kr.
+  Märkta försäljningar med slutpris mot utgångspris i skattningen: 0.
+  Korsvalideringsfel: inte beräknat (för få märkta försäljningar eller ingen variation i skicket).
+  Beslut: förkastas, termen är 0 och budpremien säger 'skick ej mätt'; koefficient (steg i skick): 0,00000.
+  Not: budpremie: skick ej mätt: för få märkta försäljningar (0 av minst 100). corr(skick, utgångspris/modell) = -; en effekt under ≈ 2 pp kan inte ses med n = 0.
+
 Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):
   alla 7 430 försäljningar:
     40-45 kvm    -0,2 % mot 35-40 kvm (SE 0,4 %, 1 516 rader)
@@ -76,7 +85,7 @@ Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen m
     50-60 kvm    +1,8 % mot 35-40 kvm (SE 1,1 %, 324 rader)
     60-80 kvm    +3,4 % mot 35-40 kvm (SE 1,0 %, 457 rader)
     80-120 kvm   +4,9 % mot 35-40 kvm (SE 1,0 %, 393 rader)
-  Storleksvalet i modellen: Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0461, SE 0,0055, t = 8,4, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.
+  Storleksvalet i modellen: Storlek: koefficienten tas från data (beslut D-10, 2026-10-14). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-14 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0461, SE 0,0055, t = 8,4, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.
 
 Reservvärden (fallbacks):
   - avgiftPerSqmMonth (absent): avgift kr/kvm/mån: för få kända värden i underlaget (0; minst 20 krävs).
@@ -85,4 +94,4 @@ Reservvärden (fallbacks):
 
 R² >= 0,35 och CV-RMSE <= 0,13: OK (R² 0,610, CV-RMSE 0,115)
 
-Modell skriven: .planning/calibration/data/hedonic-model-14.4-intermediate.json (319 kB, 7 380 punkter)
+Modell skriven: .planning/calibration/data/hedonic-model-14.4-intermediate.json (320 kB, 7 380 punkter)

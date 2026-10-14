@@ -1722,7 +1722,7 @@ function conditionTermOf(
   const cvRmse = { without: Math.sqrt(sqWithout / n), with: Math.sqrt(sqWith / n) };
   if (!(cvRmse.with < cvRmse.without)) {
     return prior(
-      `korsvalidering förkastade termen (${sv(cvRmse.without, 4)} -> ${sv(cvRmse.with, 4)}, skattning ${sv(full.k, 4)})`,
+      `korsvalidering förkastade termen (${sv(cvRmse.without, 5)} -> ${sv(cvRmse.with, 5)}, skattning ${sv(full.k, 4)})`,
       cvRmse,
     );
   }
@@ -1732,7 +1732,7 @@ function conditionTermOf(
     kept: true,
     n,
     cvRmse,
-    note: `med: korsvalidering ${sv(cvRmse.without, 4)} -> ${sv(cvRmse.with, 4)}, skattning ${sv(full.k, 4)} per steg (föråldrat -1, vanligt 0, fräscht +1).${tail}`,
+    note: `med: korsvalidering ${sv(cvRmse.without, 5)} -> ${sv(cvRmse.with, 5)}, skattning ${sv(full.k, 4)} per steg (föråldrat -1, vanligt 0, fräscht +1).${tail}`,
   };
 }
 

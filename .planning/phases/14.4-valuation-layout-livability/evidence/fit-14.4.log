@@ -78,13 +78,13 @@ Budpremie: dagar på marknaden
   Effekt på premien för en median-lägenhet, 7 mot 60 dagar: -7,59 procentenheter (+10,5 % -> +2,9 %).
 
 Budpremie: skick
-  Sålda lägenheter med läst skick (nuvarande läsversion): 60; säkerhet under 0,6 (utesluts, räknas aldrig som 0): 22 (36,7 %).
-  Användbara avläsningar: 38 - föråldrat 0 (0,0 %), vanligt 6 (15,8 %), fräscht 32 (84,2 %).
-  Betalt för skicksläsningen hittills: 5,19 kr av 30,00 kr.
-  Märkta försäljningar med slutpris mot utgångspris i skattningen: 37.
-  Korsvalideringsfel: inte beräknat (för få märkta försäljningar eller ingen variation i skicket).
+  Sålda lägenheter med läst skick (nuvarande läsversion): 300; säkerhet under 0,6 (utesluts, räknas aldrig som 0): 113 (37,7 %).
+  Användbara avläsningar: 187 - föråldrat 8 (4,3 %), vanligt 39 (20,9 %), fräscht 140 (74,9 %).
+  Betalt för skicksläsningen hittills: 26,56 kr av 30,00 kr.
+  Märkta försäljningar med slutpris mot utgångspris i skattningen: 186.
+  Korsvalideringsfel (logskala, märkta rader): utan skick 0,06359, med skick 0,06362 (inte lägre).
   Beslut: förkastas, termen är 0 och budpremien säger 'skick ej mätt'; koefficient (steg i skick): 0,00000.
-  Not: budpremie: skick ej mätt: för få märkta försäljningar (37 av minst 100). corr(skick, utgångspris/modell) = 0,11; en effekt under ≈ 2 pp kan inte ses med n = 37.
+  Not: budpremie: skick ej mätt: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186.
 
 Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):
   alla 7 430 försäljningar:
