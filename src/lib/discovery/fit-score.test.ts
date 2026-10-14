@@ -20,6 +20,7 @@ import {
   clearlyWorseAbove,
   compareFinal,
   comparePreRank,
+  conditionIndexOf,
   fitScore,
   hedonicInputOf,
   inferredSunForTaste,
@@ -44,7 +45,7 @@ import {
 } from "@/lib/discovery/hedonic-model";
 import { CGT_EFFECTIVE_RATE, RENO_COST_MATRIX } from "@/lib/discovery/flip-economics";
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
-import { RENO_BAND, UNKNOWN_RENO_STATES, renoBundle } from "@/lib/discovery/reno-tier";
+import { RENO_BAND, UNKNOWN_RENO_STATES, renoBundle, type RenoState } from "@/lib/discovery/reno-tier";
 import { type LayoutFact } from "@/lib/discovery/layout-fact";
 import { unknownSunFact, type DateHours, type SideHours, type SunFact } from "@/lib/discovery/sun-fact";
 import { LOVED_HUBS, tasteBonus } from "@/lib/discovery/taste";
@@ -204,6 +205,55 @@ describe("reno estimate outside the vision window (D-10, R-01)", () => {
     const r = fitScore(snapshot.rows[0], model, { renoOverride: fresh });
     expect(r.renoSek).toBe(10_000);
     expect(r.renoTier).toBe("low");
+  });
+});
+
+describe("condition index from the existing picture verdict (BID-02, D-13)", () => {
+  const vision = (kitchen: RenoState, bathroom: RenoState, overall: RenoState) =>
+    renoBundle({ kitchen, bathroom, overall }, undefined, "vision");
+
+  it("any dated attribute is -1, all fresh is +1, everything else is 0", () => {
+    expect(conditionIndexOf(vision("dated", "fresh", "ok"))).toBe(-1);
+    expect(conditionIndexOf(vision("fresh", "fresh", "dated"))).toBe(-1);
+    expect(conditionIndexOf(vision("fresh", "fresh", "fresh"))).toBe(1);
+    expect(conditionIndexOf(vision("fresh", "fresh", "ok"))).toBe(0);
+    expect(conditionIndexOf(vision("unknown", "unknown", "unknown"))).toBe(0);
+    expect(conditionIndexOf(vision("fresh", "fresh", "unknown"))).toBe(0);
+  });
+
+  it("a row with no picture read (source none) is 0 even when its states say dated or fresh", () => {
+    expect(conditionIndexOf(renoBundle({ kitchen: "dated", bathroom: "dated", overall: "dated" }))).toBe(0);
+    expect(conditionIndexOf(renoBundle({ kitchen: "fresh", bathroom: "fresh", overall: "fresh" }))).toBe(0);
+    expect(conditionIndexOf(renoBundle(UNKNOWN_RENO_STATES))).toBe(0);
+  });
+
+  it("fitScore stores the index; a fitted and kept term then moves the expected final price, a missing term does not", () => {
+    const row = rowWith(snapshot.rows[0], {}, { inVisionWindow: true });
+    const dated = vision("dated", "ok", "ok");
+    const fresh = vision("fresh", "fresh", "fresh");
+    const none = fitScore(row, model, { renoOverride: renoBundle(UNKNOWN_RENO_STATES) });
+    const withoutTerm = fitScore(row, model, { renoOverride: dated });
+    expect(withoutTerm.conditionIndex).toBe(-1);
+    expect(fitScore(row, model, { renoOverride: fresh }).conditionIndex).toBe(1);
+    expect(none.conditionIndex).toBe(0);
+    // No fitted term in the fixture model: the premium is the same for every index, and it says so.
+    expect(withoutTerm.overbidPct).toBe(none.overbidPct);
+    expect(withoutTerm.overbidDetail?.label.endsWith(", skick ej mätt")).toBe(true);
+
+    const fitted = structuredClone(model);
+    fitted.bidPremium.terms.condition = { beta: 0.02, source: "fit", kept: true, n: 250, cvRmse: { without: 0.1, with: 0.09 }, note: "test" };
+    const d = fitScore(row, fitted, { renoOverride: dated });
+    const f = fitScore(row, fitted, { renoOverride: fresh });
+    expect(d.overbidDetail?.conditionUsed).toBe(true);
+    expect(Math.log(1 + (d.overbidPct as number))).toBeCloseTo(Math.log(1 + (none.overbidPct as number)) - 0.02, 10);
+    expect(Math.log(1 + (f.overbidPct as number))).toBeCloseTo(Math.log(1 + (none.overbidPct as number)) + 0.02, 10);
+    expect(d.purchaseSek as number).toBeLessThan(none.purchaseSek as number);
+  });
+
+  it("a row that is not comparable carries index 0", () => {
+    const r = fitScore(rowWith(snapshot.rows[0], { price: null }), model, { renoOverride: vision("dated", "dated", "dated") });
+    expect(r.comparable).toBe(false);
+    expect(r.conditionIndex).toBe(0);
   });
 });
 

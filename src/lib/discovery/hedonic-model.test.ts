@@ -1108,7 +1108,7 @@ describe("expectedOverbidDetail (VAL-03)", () => {
     expect(old.pct).toBeCloseTo(Math.exp(m.bidPremium.perDistrict.Södermalm.a - 0.05 * (Math.log(61) - 2.5)) - 1, 12);
     expect(old.domUsed).toBe(true);
     expect(old.domDays).toBe(60);
-    expect(old.label).toBe("distrikt+dagar");
+    expect(old.label).toBe("distrikt+dagar, skick ej mätt");
   });
 
   it("unknown days add exactly nothing (the training mean) and the label says so", () => {
@@ -1128,7 +1128,7 @@ describe("expectedOverbidDetail (VAL-03)", () => {
     const b = expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 200 });
     expect(a.pct).toBe(b.pct);
     expect(a.domUsed).toBe(false);
-    expect(a.label).toBe("distrikt");
+    expect(a.label).toBe("distrikt, skick ej mätt");
     expect(a.label).not.toContain("dagar");
   });
 
@@ -1147,8 +1147,8 @@ describe("expectedOverbidDetail (VAL-03)", () => {
         expect(d.conditionSource).toBe("prior");
       }
     }
-    expect(expectedOverbidDetail(flat, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt");
-    expect(expectedOverbidDetail(slope, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt+pris");
+    expect(expectedOverbidDetail(flat, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt, skick ej mätt");
+    expect(expectedOverbidDetail(slope, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt+pris, skick ej mätt");
   });
 
   it("expectedOverbid is the detail's pct with days unknown", () => {
@@ -1164,8 +1164,72 @@ describe("expectedOverbidDetail (VAL-03)", () => {
 
   it("slope base: the label carries both the price slope and the days", () => {
     const m = withDom(true, "slope");
-    expect(expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: 10 }).label).toBe("distrikt+pris+dagar");
-    expect(expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: null }).label).toBe("distrikt+pris, dagar okända");
+    expect(expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: 10 }).label).toBe("distrikt+pris+dagar, skick ej mätt");
+    expect(expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: null }).label).toBe("distrikt+pris, dagar okända, skick ej mätt");
+  });
+});
+
+describe("expectedOverbidDetail: condition index (BID-02, R-08)", () => {
+  type Term = NonNullable<HedonicModel["bidPremium"]["terms"]["condition"]>;
+  function withCondition(term: Term | null): HedonicModel {
+    const m = structuredClone(modelJson) as unknown as HedonicModel;
+    m.bidPremium.terms.condition = term;
+    return m;
+  }
+  const fitted = (kept: boolean, source: "fit" | "prior" = "fit", beta = 0.02): Term => ({
+    beta,
+    source,
+    kept,
+    n: 250,
+    cvRmse: source === "fit" ? { without: 0.1, with: 0.09 } : null,
+    note: "test",
+  });
+  const at = (m: HedonicModel, conditionIndex: -1 | 0 | 1) =>
+    expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: null, conditionIndex });
+
+  it("a fitted and kept term moves ln(premium) by exactly beta x index", () => {
+    const m = withCondition(fitted(true));
+    const zero = at(m, 0);
+    expect(Math.log(1 + at(m, -1).pct)).toBeCloseTo(Math.log(1 + zero.pct) - 0.02, 12);
+    expect(Math.log(1 + at(m, 1).pct)).toBeCloseTo(Math.log(1 + zero.pct) + 0.02, 12);
+    expect(at(m, -1).conditionUsed).toBe(true);
+    expect(at(m, 1).conditionSource).toBe("fit");
+  });
+
+  it("index 0 adds exactly nothing and the label gets +skick only for a non-zero index", () => {
+    const m = withCondition(fitted(true));
+    expect(at(m, 0).pct).toBe(expectedOverbid(m, "Södermalm", 100_000, 110_000));
+    expect(at(m, 0).conditionUsed).toBe(false);
+    expect(at(m, 0).label).toBe("distrikt");
+    expect(at(m, -1).label).toBe("distrikt+skick");
+    expect(at(m, 1).label).toBe("distrikt+skick");
+  });
+
+  it("the +skick part sits after +dagar and before the unknown-days note", () => {
+    const m = withCondition(fitted(true));
+    m.bidPremium.terms.dom = { beta: -0.05, mean: 2.5, n: 400, kept: true, cvRmse: { without: 0.1, with: 0.09 }, note: "med" };
+    expect(expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 20, conditionIndex: -1 }).label).toBe("distrikt+dagar+skick");
+    expect(expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: null, conditionIndex: -1 }).label).toBe("distrikt+skick, dagar okända");
+  });
+
+  it("no term, a prior term and a rejected term all behave as index 0 and say 'skick ej mätt' (R-08: no invented number)", () => {
+    const baseline = at(withCondition(null), 0);
+    const cases: Array<[string, Term | null]> = [
+      ["absent", null],
+      ["prior 0", fitted(true, "prior", 0)],
+      ["prior with a non-zero beta must still not move the premium", fitted(true, "prior", 0.5)],
+      ["rejected", fitted(false)],
+    ];
+    for (const [, term] of cases) {
+      const m = withCondition(term);
+      for (const index of [-1, 0, 1] as const) {
+        const d = at(m, index);
+        expect(d.pct).toBe(baseline.pct);
+        expect(d.conditionUsed).toBe(false);
+        expect(d.conditionSource).toBe("prior");
+        expect(d.label.endsWith(", skick ej mätt")).toBe(true);
+      }
+    }
   });
 });
 

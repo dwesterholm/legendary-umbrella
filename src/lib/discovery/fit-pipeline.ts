@@ -434,6 +434,20 @@ export function budpremieCell(detail: Pick<OverbidDetail, "pct" | "label"> | nul
   return `${sign}${magnitude.replace(".", ",")} % (${detail.label})`;
 }
 
+/**
+ * The run header line about the condition part of the bid premium (BID-02, R-08). A fitted term that
+ * cross-validation kept reads "Budpremie skick: mätt på <n> sålda (β <b>)"; a missing, prior or rejected
+ * term reads "Budpremie skick: ej mätt (prior 0): <reason>" - the premium then ignores condition entirely.
+ */
+export function conditionLineOf(model: Pick<HedonicModel, "bidPremium">): string {
+  const term = model.bidPremium.terms.condition;
+  if (term !== null && term.source === "fit" && term.kept) {
+    const beta = term.beta.toFixed(3).replace(".", ",");
+    return `Budpremie skick: mätt på ${term.n} sålda (β ${beta})`;
+  }
+  return `Budpremie skick: ej mätt (prior 0): ${term === null ? "ingen skickterm i modellen" : term.note}`;
+}
+
 const roundKr = (n: number): number => Math.round(n);
 const roundOrNull = (n: number | null): number | null => (n === null ? null : roundKr(n));
 

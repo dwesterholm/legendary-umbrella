@@ -22,6 +22,7 @@ import {
   FIT_TABLE_HEADER,
   FIT_TABLE_MAX_ROWS,
   budpremieCell,
+  conditionLineOf,
   checkApifyHeadroom,
   computeCoverage,
   reasonsOnFlaggedOf,
@@ -391,10 +392,25 @@ describe("table rows and rendering (FIT-03)", () => {
   it("budpremieCell shows the sign, one decimal with a decimal comma, and the makeup in brackets (VAL-03)", () => {
     const detail = (pct: number, label: string) => ({ ...sample[0].overbidDetail!, pct, label });
     expect(budpremieCell(null)).toBe("-");
-    expect(budpremieCell(detail(0.0423, "distrikt+pris+dagar"))).toBe("+4,2 % (distrikt+pris+dagar)");
+    expect(budpremieCell(detail(0.0423, "distrikt+pris+dagar+skick"))).toBe("+4,2 % (distrikt+pris+dagar+skick)");
+    expect(budpremieCell(detail(0.0423, "distrikt+pris+dagar, skick ej mätt"))).toBe("+4,2 % (distrikt+pris+dagar, skick ej mätt)");
     expect(budpremieCell(detail(-0.005, "distrikt"))).toBe("-0,5 % (distrikt)");
     expect(budpremieCell(detail(0, "distrikt"))).toBe("+0,0 % (distrikt)");
     expect(budpremieCell(detail(0.1049, "distrikt, dagar okända"))).toBe("+10,5 % (distrikt, dagar okända)");
+  });
+
+  it("conditionLineOf says whether condition was measured (BID-02, R-08)", () => {
+    const withTerm = (term: unknown) => ({ bidPremium: { terms: { dom: null, condition: term } } }) as never;
+    expect(conditionLineOf(withTerm(null))).toBe("Budpremie skick: ej mätt (prior 0): ingen skickterm i modellen");
+    expect(conditionLineOf(withTerm({ beta: 0, source: "prior", kept: true, n: 0, cvRmse: null, note: "inga säljfoton" }))).toBe(
+      "Budpremie skick: ej mätt (prior 0): inga säljfoton",
+    );
+    expect(conditionLineOf(withTerm({ beta: 0.021, source: "fit", kept: false, n: 220, cvRmse: null, note: "prövad, förkastad" }))).toBe(
+      "Budpremie skick: ej mätt (prior 0): prövad, förkastad",
+    );
+    expect(conditionLineOf(withTerm({ beta: 0.0214, source: "fit", kept: true, n: 220, cvRmse: null, note: "med" }))).toBe(
+      "Budpremie skick: mätt på 220 sålda (β 0,021)",
+    );
   });
 
   it("the header puts 'Budpremie' between 'Utgångspris' and 'Förv. slutpris', and every row prints the cell at that index", () => {

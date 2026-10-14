@@ -264,6 +264,8 @@ export interface FitScoreResult {
   readonly overbidPct: number | null;
   /** How the expected overbid was put together (base form, days-on-market term, label); null when not comparable. */
   readonly overbidDetail: OverbidDetail | null;
+  /** Phase 14.4 (BID-02): the picture-read condition index fed to the bid premium (-1 dated, +1 all fresh, else 0). */
+  readonly conditionIndex: -1 | 0 | 1;
   /** Expected final kr/m2 divided by the model's kr/m2 (the like-for-like ratio); null when not comparable. */
   readonly expectedFinalToPred: number | null;
   /** The chosen basis' ratio minus 1 (negative = below the model); null when not comparable. */
@@ -411,6 +413,20 @@ export function hedonicInputOf(row: FitInputRow, area: number): HedonicInput {
 }
 
 /**
+ * The condition index of one candidate (BID-02, D-13), from its EXISTING picture-read
+ * verdict: any of kitchen / bathroom / overall dated -> -1; all three fresh -> +1;
+ * otherwise 0. A row with no picture read (outside the window, or no claims: source
+ * "none") is 0, never a guess. No new call is made.
+ */
+export function conditionIndexOf(reno: RenoEstimate): -1 | 0 | 1 {
+  if (reno.source !== "vision") return 0;
+  const states = Object.values(reno.states);
+  if (states.includes("dated")) return -1;
+  if (states.every((state) => state === "fresh")) return 1;
+  return 0;
+}
+
+/**
  * Scores one row. Never throws on missing data: it returns a not-comparable
  * result instead.
  */
@@ -489,6 +505,7 @@ export function fitScore(
       purchaseSek: null,
       overbidPct: null,
       overbidDetail: null,
+      conditionIndex: 0,
       expectedFinalToPred: null,
       residualPct: null,
       gapSek: null,
@@ -502,9 +519,12 @@ export function fitScore(
 
   const { krPerSqm: pred, imputed } = predictKrPerSqm(model, hedonicInputOf(row, area));
   const askingPerSqm = price / area;
+  // BID-02 (D-13): the candidate's EXISTING picture verdict, no new call.
+  const conditionIndex = conditionIndexOf(reno);
   // Days on market move the expected FINAL price (the bid premium), never the resale value (D-02).
   const overbidDetail = expectedOverbidDetail(model, row.district, askingPerSqm, pred, {
     daysOnMarket: row.facts?.daysOnMarket ?? null,
+    conditionIndex,
   });
   const overbid = overbidDetail.pct;
 
@@ -572,6 +592,7 @@ export function fitScore(
     purchaseSek: gap.purchaseP,
     overbidPct: overbidDetail.pct,
     overbidDetail,
+    conditionIndex,
     expectedFinalToPred,
     residualPct,
     gapSek,

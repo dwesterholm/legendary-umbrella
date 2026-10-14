@@ -117,6 +117,7 @@ import {
   checkApifyHeadroom,
   coverageOfRows,
   estimateFitRunUsd,
+  conditionLineOf,
   fitRowKey,
   incompleteDistricts,
   renderAreaReport,
@@ -599,6 +600,8 @@ function modelLineOf(model: ReturnType<typeof parseHedonicModel>): string {
 
 function printModelLine(model: ReturnType<typeof parseHedonicModel>): void {
   console.log(modelLineOf(model));
+  // The "Budpremie skick: ..." line (BID-02, R-08): whether condition is measured in the bid premium.
+  console.log(conditionLineOf(model));
   if (model.note) console.log(`OBS: ${model.note}`);
 }
 

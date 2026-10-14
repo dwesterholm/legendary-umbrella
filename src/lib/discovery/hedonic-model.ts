@@ -554,8 +554,12 @@ export interface OverbidDetail {
  * Expected overbid over asking with its makeup. ln(1 + premium) = a_district
  * + b x (ln asking - ln pred)   [slope form only]
  * + c x (ln(1 + days) - mean)   [only when cross-validation kept the days term AND the days are known]
- * + condition term              [slot for plan 09/10; adds 0 while terms.condition is null].
+ * + condition term              [beta x index; only a FITTED term that cross-validation KEPT; index 0 adds exactly 0].
  * An unknown number of days adds exactly 0 (the training mean), never a guess.
+ *
+ * R-08 (14.4): no public Swedish source for a dated-vs-fresh bid difference was found, so the
+ * unfitted prior for the condition term is 0. A missing term, a prior term or a rejected term
+ * adds nothing and the label ends ", skick ej mätt" - never an invented number.
  */
 export function expectedOverbidDetail(
   model: HedonicModel,
@@ -580,14 +584,17 @@ export function expectedOverbidDetail(
 
   const condition = bid.terms.condition;
   const conditionIndex = extra.conditionIndex ?? 0;
-  const conditionKept = condition !== null && condition.kept;
-  const conditionUsed = conditionKept && conditionIndex !== 0;
+  // Only a measured term moves the premium: source "fit" AND kept by cross-validation (R-08).
+  const conditionMeasured = condition !== null && condition.source === "fit" && condition.kept;
+  const conditionUsed = conditionMeasured && conditionIndex !== 0;
   if (conditionUsed) ln += condition.beta * conditionIndex;
 
   const base = slope ? "slope" : "flat";
   let label = slope ? "distrikt+pris" : "distrikt";
   if (domUsed) label += "+dagar";
-  else if (domKept) label += ", dagar okända";
+  if (conditionUsed) label += "+skick";
+  if (domKept && !domUsed) label += ", dagar okända";
+  if (!conditionMeasured) label += ", skick ej mätt";
   return {
     pct: Math.exp(ln) - 1,
     base,
@@ -595,7 +602,7 @@ export function expectedOverbidDetail(
     domUsed,
     conditionIndex,
     conditionUsed,
-    conditionSource: conditionKept ? condition.source : "prior",
+    conditionSource: conditionMeasured ? "fit" : "prior",
     label,
   };
 }
