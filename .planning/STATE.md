@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.4"
 current_phase_name: Valuation Gaps, Layout & Livability
 status: executing
-stopped_at: Completed 14.4-07-PLAN.md
-last_updated: "2026-10-13T20:54:49.907Z"
+stopped_at: Completed 14.4-08-PLAN.md
+last_updated: "2026-10-14T05:34:25.916Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: ae29f88e8105ff35f1aeed5f9b3bdac47f60c92f
+state_head: f72dfd0d4bab21b75c9df24bf3bd60f7e0cbd4ef
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 52
-  completed_plans: 49
+  completed_plans: 50
   percent: 17
 ---
 
@@ -111,6 +111,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.4 P05 | 8 min | 3 tasks | 10 files |
 | Phase 14.4 P06 | 14 min | 2 tasks | 7 files |
 | Phase 14.4 P07 | 11 min | 3 tasks | 13 files |
+| Phase 14.4 P08 | 35 min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -278,6 +279,7 @@ Recent decisions affecting current work:
 - [Phase 14.4]: 14.4-06: each fact's share of a flat's credit = gap as is minus gap with that fact unknown; remainder printed as Övrigt; days term measured in the intermediate model and shown separately
 - [Phase 14.4]: 14.4-06 open point: stage-2 balcony +8,0 % and build year 1961-1990 -8,0 % sit exactly on the +-8 % fit clamp; unclamped estimate may be larger
 - [Phase 14.4]: 14.4-07: layout read is its own module/schema/cache; street/courtyard counts only at confidence >= 0,6 with photo evidence (plain code, not the prompt). Live smoke: schema compiles (0,11 kr), but Folkungagatan 61 read as courtyard at 0,55 (truth street), caught by the gate; plan 08 measures how strict 0,6 must be.
+- [Phase 14.4]: 14.4-08: korsdrag and quiet bedroom are Daniel's taste (1 % of resale each, inside the unchanged 5 % cap), not modelled market value; the 0,6 layout gate is unchanged and its adequacy (window sides weak, 2 of 3 'korsdrag ja' wrong by eye) is left for Daniel
 
 ### Pending Todos
 
@@ -309,8 +311,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-13T20:54:49.755Z
-Stopped at: Completed 14.4-07-PLAN.md
+Last session: 2026-10-14T05:34:25.760Z
+Stopped at: Completed 14.4-08-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
