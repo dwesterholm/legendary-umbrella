@@ -16,7 +16,6 @@ import {
   buildFeatureRow,
   choleskySolve,
   describeModel,
-  expectedOverbid,
   expectedOverbidDetail,
   fitBidPremium,
   fitHedonicModel,
@@ -362,7 +361,11 @@ describe("predictKrPerSqm", () => {
   });
 });
 
-describe("expectedOverbid", () => {
+/** The premium with days unknown and condition unmeasured: the plain district (and slope) figure. */
+const expectedOverbid = (m: HedonicModel, district: "Södermalm" | "Kungsholmen" | "Vasastan" | "Östermalm", ask: number, pred: number): number =>
+  expectedOverbidDetail(m, district, ask, pred, { daysOnMarket: null, conditionIndex: 0 }).pct;
+
+describe("expected overbid without days or condition", () => {
   it("flat: Vasastan is exactly 0, Södermalm is 8 %", () => {
     expect(expectedOverbid(model, "Vasastan", 100_000, 110_000)).toBe(0);
     expect(expectedOverbid(model, "Södermalm", 100_000, 110_000)).toBeCloseTo(0.08, 12);
@@ -1233,7 +1236,7 @@ describe("expectedOverbidDetail (VAL-03)", () => {
     expect(a.label).not.toContain("dagar");
   });
 
-  it("with no days term the detail equals the old expectedOverbid for flat and slope", () => {
+  it("with no days term the detail equals the plain premium for flat and slope, whatever the days", () => {
     const flat = model;
     const slope = structuredClone(modelJson) as unknown as HedonicModel;
     slope.bidPremium.kind = "slope";
@@ -1250,17 +1253,6 @@ describe("expectedOverbidDetail (VAL-03)", () => {
     }
     expect(expectedOverbidDetail(flat, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt, skick ej mätt");
     expect(expectedOverbidDetail(slope, "Södermalm", 100_000, 110_000, { daysOnMarket: null }).label).toBe("distrikt+pris, skick ej mätt");
-  });
-
-  it("expectedOverbid is the detail's pct with days unknown", () => {
-    for (const kept of [true, false]) {
-      for (const kind of ["flat", "slope"] as const) {
-        const m = withDom(kept, kind);
-        expect(expectedOverbid(m, "Södermalm", 90_000, 100_000)).toBe(
-          expectedOverbidDetail(m, "Södermalm", 90_000, 100_000, { daysOnMarket: null, conditionIndex: 0 }).pct,
-        );
-      }
-    }
   });
 
   it("slope base: the label carries both the price slope and the days", () => {

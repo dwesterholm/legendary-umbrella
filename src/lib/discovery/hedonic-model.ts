@@ -655,25 +655,6 @@ export function expectedOverbidDetail(
   };
 }
 
-/**
- * Expected overbid over asking, as a fraction (0.08 = pays 8 % over). "flat":
- * exp(a_district) - 1. "slope": exp(a_district + b x (ln asking - ln pred)) - 1,
- * so a flat asked below the model's price draws a larger bid. A slope model
- * without a `b` behaves as flat. Days on market are not part of this number:
- * use {@link expectedOverbidDetail} to include them.
- */
-export function expectedOverbid(
-  model: HedonicModel,
-  district: InnerstanDistrict,
-  askingKrPerSqm: number,
-  predKrPerSqm: number,
-): number {
-  return expectedOverbidDetail(model, district, askingKrPerSqm, predKrPerSqm, {
-    daysOnMarket: null,
-    conditionIndex: 0,
-  }).pct;
-}
-
 // ---------------------------------------------------------------------------
 // Fitting: constants
 // ---------------------------------------------------------------------------
