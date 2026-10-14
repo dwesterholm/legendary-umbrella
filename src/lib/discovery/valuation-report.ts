@@ -380,6 +380,8 @@ export interface ValuationReport {
     /** Mean of (after - before) overbid, as a fraction, over rows ranked in both with a premium in both. */
     readonly meanChange: number | null;
     readonly rowsInBoth: number;
+    /** What the after model says about condition in the premium (BID-01, R-08): fitted and kept, or not measured. */
+    readonly conditionLine: string;
   };
   readonly model: {
     readonly features: readonly {
@@ -640,11 +642,26 @@ export function buildValuationReport(input: ValuationReportInputs): ValuationRep
       top15: bidTop15,
       meanChange: changes.length === 0 ? null : changes.reduce((a, b) => a + b, 0) / changes.length,
       rowsInBoth: changes.length,
+      conditionLine: conditionLineOfModel(afterModel),
     },
     model,
     avgiftDebtCorrelation: avgiftDebtCorrelation(input.snapshotRows ?? []),
   };
   return { ...base, findings: findingsOf(base) };
+}
+
+/**
+ * One plain sentence on the condition term of the premium: the fitted coefficient when cross-validation kept it, otherwise
+ * that condition is not measured, the premium adds 0, and why (the model's own reason). Pure.
+ */
+export function conditionLineOfModel(model: Pick<HedonicModel, "bidPremium">): string {
+  const term = model.bidPremium.terms.condition;
+  if (term === null) return "The bid premium has no condition term: condition is not measured (\"skick ej mätt\") and the premium adds 0.";
+  if (term.source === "fit" && term.kept) {
+    return `Condition in the bid premium: ${sv(term.beta, 4)} per step (dated -1, ordinary 0, fresh +1), fitted on ${kr(term.n)} sold flats with a photo read and kept by cross-validation.`;
+  }
+  const reason = term.note.replace(/^budpremie: skick ej mätt: /, "");
+  return `Condition in the bid premium: not measured ("skick ej mätt"), the premium adds 0 for every flat. Reason: ${reason}`;
 }
 
 /** Pearson correlation of avgift per m2 and BRF debt per m2 over the rows that have both. */
@@ -900,6 +917,8 @@ function bidMd(report: ValuationReport): string[] {
     b.meanChange === null
       ? "No row is ranked in both runs with a premium in both."
       : `Mean change over the ${b.rowsInBoth} rows ranked in both runs: ${ppSigned(b.meanChange)}.`,
+    "",
+    b.conditionLine,
   );
   return lines;
 }

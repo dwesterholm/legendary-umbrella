@@ -90,23 +90,25 @@ The expected overbid on the asking price, for the new top 15. "Före" is the sam
 
 | Plats efter | Adress | Budpremie före | Budpremie efter | Hur den räknades |
 |---:|---|---:|---:|---|
-| 1 | Fatburs Kvarngata 18 | +22,5 % | +19,1 % | distrikt+pris+dagar |
-| 2 | Falugatan 5 | +15,1 % | +12,7 % | distrikt+pris+dagar |
-| 3 | Fatburstrappan 18 | +21,8 % | +18,8 % | distrikt+pris+dagar |
-| 4 | Sågargatan 14 | +18,9 % | +11,0 % | distrikt+pris+dagar |
-| 5 | Tjurbergsgatan 38 | +18,4 % | +14,2 % | distrikt+pris+dagar |
-| 6 | Sysslomansgatan 26 | +12,1 % | +14,5 % | distrikt+pris+dagar |
-| 7 | Klippgatan 14E | +16,8 % | +10,1 % | distrikt+pris+dagar |
-| 8 | Fyrverkarbacken 25 | +15,4 % | +9,7 % | distrikt+pris+dagar |
-| 9 | Hornsgatan 119 | +20,8 % | +21,7 % | distrikt+pris+dagar |
-| 10 | Pokalvägen 4 | +18,5 % | +11,3 % | distrikt+pris+dagar |
-| 11 | Erstagatan 21 | +18,3 % | +10,9 % | distrikt+pris+dagar |
-| 12 | Fyrverkarbacken 23 | +15,7 % | +18,9 % | distrikt+pris+dagar |
-| 13 | Ola Hanssonsgatan 4 | +12,9 % | +12,5 % | distrikt+pris+dagar |
-| 14 | Kungsbro Strand 19 | +10,2 % | +6,4 % | distrikt+pris+dagar |
-| 15 | Reimersholmsgatan 39 | +18,3 % | +2,9 % | distrikt+pris+dagar |
+| 1 | Fatburs Kvarngata 18 | +22,5 % | +19,1 % | distrikt+pris+dagar, skick ej mätt |
+| 2 | Falugatan 5 | +15,1 % | +12,7 % | distrikt+pris+dagar, skick ej mätt |
+| 3 | Fatburstrappan 18 | +21,8 % | +18,8 % | distrikt+pris+dagar, skick ej mätt |
+| 4 | Sågargatan 14 | +18,9 % | +11,0 % | distrikt+pris+dagar, skick ej mätt |
+| 5 | Tjurbergsgatan 38 | +18,4 % | +14,2 % | distrikt+pris+dagar, skick ej mätt |
+| 6 | Sysslomansgatan 26 | +12,1 % | +14,5 % | distrikt+pris+dagar, skick ej mätt |
+| 7 | Klippgatan 14E | +16,8 % | +10,1 % | distrikt+pris+dagar, skick ej mätt |
+| 8 | Fyrverkarbacken 25 | +15,4 % | +9,7 % | distrikt+pris+dagar, skick ej mätt |
+| 9 | Hornsgatan 119 | +20,8 % | +21,7 % | distrikt+pris+dagar, skick ej mätt |
+| 10 | Pokalvägen 4 | +18,5 % | +11,3 % | distrikt+pris+dagar, skick ej mätt |
+| 11 | Erstagatan 21 | +18,3 % | +10,9 % | distrikt+pris+dagar, skick ej mätt |
+| 12 | Fyrverkarbacken 23 | +15,7 % | +18,9 % | distrikt+pris+dagar, skick ej mätt |
+| 13 | Ola Hanssonsgatan 4 | +12,9 % | +12,5 % | distrikt+pris+dagar, skick ej mätt |
+| 14 | Kungsbro Strand 19 | +10,2 % | +6,4 % | distrikt+pris+dagar, skick ej mätt |
+| 15 | Reimersholmsgatan 39 | +18,3 % | +2,9 % | distrikt+pris+dagar, skick ej mätt |
 
 Mean change over the 77 rows ranked in both runs: -0,6 procentenheter.
+
+Condition in the bid premium: not measured ("skick ej mätt"), the premium adds 0 for every flat. Reason: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186.
 
 ## Model
 

@@ -469,6 +469,51 @@ describe("buildValuationReport: credit removed, flag counts, bid premium", () =>
   });
 });
 
+describe("bid premium: what the report says about condition (BID-01, R-08)", () => {
+  const rows = rowsWithFacts();
+  const withCondition = (term: unknown) => {
+    const m = structuredClone(modelWithFeatures(-0.004)) as unknown as { bidPremium: { terms: { condition: unknown } } };
+    m.bidPremium.terms.condition = term;
+    return m as unknown as ReturnType<typeof modelWithFeatures>;
+  };
+  const lineFor = (model: ReturnType<typeof modelWithFeatures>) => {
+    const report = buildValuationReport({ ...threeRecords(rows, model), snapshotRows: rows });
+    return { report, md: renderValuationReportMd(report) };
+  };
+
+  it("a rejected term reads 'not measured', says the premium adds 0, names the model's reason, and sits in the Bid premium section", () => {
+    const { report, md } = lineFor(
+      withCondition({
+        beta: 0,
+        source: "prior",
+        kept: false,
+        n: 186,
+        cvRmse: { without: 0.06359, with: 0.06362 },
+        note: "budpremie: skick ej mätt: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086).",
+      }),
+    );
+    expect(report.bidPremium.conditionLine).toBe(
+      'Condition in the bid premium: not measured ("skick ej mätt"), the premium adds 0 for every flat. Reason: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086).',
+    );
+    const section = md.slice(md.indexOf("## Bid premium"), md.indexOf("## Model"));
+    expect(section).toContain(report.bidPremium.conditionLine);
+  });
+
+  it("a fitted and kept term reads its coefficient and n", () => {
+    const { report } = lineFor(
+      withCondition({ beta: 0.0213, source: "fit", kept: true, n: 220, cvRmse: { without: 0.07, with: 0.069 }, note: "med" }),
+    );
+    expect(report.bidPremium.conditionLine).toBe(
+      "Condition in the bid premium: 0,0213 per step (dated -1, ordinary 0, fresh +1), fitted on 220 sold flats with a photo read and kept by cross-validation.",
+    );
+  });
+
+  it("a model without the slot says there is no condition term", () => {
+    const { report } = lineFor(withCondition(null));
+    expect(report.bidPremium.conditionLine).toContain("no condition term");
+  });
+});
+
 describe("avgiftDebtCorrelation", () => {
   const base = snapshot.rows[0];
   const withFacts = (avgift: number | null, debt: number | null): FitInputRow => ({

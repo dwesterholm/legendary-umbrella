@@ -12,7 +12,7 @@
     "residualSdLog": 0.11480404330536306,
     "bidPremiumKind": "slope"
   },
-  "sunLine": "Sol: OSM-cache 0,2 dagar gammal (OSM-tid 2026-10-13T15:13:51Z), 15415 byggnader, 1900 gator, höjd orimlig 11 (ersatt med uppskattning); ingen hämtning i uppspelning",
+  "sunLine": "Sol: OSM-cache 0,6 dagar gammal (OSM-tid 2026-10-13T15:13:51Z), 15415 byggnader, 1900 gator, höjd orimlig 11 (ersatt med uppskattning); ingen hämtning i uppspelning",
   "ranked": [
     {
       "rank": 1,
@@ -46,7 +46,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.6942033198131801,
       "residualPct": -0.30579668018681994,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.19122843137284384
     },
     {
@@ -81,7 +81,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.708064751155857,
       "residualPct": -0.291935248844143,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.126796160409552
     },
     {
@@ -116,7 +116,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7360629268574337,
       "residualPct": -0.2639370731425663,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.187705699146685
     },
     {
@@ -151,7 +151,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7322241265017323,
       "residualPct": -0.2677758734982677,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10979925132486357
     },
     {
@@ -186,7 +186,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7753471439028102,
       "residualPct": -0.22465285609718977,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.14222107155866004
     },
     {
@@ -222,7 +222,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7898842456356813,
       "residualPct": -0.21011575436431873,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.14519616855795836
     },
     {
@@ -256,7 +256,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7986956111497128,
       "residualPct": -0.20130438885028723,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10145552971767735
     },
     {
@@ -290,7 +290,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7266973400859954,
       "residualPct": -0.2733026599140046,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.09718160525376196
     },
     {
@@ -323,7 +323,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7814207081720366,
       "residualPct": -0.21857929182796343,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.21674158831882728
     },
     {
@@ -357,7 +357,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.760522360065776,
       "residualPct": -0.239477639934224,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.11256955223437348
     },
     {
@@ -391,7 +391,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8164480660104799,
       "residualPct": -0.18355193398952008,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10911478902734406
     },
     {
@@ -425,7 +425,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7765837098322055,
       "residualPct": -0.22341629016779452,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.18887953182140094
     },
     {
@@ -458,7 +458,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8227563837003302,
       "residualPct": -0.17724361629966978,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12534355754700144
     },
     {
@@ -492,7 +492,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8523430164500186,
       "residualPct": -0.14765698354998136,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.06377081125549533
     },
     {
@@ -525,7 +525,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.7986408620234708,
       "residualPct": -0.20135913797652916,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.02873396995353139
     },
     {
@@ -557,7 +557,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8804848546905476,
       "residualPct": -0.1195151453094524,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.13180603301770977
     },
     {
@@ -590,7 +590,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8466966209586704,
       "residualPct": -0.15330337904132962,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12367740878123135
     },
     {
@@ -625,7 +625,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8740715148757023,
       "residualPct": -0.12592848512429766,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.20206405185737375
     },
     {
@@ -660,7 +660,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8687348104863004,
       "residualPct": -0.1312651895136996,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12543195926693484
     },
     {
@@ -694,7 +694,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8480859118895455,
       "residualPct": -0.15191408811045448,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.062404831251901216
     },
     {
@@ -727,7 +727,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8637250884860912,
       "residualPct": -0.1362749115139088,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.13416443632866137
     },
     {
@@ -759,7 +759,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8517098763395617,
       "residualPct": -0.14829012366043826,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.09790453033118451
     },
     {
@@ -793,7 +793,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8647763106660715,
       "residualPct": -0.13522368933392848,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1632153329811996
     },
     {
@@ -827,7 +827,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.880057592744073,
       "residualPct": -0.11994240725592697,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10631304924438001
     },
     {
@@ -861,7 +861,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8764117291601877,
       "residualPct": -0.12358827083981228,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.08882512569764933
     },
     {
@@ -894,7 +894,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8528417186065137,
       "residualPct": -0.1471582813934863,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10431797875930426
     },
     {
@@ -927,7 +927,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.867556358904779,
       "residualPct": -0.132443641095221,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.028158123752814568
     },
     {
@@ -960,7 +960,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8536230333970762,
       "residualPct": -0.14637696660292376,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.09354928072687474
     },
     {
@@ -993,7 +993,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8675577681369935,
       "residualPct": -0.13244223186300652,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.010312009320019744
     },
     {
@@ -1026,7 +1026,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8673820913899197,
       "residualPct": -0.13261790861008027,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.09573837041361988
     },
     {
@@ -1059,7 +1059,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8736564005274128,
       "residualPct": -0.12634359947258722,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.20212590248777484
     },
     {
@@ -1091,7 +1091,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8771692928963041,
       "residualPct": -0.12283070710369592,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.027416819636015388
     },
     {
@@ -1125,7 +1125,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9102594568801423,
       "residualPct": -0.08974054311985769,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.09002684531860061
     },
     {
@@ -1159,7 +1159,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9279471238205262,
       "residualPct": -0.07205287617947376,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.15436626839297007
     },
     {
@@ -1192,7 +1192,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9119918571435224,
       "residualPct": -0.08800814285647762,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12231470448889725
     },
     {
@@ -1225,7 +1225,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9375694844927872,
       "residualPct": -0.06243051550721279,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12413132442628605
     },
     {
@@ -1258,7 +1258,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9195890029138967,
       "residualPct": -0.08041099708610333,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.0598957172429615
     },
     {
@@ -1291,7 +1291,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9178134111573377,
       "residualPct": -0.08218658884266228,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.03279676552734401
     },
     {
@@ -1322,7 +1322,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8890753495493144,
       "residualPct": -0.11092465045068556,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1101601890607502
     },
     {
@@ -1355,7 +1355,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9352538569046822,
       "residualPct": -0.06474614309531779,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10068219217969632
     },
     {
@@ -1388,7 +1388,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.8848231054402222,
       "residualPct": -0.11517689455977775,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12321987008433521
     },
     {
@@ -1421,7 +1421,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9064963804351133,
       "residualPct": -0.09350361956488673,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.02862275288085403
     },
     {
@@ -1454,7 +1454,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9633775251958769,
       "residualPct": -0.03662247480412306,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1614455167872051
     },
     {
@@ -1486,7 +1486,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9140283831860706,
       "residualPct": -0.0859716168139294,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.042906580293962104
     },
     {
@@ -1519,7 +1519,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9482439473049218,
       "residualPct": -0.051756052695078214,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.122753752860429
     },
     {
@@ -1551,7 +1551,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9159251672773842,
       "residualPct": -0.08407483272261584,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.022616793259007117
     },
     {
@@ -1584,7 +1584,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9591749635237163,
       "residualPct": -0.04082503647628366,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.15023523801894956
     },
     {
@@ -1618,7 +1618,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9663602094564399,
       "residualPct": -0.033639790543560144,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.14930581213602934
     },
     {
@@ -1652,7 +1652,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9694454515680818,
       "residualPct": -0.030554548431918183,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.11491264689367853
     },
     {
@@ -1684,7 +1684,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9286727271054702,
       "residualPct": -0.07132727289452978,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.06842040370301117
     },
     {
@@ -1719,7 +1719,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9793286768095576,
       "residualPct": -0.020671323190442403,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1976879805444205
     },
     {
@@ -1752,7 +1752,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9662913021362789,
       "residualPct": -0.033708697863721104,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12046333021154565
     },
     {
@@ -1784,7 +1784,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9503069560214783,
       "residualPct": -0.0496930439785217,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.12248949749868143
     },
     {
@@ -1816,7 +1816,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9518356166764618,
       "residualPct": -0.04816438332353823,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.13206517248948035
     },
     {
@@ -1847,7 +1847,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.998349847978151,
       "residualPct": -0.0016501520218490384,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.07917514081829702
     },
     {
@@ -1881,7 +1881,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9872870870116077,
       "residualPct": -0.012712912988392278,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1466419109788626
     },
     {
@@ -1913,7 +1913,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9836945741967279,
       "residualPct": -0.0163054258032721,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.015392738248748872
     },
     {
@@ -1946,7 +1946,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0090725578301079,
       "residualPct": 0.009072557830107852,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1835088963287259
     },
     {
@@ -1979,7 +1979,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.018302454311095,
       "residualPct": 0.018302454311095007,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.18234226254934205
     },
     {
@@ -2013,7 +2013,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 0.9664812223354307,
       "residualPct": -0.033518777664569344,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.18905001356078377
     },
     {
@@ -2045,7 +2045,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0210707468314921,
       "residualPct": 0.021070746831492126,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.1121176007793705
     },
     {
@@ -2077,7 +2077,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0004680083951918,
       "residualPct": 0.00046800839519178794,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.11625301576970704
     },
     {
@@ -2110,7 +2110,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0412381350785096,
       "residualPct": 0.0412381350785096,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.183143085913533
     },
     {
@@ -2142,7 +2142,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0045677658096845,
       "residualPct": 0.004567765809684543,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.14448890523976932
     },
     {
@@ -2174,7 +2174,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0049286875383214,
       "residualPct": 0.00492868753832143,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.02912997465408962
     },
     {
@@ -2206,7 +2206,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.016293759836719,
       "residualPct": 0.01629375983671899,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.20629757375523083
     },
     {
@@ -2238,7 +2238,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0108422723720814,
       "residualPct": 0.010842272372081352,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.0684205220786609
     },
     {
@@ -2270,7 +2270,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0280451969161857,
       "residualPct": 0.028045196916185677,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.11297029766176947
     },
     {
@@ -2303,7 +2303,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0225960391511146,
       "residualPct": 0.022596039151114633,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.2054901049461224
     },
     {
@@ -2336,7 +2336,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0449051142819183,
       "residualPct": 0.044905114281918346,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.13961902093330236
     },
     {
@@ -2368,7 +2368,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0547643564544211,
       "residualPct": 0.054764356454421126,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.18810024182399765
     },
     {
@@ -2400,7 +2400,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0206067531345209,
       "residualPct": 0.020606753134520872,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.04633716259920995
     },
     {
@@ -2433,7 +2433,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.074128060409146,
       "residualPct": 0.0741280604091461,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.09116736082423404
     },
     {
@@ -2466,7 +2466,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.101294204190331,
       "residualPct": 0.10129420419033108,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.17235107870879673
     },
     {
@@ -2500,7 +2500,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0857821892320574,
       "residualPct": 0.08578218923205738,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.17415374082472868
     },
     {
@@ -2532,7 +2532,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.0966522095980016,
       "residualPct": 0.09665220959800158,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.05979232835095094
     },
     {
@@ -2565,7 +2565,7 @@
       "notComparableReason": null,
       "expectedFinalToPred": 1.131645675883375,
       "residualPct": 0.13164567588337506,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.17252097612619322
     }
   ],
@@ -2605,7 +2605,7 @@
       "notComparableReason": "utgångspris långt under modellvärdet",
       "expectedFinalToPred": 0.40350606738777667,
       "residualPct": -0.5964939326122234,
-      "overbidLabel": "distrikt+pris+dagar",
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.21760174636094298
     }
   ]

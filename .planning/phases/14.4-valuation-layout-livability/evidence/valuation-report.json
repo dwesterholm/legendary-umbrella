@@ -746,7 +746,7 @@
         "rank": 1,
         "overbidBefore": 0.22504419717702429,
         "overbidAfter": 0.19122843137284384,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/568925",
@@ -754,7 +754,7 @@
         "rank": 2,
         "overbidBefore": 0.15100324476105964,
         "overbidAfter": 0.126796160409552,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/572010",
@@ -762,7 +762,7 @@
         "rank": 3,
         "overbidBefore": 0.21822607474033506,
         "overbidAfter": 0.187705699146685,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/annons/6155023",
@@ -770,7 +770,7 @@
         "rank": 4,
         "overbidBefore": 0.18858625747034363,
         "overbidAfter": 0.10979925132486357,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/324863",
@@ -778,7 +778,7 @@
         "rank": 5,
         "overbidBefore": 0.18382168933382115,
         "overbidAfter": 0.14222107155866004,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/annons/6305391",
@@ -786,7 +786,7 @@
         "rank": 6,
         "overbidBefore": 0.12135911816438583,
         "overbidAfter": 0.14519616855795836,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/635120",
@@ -794,7 +794,7 @@
         "rank": 7,
         "overbidBefore": 0.16822226764021075,
         "overbidAfter": 0.10145552971767735,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/348671",
@@ -802,7 +802,7 @@
         "rank": 8,
         "overbidBefore": 0.15418695348874367,
         "overbidAfter": 0.09718160525376196,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/annons/6295311",
@@ -810,7 +810,7 @@
         "rank": 9,
         "overbidBefore": 0.20836658355557236,
         "overbidAfter": 0.21674158831882728,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/700725",
@@ -818,7 +818,7 @@
         "rank": 10,
         "overbidBefore": 0.18523675282600838,
         "overbidAfter": 0.11256955223437348,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/4309411",
@@ -826,7 +826,7 @@
         "rank": 11,
         "overbidBefore": 0.1831229990612464,
         "overbidAfter": 0.10911478902734406,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/348715",
@@ -834,7 +834,7 @@
         "rank": 12,
         "overbidBefore": 0.15708298952223143,
         "overbidAfter": 0.18887953182140094,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/372080",
@@ -842,7 +842,7 @@
         "rank": 13,
         "overbidBefore": 0.1286858221985583,
         "overbidAfter": 0.12534355754700144,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/annons/6271664",
@@ -850,7 +850,7 @@
         "rank": 14,
         "overbidBefore": 0.1023557379923623,
         "overbidAfter": 0.06377081125549533,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
         "key": "https://www.booli.se/bostad/3958359",
@@ -858,11 +858,12 @@
         "rank": 15,
         "overbidBefore": 0.18327790303768365,
         "overbidAfter": 0.02873396995353139,
-        "labelAfter": "distrikt+pris+dagar"
+        "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       }
     ],
     "meanChange": -0.005929016505825348,
-    "rowsInBoth": 77
+    "rowsInBoth": 77,
+    "conditionLine": "Condition in the bid premium: not measured (\"skick ej mätt\"), the premium adds 0 for every flat. Reason: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186."
   },
   "model": {
     "features": [
