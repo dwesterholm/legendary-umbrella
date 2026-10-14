@@ -55,3 +55,16 @@ export function isAllowedImageHost(url: string): boolean {
     return false;
   }
 }
+
+/**
+ * The picture URL of a Booli image id (14.4, T-14.4-33). The id comes from a scraped page, so it must be
+ * digits only: a path fragment, a scheme or a host in it could point Anthropic's image fetcher somewhere
+ * else (SSRF). The host is fixed to https://bcdn.se and the result is checked with {@link isAllowedImageHost}.
+ * Throws `Ogiltigt bild-id` for anything else. Moved here from client.ts so a pure module can use it.
+ */
+export function bcdnImageUrl(id: string): string {
+  if (typeof id !== "string" || !/^\d+$/.test(id)) throw new Error("Ogiltigt bild-id");
+  const url = `https://bcdn.se/images/cache/${id}_1440x0.webp`;
+  if (!isAllowedImageHost(url)) throw new Error("Ogiltigt bild-id");
+  return url;
+}

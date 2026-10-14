@@ -1,5 +1,5 @@
 import { runPlaywrightRender } from "./transport";
-import { isAllowedImageHost } from "./image-host";
+import { bcdnImageUrl, isAllowedImageHost } from "./image-host";
 import { APOLLO_PAGE_FUNCTION } from "./page-functions";
 import { walkFallbackTree } from "./fallback-tree";
 // DISABLED 2026-07-14 (cost): the paid Lexis actor (lexis-solutions/booli-se-scraper)
@@ -266,8 +266,7 @@ interface ApolloImageRef {
   type?: string;
 }
 
-/** Booli image CDN URL template — the Image entity carries only `id`, not a URL. */
-const bcdnImageUrl = (id: string): string => `https://bcdn.se/images/cache/${id}_1440x0.webp`;
+// Booli image CDN URL: the Image entity carries only `id`, not a URL; `bcdnImageUrl` (image-host.ts) builds it.
 
 /**
  * Resolves a Listing entity's `images: [{__ref:"Image:<id>"}]` refs against the
@@ -301,7 +300,8 @@ function resolveImageRefs(
       img = r as typeof img;
     }
     const id = img && (typeof img.id === "string" ? img.id : typeof img.id === "number" ? String(img.id) : null);
-    if (!id) continue;
+    // Digits only (T-14.4-33): an id that is not a plain number never becomes a URL, and never throws here.
+    if (!id || !/^\d+$/.test(id)) continue;
     out.push({
       url: bcdnImageUrl(id),
       type: typeof img?.primaryLabel === "string" ? img.primaryLabel : undefined,

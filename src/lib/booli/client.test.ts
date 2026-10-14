@@ -832,6 +832,17 @@ describe("reshapeListingEntity imageUrls extractor (via fetchListing) — Phase 
     expect(result.imageUrls).toEqual([bcdn("1")]);
   });
 
+  it("skips an image whose id is not digits only instead of building a URL from it (T-14.4-33)", async () => {
+    succeedRun();
+    listItems.mockResolvedValue({
+      items: [apolloItem(stateWith([{ id: "1", primaryLabel: "interior" }, { id: "../evil", primaryLabel: "interior" }]))],
+    });
+
+    const result = await fetchListing(DETAIL_URL);
+
+    expect(result.imageUrls).toEqual([bcdn("1")]);
+  });
+
   it("allows bcdn.se — Booli's real image CDN (probe-confirmed 2026-07-09)", async () => {
     succeedRun();
     listItems.mockResolvedValue({
