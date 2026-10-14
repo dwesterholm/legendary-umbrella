@@ -122,7 +122,7 @@ Gap closure (from 14-VERIFICATION.md `gaps_found` 2/4 — run with `/gsd-execute
 
 **Requirements**: VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, LAY-01, LAY-02, LAY-03, LAY-04, BID-01, BID-02
 **Depends on:** 14.1 (model), 14.2 (local rung, BRF parser, vision lanes/cache), 14.3 (footprint bearing, sun hours)
-**Plans:** 9/10 plans executed (sequential, waves 1-10)
+**Plans:** 10/10 plans executed (sequential, waves 1-10)
 
 Plans:
 **Wave 1**
@@ -163,7 +163,7 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
-- [ ] 14.4-10-PLAN.md — Fit (or 0 prior) the condition term, final report and phase gate (BID-01, BID-02, VAL-05)
+- [x] 14.4-10-PLAN.md — Fit (or 0 prior) the condition term, final report and phase gate (BID-01, BID-02, VAL-05)
 
 ### Phase 15: ROI-Aware Opportunity Brief
 

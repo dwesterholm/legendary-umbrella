@@ -58,14 +58,14 @@
   - *Amended 2026-10-13 (14.4-CONTEXT R-01):* sold-detail pages carry no publish date; they print days on market (`daysActive`, "Bostaden var till salu i N dagar"), which is stored and used; candidates use `facts.daysOnMarket`.
 - [x] **VAL-04**: The 20 % credit cap is removed from `fit-score.ts` (credit = full gap); the `creditCapped` flag and the `kredit-tak` reason are replaced by a soft `residualFlag` ("ovanligt långt under modellpris": asking/kvm below the model price × exp(−2 × residualSdLog)) that is shown and explained but never caps; `notComparable` at 0.5 is unchanged; all tests, the table, the mail and the reasons module follow.
   - *Amended 2026-10-13 (14.4-CONTEXT R-04):* the flag uses the like-for-like basis by default (`RESIDUAL_FLAG_BASIS = "expectedFinal"`: ln(expected final kr/kvm ÷ model kr/kvm) < −2 × residualSdLog); the asking-price basis stays selectable and the VAL-05 report prints both counts.
-- [ ] **VAL-05**: An offline before/after report on the current for-sale snapshot lists every row that carried `kredit-tak`: old credit, new credit, the kr each new feature explains, the residual and the new flag; plus the top-15 before/after and Folkungagatan 61's rank and decomposition — measured, not tuned.
+- [x] **VAL-05**: An offline before/after report on the current for-sale snapshot lists every row that carried `kredit-tak`: old credit, new credit, the kr each new feature explains, the residual and the new flag; plus the top-15 before/after and Folkungagatan 61's rank and decomposition — measured, not tuned.
 - [x] **LAY-01**: A separate slim layout read (own module, own schema with no nullable field, own cache file and version, never the existing vision schema or cache) returns per flat from the floor plan + up to 6 photos: balcony side (street/courtyard/none/unknown), rooms on the balcony side (living, kitchen, bedroom as booleans), window sides (one/two opposite/corner/unknown), bedroom side (street/courtyard/unknown), what in the photos settles street vs courtyard, and one confidence; ≤ 0,6 kr per flat, cumulative cap ≤ 40 kr per run tracked in the cache, 0 USD Apify.
 - [x] **LAY-02**: Where the balcony side is known (confidence ≥ 0,6) the sun part uses that side's facade and obstructed hours from 14.3 (balcony on the street side → street facade) and the 0.5 street-only factor becomes 1; otherwise everything stays exactly as 14.3 left it; `taste.ts` stays pure; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched; the separation test registers the new modules.
 - [x] **LAY-03**: Korsdrag (windows on two opposite sides) and a quiet bedroom (bedroom on the courtyard side) become named taste terms inside the unchanged 5 % cap (korsdrag 1 %, quiet bedroom 1 % of resale) and named columns/flags in the weekly table and the HTML mail ("Korsdrag", "Sovrum"); unknown shows "okänd" and adds nothing.
 - [x] **LAY-04**: Calibration: the replay fixture for Folkungagatan 61 asserts balcony = street side, window sides = one, bedroom = street (sun yes, korsdrag no, bedroom on Folkungagatan); one real local run over the current candidates records layout coverage per field and the agreement between the photo-settled street side and 14.3's footprint street facade.
-- [ ] **BID-01**: The bid-premium model gains a condition term (dated −1 / ok or unknown 0 / fresh +1) fitted from a stratified sample of enriched sold rows whose sold-detail pages still show photos, read by a slim single-enum Haiku condition call (own cache, ≤ 30 kr total); cross-validation decides whether the term is kept; if the pages carry no photos or CV rejects it, a documented prior (source "prior", dated −2 pp, fresh +2 pp) is used and the model file says so.
+- [x] **BID-01**: The bid-premium model gains a condition term (dated −1 / ok or unknown 0 / fresh +1) fitted from a stratified sample of enriched sold rows whose sold-detail pages still show photos, read by a slim single-enum Haiku condition call (own cache, ≤ 30 kr total); cross-validation decides whether the term is kept; if the pages carry no photos or CV rejects it, a documented prior (source "prior", dated −2 pp, fresh +2 pp) is used and the model file says so.
   - *Amended 2026-10-13 (14.4-CONTEXT R-08):* no public source was found for ±2 pp; when the condition term is not fitted (no sold photos, or cross-validation rejects it) the prior is 0 with the flag "budpremie: skick ej mätt".
-- [ ] **BID-02**: `expectedOverbid` takes the candidate's vision condition (the existing deep-pass verdict) so a dated flat's expected final price rises less; the table prints the premium used and its source (fit/prior); the before/after on the current snapshot is in the VAL-05 report.
+- [x] **BID-02**: `expectedOverbid` takes the candidate's vision condition (the existing deep-pass verdict) so a dated flat's expected final price rises less; the table prints the premium used and its source (fit/prior); the before/after on the current snapshot is in the VAL-05 report.
 
 ### Opportunity Brief (Phase A.5)
 
@@ -138,13 +138,13 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | VAL-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | VAL-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | VAL-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
-| VAL-05 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| VAL-05 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | LAY-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | LAY-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | LAY-03 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | LAY-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
-| BID-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
-| BID-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Pending |
+| BID-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
+| BID-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-03 | Phase 15 — ROI-Aware Opportunity Brief | Pending |

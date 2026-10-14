@@ -4,17 +4,17 @@ milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
 current_phase: "14.4"
 current_phase_name: Valuation Gaps, Layout & Livability
-status: executing
-stopped_at: Completed 14.4-09-PLAN.md
-last_updated: "2026-10-14T05:45:56.719Z"
+status: verifying
+stopped_at: Completed 14.4-10-PLAN.md
+last_updated: "2026-10-14T06:08:18.251Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: e2a6bca3ba97e79a69aed857f03a67559d1ab313
+state_head: 67f5f2b4afd20a32c82b90f993f90b3ca4a54144
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 52
-  completed_plans: 51
+  completed_plans: 52
   percent: 17
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 Phase: 14.4 (Valuation Gaps, Layout & Livability) — READY TO EXECUTE
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-13 — Phase 14.3 execution started
 Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly table exists; plan 1 = local browser rung (Daniel 2026-10-13). 14.1 is human_needed (12/13); decisions for its 4 UAT items are recorded in RESUME.md.
 
@@ -113,6 +113,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.4 P07 | 11 min | 3 tasks | 13 files |
 | Phase 14.4 P08 | 35 min | 3 tasks | 17 files |
 | Phase 14.4 P09 | 12 min | 3 tasks | 17 files |
+| Phase 14.4 P10 | 30 min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -282,6 +283,7 @@ Recent decisions affecting current work:
 - [Phase 14.4]: 14.4-07: layout read is its own module/schema/cache; street/courtyard counts only at confidence >= 0,6 with photo evidence (plain code, not the prompt). Live smoke: schema compiles (0,11 kr), but Folkungagatan 61 read as courtyard at 0,55 (truth street), caught by the gate; plan 08 measures how strict 0,6 must be.
 - [Phase 14.4]: 14.4-08: korsdrag and quiet bedroom are Daniel's taste (1 % of resale each, inside the unchanged 5 % cap), not modelled market value; the 0,6 layout gate is unchanged and its adequacy (window sides weak, 2 of 3 'korsdrag ja' wrong by eye) is left for Daniel
 - [Phase 14.4]: 14.4-09: fit branch chosen for BID-01 (324 eligible sold flats >= 200, smoke 5 of 5); condition prior stays 0 with label 'skick ej mätt' until plan 10 fits and CV keeps a term — Measured by the gated Haiku smoke (0,44 kr); 2 of 5 reads were below the 0,6 confidence bar, watch the usable count in plan 10
+- [Phase 14.4]: 14.4-10: sold-photo condition term rejected by 5-fold CV (186 labelled flats, 0,06359 vs 0,06362); bid premium keeps condition at 0 and says 'skick ej mätt' — Measured, not tuned (D-12, R-08). Photos of sold flats read as dated only 8 of 187 times, so the data cannot test dated against fresh.
 
 ### Pending Todos
 
@@ -313,8 +315,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-14T05:45:50.199Z
-Stopped at: Completed 14.4-09-PLAN.md
+Last session: 2026-10-14T06:08:18.093Z
+Stopped at: Completed 14.4-10-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
