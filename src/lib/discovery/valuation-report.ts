@@ -33,7 +33,7 @@ import {
   type FitInputRow,
   type FitScoreResult,
 } from "@/lib/discovery/fit-score";
-import { STAGE2_CAP_PCT, type HedonicModel } from "@/lib/discovery/hedonic-model";
+import { STAGE2_CAP_PCT, readConditionTerm, type HedonicModel } from "@/lib/discovery/hedonic-model";
 
 /** Bumped only when a field the report reads changes meaning or is removed. */
 export const FIT_RUN_RECORD_VERSION = 1;
@@ -655,13 +655,12 @@ export function buildValuationReport(input: ValuationReportInputs): ValuationRep
  * that condition is not measured, the premium adds 0, and why (the model's own reason). Pure.
  */
 export function conditionLineOfModel(model: Pick<HedonicModel, "bidPremium">): string {
-  const term = model.bidPremium.terms.condition;
-  if (term === null) return "The bid premium has no condition term: condition is not measured (\"skick ej mätt\") and the premium adds 0.";
-  if (term.source === "fit" && term.kept) {
-    return `Condition in the bid premium: ${sv(term.beta, 4)} per step (dated -1, ordinary 0, fresh +1), fitted on ${kr(term.n)} sold flats with a photo read and kept by cross-validation.`;
+  const reading = readConditionTerm(model);
+  if (reading.measured) {
+    return `Condition in the bid premium: ${sv(reading.beta, 4)} per step (dated -1, ordinary 0, fresh +1), fitted on ${kr(reading.n)} sold flats with a photo read and kept by cross-validation.`;
   }
-  const reason = term.note.replace(/^budpremie: skick ej mätt: /, "");
-  return `Condition in the bid premium: not measured ("skick ej mätt"), the premium adds 0 for every flat. Reason: ${reason}`;
+  if (reading.reason === null) return "The bid premium has no condition term: condition is not measured (\"skick ej mätt\") and the premium adds 0.";
+  return `Condition in the bid premium: not measured ("skick ej mätt"), the premium adds 0 for every flat. Reason: ${reading.reason}`;
 }
 
 /** Pearson correlation of avgift per m2 and BRF debt per m2 over the rows that have both. */

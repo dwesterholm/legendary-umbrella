@@ -577,6 +577,23 @@ export interface OverbidDetail {
   label: string;
 }
 
+/** What the model says about condition in the bid premium: a measured term, or "not measured" with the model's own reason. */
+export type ConditionReading =
+  | { readonly measured: true; readonly beta: number; readonly n: number }
+  | { readonly measured: false; readonly reason: string | null };
+
+/**
+ * The ONE place that decides whether condition is measured: only a term with source "fit" that cross-validation kept
+ * (R-08). A missing term, a prior or a rejected one is "not measured"; `reason` is the model's note without its own
+ * "budpremie: skick ej mätt: " lead-in (null when there is no term at all). Every line and label about condition
+ * (the prediction, the replay header, the before/after report) reads this, so they cannot drift apart.
+ */
+export function readConditionTerm(model: Pick<HedonicModel, "bidPremium">): ConditionReading {
+  const term = model.bidPremium.terms.condition;
+  if (term !== null && term.source === "fit" && term.kept) return { measured: true, beta: term.beta, n: term.n };
+  return { measured: false, reason: term === null ? null : term.note.replace(/^budpremie: skick ej mätt: /, "") };
+}
+
 /**
  * Expected overbid over asking with its makeup. ln(1 + premium) = a_district
  * + b x (ln asking - ln pred)   [slope form only]
@@ -613,12 +630,12 @@ export function expectedOverbidDetail(
     ln += dom.beta * (lnDays - dom.mean);
   }
 
-  const condition = bid.terms.condition;
   const conditionIndex = extra.conditionIndex ?? 0;
   // Only a measured term moves the premium: source "fit" AND kept by cross-validation (R-08).
-  const conditionMeasured = condition !== null && condition.source === "fit" && condition.kept;
-  const conditionUsed = conditionMeasured && conditionIndex !== 0;
-  if (conditionUsed) ln += condition.beta * conditionIndex;
+  const reading = readConditionTerm(model);
+  const conditionMeasured = reading.measured;
+  const conditionUsed = reading.measured && conditionIndex !== 0;
+  if (reading.measured && conditionIndex !== 0) ln += reading.beta * conditionIndex;
 
   const base = slope ? "slope" : "flat";
   let label = slope ? "distrikt+pris" : "distrikt";

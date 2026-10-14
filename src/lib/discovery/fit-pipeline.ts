@@ -48,7 +48,7 @@ import {
   type FitSnapshot,
   type ModelHealth,
 } from "@/lib/discovery/fit-score";
-import type { HedonicModel, InnerstanDistrict, OverbidDetail } from "@/lib/discovery/hedonic-model";
+import { readConditionTerm, type HedonicModel, type InnerstanDistrict, type OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
@@ -440,14 +440,12 @@ export function budpremieCell(detail: Pick<OverbidDetail, "pct" | "label"> | nul
  * term reads "Budpremie skick: ej mätt (prior 0): <reason>" - the premium then ignores condition entirely.
  */
 export function conditionLineOf(model: Pick<HedonicModel, "bidPremium">): string {
-  const term = model.bidPremium.terms.condition;
-  if (term !== null && term.source === "fit" && term.kept) {
-    const beta = term.beta.toFixed(3).replace(".", ",");
-    return `Budpremie skick: mätt på ${term.n} sålda (β ${beta})`;
+  const reading = readConditionTerm(model);
+  if (reading.measured) {
+    const beta = reading.beta.toFixed(3).replace(".", ",");
+    return `Budpremie skick: mätt på ${reading.n} sålda (β ${beta})`;
   }
-  // The model's own note already starts "budpremie: skick ej mätt: "; the line says that in its own words, so cut it once.
-  const reason = term === null ? "ingen skickterm i modellen" : term.note.replace(/^budpremie: skick ej mätt: /, "");
-  return `Budpremie skick: ej mätt (prior 0): ${reason}`;
+  return `Budpremie skick: ej mätt (prior 0): ${reading.reason ?? "ingen skickterm i modellen"}`;
 }
 
 const roundKr = (n: number): number => Math.round(n);

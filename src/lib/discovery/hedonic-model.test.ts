@@ -31,6 +31,7 @@ import {
   kernelLevel,
   parseHedonicModel,
   predictKrPerSqm,
+  readConditionTerm,
   predictLnKrPerSqm,
   renovatedCapKrPerSqm,
   type HedonicInput,
@@ -152,6 +153,22 @@ describe("hedonicModelSchema / parseHedonicModel (T-14.1-06)", () => {
       (m.bidPremium as Record<string, unknown>).terms = { dom: { beta: "x" }, condition: null };
     });
     expect(() => parseHedonicModel(bad)).toThrow();
+  });
+});
+
+describe("readConditionTerm: the one decision behind every condition line (IN-05)", () => {
+  const withTerm = (term: unknown): HedonicModel => {
+    const m = structuredClone(modelJson) as unknown as HedonicModel;
+    m.bidPremium.terms.condition = term as HedonicModel["bidPremium"]["terms"]["condition"];
+    return m;
+  };
+  it("a fitted term that was kept is measured, with its coefficient and n", () => {
+    expect(readConditionTerm(withTerm({ beta: 0.02, source: "fit", kept: true, n: 220, cvRmse: null, note: "med" }))).toEqual({ measured: true, beta: 0.02, n: 220 });
+  });
+  it("a rejected term, a prior and a missing term are not measured; the model's own lead-in is cut once", () => {
+    expect(readConditionTerm(withTerm({ beta: 0.02, source: "fit", kept: false, n: 220, cvRmse: null, note: "prövad" }))).toEqual({ measured: false, reason: "prövad" });
+    expect(readConditionTerm(withTerm({ beta: 0.5, source: "prior", kept: true, n: 0, cvRmse: null, note: "budpremie: skick ej mätt: för få." }))).toEqual({ measured: false, reason: "för få." });
+    expect(readConditionTerm(withTerm(null))).toEqual({ measured: false, reason: null });
   });
 });
 
