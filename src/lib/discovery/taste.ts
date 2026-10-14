@@ -218,7 +218,10 @@ export function tasteBonus(input: {
       : sunScore(input.orientation, input.sunPhrases);
   const sunPct = TASTE_WEIGHTS.sunMaxPct * score;
   const hubPct = hubProximityPct(hub ? hub.meters : null);
-  const korsdragPct = input.layout?.korsdrag === true ? TASTE_WEIGHTS.korsdragPct : 0;
+  // IN-07: a broker's "genomgående" (throughFlat) is already credited inside the sun score. The same fact read from the
+  // plan must not be paid a second time, so the korsdrag term is skipped when the phrase is there.
+  const throughFlatStated = input.sunPhrases?.throughFlat === true;
+  const korsdragPct = input.layout?.korsdrag === true && !throughFlatStated ? TASTE_WEIGHTS.korsdragPct : 0;
   const quietBedroomPct = input.layout?.quietBedroom === true ? TASTE_WEIGHTS.quietBedroomPct : 0;
   return {
     sunPct,

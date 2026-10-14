@@ -205,6 +205,19 @@ describe("layout terms (14.4, D-10, LAY-03)", () => {
     }
   });
 
+  it("\"genomgående\" is credited once: with the broker phrase the sun score pays it and the korsdrag term adds 0 (IN-07)", () => {
+    const layout = { korsdrag: true, quietBedroom: true };
+    const withPhrase = tasteBonus({ ...far, sunPhrases: { allDaySun: false, throughFlat: true }, layout });
+    const phraseOnly = tasteBonus({ ...far, sunPhrases: { allDaySun: false, throughFlat: true }, layout: null });
+    expect(withPhrase.sunPct).toBeGreaterThan(0); // the phrase is paid in the sun part
+    expect(withPhrase.korsdragPct).toBe(0);
+    expect(withPhrase.quietBedroomPct).toBe(0.01); // the bedroom term is a different fact and stays
+    expect(withPhrase.pct).toBeCloseTo(phraseOnly.pct + 0.01, 12);
+    // Without the phrase the layout read is paid as before; all-day sun is a different claim and does not block it.
+    expect(tasteBonus({ ...far, sunPhrases: { allDaySun: false, throughFlat: false }, layout }).korsdragPct).toBe(0.01);
+    expect(tasteBonus({ ...far, sunPhrases: { allDaySun: true, throughFlat: false }, layout }).korsdragPct).toBe(0.01);
+  });
+
   it("the layout terms are added on top; the cap is not applied here (the best sun and hub part plus both terms is 7 %)", () => {
     const r = tasteBonus({
       latitude: FOLKUNGAGATAN.lat,
