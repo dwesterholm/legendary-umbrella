@@ -68,6 +68,10 @@ export const SOLD_CONDITION_MIN_ELIGIBLE = 200;
 /** Seed of the stratified hash sample: fixed, so the sample is the same on every run. */
 export const SOLD_CONDITION_SAMPLE_SEED = "14.4-skick";
 
+/** The smoke reads this many sold flats and the fit branch needs at least {@link SOLD_CONDITION_SMOKE_MIN_READ} usable answers. */
+export const SOLD_CONDITION_SMOKE_N = 5;
+export const SOLD_CONDITION_SMOKE_MIN_READ = 4;
+
 export const SOLD_CONDITION_VALUES = ["dated", "ok", "fresh"] as const;
 
 /** The answer the model gives: one enum and one confidence. See the file header for why it stays this small. */
@@ -395,4 +399,38 @@ export function isConditionEligible(row: SoldRow): boolean {
  */
 export function selectConditionSample(rows: readonly SoldRow[], n: number = SOLD_CONDITION_SAMPLE_N): SoldRow[] {
   return stratifiedHashSample(rows.filter(isConditionEligible), n, SOLD_CONDITION_SAMPLE_SEED);
+}
+
+// ---------------------------------------------------------------------------
+// The branch rule (R-08)
+// ---------------------------------------------------------------------------
+
+export interface SoldConditionBranch {
+  branch: "fit" | "prior";
+  /** Plain Swedish reason; empty for the fit branch. */
+  reason: string;
+}
+
+/**
+ * The R-08 rule, measured and not assumed: the condition term is FITTED only when at least
+ * {@link SOLD_CONDITION_MIN_ELIGIBLE} sales have photo ids and an asking price AND the smoke read at least
+ * {@link SOLD_CONDITION_SMOKE_MIN_READ} of {@link SOLD_CONDITION_SMOKE_N} sold flats successfully. Otherwise the
+ * prior branch applies: the term is 0 and the premium says "skick ej mätt". `smoke` is null when no smoke has run.
+ */
+export function soldConditionBranch(input: {
+  eligible: number;
+  smoke: { attempted: number; read: number } | null;
+}): SoldConditionBranch {
+  if (input.eligible <= 0) return { branch: "prior", reason: "inga säljfoton" };
+  if (input.eligible < SOLD_CONDITION_MIN_ELIGIBLE) {
+    return { branch: "prior", reason: `för få säljfoton: ${input.eligible} rader, kräver ${SOLD_CONDITION_MIN_ELIGIBLE}` };
+  }
+  if (input.smoke === null) return { branch: "prior", reason: "smoketestet är inte körd" };
+  if (input.smoke.read < SOLD_CONDITION_SMOKE_MIN_READ) {
+    return {
+      branch: "prior",
+      reason: `smoketestet läste ${input.smoke.read} av ${SOLD_CONDITION_SMOKE_N} säljbilder, kräver ${SOLD_CONDITION_SMOKE_MIN_READ}`,
+    };
+  }
+  return { branch: "fit", reason: "" };
 }

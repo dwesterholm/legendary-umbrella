@@ -17,6 +17,7 @@ import {
   SOLD_CONDITION_MODEL,
   SOLD_CONDITION_SAMPLE_N,
   SOLD_CONDITION_SAMPLE_SEED,
+  SOLD_CONDITION_SMOKE_MIN_READ,
   SOLD_CONDITION_SYSTEM_PROMPT,
   SOLD_CONDITION_USER_INSTRUCTION,
   SOLD_CONDITION_VERSION,
@@ -26,6 +27,7 @@ import {
   runSoldConditionReads,
   saveSoldConditionCache,
   selectConditionSample,
+  soldConditionBranch,
   soldConditionEntryId,
   soldConditionImagesOf,
   soldConditionSchema,
@@ -372,5 +374,23 @@ describe("selectConditionSample (D-12)", () => {
 
   it("the default n is 300", () => {
     expect(selectConditionSample(rows)).toHaveLength(300);
+  });
+});
+
+describe("soldConditionBranch (R-08, measured not assumed)", () => {
+  it("fit needs at least 200 eligible rows AND 4 of 5 smoke reads", () => {
+    expect(SOLD_CONDITION_SMOKE_MIN_READ).toBe(4);
+    expect(soldConditionBranch({ eligible: 200, smoke: { attempted: 5, read: 4 } })).toEqual({ branch: "fit", reason: "" });
+    expect(soldConditionBranch({ eligible: 324, smoke: { attempted: 5, read: 5 } }).branch).toBe("fit");
+  });
+
+  it("prior when the smoke read 3 of 5, or when there are 199 eligible rows, or when no smoke has run", () => {
+    expect(soldConditionBranch({ eligible: 324, smoke: { attempted: 5, read: 3 } }).branch).toBe("prior");
+    expect(soldConditionBranch({ eligible: 199, smoke: { attempted: 5, read: 5 } }).branch).toBe("prior");
+    expect(soldConditionBranch({ eligible: 324, smoke: null })).toEqual({ branch: "prior", reason: "smoketestet är inte körd" });
+  });
+
+  it("no eligible rows at all is 'inga säljfoton'", () => {
+    expect(soldConditionBranch({ eligible: 0, smoke: null })).toEqual({ branch: "prior", reason: "inga säljfoton" });
   });
 });

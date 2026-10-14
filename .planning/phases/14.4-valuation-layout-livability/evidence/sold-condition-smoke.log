@@ -1,0 +1,7 @@
+ANTHROPIC_API_KEY: satt
+Smoke 1 av 5 (read, 5 bilder): ok, konfidens 0,40
+Smoke 2 av 5 (read, 5 bilder): ok, konfidens 0,40
+Smoke 3 av 5 (read, 5 bilder): fresh, konfidens 0,90
+Smoke 4 av 5 (read, 5 bilder): fresh, konfidens 0,85
+Smoke 5 av 5 (read, 4 bilder): fresh, konfidens 0,85
+Smoke: 5 av 5 tolkade, schemat/bilderna: ok, 5 anrop, 0 från cache, 0,44 kr denna körning (totalt 0,44 kr av 30,00 kr, smoketaket 1,00 kr)
