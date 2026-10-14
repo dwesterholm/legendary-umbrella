@@ -1,0 +1,278 @@
+{
+  "rowsWithLayout": 74,
+  "values": {
+    "balconySide": {
+      "courtyard": 17,
+      "unknown": 5,
+      "street": 12,
+      "none": 40
+    },
+    "windowSides": {
+      "corner": 11,
+      "one": 46,
+      "twoOpposite": 16,
+      "unknown": 1
+    },
+    "bedroomSide": {
+      "unknown": 58,
+      "street": 7,
+      "courtyard": 9
+    },
+    "streetEvidence": {
+      "courtyardGreenery": 17,
+      "oppositeFacade": 38,
+      "cars": 14,
+      "none": 5
+    },
+    "confidence": {
+      "below05": 8,
+      "from05to06": 25,
+      "from06to07": 13,
+      "from07": 28
+    }
+  },
+  "usable": {
+    "balcony": 41,
+    "balconyStreetOrCourtyard": 27,
+    "windowSides": 40,
+    "bedroom": 13
+  },
+  "appliedToSun": 25,
+  "agreement": {
+    "n": 2,
+    "agree": 2,
+    "cases": [
+      {
+        "booliId": 6284016,
+        "layoutSide": "courtyard",
+        "impliedFacade": "west",
+        "statedFacades": [
+          "west"
+        ],
+        "agree": true
+      },
+      {
+        "booliId": 6282708,
+        "layoutSide": "courtyard",
+        "impliedFacade": "west",
+        "statedFacades": [
+          "west"
+        ],
+        "agree": true
+      }
+    ]
+  },
+  "consistency": {
+    "n": 3,
+    "contradictions": 0
+  },
+  "eyeSample": [
+    {
+      "booliId": 130457,
+      "balconySide": "courtyard",
+      "livingOnBalconySide": true,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": true,
+      "windowSides": "one",
+      "bedroomSide": "courtyard",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.6,
+      "images": {
+        "booli": 4,
+        "broker": 1
+      },
+      "korsdrag": false,
+      "quietBedroom": true
+    },
+    {
+      "booliId": 142942,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "twoOpposite",
+      "bedroomSide": "unknown",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.6,
+      "images": {
+        "booli": 4,
+        "broker": 0
+      },
+      "korsdrag": true,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 144070,
+      "balconySide": "courtyard",
+      "livingOnBalconySide": true,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "one",
+      "bedroomSide": "unknown",
+      "streetEvidence": "courtyardGreenery",
+      "confidence": 0.7,
+      "images": {
+        "booli": 4,
+        "broker": 3
+      },
+      "korsdrag": false,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 150148,
+      "balconySide": "courtyard",
+      "livingOnBalconySide": true,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": true,
+      "windowSides": "one",
+      "bedroomSide": "courtyard",
+      "streetEvidence": "courtyardGreenery",
+      "confidence": 0.55,
+      "images": {
+        "booli": 4,
+        "broker": 0
+      },
+      "korsdrag": null,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 208640,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "one",
+      "bedroomSide": "unknown",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.4,
+      "images": {
+        "booli": 4,
+        "broker": 2
+      },
+      "korsdrag": null,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 309602,
+      "balconySide": "courtyard",
+      "livingOnBalconySide": true,
+      "kitchenOnBalconySide": true,
+      "bedroomOnBalconySide": false,
+      "windowSides": "corner",
+      "bedroomSide": "unknown",
+      "streetEvidence": "courtyardGreenery",
+      "confidence": 0.7,
+      "images": {
+        "booli": 4,
+        "broker": 3
+      },
+      "korsdrag": false,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 315823,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "one",
+      "bedroomSide": "unknown",
+      "streetEvidence": "cars",
+      "confidence": 0.55,
+      "images": {
+        "booli": 4,
+        "broker": 3
+      },
+      "korsdrag": null,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 323721,
+      "balconySide": "courtyard",
+      "livingOnBalconySide": true,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "twoOpposite",
+      "bedroomSide": "unknown",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.7,
+      "images": {
+        "booli": 4,
+        "broker": 3
+      },
+      "korsdrag": true,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 324812,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "twoOpposite",
+      "bedroomSide": "unknown",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.7,
+      "images": {
+        "booli": 4,
+        "broker": 0
+      },
+      "korsdrag": true,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 324847,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "one",
+      "bedroomSide": "unknown",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.55,
+      "images": {
+        "booli": 4,
+        "broker": 2
+      },
+      "korsdrag": null,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 324863,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "one",
+      "bedroomSide": "unknown",
+      "streetEvidence": "none",
+      "confidence": 0.4,
+      "images": {
+        "booli": 4,
+        "broker": 0
+      },
+      "korsdrag": null,
+      "quietBedroom": null
+    },
+    {
+      "booliId": 328402,
+      "balconySide": "none",
+      "livingOnBalconySide": false,
+      "kitchenOnBalconySide": false,
+      "bedroomOnBalconySide": false,
+      "windowSides": "corner",
+      "bedroomSide": "unknown",
+      "streetEvidence": "oppositeFacade",
+      "confidence": 0.6,
+      "images": {
+        "booli": 4,
+        "broker": 3
+      },
+      "korsdrag": false,
+      "quietBedroom": null
+    }
+  ],
+  "spend": {
+    "lifetimeSek": 8.0043
+  }
+}
