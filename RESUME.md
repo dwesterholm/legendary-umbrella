@@ -6,32 +6,31 @@
 
 ---
 
-## ▶️ PICK UP HERE (2026-10-13, written before Daniel cleared the session)
+## ▶️ PICK UP HERE (2026-10-14, Phase 14.4 EXECUTED 10/10 — awaiting Daniel's judgment calls)
 
-Daniel's instruction: **go ahead with Phase 14.4, three parts in this order, autonomously** (question
-budget 0 — decide, record, report). Scope + his reasoning: ROADMAP "### Phase 14.4"; memory
-`daniel-fit-score-decisions` (2026-10-13 additions).
+Phase 14.4 ran autonomously 2026-10-13/14 (question budget 0; every orchestrator decision is R-01..R-10 in
+`14.4-CONTEXT.md`). All on `main` (ff + pushed after every wave) and on `gsd/phase-14.4-valuation-layout-livability`.
+Code review 0 critical / 8 warnings → 10 fixed (`14.4-REVIEW-FIX.md`), 11 skipped by instruction (judgment or
+by-design). Verification 14/14 must-haves, `human_needed` on six judgment items → `14.4-UAT.md`.
+`phase.complete` refuses until UAT is answered → Daniel: read `14.4-UAT.md`, then `/gsd-verify-work 14.4`
+(same for 14.1 / 14.3 which are still open on answered UATs).
 
-PLANNED 2026-10-13 (commit 07e3ced): CONTEXT (D-01..D-18 + R-01..R-09 after research), RESEARCH, PATTERNS,
-VALIDATION, COVERAGE, 10 sequential plans (01–06 Part 1, 07–08 Part 2, 09–10 Part 3); checker 0 blockers.
-Resume with: `/gsd-execute-phase 14.4 --auto` (plan 01 task 1 freezes the pre-cap ranking first). Execute sequentially on the working tree (`workflow.use_worktrees=false`); ff-merge
-main + push after every wave; Fable 5.1 trailer on orchestrator commits.
+What 14.4 delivered (plain words; numbers in `evidence/valuation-report.md`, `14.4-10-SUMMARY.md`):
+- Avgift (−0,64 % per 10 kr/kvm/mån) and BRF debt (−0,24 % per 1 000 kr/kvm) are IN the valuation; model v2
+  from 1 200 enriched sales (free local rung, 0 USD Apify, ~50 min). Tomträtt: no variation in sold data → zeroed.
+- 20 % cap GONE; soft flag "ovanligt långt under modellpris" (`RESIDUAL_FLAG_BASIS`: expectedFinal 10/77 vs asking 26/77).
+- Days on market in the bid premium (CV kept; clamped to training range after review). Condition term TRIED on
+  187 sold-photo reads (26 kr) and REJECTED by CV (only 8 dated) → prior 0, "skick ej mätt".
+- Layout read (own schema/cache, 0,11 kr/flat, 7,89 kr run): coverage balcony 41/75, windows 40/75, bedroom 13/75
+  after the 0,6 gate; by eye weak (2 of 3 "korsdrag ja" wrong; Folkungagatan 61 misread courtyard at 0,55, gated out).
+- Folkungagatan 61: rank 29 → 17 (profit 778 545 → 1 123 047 kr); driver = balcony stage-2 coefficient on the ±8 %
+  clamp (+523 k), days term −164 k, avgift −9 k. Open knob.
+- Spend: 0 USD Apify; ≈ 70 kr Anthropic (35 kr of it a one-off re-buy of the 14.2 picture cache after its key changed).
 
-Part 1 — valuation covers the gaps: enrich ≈7 400 cached sales (`.planning/calibration/data/
-slutpriser-cache.json`) with avgift/kvm, BRF debt/kvm (`src/lib/booli/brf-page.ts`, dedup by BRF
-≈1 500 pages), tenure + listing age (sold-detail pages, Oct 2025+ only) via the FREE local rung;
-refit `data/hedonic-model.json`; REMOVE the 20 % credit cap (`MAX_CREDIT_PCT` in fit-score.ts);
-keep a soft residual flag; report how the old `kredit-tak` gaps are now explained and how the
-top 15 moves. Part 2 — layout & livability: one cached slim vision call per flat (≈0,5 kr; NOT
-the compass): balcony side, rooms on it, windows one vs two sides (korsdrag), bedroom street/
-courtyard, street-vs-courtyard confirmed from photos; combine with 14.3's footprint bearing →
-room-level sun; drop `streetOnlyFactor` where layout known; korsdrag + quiet-bedroom as taste
-terms and mail flags; calibration Folkungagatan 61 (sun yes, korsdrag no, bedroom on the
-street). Part 3 — condition-aware bid premium.
-
-UAT: 14.1 and 14.3 items all answered by Daniel 2026-10-13 (files updated). If `phase.complete`
-still refuses, run `/gsd-verify-work 14.1` / `14.3` once — every answer is already in the UAT files.
-Everything else (weekly job one-time steps) unchanged: scripts/launchd/README.md.
+Open for Daniel (also in UAT): ±8 % stage-2 clamp; RESIDUAL_FLAG_BASIS; the 0,6 layout gate (window sides);
+whether the layout street/courtyard side should steer sun hours (25/75 flats, n=2 agreement with OSM);
+whether to raise the 30 kr sold-condition cap to retry the condition term differently (3,4 kr left).
+Side note: 24 `review-imgs/*.webp` have been tracked since a July lint commit (unrelated to 14.4) — worth a look.
 
 ---
 
