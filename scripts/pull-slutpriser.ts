@@ -412,8 +412,8 @@ function appendRunLog(entry: Record<string, unknown>): void {
 type StopWhy = "tid" | "utmaning" | "felkvot" | "signal" | "kostnad";
 
 /**
- * One guard for both long passes: the D-04 stop rule first (a challenge page, or 5 % failures after 50
- * attempts), then a stop signal, the cost guard and the --max-minutes limit. The first reason that trips
+ * One guard for both long passes: the D-04 stop rule first (a challenge page, or ENRICH_STOP_FAIL_RATE failures
+ * after ENRICH_STOP_MIN_ATTEMPTS attempts), then a stop signal, the cost guard and the --max-minutes limit. The first reason that trips
  * is kept: scheduling never restarts.
  */
 function makeRunGuard(args: {
