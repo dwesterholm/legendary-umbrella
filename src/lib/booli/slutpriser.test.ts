@@ -1403,6 +1403,120 @@ describe("failure ledger in enrichSoldRows (14.4-02, Pitfall 4)", () => {
     expect(rows.every((r) => r.enriched?.detailVersion === 2)).toBe(true);
   });
 
+  describe("a block is not the page's fault (WR-06)", () => {
+    class ChallengeError extends Error {
+      constructor() {
+        super("HTTP 403");
+        this.name = "ChallengeError";
+      }
+    }
+    class NonRetryableRenderError extends Error {
+      constructor() {
+        super("Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.");
+        this.name = "NonRetryableRenderError";
+      }
+    }
+
+    it("a ChallengeError leaves no ledger entry, so two blocked days cannot kill the page", async () => {
+      const rows = [soldRow(1), soldRow(2)];
+      const ledger: Record<string, { attempts: number; lastAt: string; reason: string }> = {};
+      const render = async () => {
+        throw new ChallengeError();
+      };
+      const messages: string[] = [];
+      for (const today of ["2026-10-13", "2026-10-14", "2026-10-15"]) {
+        const res = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {}, ledger, today, onProgress: (m) => messages.push(m) });
+        expect(res.enriched).toBe(0);
+      }
+      expect(ledger).toEqual({});
+      // Still due, and still picked by the sampler with the ledger in force.
+      expect(selectEnrichmentSample(rows, 10, "seed", { ledger })).toHaveLength(2);
+      expect(messages.every((m) => m.includes("blockerad"))).toBe(true);
+    });
+
+    it("the renderer's challenge counter rising during the call is enough, even when the thrown error has another class", async () => {
+      const rows = [soldRow(1)];
+      const ledger: Record<string, { attempts: number; lastAt: string; reason: string }> = {};
+      let challenged = 0;
+      const render = async () => {
+        challenged += 1; // what the local browser does before it gives up with a NonRetryableRenderError
+        throw new NonRetryableRenderError();
+      };
+      await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {}, ledger, today: "2026-10-13", challengedCount: () => challenged });
+      expect(ledger).toEqual({});
+    });
+
+    it("an ordinary failure with a flat counter still costs an attempt", async () => {
+      const rows = [soldRow(1)];
+      const ledger: Record<string, { attempts: number; lastAt: string; reason: string }> = {};
+      const render = async () => {
+        throw new NonRetryableRenderError();
+      };
+      await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist: () => {}, ledger, today: "2026-10-13", challengedCount: () => 0 });
+      expect(ledger["sold:1"]).toEqual({ attempts: 1, lastAt: "2026-10-13", reason: "NonRetryableRenderError" });
+    });
+
+    it("the block still counts as a failed render for the run (the stop rule sees it)", async () => {
+      const rows = [soldRow(1)];
+      const res = await enrichSoldRows({ rows, sample: rows, render: async () => { throw new ChallengeError(); }, concurrency: 1, maxRenders: 5, persist: () => {} });
+      expect(res).toEqual({ enriched: 0, failed: 1, noData: 0, rendersUsed: 1 });
+    });
+
+    it("BRF pages are treated the same way", async () => {
+      const cache = { ...newSlutprisCache("2026-10-13", CUTOFF) };
+      const fetchBrf = async () => {
+        throw new ChallengeError();
+      };
+      await enrichBrfs({ cache, ids: ["1", "2"], fetchBrf, persist: () => {}, today: "2026-10-13", concurrency: 1, maxFetches: 10 });
+      expect(cache.enrichFailures ?? {}).toEqual({});
+    });
+  });
+
+  describe("progress and rejection paths print no message and no URL (WR-07)", () => {
+    class Leaky extends Error {
+      status = 502;
+      constructor() {
+        super("GET https://www.booli.se/annons/1?token=SECRET via proxy user:pw@10.0.0.1 failed");
+        this.name = "LeakyError";
+      }
+    }
+
+    it("onProgress carries the class name and the HTTP status only", async () => {
+      const rows = [soldRow(1)];
+      const messages: string[] = [];
+      await enrichSoldRows({ rows, sample: rows, render: async () => { throw new Leaky(); }, concurrency: 1, maxRenders: 5, persist: () => {}, onProgress: (m) => messages.push(m) });
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain("LeakyError");
+      expect(messages[0]).toContain("HTTP 502");
+      expect(messages[0]).not.toMatch(/booli\.se|SECRET|proxy|10\.0\.0\.1|https?:/i);
+    });
+
+    it("the aggregate error of an unexpected rejection names the class, not the message", async () => {
+      const rows = [soldRow(1)];
+      let calls = 0;
+      const persist = () => {
+        calls += 1;
+        if (calls <= 1) throw new Leaky(); // the persist after the enrichment; the one before rethrowing succeeds
+      };
+      const render = async () => [{ hasApollo: true, flight: flightWith({ constructionYear: 1950, amenities: [], rent: { raw: 2000 } }) }];
+      const err = await enrichSoldRows({ rows, sample: rows, render, concurrency: 1, maxRenders: 5, persist }).then(
+        () => null,
+        (e: unknown) => e as Error,
+      );
+      expect(err).toBeInstanceOf(Error);
+      expect(err!.message).toContain("LeakyError");
+      expect(err!.message).not.toMatch(/booli\.se|SECRET|proxy|10\.0\.0\.1|https?:/i);
+    });
+
+    it("the BRF pass prints the class name only too", async () => {
+      const cache = { ...newSlutprisCache("2026-10-13", CUTOFF) };
+      const messages: string[] = [];
+      await enrichBrfs({ cache, ids: ["1"], fetchBrf: async () => { throw new Leaky(); }, persist: () => {}, today: "2026-10-13", concurrency: 1, maxFetches: 10, onProgress: (m) => messages.push(m) });
+      expect(messages[0]).toContain("LeakyError");
+      expect(messages[0]).not.toMatch(/booli\.se|SECRET|proxy|10\.0\.0\.1|https?:/i);
+    });
+  });
+
   it("passes the running attempted/failed counts to budgetExceeded", async () => {
     const rows = Array.from({ length: 6 }, (_, i) => soldRow(10 + i));
     const seen: Array<{ attempted: number; failed: number }> = [];

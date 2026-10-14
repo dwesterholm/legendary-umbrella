@@ -575,7 +575,7 @@ async function runEnrichment(opts: {
   };
 
   const render = async (url: string): Promise<unknown[]> => {
-    if (!isBooliUrl(url)) throw new Error(`Inte en Booli-url: ${url}`);
+    if (!isBooliUrl(url)) throw new Error("Inte en Booli-url");
     try {
       const items = await runPlaywrightRender(url, SOLD_DETAIL_PAGE_FUNCTION, {
         waitSecs: SLUTPRIS_WAIT_SECS,
@@ -610,6 +610,7 @@ async function runEnrichment(opts: {
       maxRenders: opts.maxRenders,
       persist: () => persist(cache),
       budgetExceeded: guard.check,
+      challengedCount: () => browser.stats()?.challenged ?? 0,
       onProgress: (msg) => {
         if (msg.includes("(no_data)")) noData += 1;
         console.log(`  ${msg}`);
@@ -757,6 +758,7 @@ async function runBrfPass(opts: {
       cache,
       ids,
       fetchBrf: (id) => fetchBrfFacts(id),
+      challengedCount: () => browser.stats()?.challenged ?? 0,
       persist: () => persist(cache),
       today: todayIso(),
       concurrency: opts.concurrency,

@@ -1045,6 +1045,11 @@ export interface EnrichOptions {
    */
   budgetExceeded?: (progress: { attempted: number; failed: number }) => boolean;
   onProgress?: (msg: string) => void;
+  /**
+   * How many Booli challenges the renderer has seen so far. A render that fails while this number rises was blocked,
+   * not broken: the page keeps its retry budget (WR-06). Without it only an error named "ChallengeError" counts.
+   */
+  challengedCount?: () => number;
   /** Also read rows whose enriched record is not at SOLD_DETAIL_VERSION (the 35 old-shape rows). */
   reEnrich?: boolean;
   /** The cache's enrichFailures object, mutated in place; needs `today`. */
@@ -1065,6 +1070,20 @@ export interface EnrichResult {
 /** The error CLASS name only: a message can carry a URL, so it is never stored (T-14.4-08). */
 function errorClassOf(e: unknown): string {
   return (e instanceof Error && e.name ? e.name : "Error").slice(0, 80);
+}
+
+/**
+ * What may be PRINTED about a failure: the class name, plus the HTTP status when the error carries one. Never the
+ * message (it can hold a request URL or proxy details), never the stack (WR-07).
+ */
+function safeFailureLabel(e: unknown): string {
+  const status = e instanceof Error ? (e as { status?: unknown }).status : undefined;
+  return typeof status === "number" ? `${errorClassOf(e)}, HTTP ${status}` : errorClassOf(e);
+}
+
+/** A failure caused by a detected Booli challenge: the error says so, or the challenge counter rose during the call. */
+function causedByBlock(e: unknown, challengedBefore: number, challengedNow: number): boolean {
+  return errorClassOf(e) === "ChallengeError" || challengedNow > challengedBefore;
 }
 
 /** The ledger entry after one more failed attempt. */
@@ -1126,12 +1145,18 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
     }
     const url = soldDetailUrl(row.booliId);
     rendersUsed += 1;
+    const challengedBefore = opts.challengedCount?.() ?? 0;
     let facts: SoldDetailFacts;
     try {
       facts = parseSoldDetailFacts(flightTextOf(await opts.render(url)));
     } catch (e) {
       failed += 1;
-      opts.onProgress?.(`${row.booliId}: MISSLYCKADES (${e instanceof Error ? e.message : String(e)})`);
+      if (causedByBlock(e, challengedBefore, opts.challengedCount?.() ?? 0)) {
+        // WR-06: a block says nothing about this page. It stays retryable; the stop rule ends the run.
+        opts.onProgress?.(`${row.booliId}: blockerad av Booli (${safeFailureLabel(e)}), räknas inte som försök`);
+        return;
+      }
+      opts.onProgress?.(`${row.booliId}: MISSLYCKADES (${safeFailureLabel(e)})`);
       recordFailure(row.booliId, errorClassOf(e));
       return;
     }
@@ -1165,7 +1190,7 @@ export async function enrichSoldRows(opts: EnrichOptions): Promise<EnrichResult>
   if (rejected.length > 0) {
     opts.persist();
     const first = rejected[0].reason;
-    throw new Error(`${rejected.length} berikning(ar) avbröts oväntat: ${first instanceof Error ? first.message : String(first)}`);
+    throw new Error(`${rejected.length} berikning(ar) avbröts oväntat: ${safeFailureLabel(first)}`);
   }
   return { enriched, failed, noData, rendersUsed };
 }
@@ -1203,6 +1228,8 @@ export interface EnrichBrfsOptions {
   /** True stops scheduling; gets the attempts made so far and how many failed. */
   budgetExceeded?: (progress: { attempted: number; failed: number }) => boolean;
   onProgress?: (msg: string) => void;
+  /** As in {@link EnrichOptions.challengedCount}: a fetch that fails while this rises does not use up the page's attempts. */
+  challengedCount?: () => number;
 }
 
 export interface EnrichBrfsResult {
@@ -1244,13 +1271,18 @@ export async function enrichBrfs(opts: EnrichBrfsOptions): Promise<EnrichBrfsRes
       return;
     }
     attempted += 1;
+    const challengedBefore = opts.challengedCount?.() ?? 0;
     let facts: BrfFacts;
     try {
       facts = await opts.fetchBrf(id);
     } catch (e) {
       failed += 1;
+      if (causedByBlock(e, challengedBefore, opts.challengedCount?.() ?? 0)) {
+        opts.onProgress?.(`förening ${id}: blockerad av Booli (${safeFailureLabel(e)}), räknas inte som försök`);
+        return;
+      }
       ledger[`brf:${id}`] = recordedFailure(ledger[`brf:${id}`], opts.today, errorClassOf(e));
-      opts.onProgress?.(`förening ${id}: MISSLYCKADES (${errorClassOf(e)})`);
+      opts.onProgress?.(`förening ${id}: MISSLYCKADES (${safeFailureLabel(e)})`);
       opts.persist();
       return;
     }
@@ -1268,7 +1300,7 @@ export async function enrichBrfs(opts: EnrichBrfsOptions): Promise<EnrichBrfsRes
   if (rejected.length > 0) {
     opts.persist();
     const first = rejected[0].reason;
-    throw new Error(`${rejected.length} föreningsläsning(ar) avbröts oväntat: ${first instanceof Error ? first.message : String(first)}`);
+    throw new Error(`${rejected.length} föreningsläsning(ar) avbröts oväntat: ${safeFailureLabel(first)}`);
   }
   return { fetched, failed, skipped, attempted };
 }
