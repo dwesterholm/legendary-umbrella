@@ -125,6 +125,13 @@ const domTermSchema = z.object({
   beta: num,
   /** Training mean of ln(1 + days on market); the term is beta x (ln(1 + days) - mean). */
   mean: num,
+  /**
+   * The training 1st and 99th percentile of ln(1 + days on market) (WR-02). At prediction ln(1 + days) is clamped to
+   * [lnLo, lnHi], so a flat listed for two years or one listed today cannot extrapolate the term. Required in
+   * version 2 and checked below (lnLo < lnHi). The coefficient is fitted on the raw values, unclamped.
+   */
+  lnLo: num,
+  lnHi: num,
   n: num.min(0),
   kept: z.boolean(),
   cvRmse: z.object({ without: num, with: num }),
@@ -217,7 +224,27 @@ export const hedonicModelSchema = z
     (m) =>
       HEDONIC_FEATURES.every((name) => m.features.filter((f) => f.name === name).length === 1),
     { message: "features must list each of the nine features exactly once", path: ["features"] },
-  );
+  )
+  // WR-08: the clamp bounds the coefficients were fitted under must travel with the file. A fitted continuous
+  // feature without them would be predicted unclamped (train/serve skew); lo/hi alone, or lo >= hi, is nonsense.
+  .superRefine((m, ctx) => {
+    m.features.forEach((f, i) => {
+      const clamped = (CLAMPED_FEATURES as readonly string[]).includes(f.name);
+      const hasLo = f.lo !== undefined;
+      const hasHi = f.hi !== undefined;
+      if (hasLo !== hasHi) {
+        ctx.addIssue({ code: "custom", message: `${f.name}: lo and hi must both be present or both absent`, path: ["features", i] });
+      } else if (clamped && f.source === "fit" && !hasLo) {
+        ctx.addIssue({ code: "custom", message: `${f.name}: a fitted continuous feature needs clamp bounds lo and hi`, path: ["features", i] });
+      } else if (hasLo && hasHi && !((f.lo as number) < (f.hi as number))) {
+        ctx.addIssue({ code: "custom", message: `${f.name}: clamp bound lo must be below hi`, path: ["features", i] });
+      }
+    });
+    const dom = m.bidPremium.terms.dom;
+    if (dom !== null && !(dom.lnLo < dom.lnHi)) {
+      ctx.addIssue({ code: "custom", message: "days-on-market clamp bound lnLo must be below lnHi", path: ["bidPremium", "terms", "dom"] });
+    }
+  });
 
 export type HedonicModel = z.infer<typeof hedonicModelSchema>;
 
@@ -580,7 +607,11 @@ export function expectedOverbidDetail(
       ? extra.daysOnMarket
       : null;
   const domUsed = domKept && days !== null;
-  if (domUsed) ln += dom.beta * (Math.log(1 + (days as number)) - dom.mean);
+  if (domUsed) {
+    // Clamped to the training range (WR-02): a brand-new or a years-old listing is priced at the edge of what was seen.
+    const lnDays = Math.min(dom.lnHi, Math.max(dom.lnLo, Math.log(1 + (days as number))));
+    ln += dom.beta * (lnDays - dom.mean);
+  }
 
   const condition = bid.terms.condition;
   const conditionIndex = extra.conditionIndex ?? 0;
@@ -1605,7 +1636,22 @@ function fitBidPremiumBaseAndDays(
     : !improves
       ? "prövad, förkastad: korsvalidering"
       : "prövad, förkastad: fel tecken";
-  const dom = { beta: domFull.c, mean: domFull.mean, n: domFull.n, kept, cvRmse: { without: cvWithout, with: cvWith }, note };
+  // The clamp range of the term at prediction: 1st-99th percentile of ln(1 + days) over every row with known days.
+  const knownLn = rows.flatMap((r) => {
+    const v = knownDomLn(r);
+    return v === null ? [] : [v];
+  });
+  const sortedLn = [...knownLn].sort((a, b) => a - b);
+  const dom = {
+    beta: domFull.c,
+    mean: domFull.mean,
+    lnLo: percentileSorted(sortedLn, CLAMP_LOW_PERCENTILE),
+    lnHi: percentileSorted(sortedLn, CLAMP_HIGH_PERCENTILE),
+    n: domFull.n,
+    kept,
+    cvRmse: { without: cvWithout, with: cvWith },
+    note,
+  };
   if (!kept) return { ...base, terms: { dom, condition: null } };
   return {
     ...base,

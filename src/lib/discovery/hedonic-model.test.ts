@@ -143,7 +143,7 @@ describe("hedonicModelSchema / parseHedonicModel (T-14.1-06)", () => {
   it("accepts the term slots when filled and refuses a malformed term", () => {
     const filled = broken((m) => {
       (m.bidPremium as Record<string, unknown>).terms = {
-        dom: { beta: -0.05, mean: 2.5, n: 900, kept: true, cvRmse: { without: 0.075, with: 0.073 }, note: "x" },
+        dom: { beta: -0.05, mean: 2.5, lnLo: 0, lnHi: 6, n: 900, kept: true, cvRmse: { without: 0.075, with: 0.073 }, note: "x" },
         condition: { beta: 0.02, source: "prior", kept: true, n: 0, cvRmse: null, note: "antagen" },
       };
     });
@@ -152,6 +152,71 @@ describe("hedonicModelSchema / parseHedonicModel (T-14.1-06)", () => {
       (m.bidPremium as Record<string, unknown>).terms = { dom: { beta: "x" }, condition: null };
     });
     expect(() => parseHedonicModel(bad)).toThrow();
+  });
+});
+
+describe("clamp bounds are part of the version-2 file (WR-08, WR-02)", () => {
+  const featureOf = (m: Record<string, unknown>, name: string): Record<string, unknown> =>
+    (m.features as Array<Record<string, unknown>>).find((f) => f.name === name)!;
+  const fitted = (m: Record<string, unknown>, name: string): Record<string, unknown> => {
+    const f = featureOf(m, name);
+    f.source = "fit";
+    f.lo = 20;
+    f.hi = 120;
+    return f;
+  };
+  const domTerm = (over: Record<string, unknown> = {}) => ({
+    beta: -0.05, mean: 2.5, lnLo: 0, lnHi: 6, n: 900, kept: true, cvRmse: { without: 0.075, with: 0.073 }, note: "x", ...over,
+  });
+  const withDomTerm = (term: unknown) =>
+    broken((m) => {
+      (m.bidPremium as Record<string, unknown>).terms = { dom: term, condition: null };
+    });
+
+  it("a well-formed fitted avgift with lo < hi is accepted", () => {
+    expect(() => parseHedonicModel(broken((m) => void fitted(m, "avgiftPerSqmMonth")))).not.toThrow();
+  });
+
+  it("rejects a fitted continuous feature that has no lo/hi (it would be predicted unclamped)", () => {
+    for (const name of ["avgiftPerSqmMonth", "brfDebtPerSqm"]) {
+      const bad = broken((m) => {
+        const f = fitted(m, name);
+        delete f.lo;
+        delete f.hi;
+      });
+      expect(() => parseHedonicModel(bad), name).toThrow(new RegExp(`${name}.*clamp bounds`));
+    }
+  });
+
+  it("rejects lo and hi that are inverted or equal", () => {
+    for (const [lo, hi] of [[120, 20], [50, 50]]) {
+      const bad = broken((m) => {
+        const f = fitted(m, "avgiftPerSqmMonth");
+        f.lo = lo;
+        f.hi = hi;
+      });
+      expect(() => parseHedonicModel(bad), `${lo}/${hi}`).toThrow(/lo must be below hi/);
+    }
+  });
+
+  it("rejects lo without hi (and hi without lo), on any feature", () => {
+    for (const keep of ["lo", "hi"]) {
+      const bad = broken((m) => {
+        const f = featureOf(m, "floor");
+        f[keep] = 1;
+      });
+      expect(() => parseHedonicModel(bad), keep).toThrow(/both be present or both absent/);
+    }
+  });
+
+  it("the days term needs lnLo and lnHi: missing, inverted and equal are all refused", () => {
+    expect(parseHedonicModel(withDomTerm(domTerm())).bidPremium.terms.dom?.lnHi).toBe(6);
+    const noBounds = domTerm();
+    delete (noBounds as Record<string, unknown>).lnLo;
+    delete (noBounds as Record<string, unknown>).lnHi;
+    expect(() => parseHedonicModel(withDomTerm(noBounds))).toThrow(/lnLo/);
+    expect(() => parseHedonicModel(withDomTerm(domTerm({ lnLo: 6, lnHi: 0 })))).toThrow(/lnLo must be below lnHi/);
+    expect(() => parseHedonicModel(withDomTerm(domTerm({ lnLo: 3, lnHi: 3 })))).toThrow(/lnLo must be below lnHi/);
   });
 });
 
@@ -1093,6 +1158,8 @@ describe("expectedOverbidDetail (VAL-03)", () => {
     m.bidPremium.terms.dom = {
       beta: -0.05,
       mean: 2.5,
+      lnLo: 0,
+      lnHi: 6,
       n: 400,
       kept,
       cvRmse: { without: 0.1, with: 0.09 },
@@ -1110,6 +1177,22 @@ describe("expectedOverbidDetail (VAL-03)", () => {
     expect(old.domUsed).toBe(true);
     expect(old.domDays).toBe(60);
     expect(old.label).toBe("distrikt+dagar, skick ej mätt");
+  });
+
+  it("days outside the training range are clamped to its edges, so a fresh or a years-old listing does not extrapolate (WR-02)", () => {
+    const m = withDom(true);
+    m.bidPremium.terms.dom!.lnLo = Math.log(1 + 5);
+    m.bidPremium.terms.dom!.lnHi = Math.log(1 + 100);
+    const at = (days: number) => expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: days });
+    expect(at(0).pct).toBe(at(5).pct);
+    expect(at(2).pct).toBe(at(5).pct);
+    expect(at(5000).pct).toBe(at(100).pct);
+    expect(at(730).pct).toBe(at(100).pct);
+    // Inside the range nothing changes: the plain formula.
+    expect(at(40).pct).toBeCloseTo(Math.exp(m.bidPremium.perDistrict.Södermalm.a - 0.05 * (Math.log(41) - 2.5)) - 1, 12);
+    expect(at(5).pct).toBeGreaterThan(at(100).pct);
+    // The days that were given are still reported as given.
+    expect(at(5000).domDays).toBe(5000);
   });
 
   it("unknown days add exactly nothing (the training mean) and the label says so", () => {
@@ -1208,7 +1291,7 @@ describe("expectedOverbidDetail: condition index (BID-02, R-08)", () => {
 
   it("the +skick part sits after +dagar and before the unknown-days note", () => {
     const m = withCondition(fitted(true));
-    m.bidPremium.terms.dom = { beta: -0.05, mean: 2.5, n: 400, kept: true, cvRmse: { without: 0.1, with: 0.09 }, note: "med" };
+    m.bidPremium.terms.dom = { beta: -0.05, mean: 2.5, lnLo: 0, lnHi: 6, n: 400, kept: true, cvRmse: { without: 0.1, with: 0.09 }, note: "med" };
     expect(expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: 20, conditionIndex: -1 }).label).toBe("distrikt+dagar+skick");
     expect(expectedOverbidDetail(m, "Södermalm", 100_000, 110_000, { daysOnMarket: null, conditionIndex: -1 }).label).toBe("distrikt+skick, dagar okända");
   });
@@ -1277,6 +1360,25 @@ describe("fitBidPremium: days on market (VAL-03)", () => {
     expect(dom!.note).toMatch(/^med: korsvalidering \d,\d{4} -> \d,\d{4}$/);
     expect(dom!.n).toBe(480);
     expect(fit.terms.condition).toBeNull();
+  });
+
+  it("stores the 1st-99th percentile of ln(1 + days) over the rows with known days as the clamp range (WR-02), kept or not", () => {
+    for (const domBeta of [-0.02, 0.03]) {
+      const rows = domRows({ seed: 11, domBeta, withAsk: false });
+      const dom = fitBidPremium(rows).terms.dom!;
+      const sorted = rows.flatMap((r) => (r.domLn === null ? [] : [r.domLn])).sort((a, b) => a - b);
+      const at = (p: number): number => {
+        const pos = (sorted.length - 1) * p;
+        const lo = Math.floor(pos);
+        const hi = Math.ceil(pos);
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+      };
+      expect(dom.lnLo).toBeCloseTo(at(0.01), 12);
+      expect(dom.lnHi).toBeCloseTo(at(0.99), 12);
+      expect(dom.lnLo).toBeLessThan(dom.lnHi);
+      expect(dom.lnLo).toBeGreaterThanOrEqual(sorted[0]);
+      expect(dom.lnHi).toBeLessThanOrEqual(sorted[sorted.length - 1]);
+    }
   });
 
   it("slope base: the days effect is found next to the asking-price slope", () => {

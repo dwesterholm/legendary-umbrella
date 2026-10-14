@@ -1329,6 +1329,8 @@ describe("days on market move the expected final price, never the resale value (
   domModel.bidPremium.terms.dom = {
     beta: -0.04,
     mean: 2.7,
+    lnLo: 0,
+    lnHi: 6,
     n: 800,
     kept: true,
     cvRmse: { without: 0.074, with: 0.073 },

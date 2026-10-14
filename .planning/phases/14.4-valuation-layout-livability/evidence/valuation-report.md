@@ -15,19 +15,19 @@ How to read this: "Kredit" is the part of a flat's gap (renovated resale value m
 | Fatburstrappan 18 | 3 -> 3 | 1 324 414 | +796 309 | +112 524 | -43 352 | -128 533 | -103 392 | 0 | +110 322 | 2 068 292 | -26,4 % | ja / ja |
 | Tjurbergsgatan 38 | 4 -> 5 | 1 149 609 | +165 022 | +316 182 | +87 661 | -59 599 | +59 310 | 0 | -21 061 | 1 697 124 | -22,5 % | ja / ja |
 | Sysslomansgatan 26 | 5 -> 6 | 1 129 602 | +262 850 | +409 850 | -160 564 | -58 798 | +24 844 | 0 | +4 760 | 1 612 544 | -21,0 % | ja / ja |
-| Idungatan 5 | 6 -> 19 | 1 147 417 | +125 806 | -57 985 | -114 570 | +4 108 | 0 | 0 | +3 950 | 1 108 725 | -13,1 % | nej / ja |
+| Idungatan 5 | 6 -> 18 | 1 147 417 | +125 806 | -57 985 | -114 570 | +4 108 | 0 | 0 | +3 950 | 1 108 725 | -13,1 % | nej / ja |
 | Hornsgatan 119 | 7 -> 9 | 1 198 845 | +572 137 | -10 650 | -156 752 | +16 449 | +31 948 | 0 | -10 980 | 1 640 997 | -21,9 % | ja / ja |
-| Hagaesplanaden 63 | 10 -> 20 | 1 181 616 | +238 301 | -258 740 | +123 773 | -71 738 | -134 802 | 0 | +97 046 | 1 175 456 | -15,2 % | nej / nej |
+| Hagaesplanaden 63 | 10 -> 19 | 1 181 616 | +238 301 | -258 740 | +123 773 | -71 738 | -134 802 | 0 | +97 046 | 1 175 456 | -15,2 % | nej / nej |
 | Sågargatan 14 | 11 -> 4 | 1 113 689 | +235 276 | +406 324 | +210 078 | -74 112 | +2 681 | 0 | -6 763 | 1 887 173 | -26,8 % | ja / ja |
 | Falugatan 5 | 12 -> 2 | 1 347 156 | +790 364 | +410 124 | -30 835 | -75 095 | -24 643 | 0 | -33 644 | 2 383 426 | -29,2 % | ja / ja |
 | Ola Hanssonsgatan 4 | 15 -> 13 | 1 032 905 | +350 521 | -53 667 | -96 148 | -61 796 | +7 263 | 0 | +13 194 | 1 192 273 | -17,7 % | nej / ja |
 | Fyrverkarbacken 25 | 16 -> 8 | 1 042 096 | +711 592 | +2 910 | +30 725 | -78 397 | -100 799 | 0 | +2 871 | 1 610 998 | -27,3 % | ja / ja |
 | Fyrverkarbacken 23 | 18 -> 12 | 1 056 320 | +759 818 | +5 665 | -240 888 | -77 354 | -101 720 | 0 | +2 927 | 1 404 769 | -22,3 % | ja / ja |
 | Pokalvägen 4 | 19 -> 10 | 1 004 126 | +164 486 | +207 941 | +170 001 | -25 484 | +9 595 | 0 | +2 353 | 1 533 018 | -23,9 % | ja / ja |
-| Reimersholmsgatan 39 | 20 -> 15 | 1 039 581 | +141 096 | -304 116 | +414 313 | -72 805 | +28 760 | 0 | -3 457 | 1 243 372 | -20,1 % | nej / ja |
+| Reimersholmsgatan 39 | 20 -> 24 | 1 039 581 | +141 096 | -304 116 | +303 124 | -72 627 | +28 689 | 0 | -3 309 | 1 132 438 | -17,6 % | nej / ja |
 | Lindvallsplan 10 | 24 -> 31 | 909 035 | +141 398 | -57 832 | -130 941 | -10 863 | -3 047 | 0 | +1 846 | 849 597 | -12,6 % | nej / ja |
 | Fyrverkarbacken 27 | 25 -> 50 | 913 757 | +48 823 | -277 489 | +32 522 | -66 313 | -81 740 | 0 | +7 338 | 576 898 | -7,1 % | nej / nej |
-| **Summa** | | 19 103 737 | +6 549 977 | +1 303 594 | +257 251 | -1 141 438 | -560 003 | 0 | +249 437 | 25 762 554 | | 10 / 15 rader |
+| **Summa** | | 19 103 737 | +6 549 977 | +1 303 594 | +146 062 | -1 141 260 | -560 075 | 0 | +249 585 | 25 651 620 | | 10 / 15 rader |
 
 "Ny anpassning" is what changed between the frozen run and the model refitted on today's data with the old six features: the balcony and build-year effects (stage 2) and the refitted coefficients. "Dagar" is the days-on-market term that now sits in the bid premium, measured in that same refitted model. "Avgift", "BRF-skuld" and "Tomträtt" are what each fact takes off (-) or adds to (+) the credit in the new model, measured by scoring the flat again with that one fact set to unknown. "Övrigt" is what is left of the move from the refitted model to the new one: the other coefficients shifting when avgift and debt entered, and the way the effects combine. Tomträtt is 0 because the model could not estimate it (no leasehold sales in the data).
 
@@ -42,16 +42,16 @@ Left: the first 15 of the frozen run. Right: the first 15 of the new run. "Plats
 | 3 | Fatburstrappan 18 | 1 243 273 | 3 | Fatburstrappan 18 | 1 982 689 | 3 |
 | 4 | Tjurbergsgatan 38 | 1 175 043 | 5 | Sågargatan 14 | 1 864 930 | 11 |
 | 5 | Sysslomansgatan 26 | 1 148 584 | 6 | Tjurbergsgatan 38 | 1 727 703 | 4 |
-| 6 | Idungatan 5 | 1 142 386 | 19 | Sysslomansgatan 26 | 1 638 343 | 5 |
+| 6 | Idungatan 5 | 1 142 386 | 18 | Sysslomansgatan 26 | 1 638 343 | 5 |
 | 7 | Hornsgatan 119 | 1 132 308 | 9 | Klippgatan 14E | 1 636 712 | 8 |
 | 8 | Klippgatan 14E | 1 110 148 | 7 | Fyrverkarbacken 25 | 1 586 168 | 16 |
-| 9 | Kungsklippan 20 | 1 104 427 | 24 | Hornsgatan 119 | 1 573 814 | 7 |
-| 10 | Hagaesplanaden 63 | 1 091 780 | 20 | Pokalvägen 4 | 1 519 265 | 19 |
+| 9 | Kungsklippan 20 | 1 104 427 | 23 | Hornsgatan 119 | 1 573 814 | 7 |
+| 10 | Hagaesplanaden 63 | 1 091 780 | 19 | Pokalvägen 4 | 1 519 265 | 19 |
 | 11 | Sågargatan 14 | 1 087 775 | 4 | Erstagatan 21 | 1 467 857 | 2 |
 | 12 | Falugatan 5 | 1 087 156 | 2 | Fyrverkarbacken 23 | 1 336 563 | 18 |
 | 13 | Kungsbro Strand 19 | 1 049 066 | 14 | Ola Hanssonsgatan 4 | 1 191 212 | 15 |
 | 14 | Hagaesplanaden 73 | 1 034 775 | 27 | Kungsbro Strand 19 | 1 178 529 | 13 |
-| 15 | Ola Hanssonsgatan 4 | 1 033 329 | 13 | Reimersholmsgatan 39 | 1 160 872 | 20 |
+| 15 | Ola Hanssonsgatan 4 | 1 033 329 | 13 | Fridhemsgatan 41 | 1 126 397 | 40 |
 
 ## Folkungagatan 61
 
@@ -59,7 +59,7 @@ Booli 150148, the tracked listing.
 
 | | Före | Efter |
 |---|---:|---:|
-| Plats | 29 | 18 |
+| Plats | 29 | 17 |
 | Vinst (kr) | 778 545 | 1 123 047 |
 | Framtida värde, renoverad (kr) | 5 006 594 | 5 503 113 |
 | Förväntat slutpris (kr) | 4 274 581 | 4 441 627 |
@@ -104,7 +104,7 @@ The expected overbid on the asking price, for the new top 15. "Före" is the sam
 | 12 | Fyrverkarbacken 23 | +15,7 % | +18,9 % | distrikt+pris+dagar, skick ej mätt |
 | 13 | Ola Hanssonsgatan 4 | +12,9 % | +12,5 % | distrikt+pris+dagar, skick ej mätt |
 | 14 | Kungsbro Strand 19 | +10,2 % | +6,4 % | distrikt+pris+dagar, skick ej mätt |
-| 15 | Reimersholmsgatan 39 | +18,3 % | +2,9 % | distrikt+pris+dagar, skick ej mätt |
+| 15 | Fridhemsgatan 41 | +8,3 % | +13,2 % | distrikt+pris+dagar, skick ej mätt |
 
 Mean change over the 77 rows ranked in both runs: -0,6 procentenheter.
 
@@ -145,12 +145,12 @@ Correlation of avgift per kvm and BRF debt per kvm over the snapshot's listings 
 ## Findings
 
 - The old ceiling hid 6 549 977 kr of credit across 17 rows, 4 582 762 kr of it inside the old top 15.
-- 11 of the 15 listings in the new top 15 were also in the old top 15. Left: Idungatan 5 (6) -> 19, Kungsklippan 20 (9) -> 24, Hagaesplanaden 63 (10) -> 20, Hagaesplanaden 73 (14) -> 27. Entered: Fyrverkarbacken 25 (8) from 16, Pokalvägen 4 (10) from 19, Fyrverkarbacken 23 (12) from 18, Reimersholmsgatan 39 (15) from 20.
-- The profits of the top 15 add up to 16 964 298 kr before and 24 306 093 kr after.
-- Across the 17 formerly capped rows the credit moved by +6 658 817 kr in total: ceiling removal +6 549 977, refit +1 303 594, days term +257 251, avgift -1 141 438, BRF debt -560 003, tomträtt 0, rest +249 437. 7 of them rank higher now, 2 keep their place, 8 rank lower or are no longer ranked.
+- 11 of the 15 listings in the new top 15 were also in the old top 15. Left: Idungatan 5 (6) -> 18, Kungsklippan 20 (9) -> 23, Hagaesplanaden 63 (10) -> 19, Hagaesplanaden 73 (14) -> 27. Entered: Fyrverkarbacken 25 (8) from 16, Pokalvägen 4 (10) from 19, Fyrverkarbacken 23 (12) from 18, Fridhemsgatan 41 (15) from 40.
+- The profits of the top 15 add up to 16 964 298 kr before and 24 271 618 kr after.
+- Across the 17 formerly capped rows the credit moved by +6 547 883 kr in total: ceiling removal +6 549 977, refit +1 303 594, days term +146 062, avgift -1 141 260, BRF debt -560 075, tomträtt 0, rest +249 585. 6 of them rank higher now, 2 keep their place, 9 rank lower or are no longer ranked.
 - 10 of the 17 formerly capped rows carry the residual flag on the expected-final basis, 15 on the asking basis.
 - Over all 77 comparable rows the residual flag marks 10 on the expected-final basis and 26 on the asking basis (limit -20,5 % against the model; basis in force: expectedFinal).
-- Folkungagatan 61 moved from rank 29 to 18; profit 778 545 -> 1 123 047 kr. Its credit moved +329 474 kr: ceiling 0, refit +522 906, days term -164 043, avgift -8 698, BRF debt 0, tomträtt 0, rest -20 691.
+- Folkungagatan 61 moved from rank 29 to 17; profit 778 545 -> 1 123 047 kr. Its credit moved +329 474 kr: ceiling 0, refit +522 906, days term -164 043, avgift -8 698, BRF debt 0, tomträtt 0, rest -20 691.
 - Over the 77 rows ranked in both runs the expected overbid changed by -0,6 procentenheter on average.
 - Avgift per kvm and BRF debt per kvm correlate at r = 0,37 over 72 listings that have both.
 - These stage-2 coefficients sit exactly on the +-8 % limit the fit allows: balkong +8,0 %, byggår 1961–1990 -8,0 %. The fit clamps stage-2 effects at this limit, so the unclamped estimate may be larger than shown. Open point; nothing was changed.

@@ -148,8 +148,8 @@ function modelWithFeatures(avgiftBeta: number, source: "fit" | "zeroed" = "fit")
   return parseHedonicModel({
     ...modelJson,
     features: modelJson.features.map((f) => {
-      if (f.name === "avgiftPerSqmMonth") return { ...f, mean: 60, beta: source === "zeroed" ? 0 : avgiftBeta, se: 0.001, source };
-      if (f.name === "brfDebtPerSqm") return { ...f, mean: 5000, beta: -0.000002, se: 0.000001, source: "fit" };
+      if (f.name === "avgiftPerSqmMonth") return { ...f, mean: 60, beta: source === "zeroed" ? 0 : avgiftBeta, se: 0.001, source, lo: 20, hi: 120 };
+      if (f.name === "brfDebtPerSqm") return { ...f, mean: 5000, beta: -0.000002, se: 0.000001, source: "fit", lo: 0, hi: 20000 };
       return f;
     }),
   });
@@ -300,7 +300,7 @@ describe("buildValuationReport: the formerly capped rows", () => {
       ...modelJson,
       bidPremium: {
         ...modelJson.bidPremium,
-        terms: { dom: { beta: -0.035, mean: 2.68, n: 800, kept: true, cvRmse: { without: 0.074, with: 0.073 }, note: "test" }, condition: null },
+        terms: { dom: { beta: -0.035, mean: 2.68, lnLo: 0, lnHi: 6, n: 800, kept: true, cvRmse: { without: 0.074, with: 0.073 }, note: "test" }, condition: null },
       },
     });
     const report = buildValuationReport(threeRecords(rows, featured, withDom, () => true));

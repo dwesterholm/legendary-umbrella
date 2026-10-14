@@ -565,40 +565,6 @@
     },
     {
       "rank": 17,
-      "key": "https://www.booli.se/bostad/3958359",
-      "booliId": 3958359,
-      "address": "Reimersholmsgatan 39",
-      "district": "Södermalm",
-      "livingArea": 46.5,
-      "askingSek": 3395000,
-      "predKrPerSqm": 94982.20066312072,
-      "askToPred": 0.7686782594890996,
-      "resaleSek": 4780856.204981598,
-      "purchaseSek": 3489981.5444167666,
-      "overbidPct": 0.027976890844408464,
-      "gapSek": 1290874.6605648315,
-      "creditSek": 1290874.6605648315,
-      "profitSek": 1208374.6605648315,
-      "renoSek": 82500,
-      "tasteSek": 0,
-      "taxSek": 0,
-      "renoTier": "mixed",
-      "flags": [
-        "hiddenDefectRisk",
-        "residualFlag",
-        "renoUnknown"
-      ],
-      "featuresImputed": [
-        "tomtratt"
-      ],
-      "notComparableReason": null,
-      "expectedFinalToPred": 0.790183487249296,
-      "residualPct": -0.209816512750704,
-      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
-      "overbidPctDetail": 0.027976890844408464
-    },
-    {
-      "rank": 18,
       "key": "https://www.booli.se/bostad/4314237",
       "booliId": 4314237,
       "address": "Hagaesplanaden 63",
@@ -632,7 +598,7 @@
       "overbidPctDetail": 0.06369213557563191
     },
     {
-      "rank": 19,
+      "rank": 18,
       "key": "https://www.booli.se/bostad/150148",
       "booliId": 150148,
       "address": "Folkungagatan 61",
@@ -667,7 +633,7 @@
       "overbidPctDetail": 0.20079972189546091
     },
     {
-      "rank": 20,
+      "rank": 19,
       "key": "https://www.booli.se/annons/6284016",
       "booliId": 6284016,
       "address": "Ola Hanssonsgatan 9",
@@ -699,7 +665,7 @@
       "overbidPctDetail": 0.09836718819228407
     },
     {
-      "rank": 21,
+      "rank": 20,
       "key": "https://www.booli.se/bostad/142942",
       "booliId": 142942,
       "address": "Karlsviksgatan 9",
@@ -730,6 +696,39 @@
       "residualPct": -0.14018991383704626,
       "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.13398028849252874
+    },
+    {
+      "rank": 21,
+      "key": "https://www.booli.se/bostad/3958359",
+      "booliId": 3958359,
+      "address": "Reimersholmsgatan 39",
+      "district": "Södermalm",
+      "livingArea": 46.5,
+      "askingSek": 3395000,
+      "predKrPerSqm": 94982.20066312072,
+      "askToPred": 0.7686782594890996,
+      "resaleSek": 4780856.204981598,
+      "purchaseSek": 3601170.322459053,
+      "overbidPct": 0.06072763548131155,
+      "gapSek": 1179685.8825225453,
+      "creditSek": 1179685.8825225453,
+      "profitSek": 1097185.8825225453,
+      "renoSek": 82500,
+      "tasteSek": 0,
+      "taxSek": 0,
+      "renoTier": "mixed",
+      "flags": [
+        "hiddenDefectRisk",
+        "renoUnknown"
+      ],
+      "featuresImputed": [
+        "tomtratt"
+      ],
+      "notComparableReason": null,
+      "expectedFinalToPred": 0.8153582726337627,
+      "residualPct": -0.1846417273662373,
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
+      "overbidPctDetail": 0.06072763548131155
     },
     {
       "rank": 22,

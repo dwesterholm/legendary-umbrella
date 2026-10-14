@@ -144,7 +144,7 @@
       "booliId": 130457,
       "address": "Idungatan 5",
       "oldRank": 6,
-      "newRank": 19,
+      "newRank": 18,
       "oldCredit": 1147417.0989144053,
       "oldGap": 1273222.8061942505,
       "intermediateGap": 1100667.295199342,
@@ -188,7 +188,7 @@
       "booliId": 4314237,
       "address": "Hagaesplanaden 63",
       "oldRank": 10,
-      "newRank": 20,
+      "newRank": 19,
       "oldCredit": 1181615.5592594151,
       "oldGap": 1419917.0154983317,
       "intermediateGap": 1284949.5951941945,
@@ -342,20 +342,20 @@
       "booliId": 3958359,
       "address": "Reimersholmsgatan 39",
       "oldRank": 20,
-      "newRank": 15,
+      "newRank": 24,
       "oldCredit": 1039581.1370106805,
       "oldGap": 1180677.2042404665,
-      "intermediateGap": 1290874.6605648315,
-      "newGap": 1243371.571199417,
+      "intermediateGap": 1179685.8825225453,
+      "newGap": 1132437.7015701635,
       "capRemovedKr": 141096.06722978596,
-      "refitKr": 110197.45632436499,
+      "refitKr": -991.3217179211788,
       "refitExclDaysKr": -304115.8039557687,
-      "avgiftKr": -72805.4603560837,
-      "debtKr": 28759.72515422292,
+      "avgiftKr": -72627.28166822484,
+      "debtKr": 28688.549068610184,
       "tomtrattKr": 0,
-      "ovrigtKr": -3457.3541635535657,
-      "daysKr": 414313.2602801337,
-      "residualPct": -0.20135913797652916,
+      "ovrigtKr": -3309.4483527671546,
+      "daysKr": 303124.4822378475,
+      "residualPct": -0.17599192064328262,
       "flagExpectedFinal": false,
       "flagAsking": true
     },
@@ -458,7 +458,7 @@
         "address": "Idungatan 5",
         "profitSek": 1142386.1342709358,
         "otherTop15Rank": null,
-        "otherRank": 19
+        "otherRank": 18
       },
       {
         "rank": 7,
@@ -485,7 +485,7 @@
         "address": "Kungsklippan 20",
         "profitSek": 1104426.6053945401,
         "otherTop15Rank": null,
-        "otherRank": 24
+        "otherRank": 23
       },
       {
         "rank": 10,
@@ -494,7 +494,7 @@
         "address": "Hagaesplanaden 63",
         "profitSek": 1091779.6256032444,
         "otherTop15Rank": null,
-        "otherRank": 20
+        "otherRank": 19
       },
       {
         "rank": 11,
@@ -671,12 +671,12 @@
       },
       {
         "rank": 15,
-        "key": "https://www.booli.se/bostad/3958359",
-        "booliId": 3958359,
-        "address": "Reimersholmsgatan 39",
-        "profitSek": 1160871.571199417,
+        "key": "https://www.booli.se/bostad/144070",
+        "booliId": 144070,
+        "address": "Fridhemsgatan 41",
+        "profitSek": 1126397.114732167,
         "otherTop15Rank": null,
-        "otherRank": 20
+        "otherRank": 40
       }
     ]
   },
@@ -693,7 +693,7 @@
       "tasteSek": 151532.8996839723
     },
     "after": {
-      "rank": 18,
+      "rank": 17,
       "profitSek": 1123047.0986652053,
       "resaleSek": 5503112.886901321,
       "expectedFinalSek": 4441626.671612996,
@@ -708,7 +708,7 @@
       "booliId": 150148,
       "address": "Folkungagatan 61",
       "oldRank": 29,
-      "newRank": 18,
+      "newRank": 17,
       "oldCredit": 732012.1991648916,
       "oldGap": 732012.1991648916,
       "intermediateGap": 1090874.9801238896,
@@ -853,15 +853,15 @@
         "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       },
       {
-        "key": "https://www.booli.se/bostad/3958359",
-        "address": "Reimersholmsgatan 39",
+        "key": "https://www.booli.se/bostad/144070",
+        "address": "Fridhemsgatan 41",
         "rank": 15,
-        "overbidBefore": 0.18327790303768365,
-        "overbidAfter": 0.02873396995353139,
+        "overbidBefore": 0.0825632402931964,
+        "overbidAfter": 0.13180603301770977,
         "labelAfter": "distrikt+pris+dagar, skick ej mätt"
       }
     ],
-    "meanChange": -0.005929016505825348,
+    "meanChange": -0.005504657270015415,
     "rowsInBoth": 77,
     "conditionLine": "Condition in the bid premium: not measured (\"skick ej mätt\"), the premium adds 0 for every flat. Reason: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186."
   },
@@ -959,12 +959,12 @@
   },
   "findings": [
     "The old ceiling hid 6 549 977 kr of credit across 17 rows, 4 582 762 kr of it inside the old top 15.",
-    "11 of the 15 listings in the new top 15 were also in the old top 15. Left: Idungatan 5 (6) -> 19, Kungsklippan 20 (9) -> 24, Hagaesplanaden 63 (10) -> 20, Hagaesplanaden 73 (14) -> 27. Entered: Fyrverkarbacken 25 (8) from 16, Pokalvägen 4 (10) from 19, Fyrverkarbacken 23 (12) from 18, Reimersholmsgatan 39 (15) from 20.",
-    "The profits of the top 15 add up to 16 964 298 kr before and 24 306 093 kr after.",
-    "Across the 17 formerly capped rows the credit moved by +6 658 817 kr in total: ceiling removal +6 549 977, refit +1 303 594, days term +257 251, avgift -1 141 438, BRF debt -560 003, tomträtt 0, rest +249 437. 7 of them rank higher now, 2 keep their place, 8 rank lower or are no longer ranked.",
+    "11 of the 15 listings in the new top 15 were also in the old top 15. Left: Idungatan 5 (6) -> 18, Kungsklippan 20 (9) -> 23, Hagaesplanaden 63 (10) -> 19, Hagaesplanaden 73 (14) -> 27. Entered: Fyrverkarbacken 25 (8) from 16, Pokalvägen 4 (10) from 19, Fyrverkarbacken 23 (12) from 18, Fridhemsgatan 41 (15) from 40.",
+    "The profits of the top 15 add up to 16 964 298 kr before and 24 271 618 kr after.",
+    "Across the 17 formerly capped rows the credit moved by +6 547 883 kr in total: ceiling removal +6 549 977, refit +1 303 594, days term +146 062, avgift -1 141 260, BRF debt -560 075, tomträtt 0, rest +249 585. 6 of them rank higher now, 2 keep their place, 9 rank lower or are no longer ranked.",
     "10 of the 17 formerly capped rows carry the residual flag on the expected-final basis, 15 on the asking basis.",
     "Over all 77 comparable rows the residual flag marks 10 on the expected-final basis and 26 on the asking basis (limit -20,5 % against the model; basis in force: expectedFinal).",
-    "Folkungagatan 61 moved from rank 29 to 18; profit 778 545 -> 1 123 047 kr. Its credit moved +329 474 kr: ceiling 0, refit +522 906, days term -164 043, avgift -8 698, BRF debt 0, tomträtt 0, rest -20 691.",
+    "Folkungagatan 61 moved from rank 29 to 17; profit 778 545 -> 1 123 047 kr. Its credit moved +329 474 kr: ceiling 0, refit +522 906, days term -164 043, avgift -8 698, BRF debt 0, tomträtt 0, rest -20 691.",
     "Over the 77 rows ranked in both runs the expected overbid changed by -0,6 procentenheter on average.",
     "Avgift per kvm and BRF debt per kvm correlate at r = 0,37 over 72 listings that have both.",
     "These stage-2 coefficients sit exactly on the +-8 % limit the fit allows: balkong +8,0 %, byggår 1961–1990 -8,0 %. The fit clamps stage-2 effects at this limit, so the unclamped estimate may be larger than shown. Open point; nothing was changed."

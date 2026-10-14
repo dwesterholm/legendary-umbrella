@@ -497,39 +497,6 @@
     },
     {
       "rank": 15,
-      "key": "https://www.booli.se/bostad/3958359",
-      "booliId": 3958359,
-      "address": "Reimersholmsgatan 39",
-      "district": "Södermalm",
-      "livingArea": 46.5,
-      "askingSek": 3395000,
-      "predKrPerSqm": 94045.57797343377,
-      "askToPred": 0.7763337124558509,
-      "resaleSek": 4735923.399191656,
-      "purchaseSek": 3492551.827992239,
-      "overbidPct": 0.02873396995353139,
-      "gapSek": 1243371.571199417,
-      "creditSek": 1243371.571199417,
-      "profitSek": 1160871.571199417,
-      "renoSek": 82500,
-      "tasteSek": 0,
-      "taxSek": 0,
-      "renoTier": "mixed",
-      "flags": [
-        "hiddenDefectRisk",
-        "renoUnknown"
-      ],
-      "featuresImputed": [
-        "tomtratt"
-      ],
-      "notComparableReason": null,
-      "expectedFinalToPred": 0.7986408620234708,
-      "residualPct": -0.20135913797652916,
-      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
-      "overbidPctDetail": 0.02873396995353139
-    },
-    {
-      "rank": 16,
       "key": "https://www.booli.se/bostad/144070",
       "booliId": 144070,
       "address": "Fridhemsgatan 41",
@@ -561,7 +528,7 @@
       "overbidPctDetail": 0.13180603301770977
     },
     {
-      "rank": 17,
+      "rank": 16,
       "key": "https://www.booli.se/annons/6256773",
       "booliId": 6256773,
       "address": "Ringvägen 162",
@@ -594,7 +561,7 @@
       "overbidPctDetail": 0.12367740878123135
     },
     {
-      "rank": 18,
+      "rank": 17,
       "key": "https://www.booli.se/bostad/150148",
       "booliId": 150148,
       "address": "Folkungagatan 61",
@@ -629,7 +596,7 @@
       "overbidPctDetail": 0.20206405185737375
     },
     {
-      "rank": 19,
+      "rank": 18,
       "key": "https://www.booli.se/bostad/130457",
       "booliId": 130457,
       "address": "Idungatan 5",
@@ -664,7 +631,7 @@
       "overbidPctDetail": 0.12543195926693484
     },
     {
-      "rank": 20,
+      "rank": 19,
       "key": "https://www.booli.se/bostad/4314237",
       "booliId": 4314237,
       "address": "Hagaesplanaden 63",
@@ -698,7 +665,7 @@
       "overbidPctDetail": 0.062404831251901216
     },
     {
-      "rank": 21,
+      "rank": 20,
       "key": "https://www.booli.se/bostad/142942",
       "booliId": 142942,
       "address": "Karlsviksgatan 9",
@@ -731,7 +698,7 @@
       "overbidPctDetail": 0.13416443632866137
     },
     {
-      "rank": 22,
+      "rank": 21,
       "key": "https://www.booli.se/annons/6284016",
       "booliId": 6284016,
       "address": "Ola Hanssonsgatan 9",
@@ -763,7 +730,7 @@
       "overbidPctDetail": 0.09790453033118451
     },
     {
-      "rank": 23,
+      "rank": 22,
       "key": "https://www.booli.se/bostad/324847",
       "booliId": 324847,
       "address": "Tjurbergsgatan 38",
@@ -797,7 +764,7 @@
       "overbidPctDetail": 0.1632153329811996
     },
     {
-      "rank": 24,
+      "rank": 23,
       "key": "https://www.booli.se/annons/6282457",
       "booliId": 6282457,
       "address": "Kungsklippan 20",
@@ -829,6 +796,39 @@
       "residualPct": -0.11994240725592697,
       "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
       "overbidPctDetail": 0.10631304924438001
+    },
+    {
+      "rank": 24,
+      "key": "https://www.booli.se/bostad/3958359",
+      "booliId": 3958359,
+      "address": "Reimersholmsgatan 39",
+      "district": "Södermalm",
+      "livingArea": 46.5,
+      "askingSek": 3395000,
+      "predKrPerSqm": 94045.57797343377,
+      "askToPred": 0.7763337124558509,
+      "resaleSek": 4735923.399191656,
+      "purchaseSek": 3603485.6976214927,
+      "overbidPct": 0.06140963111089626,
+      "gapSek": 1132437.7015701635,
+      "creditSek": 1132437.7015701635,
+      "profitSek": 1049937.7015701635,
+      "renoSek": 82500,
+      "tasteSek": 0,
+      "taxSek": 0,
+      "renoTier": "mixed",
+      "flags": [
+        "hiddenDefectRisk",
+        "renoUnknown"
+      ],
+      "featuresImputed": [
+        "tomtratt"
+      ],
+      "notComparableReason": null,
+      "expectedFinalToPred": 0.8240080793567174,
+      "residualPct": -0.17599192064328262,
+      "overbidLabel": "distrikt+pris+dagar, skick ej mätt",
+      "overbidPctDetail": 0.06140963111089626
     },
     {
       "rank": 25,
