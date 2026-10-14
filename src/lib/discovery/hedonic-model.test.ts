@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import {
   CENTRALITY_HUBS,
+  CONDITION_MIN_LABELLED,
   CV_FOLDS,
   EXPECTED_SIGNS,
   HEDONIC_FEATURES,
@@ -1371,6 +1372,171 @@ describe("fitBidPremium: days on market (VAL-03)", () => {
   });
 });
 
+describe("fitBidPremium: condition stage on sold-photo labels (BID-01, R-08)", () => {
+  type CondRow = {
+    district: District;
+    z: number;
+    askLnKrm2: number | null;
+    predLnKrm2: number;
+    domLn?: number | null;
+    cond: -1 | 0 | 1 | null;
+  };
+  /**
+   * `labelled` rows carry a cond in {-1, 0, 1}; `unlabelled` rows carry null. ln(1 + p) = a_d + k cond + noise,
+   * with the asking price drawn independently of cond (so corr(cond, asking-vs-model) is about 0).
+   */
+  function condRows(opts: { seed: number; k: number; labelled: number; unlabelled?: number; noise?: number }): CondRow[] {
+    const g = lcg(opts.seed);
+    const out: CondRow[] = [];
+    const districts = Object.keys(CENTRES) as District[];
+    const make = (i: number, labelled: boolean): CondRow => {
+      const district = districts[i % districts.length];
+      const predLnKrm2 = CENTRES[district].level;
+      const r = g.uniform();
+      const cond: -1 | 0 | 1 = r < 0.25 ? -1 : r < 0.75 ? 0 : 1;
+      const u = -0.1 + 0.12 * g.normal();
+      return {
+        district,
+        z: DISTRICT_A[district] + opts.k * cond + (opts.noise ?? 0.02) * g.normal(),
+        askLnKrm2: predLnKrm2 + u,
+        predLnKrm2,
+        cond: labelled ? cond : null,
+      };
+    };
+    for (let i = 0; i < opts.labelled; i++) out.push(make(i, true));
+    for (let i = 0; i < (opts.unlabelled ?? 0); i++) out.push(make(opts.labelled + i, false));
+    return out;
+  }
+  /** The same rows with no label at all: the base and days fits must not move with labels. */
+  const unlabel = (rows: readonly CondRow[]): CondRow[] => rows.map((r) => ({ ...r, cond: null }));
+
+  it("a real condition effect (0.02 per step) is fitted, kept, and lowers the CV error", () => {
+    const fit = fitBidPremium(condRows({ seed: 71, k: 0.02, labelled: 150 }));
+    const c = fit.terms.condition!;
+    expect(c.source).toBe("fit");
+    expect(c.kept).toBe(true);
+    expect(Math.abs(c.beta - 0.02)).toBeLessThan(0.006);
+    expect(c.n).toBe(150);
+    expect(c.cvRmse).not.toBeNull();
+    expect(c.cvRmse!.with).toBeLessThan(c.cvRmse!.without);
+  });
+
+  it("the note of a fitted term names the correlation with asking-vs-model and the power limit, with decimal commas", () => {
+    const c = condRows({ seed: 72, k: 0.02, labelled: 150 });
+    const note = fitBidPremium(c).terms.condition!.note;
+    expect(note).toMatch(/corr\(skick, utgångspris\/modell\) = -?\d,\d{2}/);
+    expect(note).toContain("under ≈ 2 pp");
+    expect(note).toContain("n = 150");
+    expect(note).not.toMatch(/\d\.\d/);
+  });
+
+  it("150 labelled rows with no relation to the premium: prior 0, not kept, and the estimate is still written", () => {
+    for (const seed of [73, 74, 75]) {
+      const c = fitBidPremium(condRows({ seed, k: 0, labelled: 150 })).terms.condition!;
+      expect(c.source, `seed ${seed}`).toBe("prior");
+      expect(c.beta, `seed ${seed}`).toBe(0);
+      expect(c.kept, `seed ${seed}`).toBe(false);
+      expect(c.n, `seed ${seed}`).toBe(150);
+      expect(c.note, `seed ${seed}`).toMatch(
+        /^budpremie: skick ej mätt: korsvalidering förkastade termen \(\d,\d{4} -> \d,\d{4}, skattning -?\d,\d{4}\)/,
+      );
+      expect(c.note, `seed ${seed}`).toContain("corr(skick, utgångspris/modell)");
+      expect(c.note, `seed ${seed}`).toContain("under ≈ 2 pp");
+      expect(c.cvRmse!.with, `seed ${seed}`).toBeGreaterThanOrEqual(c.cvRmse!.without);
+    }
+  });
+
+  it("99 labelled rows are too few: prior 0, n 99, and no fit is attempted", () => {
+    const c = fitBidPremium(condRows({ seed: 76, k: 0.05, labelled: 99 })).terms.condition!;
+    expect(c).toMatchObject({ source: "prior", beta: 0, kept: false, n: 99, cvRmse: null });
+    expect(c.note.startsWith("budpremie: skick ej mätt: för få märkta försäljningar")).toBe(true);
+    expect(c.note).toContain("under ≈ 2 pp");
+  });
+
+  it("100 labelled rows (CONDITION_MIN_LABELLED) are enough to try", () => {
+    expect(CONDITION_MIN_LABELLED).toBe(100);
+    const c = fitBidPremium(condRows({ seed: 77, k: 0.05, labelled: 100 })).terms.condition!;
+    expect(c.n).toBe(100);
+    expect(c.source).toBe("fit");
+    expect(c.kept).toBe(true);
+  });
+
+  it("rows with cond null are left out of the stage and never counted as 0", () => {
+    // 120 labelled rows with a real effect, plus 400 unlabelled rows that would drag a coded-0 estimate to zero.
+    const rows = condRows({ seed: 78, k: 0.03, labelled: 120, unlabelled: 400 });
+    const c = fitBidPremium(rows).terms.condition!;
+    expect(c.n).toBe(120);
+    expect(c.kept).toBe(true);
+    expect(Math.abs(c.beta - 0.03)).toBeLessThan(0.008);
+  });
+
+  it("the base fit and the days fit are identical with and without labels", () => {
+    const rows = condRows({ seed: 79, k: 0.03, labelled: 200 }).map((r, i) => ({
+      ...r,
+      domLn: Math.log(1 + 1 + (i % 80)),
+    }));
+    const withLabels = fitBidPremium(rows);
+    const without = fitBidPremium(unlabel(rows));
+    expect(withLabels.kind).toBe(without.kind);
+    expect(withLabels.b).toBe(without.b);
+    expect(withLabels.overallA).toBe(without.overallA);
+    expect(withLabels.perDistrict).toEqual(without.perDistrict);
+    expect(withLabels.cvRmse).toEqual(without.cvRmse);
+    expect(withLabels.terms.dom).toEqual(without.terms.dom);
+    expect(withLabels.terms.condition!.kept).toBe(true);
+    expect(without.terms.condition!.n).toBe(0);
+  });
+
+  it("a condition effect is found on top of a kept days term", () => {
+    const g = lcg(80);
+    const rows: CondRow[] = condRows({ seed: 81, k: 0.025, labelled: 240 }).map((r) => {
+      const dl = Math.log(1 + 1 + Math.floor(90 * g.uniform()));
+      return { ...r, domLn: dl, z: r.z - 0.02 * dl };
+    });
+    const fit = fitBidPremium(rows);
+    expect(fit.terms.dom!.kept).toBe(true);
+    expect(fit.terms.condition!.kept).toBe(true);
+    expect(Math.abs(fit.terms.condition!.beta - 0.025)).toBeLessThan(0.006);
+  });
+
+  it("no cond field on any row: the stage is not attempted and the slot stays null", () => {
+    const rows = condRows({ seed: 82, k: 0.02, labelled: 150 }).map(({ cond, ...rest }) => {
+      void cond;
+      return rest;
+    });
+    expect(fitBidPremium(rows).terms.condition).toBeNull();
+  });
+
+  it("all labels the same value: no variation to fit, prior 0 with the reason", () => {
+    const rows = condRows({ seed: 83, k: 0, labelled: 150 }).map((r) => ({ ...r, cond: 0 as const }));
+    const c = fitBidPremium(rows).terms.condition!;
+    expect(c).toMatchObject({ source: "prior", beta: 0, kept: false, n: 150 });
+    expect(c.note.startsWith("budpremie: skick ej mätt: ingen variation i skicket")).toBe(true);
+  });
+
+  it("is deterministic", () => {
+    const rows = condRows({ seed: 84, k: 0.02, labelled: 150 });
+    expect(fitBidPremium(rows)).toEqual(fitBidPremium(rows));
+  });
+});
+
+describe("fitHedonicModel: photo labels reach the condition stage (BID-01)", () => {
+  it("a row's condition label becomes the bid-premium row's cond; unlabelled rows stay out", () => {
+    const base = generateRows({ seed: 111, askingShare: 1 });
+    const labelled = base.map((r, i): HedonicTrainingRow => ({
+      ...r,
+      condition: i % 3 === 0 ? -1 : i % 3 === 1 ? 0 : i % 7 === 0 ? 1 : null,
+    }));
+    const { model } = fitHedonicModel(labelled, OPTS);
+    const c = model.bidPremium.terms.condition!;
+    const expected = labelled.filter((r) => r.condition !== null && r.condition !== undefined && r.soldVsAskPct !== null).length;
+    // Outlier-dropped rows are not counted, so the stage sees at most the labelled rows that carry a premium label.
+    expect(c.n).toBeGreaterThan(0);
+    expect(c.n).toBeLessThanOrEqual(expected);
+    expect(hedonicModelSchema.safeParse(model).success).toBe(true);
+  });
+});
+
 describe("fitHedonicModel: bid premium and null labels (R-07)", () => {
   it("null labels are left out of the premium fit and their share is reported", () => {
     const rows = generateRows({ seed: 101, nullLabelShare: 0.3, askingShare: 0 });
@@ -1710,7 +1876,10 @@ describe("fitHedonicModel: avgift and BRF debt as fitted features (D-01)", () =>
     expect(model.version).toBe(2);
     expect(model.features.map((f) => f.name)).toEqual([...HEDONIC_FEATURES]);
     expect(hedonicModelSchema.safeParse(model).success).toBe(true);
-    expect(model.bidPremium.terms).toEqual({ dom: null, condition: null });
+    expect(model.bidPremium.terms.dom).toBeNull();
+    // No photo labels in these rows: the model file still says so (R-08), as the 0 prior with its reason.
+    expect(model.bidPremium.terms.condition).toMatchObject({ source: "prior", beta: 0, kept: false, n: 0 });
+    expect(model.bidPremium.terms.condition!.note.startsWith("budpremie: skick ej mätt")).toBe(true);
   });
 
   it("recovers a negative avgift coefficient with a finite standard error", () => {

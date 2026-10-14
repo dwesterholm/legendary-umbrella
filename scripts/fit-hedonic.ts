@@ -59,6 +59,17 @@ import {
   type SoldRow,
 } from "@/lib/booli/slutpriser";
 import { parseFitRunRecord } from "@/lib/discovery/valuation-report";
+import {
+  SOLD_CONDITION_CACHE_PATH,
+  SOLD_CONDITION_MIN_CONFIDENCE,
+  SOLD_CONDITION_VERSION,
+  conditionIndexOfRead,
+  loadSoldConditionCache,
+  soldConditionEntryId,
+  soldConditionSpentSek,
+  soldConditionUsableIds,
+  type SoldConditionCache,
+} from "@/lib/discovery/sold-condition";
 
 const CWD = process.cwd();
 const DEFAULT_CACHE = join(CWD, ".planning", "calibration", "data", "slutpriser-cache.json");
@@ -169,7 +180,11 @@ function tomtrattOf(tenureForm: string | null | undefined): boolean | null {
  * `brf` is the cache's one-debt-figure-per-association table (14.4-02). The debt is the
  * association's LATEST annual report, not the figure at the sale date (RESEARCH Pitfall 14).
  */
-function toTrainingRow(row: SoldRow, brf: Readonly<Record<string, BrfEntry>>): HedonicTrainingRow {
+function toTrainingRow(
+  row: SoldRow,
+  brf: Readonly<Record<string, BrfEntry>>,
+  conditionOf: (row: SoldRow) => -1 | 0 | 1 | null,
+): HedonicTrainingRow {
   const e = row.enriched;
   const rent = e?.rentSek ?? null;
   const debt = e?.brfId != null ? (brf[e.brfId]?.debtPerSqm ?? null) : null;
@@ -192,7 +207,45 @@ function toTrainingRow(row: SoldRow, brf: Readonly<Record<string, BrfEntry>>): H
     tomtratt: tomtrattOf(e?.tenureForm),
     // 14.4 VAL-03: days on market feed the bid premium only (never the resale price).
     daysActive: e?.daysActive ?? null,
+    // 14.4 BID-01: the sold photos' condition label (confidence >= 0,6 only); feeds the bid premium only.
+    condition: conditionOf(row),
   };
+}
+
+/**
+ * The condition label of a sold flat from the sold-photo cache (plan 09): the entry of THIS sold listing, THIS picture
+ * set and the CURRENT {@link SOLD_CONDITION_VERSION}, coded by `conditionIndexOfRead` (dated -1, ok 0, fresh +1; a read
+ * under the confidence bar, or no read, is null and so stays out of the fit, never 0). A missing cache labels nothing.
+ */
+function conditionLookup(cache: SoldConditionCache): (row: SoldRow) => -1 | 0 | 1 | null {
+  return (row) => {
+    const ids = soldConditionUsableIds(row.enriched?.imageIds);
+    if (ids.length === 0) return null;
+    const entry = cache.entries[soldConditionEntryId(row.booliId, ids)];
+    if (!entry || entry.promptVersion !== SOLD_CONDITION_VERSION) return null;
+    return conditionIndexOfRead(entry.result);
+  };
+}
+
+/** How many sold flats have a current read at all, and how they split by label (for the printed block). */
+function conditionStats(
+  rows: readonly SoldRow[],
+  cache: SoldConditionCache,
+): { read: number; lowConfidence: number; dated: number; ok: number; fresh: number } {
+  const out = { read: 0, lowConfidence: 0, dated: 0, ok: 0, fresh: 0 };
+  for (const row of rows) {
+    const ids = soldConditionUsableIds(row.enriched?.imageIds);
+    if (ids.length === 0) continue;
+    const entry = cache.entries[soldConditionEntryId(row.booliId, ids)];
+    if (!entry || entry.promptVersion !== SOLD_CONDITION_VERSION) continue;
+    out.read += 1;
+    const idx = conditionIndexOfRead(entry.result);
+    if (idx === null) out.lowConfidence += 1;
+    else if (idx < 0) out.dated += 1;
+    else if (idx > 0) out.fresh += 1;
+    else out.ok += 1;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -438,6 +491,41 @@ function printDomBlock(model: HedonicModel, training: readonly HedonicTrainingRo
 }
 
 // ---------------------------------------------------------------------------
+// Bid premium: condition from the sold photos (14.4 BID-01, R-08)
+// ---------------------------------------------------------------------------
+function printConditionBlock(
+  model: HedonicModel,
+  stats: ReturnType<typeof conditionStats>,
+  spentSek: number,
+): void {
+  const term = model.bidPremium.terms.condition;
+  console.log("\nBudpremie: skick");
+  const usable = stats.read - stats.lowConfidence;
+  const share = (n: number, of: number): string => (of === 0 ? "-" : `${sv((n / of) * 100, 1)} %`);
+  console.log(
+    `  Sålda lägenheter med läst skick (nuvarande läsversion): ${fmt(stats.read)}; ` +
+      `säkerhet under ${sv(SOLD_CONDITION_MIN_CONFIDENCE, 1)} (utesluts, räknas aldrig som 0): ${fmt(stats.lowConfidence)} (${share(stats.lowConfidence, stats.read)}).`,
+  );
+  console.log(
+    `  Användbara avläsningar: ${fmt(usable)} - föråldrat ${fmt(stats.dated)} (${share(stats.dated, usable)}), ` +
+      `vanligt ${fmt(stats.ok)} (${share(stats.ok, usable)}), fräscht ${fmt(stats.fresh)} (${share(stats.fresh, usable)}).`,
+  );
+  console.log(`  Betalt för skicksläsningen hittills: ${sv(spentSek, 2)} kr av 30,00 kr.`);
+  if (term === null) {
+    console.log("  Skicktermen kunde inte prövas (ingen skickuppgift på någon rad). Termen saknas i modellen.");
+    return;
+  }
+  console.log(`  Märkta försäljningar med slutpris mot utgångspris i skattningen: ${fmt(term.n)}.`);
+  console.log(
+    term.cvRmse === null
+      ? "  Korsvalideringsfel: inte beräknat (för få märkta försäljningar eller ingen variation i skicket)."
+      : `  Korsvalideringsfel (logskala, märkta rader): utan skick ${sv(term.cvRmse.without, 5)}, med skick ${sv(term.cvRmse.with, 5)} (${term.cvRmse.with < term.cvRmse.without ? "lägre" : "inte lägre"}).`,
+  );
+  console.log(`  Beslut: ${term.kept ? "behålls" : "förkastas, termen är 0 och budpremien säger 'skick ej mätt'"}; koefficient (steg i skick): ${sv(term.beta, 5)}.`);
+  console.log(`  Not: ${term.note}`);
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
@@ -473,7 +561,10 @@ function main(): void {
   const excluded = cache.rows.filter(isCalibrationListing);
   const brfTable = cache.brf ?? {};
   const trainingSource = cache.rows.filter((r) => !isCalibrationListing(r));
-  const withNew = trainingSource.map((r) => toTrainingRow(r, brfTable));
+  const conditionCacheLoaded = loadSoldConditionCache(join(CWD, SOLD_CONDITION_CACHE_PATH));
+  if (conditionCacheLoaded.warning !== null) console.warn(conditionCacheLoaded.warning);
+  const conditionCache = conditionCacheLoaded.cache;
+  const withNew = trainingSource.map((r) => toTrainingRow(r, brfTable, conditionLookup(conditionCache)));
   // The intermediate model sees the same rows with the three new columns blanked, so they come out "absent".
   const training = intermediate
     ? withNew.map((r) => ({ ...r, avgiftPerSqmMonth: null, brfDebtPerSqm: null, tomtratt: null }))
@@ -589,6 +680,14 @@ function main(): void {
         "Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat).",
     );
   }
+  if (fitted.bidPremium.terms.condition !== null) {
+    const cond = fitted.bidPremium.terms.condition;
+    notes.push(
+      cond.kept
+        ? `Skick i budpremien: används (${cond.note})`
+        : `Skick i budpremien: används inte, budpremien säger "skick ej mätt" (${cond.note.replace(/^budpremie: skick ej mätt: /, "")})`,
+    );
+  }
   const note = notes.length > 0 ? notes.join(" ") : undefined;
   // When the detail sample was left out, the library's own fallback text says "0 sales with details",
   // which is true of the refit but not of the data. Replace it with the real reason.
@@ -661,6 +760,7 @@ function main(): void {
   }
   console.log(`Andel försäljningar utan etikett (utelämnade ur budpremien, räknas inte som noll): ${sv(bid.nullLabelShare * 100, 1)} %`);
   printDomBlock(model, training);
+  printConditionBlock(model, conditionStats(trainingSource, conditionCache), soldConditionSpentSek(conditionCache));
 
   console.log("\nStorlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):");
   for (const l of [...describeSizeCheck(sizeAll), ...describeSizeCheck(sizeRecent)]) console.log(l);

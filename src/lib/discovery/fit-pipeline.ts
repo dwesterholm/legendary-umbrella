@@ -445,7 +445,9 @@ export function conditionLineOf(model: Pick<HedonicModel, "bidPremium">): string
     const beta = term.beta.toFixed(3).replace(".", ",");
     return `Budpremie skick: mätt på ${term.n} sålda (β ${beta})`;
   }
-  return `Budpremie skick: ej mätt (prior 0): ${term === null ? "ingen skickterm i modellen" : term.note}`;
+  // The model's own note already starts "budpremie: skick ej mätt: "; the line says that in its own words, so cut it once.
+  const reason = term === null ? "ingen skickterm i modellen" : term.note.replace(/^budpremie: skick ej mätt: /, "");
+  return `Budpremie skick: ej mätt (prior 0): ${reason}`;
 }
 
 const roundKr = (n: number): number => Math.round(n);

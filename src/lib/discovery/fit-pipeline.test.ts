@@ -408,6 +408,10 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(conditionLineOf(withTerm({ beta: 0.021, source: "fit", kept: false, n: 220, cvRmse: null, note: "prövad, förkastad" }))).toBe(
       "Budpremie skick: ej mätt (prior 0): prövad, förkastad",
     );
+    // The fitted model's own note starts with the phrase the line already says; it is not repeated.
+    expect(
+      conditionLineOf(withTerm({ beta: 0, source: "prior", kept: false, n: 5, cvRmse: null, note: "budpremie: skick ej mätt: för få märkta försäljningar (5 av minst 100)." })),
+    ).toBe("Budpremie skick: ej mätt (prior 0): för få märkta försäljningar (5 av minst 100).");
     expect(conditionLineOf(withTerm({ beta: 0.0214, source: "fit", kept: true, n: 220, cvRmse: null, note: "med" }))).toBe(
       "Budpremie skick: mätt på 220 sålda (β 0,021)",
     );

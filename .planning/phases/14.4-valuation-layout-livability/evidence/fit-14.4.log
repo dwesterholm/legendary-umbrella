@@ -1,5 +1,5 @@
 === MODELLANPASSNING (offline, inga nätverksanrop) ===
-Cache: .planning/calibration/data/slutpriser-cache.json (sålda 2025-04-12 till 2026-10-12), prisnivå per 2026-10-12, anpassad 2026-10-13
+Cache: .planning/calibration/data/slutpriser-cache.json (sålda 2025-04-12 till 2026-10-12), prisnivå per 2026-10-12, anpassad 2026-10-14
 Rader i cachen: 7 431. Uteslutna som kalibreringsobjekt (Folkungagatan 61, 34-36 kvm): 1
 Rader med detaljuppgifter (byggår/balkong från försäljningssidan): 1 200
 
@@ -77,6 +77,15 @@ Budpremie: dagar på marknaden
   Beslut: behålls - med: korsvalidering 0,0736 -> 0,0727
   Effekt på premien för en median-lägenhet, 7 mot 60 dagar: -7,59 procentenheter (+10,5 % -> +2,9 %).
 
+Budpremie: skick
+  Sålda lägenheter med läst skick (nuvarande läsversion): 60; säkerhet under 0,6 (utesluts, räknas aldrig som 0): 22 (36,7 %).
+  Användbara avläsningar: 38 - föråldrat 0 (0,0 %), vanligt 6 (15,8 %), fräscht 32 (84,2 %).
+  Betalt för skicksläsningen hittills: 5,19 kr av 30,00 kr.
+  Märkta försäljningar med slutpris mot utgångspris i skattningen: 37.
+  Korsvalideringsfel: inte beräknat (för få märkta försäljningar eller ingen variation i skicket).
+  Beslut: förkastas, termen är 0 och budpremien säger 'skick ej mätt'; koefficient (steg i skick): 0,00000.
+  Not: budpremie: skick ej mätt: för få märkta försäljningar (37 av minst 100). corr(skick, utgångspris/modell) = 0,11; en effekt under ≈ 2 pp kan inte ses med n = 37.
+
 Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):
   alla 7 430 försäljningar:
     40-45 kvm    -0,2 % mot 35-40 kvm (SE 0,4 %, 1 516 rader)
@@ -90,11 +99,11 @@ Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen m
     50-60 kvm    +1,8 % mot 35-40 kvm (SE 1,1 %, 324 rader)
     60-80 kvm    +3,4 % mot 35-40 kvm (SE 1,0 %, 457 rader)
     80-120 kvm   +4,9 % mot 35-40 kvm (SE 1,0 %, 393 rader)
-  Storleksvalet i modellen: Storlek: koefficienten tas från data (beslut D-10, 2026-10-13). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-13 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.
+  Storleksvalet i modellen: Storlek: koefficienten tas från data (beslut D-10, 2026-10-14). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-14 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.
 
 Reservvärden (fallbacks):
   - tomtratt (absent): tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)
 
 R² >= 0,35 och CV-RMSE <= 0,13: OK (R² 0,611, CV-RMSE 0,115)
 
-Modell skriven: data/hedonic-model.json (319 kB, 7 379 punkter)
+Modell skriven: data/hedonic-model.json (320 kB, 7 379 punkter)

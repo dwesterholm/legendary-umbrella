@@ -655,6 +655,13 @@ export const MIN_DISTRICT_N = 30;
 /** Cross-validation folds; a row's fold is its index modulo this (deterministic). */
 export const CV_FOLDS = 5;
 
+/**
+ * Fewest sold flats with a usable photo label the condition stage will try (BID-01, R-08). Below this a 5-fold
+ * cross-validation on the labelled rows holds out fewer than 20 flats per fold, too few to judge an effect of about
+ * 2 percentage points (RESEARCH Q9). Claude's discretion, written down here and in the plan.
+ */
+export const CONDITION_MIN_LABELLED = 100;
+
 /** Neighbour-level kernel (RESEARCH A6): 300 m bandwidth, 1 km cut-off, weight floor 0.5. */
 export const KERNEL_BANDWIDTH_M = 300;
 export const KERNEL_CUTOFF_M = 1000;
@@ -998,6 +1005,11 @@ export interface HedonicTrainingRow {
   tomtratt: boolean | null;
   /** Days on market as the sold page prints it (14.4 VAL-03); absent/null = not read. Feeds the bid premium only, never the resale price. */
   daysActive?: number | null;
+  /**
+   * Condition from the sold photos (14.4 BID-01): dated -1, ok 0, fresh +1; null/absent = no read or a read below the
+   * confidence bar (left out of the condition stage, never 0). Feeds the bid premium only, never the resale price.
+   */
+  condition?: -1 | 0 | 1 | null;
 }
 
 /** A row reduced to the numbers the stage-1 regression uses. lat/lng are already rounded. */
@@ -1328,6 +1340,12 @@ export interface BidPremiumRow {
    * cross-validation means "no detectable effect in this form".
    */
   domLn?: number | null;
+  /**
+   * Condition of the sold flat from its photos (BID-01): dated -1, ok 0, fresh +1. null = not labelled (no photo
+   * read, or a read below the confidence bar): the row is LEFT OUT of the condition stage, never coded 0.
+   * Absent on every row = the stage is not attempted at all.
+   */
+  cond?: -1 | 0 | 1 | null;
 }
 
 type DistrictPremium = HedonicModel["bidPremium"]["perDistrict"][InnerstanDistrict];
@@ -1488,7 +1506,7 @@ function fitDomPremium(rows: readonly BidPremiumRow[], kind: "flat" | "slope"): 
  * it was. When the term is kept, the premium's slope and intercepts are the jointly
  * re-estimated ones, because the days coefficient is only meaningful against them.
  */
-export function fitBidPremium(
+function fitBidPremiumBaseAndDays(
   rows: readonly BidPremiumRow[],
   opts: { nullLabelShare?: number } = {},
 ): HedonicModel["bidPremium"] {
@@ -1596,6 +1614,141 @@ export function fitBidPremium(
     overallA: domFull.overallA,
     terms: { dom, condition: null },
   };
+}
+
+/** Pearson correlation of two equally long series; null with fewer than 3 points or no spread in either. */
+function pearson(xs: readonly number[], ys: readonly number[]): number | null {
+  if (xs.length < 3 || xs.length !== ys.length) return null;
+  const mx = meanOfValues(xs);
+  const my = meanOfValues(ys);
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (let i = 0; i < xs.length; i++) {
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+    sxy += (xs[i] - mx) * (ys[i] - my);
+  }
+  if (!(sxx > 1e-12) || !(syy > 1e-12)) return null;
+  return sxy / Math.sqrt(sxx * syy);
+}
+
+/** Least squares r = alpha + k c. Null when c has no spread. */
+function fitLine(c: readonly number[], r: readonly number[]): { alpha: number; k: number } | null {
+  const mc = meanOfValues(c);
+  const mr = meanOfValues(r);
+  let sxx = 0;
+  let sxy = 0;
+  for (let i = 0; i < c.length; i++) {
+    sxx += (c[i] - mc) ** 2;
+    sxy += (c[i] - mc) * (r[i] - mr);
+  }
+  if (!(sxx > 1e-12)) return null;
+  const k = sxy / sxx;
+  return { alpha: mr - k * mc, k };
+}
+
+/**
+ * The condition stage (BID-01, D-12, R-08): a SECOND stage on top of the settled base and days terms, fitted on the
+ * sold flats whose photos were read with enough confidence (`cond` not null) and nothing else.
+ *
+ * For every labelled row the residual is r = z - (a_district + b u + the days part), with the final base. Then
+ * r = alpha + k cond by least squares, scored by 5-fold cross-validation on the labelled rows only (fold = labelled-row
+ * index modulo {@link CV_FOLDS}): "without" predicts the training-fold mean of r, "with" the training-fold
+ * alpha + k cond. The term is kept (source "fit", beta k) only when "with" is STRICTLY lower. Otherwise, and with
+ * fewer than {@link CONDITION_MIN_LABELLED} labelled rows, the record is the prior: beta 0, not kept, and a note
+ * "budpremie: skick ej mätt: ..." with the reason (R-08). No number from a study is ever used. The fitted estimate is
+ * written into the note anyway, so a reader can see what the data said.
+ *
+ * Every note also carries corr(condition, asking-vs-model) over the labelled rows with an asking price, and the power
+ * limit (an effect under about 2 pp cannot be seen at this n, RESEARCH Q3/Q9), so a small coefficient is not misread
+ * as "no effect" or as "the effect".
+ *
+ * A row with `cond` null is never coded 0. The base and days fits are not touched.
+ */
+function conditionTermOf(
+  rows: readonly BidPremiumRow[],
+  bid: HedonicModel["bidPremium"],
+): NonNullable<HedonicModel["bidPremium"]["terms"]["condition"]> {
+  const labelled = rows.filter((r) => r.cond !== undefined && r.cond !== null);
+  const n = labelled.length;
+  const dom = bid.terms.dom;
+  const baseOf = (r: BidPremiumRow): number => {
+    let ln = bid.perDistrict[r.district].a;
+    if (bid.b !== null && r.askLnKrm2 !== null) ln += bid.b * (r.askLnKrm2 - r.predLnKrm2);
+    const dl = knownDomLn(r);
+    if (dom !== null && dom.kept && dl !== null) ln += dom.beta * (dl - dom.mean);
+    return ln;
+  };
+  const c = labelled.map((r) => r.cond as number);
+  const resid = labelled.map((r) => r.z - baseOf(r));
+
+  const withAsk = labelled.filter((r) => r.askLnKrm2 !== null);
+  const corr = pearson(
+    withAsk.map((r) => r.cond as number),
+    withAsk.map((r) => (r.askLnKrm2 as number) - r.predLnKrm2),
+  );
+  const tail =
+    ` corr(skick, utgångspris/modell) = ${corr === null ? "-" : sv(corr, 2)}; ` +
+    `en effekt under ≈ 2 pp kan inte ses med n = ${n}.`;
+  const prior = (reason: string, cvRmse: { without: number; with: number } | null) => ({
+    beta: 0,
+    source: "prior" as const,
+    kept: false,
+    n,
+    cvRmse,
+    note: `budpremie: skick ej mätt: ${reason}.${tail}`,
+  });
+
+  if (n < CONDITION_MIN_LABELLED) {
+    return prior(`för få märkta försäljningar (${n} av minst ${CONDITION_MIN_LABELLED})`, null);
+  }
+  const full = fitLine(c, resid);
+  if (full === null) return prior("ingen variation i skicket", null);
+
+  let sqWithout = 0;
+  let sqWith = 0;
+  for (let f = 0; f < CV_FOLDS; f++) {
+    const trainIdx = c.map((_, i) => i).filter((i) => i % CV_FOLDS !== f);
+    const testIdx = c.map((_, i) => i).filter((i) => i % CV_FOLDS === f);
+    const trainR = trainIdx.map((i) => resid[i]);
+    const mean = meanOfValues(trainR);
+    const line = fitLine(trainIdx.map((i) => c[i]), trainR);
+    for (const i of testIdx) {
+      sqWithout += (resid[i] - mean) ** 2;
+      sqWith += (resid[i] - (line === null ? mean : line.alpha + line.k * c[i])) ** 2;
+    }
+  }
+  const cvRmse = { without: Math.sqrt(sqWithout / n), with: Math.sqrt(sqWith / n) };
+  if (!(cvRmse.with < cvRmse.without)) {
+    return prior(
+      `korsvalidering förkastade termen (${sv(cvRmse.without, 4)} -> ${sv(cvRmse.with, 4)}, skattning ${sv(full.k, 4)})`,
+      cvRmse,
+    );
+  }
+  return {
+    beta: full.k,
+    source: "fit",
+    kept: true,
+    n,
+    cvRmse,
+    note: `med: korsvalidering ${sv(cvRmse.without, 4)} -> ${sv(cvRmse.with, 4)}, skattning ${sv(full.k, 4)} per steg (föråldrat -1, vanligt 0, fräscht +1).${tail}`,
+  };
+}
+
+/**
+ * The bid premium: the base form and the days term of {@link fitBidPremiumBaseAndDays}, then the condition stage
+ * ({@link conditionTermOf}) on the labelled sold flats. When no row carries a `cond` at all (an older caller) the
+ * stage is not attempted and `terms.condition` stays null; when rows carry one (even all null) the slot is always
+ * filled, either with a fitted and cross-validated term or with the documented 0 prior and its reason.
+ */
+export function fitBidPremium(
+  rows: readonly BidPremiumRow[],
+  opts: { nullLabelShare?: number } = {},
+): HedonicModel["bidPremium"] {
+  const bid = fitBidPremiumBaseAndDays(rows, opts);
+  if (!rows.some((r) => r.cond !== undefined)) return bid;
+  return { ...bid, terms: { ...bid.terms, condition: conditionTermOf(rows, bid) } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1874,6 +2027,7 @@ export function fitHedonicModel(
         r.daysActive !== undefined && r.daysActive !== null && Number.isInteger(r.daysActive) && r.daysActive >= 0
           ? Math.log(1 + r.daysActive)
           : null,
+      cond: r.condition ?? null,
     });
   });
   const bidPremium = fitBidPremium(premiumRows, { nullLabelShare: nullLabels / kept.length });
