@@ -32,8 +32,8 @@
  * Nothing is tuned to pass the sanity check (R-02): features, ridge strength and
  * thresholds are the library's. A miss is printed as measured.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   HEDONIC_FEATURES,
   HEDONIC_MIN_LAMBDA,
@@ -58,6 +58,7 @@ import {
   type BrfEntry,
   type SoldRow,
 } from "@/lib/booli/slutpriser";
+import { writeTextAtomic } from "@/lib/discovery/json-store";
 import { parseFitRunRecord } from "@/lib/discovery/valuation-report";
 import {
   SOLD_CONDITION_CACHE_PATH,
@@ -74,7 +75,8 @@ import {
 const CWD = process.cwd();
 const DEFAULT_CACHE = join(CWD, ".planning", "calibration", "data", "slutpriser-cache.json");
 const DEFAULT_OUT = join(CWD, "data", "hedonic-model.json");
-const ALLOWED_OUT_DIRS = [join(CWD, "data"), join(CWD, ".planning", "calibration", "data")];
+const CALIBRATION_DATA_DIR = join(CWD, ".planning", "calibration", "data");
+const ALLOWED_OUT_DIRS = [join(CWD, "data"), CALIBRATION_DATA_DIR];
 
 /** The listing the whole phase is calibrated against must not be in the training data (RESEARCH Pitfall 10). */
 const CALIBRATION_ADDRESS = /^Folkungagatan 61\b/i;
@@ -533,7 +535,11 @@ function main(): void {
   const outPath = resolveOutPath();
   // R-05: the intermediate model (old feature set) must never replace the committed one.
   const intermediate = hasFlag("--without-new-features");
-  if (intermediate && (argValue("--out") === null || outPath === DEFAULT_OUT)) {
+  // IN-10: the check matches its message - the path must really sit under .planning/calibration/data/, not merely
+  // differ from the default (data/other.json would otherwise pass).
+  const calibrationRel = relative(CALIBRATION_DATA_DIR, outPath);
+  const underCalibrationData = calibrationRel !== "" && !calibrationRel.startsWith("..") && !isAbsolute(calibrationRel);
+  if (intermediate && (argValue("--out") === null || !underCalibrationData)) {
     throw new Error("--without-new-features kräver --out under .planning/calibration/data/ (den committade modellen skrivs aldrig över av en mellanmodell)");
   }
   // Read-only comparison record (T-14.4-12): .json only, parsed with the run-record schema.
@@ -784,13 +790,13 @@ function main(): void {
   );
 
   // ---- write ----
-  mkdirSync(dirname(outPath), { recursive: true });
   // 2-space indent, but each kernel point on one line: [lat, lng, ln kr/m2].
   const json = JSON.stringify(model, null, 2).replace(
     /\[\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+)\s+\]/g,
     "[$1, $2, $3]",
   );
-  writeFileSync(outPath, `${json}\n`);
+  // Temp file + rename (IN-10): a crash mid-write must not leave a truncated committed model that every consumer refuses.
+  writeTextAtomic(outPath, `${json}\n`);
   console.log(`\nModell skriven: ${relative(CWD, outPath)} (${fmt(Math.round(json.length / 1024))} kB, ${fmt(model.kernel.points.length)} punkter)`);
 }
 
