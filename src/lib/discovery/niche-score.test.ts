@@ -361,6 +361,10 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     "discovery/layout-",
     "discovery/sold-condition",
     "discovery/valuation-",
+    // Phase 14.5 (2026-10-17): the ceiling-height parser is registered BEFORE it exists;
+    // layout-accuracy, layout-experiment, layout-cost and valuation-compare are already covered
+    // by the discovery/layout- and discovery/valuation- prefixes.
+    "discovery/ceiling-",
   ];
 
   // Matches a whole `import ... from "..."` / `export ... from "..."`
