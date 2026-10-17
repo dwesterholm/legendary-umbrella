@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 2/13 plans executed
+**Plans:** 3/13 plans executed
 
 Plans:
 
@@ -185,7 +185,7 @@ Plans:
 
 - [x] 14.5-01-PLAN.md — Ceiling height read from broker text into the facts and a Takhöjd table column; separation prefix registered first (CEIL-01, CEIL-02)
 - [x] 14.5-02-PLAN.md — Layout accuracy measuring stick: truth format, per-field precision, curve, gate, Wilson, verdict; worklist and select-and-lock tools (LAYACC-01, LAYACC-02, LAYACC-03)
-- [ ] 14.5-03-PLAN.md — valuation-compare: 14.4 -> 14.5 report with coefficients, SE, cap flags and the R-01 cap rule, Folkungagatan 61 first (ENR-02)
+- [x] 14.5-03-PLAN.md — valuation-compare: 14.4 -> 14.5 report with coefficients, SE, cap flags and the R-01 cap rule, Folkungagatan 61 first (ENR-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
