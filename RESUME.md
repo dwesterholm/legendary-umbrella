@@ -6,7 +6,23 @@
 
 ---
 
-## ▶️ PICK UP HERE (2026-10-14, Phase 14.4 EXECUTED 10/10 — awaiting Daniel's judgment calls)
+## ▶️ PICK UP HERE (2026-10-17 — Phase 14.5 inserted from Daniel's UAT answers; enrichment running)
+
+Daniel answered 14.4 UAT (2026-10-17): (1) enrich the other 4 500 sales FIRST before judging the ±8 % cap;
+(4)+(5) do NOT accept the layout misreads / thin sun-side evidence — fix the read, nothing continues until it is
+≥ 75 % reliable; plus NEW: ceiling height (takhöjd) must become a valuation + taste parameter. → ROADMAP
+"### Phase 14.5" (ENR-, CEIL-, LAYACC-). Layout influence switched OFF (`LAYOUT_INFLUENCE_ENABLED=false`,
+read keeps running + caching). Still open in 14.4-UAT: items 2 (RESIDUAL_FLAG_BASIS), 3 (0,6 gate → folded into
+14.5 part 3), 6 (condition term = 0).
+
+RUNNING (free, local rung, under caffeinate): the remaining 4 271 sold rows + new BRFs →
+`.planning/calibration/data/enrich-14.5-full.log` (started 12:02 UTC 2026-10-17; ≈ 2 h + BRF pass; three batches
+of 1 500 then `--brf-pass`; `tail` the log; a "STOP:" line means the R-10 rule tripped). Do NOT start a second
+enrichment while it runs. 14.5 part 1 (refit, cap question) waits for it; parts 2 and 3 do not.
+
+Next: `/gsd-plan-phase 14.5 --auto`, then execute; ff main + push after every wave; Fable 5.1 trailer.
+
+## ▶️ STATUS 2026-10-14, Phase 14.4 EXECUTED 10/10 — awaiting Daniel's judgment calls)
 
 Phase 14.4 ran autonomously 2026-10-13/14 (question budget 0; every orchestrator decision is R-01..R-10 in
 `14.4-CONTEXT.md`). All on `main` (ff + pushed after every wave) and on `gsd/phase-14.4-valuation-layout-livability`.
