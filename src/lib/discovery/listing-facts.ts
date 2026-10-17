@@ -48,7 +48,8 @@
  *  - Only "Bostadsrätt" has been seen in `tenureForm` (52 detail pages on 2026-10-13);
  *    the string is stored as Booli writes it and never normalised here.
  *
- * FILLED LATER: `orientationFacades`, `sunPhrases`, `descriptionRead`, `landLease` and
+ * FILLED LATER: `orientationFacades`, `sunPhrases`, `descriptionRead`, `landLease`,
+ * `ceilingHeightM`, `ceilingSource`, `tallCeilingPhrase` and
  * `brf` come from the enrichment steps (plans 05 and 07: broker page text and the
  * public BRF page). They stay `null` here.
  *
@@ -105,6 +106,18 @@ export const candidateFactsSchema = z.object({
   descriptionRead: z.boolean().nullable().default(null),
   /** Filled by enrichment: tomträtt stated (true) or ruled out (false). */
   landLease: z.boolean().nullable().default(null),
+  /**
+   * Filled by enrichment (Phase 14.5, CEIL-01): the ceiling height the broker STATED, in metres (2,2 to 5,0 only).
+   * `null` = not stated or not read. A number only; the sentence is never stored.
+   */
+  ceilingHeightM: z.number().nullable().default(null),
+  /** Where `ceilingHeightM` came from: always the broker's own words ("angiven"), never a picture (D-08). */
+  ceilingSource: z.literal("angiven").nullable().default(null),
+  /**
+   * A tall-ceiling phrase without a number ("högt i tak"). `null` = the text was not read, `false` = read and no
+   * such phrase. A flag only; it never becomes a number (D-05).
+   */
+  tallCeilingPhrase: z.boolean().nullable().default(null),
   /** Filled by the BRF step: loans and area from the association's page. */
   brf: z
     .object({

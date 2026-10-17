@@ -42,6 +42,7 @@ import { fetchBrfFacts, type BrfFacts } from "@/lib/booli/brf-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
 import { toCandidate, type DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { ceilingFactsFromText } from "@/lib/discovery/ceiling-height";
 import {
   candidateFactsSchema,
   factsFromDetail,
@@ -212,6 +213,7 @@ export async function enrichAllCandidates(
         orientationFacades: facades.length > 0 ? facades : null,
         sunPhrases: statedSunPhrases(text),
         landLease: landLeaseFromText(text),
+        ...ceilingFactsFromText(text),
         descriptionRead: text !== null,
       });
       const phrases = extractSunPhrases(text);

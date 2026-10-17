@@ -37,6 +37,7 @@ function tableRow(over: Partial<FitTableRow> = {}): FitTableRow {
     solObstructed: "5,8 (5,1\u20136,0) / 5,5 (5,5\u20135,5) / 1,2 (0,0\u20134,1) usäker",
     korsdrag: "nej",
     sovrum: "gata",
+    takhojd: "okänd",
     flags: ["ovanligt långt under modellpris"],
     reasons: "tomträtt",
     link: "https://www.booli.se/bostad/150148",

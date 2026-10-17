@@ -301,6 +301,10 @@ export interface FitScoreResult {
   readonly layout: LayoutFact | null;
   /** True when the layout picked the facade the sun taste used (LAY-02): the Sol cell then reads "planritning+foto". */
   readonly layoutAppliedToSun: boolean;
+  /** Phase 14.5 (CEIL-01): the ceiling height the broker stated, metres, copied from the facts; null when not stated or not read. */
+  readonly ceilingHeightM: number | null;
+  /** Phase 14.5 (CEIL-01): a tall-ceiling phrase without a number ("högt i tak"); null when the text was not read. */
+  readonly tallCeilingPhrase: boolean | null;
 }
 
 /**
@@ -459,6 +463,8 @@ export function fitScore(
     sun: row.sun,
     layout: row.layout,
     layoutAppliedToSun: sunWithLayout.applied,
+    ceilingHeightM: row.facts?.ceilingHeightM ?? null,
+    tallCeilingPhrase: row.facts?.tallCeilingPhrase ?? null,
     renoSek: reno.midSek,
     renoLowSek: reno.lowSek,
     renoHighSek: reno.highSek,

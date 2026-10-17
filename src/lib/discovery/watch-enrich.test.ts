@@ -246,7 +246,8 @@ describe("facts from the description", () => {
   });
 
   it("no description text is stored in the facts, the candidate or anywhere that is persisted", async () => {
-    const secret = "Kontakta mäklare Svensson på 070-123 45 67 eller svensson@maklare.example. Balkong med kvällssol.";
+    const secret =
+      "Kontakta mäklare Svensson på 070-123 45 67 eller svensson@maklare.example. Balkong med kvällssol. Takhöjd 3,2 m i vardagsrummet.";
     const f = brokerFakes(secret);
     const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
     const stored = JSON.stringify({
@@ -258,8 +259,38 @@ describe("facts from the description", () => {
     expect(stored).not.toContain("070-123");
     expect(stored).not.toContain("maklare.example");
     expect(stored).not.toContain("Kontakta");
+    expect(stored).not.toContain("vardagsrummet");
+    expect(stored).not.toContain("Takhöjd"); // the number is stored, the sentence is not
+    expect(result.facts.get(0)?.ceilingHeightM).toBe(3.2);
     // The facts record survives its own schema (unknown keys would be stripped).
     expect(candidateFactsSchema.parse(result.facts.get(0))).toEqual(result.facts.get(0));
+  });
+
+  it("'Takhöjd 3,2 m. Balkong mot gården.' stores ceilingHeightM 3,2, source 'angiven' and no tall phrase (CEIL-01)", async () => {
+    const f = brokerFakes("Takhöjd 3,2 m. Balkong mot gården.");
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.ceilingHeightM).toBe(3.2);
+    expect(facts?.ceilingSource).toBe("angiven");
+    expect(facts?.tallCeilingPhrase).toBe(false);
+  });
+
+  it("a description that states no height is read: ceilingHeightM null, tallCeilingPhrase false", async () => {
+    const f = brokerFakes("Ljus etta med balkong.");
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.ceilingHeightM).toBeNull();
+    expect(facts?.ceilingSource).toBeNull();
+    expect(facts?.tallCeilingPhrase).toBe(false);
+  });
+
+  it("no broker URL and no Booli description: the three ceiling facts are null (not read)", async () => {
+    const f = fakes();
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.ceilingHeightM).toBeNull();
+    expect(facts?.ceilingSource).toBeNull();
+    expect(facts?.tallCeilingPhrase).toBeNull();
   });
 
   it("falls back to the Booli detail description when there is no broker URL", async () => {

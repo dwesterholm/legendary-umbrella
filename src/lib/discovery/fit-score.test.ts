@@ -1691,3 +1691,43 @@ describe("Folkungagatan 61 layout fixture (LAY-04 plumbing, D-11)", () => {
     expect(row.layout?.confidence).toBe(0.9);
   });
 });
+
+describe("ceiling height facts reach the result (14.5 CEIL-01)", () => {
+  it("a snapshot row whose facts lack the three keys parses with all three null (old snapshots still load)", () => {
+    const raw = JSON.parse(JSON.stringify(snapshot));
+    raw.rows[0].facts = { tenureForm: "Bostadsrätt" };
+    const parsed = parseFitSnapshot(raw);
+    expect(parsed.rows[0].facts?.ceilingHeightM).toBeNull();
+    expect(parsed.rows[0].facts?.ceilingSource).toBeNull();
+    expect(parsed.rows[0].facts?.tallCeilingPhrase).toBeNull();
+  });
+
+  it("the result copies ceilingHeightM and tallCeilingPhrase from row.facts, and reads null/null without facts", () => {
+    const row = flat({ facades: null });
+    const facts = candidateFactsSchema.parse({ ceilingHeightM: 3.2, ceilingSource: "angiven", tallCeilingPhrase: false });
+    const withFacts = fitScore({ ...row, facts }, model);
+    expect(withFacts.comparable).toBe(true);
+    expect(withFacts.ceilingHeightM).toBe(3.2);
+    expect(withFacts.tallCeilingPhrase).toBe(false);
+    const without = fitScore({ ...row, facts: null }, model);
+    expect(without.ceilingHeightM).toBeNull();
+    expect(without.tallCeilingPhrase).toBeNull();
+  });
+
+  it("the not-comparable branch carries the same two values", () => {
+    const row = flat({ facades: null });
+    const facts = candidateFactsSchema.parse({ ceilingHeightM: 3.2, ceilingSource: "angiven", tallCeilingPhrase: true });
+    const noPrice = fitScore({ ...row, facts, candidate: { ...row.candidate, price: null } }, model);
+    expect(noPrice.comparable).toBe(false);
+    expect(noPrice.ceilingHeightM).toBe(3.2);
+    expect(noPrice.tallCeilingPhrase).toBe(true);
+  });
+
+  it("a stored ceiling fact changes no money value (the taste term comes in plan 04)", () => {
+    const row = flat({ facades: null });
+    const facts = candidateFactsSchema.parse({ ceilingHeightM: 3.6, ceilingSource: "angiven", tallCeilingPhrase: false });
+    const a = fitScore(row, model);
+    const b = fitScore({ ...row, facts }, model);
+    expect({ ...b, ceilingHeightM: null, tallCeilingPhrase: null }).toEqual({ ...a, ceilingHeightM: null, tallCeilingPhrase: null });
+  });
+});

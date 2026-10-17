@@ -421,6 +421,11 @@ export interface FitTableRow {
   readonly korsdrag: string;
   /** LAY-03 "Sovrum": which side the bedroom is on, "gård" (quiet) / "gata" / "okänd" (okänd adds nothing to taste). */
   readonly sovrum: string;
+  /**
+   * CEIL-01 "Takhöjd": the height the broker stated, "3,2 m", "högt i tak" when only the phrase was stated, else
+   * "okänd". Stated text only (D-05); no picture-based estimate exists (D-08).
+   */
+  readonly takhojd: string;
   readonly flags: string[];
   /** WATCH-03 "Varför här": the reasons, "oförklarat fynd" on a flagged row with none, "-" on an unflagged one. */
   readonly reasons: string;
@@ -450,6 +455,16 @@ export function conditionLineOf(model: Pick<HedonicModel, "bidPremium">): string
     return `Budpremie skick: mätt på ${reading.n} sålda (β ${beta})`;
   }
   return `Budpremie skick: ej mätt (prior 0): ${reading.reason ?? "ingen skickterm i modellen"}`;
+}
+
+/**
+ * The "Takhöjd" cell (CEIL-01): the stated height with one decimal and a decimal comma ("3,2 m", "3,0 m"), "högt i tak"
+ * when only a tall-ceiling phrase was stated, "okänd" when neither (or the text was never read, as in every stored
+ * snapshot). A stated number wins over the phrase.
+ */
+export function formatTakhojdCell(ceilingHeightM: number | null, tallCeilingPhrase: boolean | null): string {
+  if (ceilingHeightM !== null && Number.isFinite(ceilingHeightM)) return `${ceilingHeightM.toFixed(1).replace(".", ",")} m`;
+  return tallCeilingPhrase === true ? "högt i tak" : "okänd";
 }
 
 const roundKr = (n: number): number => Math.round(n);
@@ -490,6 +505,7 @@ export function toFitTableRows(
       solObstructed: solHours.obstructed,
       korsdrag: formatKorsdragCell(korsdragOf(r.layout)),
       sovrum: formatSovrumCell(quietBedroomOf(r.layout)),
+      takhojd: formatTakhojdCell(r.ceilingHeightM, r.tallCeilingPhrase),
       flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
       reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
       link: r.sourceListingUrl ?? "-",
@@ -498,7 +514,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -533,6 +549,7 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         r.solObstructed,
         r.korsdrag,
         r.sovrum,
+        r.takhojd,
         r.flags.join(", ") || "-",
         r.reasons,
         r.link,
