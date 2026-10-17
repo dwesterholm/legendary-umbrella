@@ -1,23 +1,35 @@
 // @vitest-environment node
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import truthJson from "@/lib/discovery/__fixtures__/layout-truth-3row.fixture.json";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import {
   ACCURACY_TARGET,
+  F61_BOOLI_ID,
   MIN_DECIDED_TRUTH_ROWS,
+  TRUTH_SEED,
+  TRUTH_SET_MAX_ROWS,
+  TRUTH_SET_MIN_ROWS,
   accuracyReport,
+  assignSplit,
   byEvidence,
   curveOf,
   fieldVerdict,
   gateFromCurve,
   layoutTruthFileSchema,
+  lockTruthFile,
   measurability,
   rawFieldScores,
   renderAccuracyMd,
+  rowsHashOf,
+  seededRank,
+  selectTruthSet,
   sideEvidenceAllowlist,
   truthRowSchema,
+  validateTruthFile,
   variantVerdict,
   wilson,
+  worklistOf,
   type FieldEvidence,
   type TruthFile,
   type TruthRow,
@@ -512,5 +524,302 @@ describe("renderAccuracyMd on a locked file", () => {
     expect(md).toContain("0,90");
     expect(md).toMatch(/courtyardGreenery/);
     expect(md).toMatch(/Godkänd/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 3: the truth-set tools
+// ---------------------------------------------------------------------------
+
+describe("constants of the truth set", () => {
+  it("fix the seed, the F61 id and the size window", () => {
+    expect(TRUTH_SEED).toBe("14.5");
+    expect(F61_BOOLI_ID).toBe(150148);
+    expect(TRUTH_SET_MIN_ROWS).toBe(25);
+    expect(TRUTH_SET_MAX_ROWS).toBe(45);
+  });
+});
+
+describe("worklistOf", () => {
+  const ok = (id: number, n = 4) => Array.from({ length: n }, (_, i) => `https://bcdn.se/images/cache/${id}${i}_1440x0.webp`);
+  const snap = (id: number | null, imageUrls: string[]) => ({
+    candidate: { sourceListingUrl: id === null ? null : `https://www.booli.se/bostad/${id}`, imageUrls },
+  });
+  const ids = [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 150148];
+  const rows = ids.map((id) => snap(id, ok(id)));
+
+  it("puts Folkungagatan 61 first and the rest in sha256(seed:id) order", () => {
+    const list = worklistOf(rows, "14.5");
+    expect(list[0]).toMatchObject({ position: 1, booliId: 150148 });
+    const expectedRest = ids
+      .filter((id) => id !== 150148)
+      .sort((a, b) => (createHash("sha256").update(`14.5:${a}`).digest("hex") < createHash("sha256").update(`14.5:${b}`).digest("hex") ? -1 : 1));
+    expect(list.slice(1).map((e) => e.booliId)).toEqual(expectedRest);
+    expect(list.map((e) => e.position)).toEqual(list.map((_, i) => i + 1));
+  });
+
+  it("is stable: the same input in any order gives the same list", () => {
+    const a = worklistOf(rows, "14.5");
+    const b = worklistOf([...rows].reverse(), "14.5");
+    expect(b).toEqual(a);
+    expect(worklistOf(rows, "other-seed").map((e) => e.booliId)).not.toEqual(a.map((e) => e.booliId));
+  });
+
+  it("keeps only flats with at least two allowed image URLs, and only the allowed URLs", () => {
+    const list = worklistOf(
+      [
+        snap(1, ok(1, 1)), // one picture: out
+        snap(2, [...ok(2, 2), "https://evil.example/x.jpg"]), // two allowed, one not
+        snap(3, ["https://evil.example/a.jpg", "https://evil.example/b.jpg"]), // none allowed: out
+        snap(null, ok(4)), // no Booli id: out
+      ],
+      "14.5",
+    );
+    expect(list).toHaveLength(1);
+    expect(list[0].booliId).toBe(2);
+    expect(list[0].imageUrls).toEqual(ok(2, 2));
+  });
+
+  it("lists a Booli id once", () => {
+    expect(worklistOf([snap(5, ok(5)), snap(5, ok(5))], "14.5")).toHaveLength(1);
+  });
+
+  it("carries no layout read: an entry has only a position, an id and URLs", () => {
+    expect(Object.keys(worklistOf(rows, "14.5")[0]).sort()).toEqual(["booliId", "imageUrls", "position"]);
+  });
+});
+
+/** A judged row with the given truths; everything else fixed. */
+const judged = (booliId: number, over: Record<string, unknown> = {}): TruthRow =>
+  truthRowSchema.parse({
+    ...file.rows[1],
+    booliId,
+    position: booliId,
+    source: "judged",
+    inSet: true,
+    split: null,
+    order: null,
+    balconySide: "undecidable",
+    livingOnBalconySide: "undecidable",
+    windowSides: "undecidable",
+    bedroomSide: "undecidable",
+    ...over,
+  });
+
+const f61Row = (over: Record<string, unknown> = {}): TruthRow => truthRowSchema.parse({ ...file.rows[0], ...over });
+
+const fileOf = (rows: TruthRow[], over: Partial<TruthFile> = {}): TruthFile => ({ ...file, rows, ...over });
+
+/** F61 plus `n` judged rows with truths cycling through every combination, ids 1..n. */
+function bigFile(n: number): TruthFile {
+  const balcony = ["street", "courtyard", "none", "undecidable"] as const;
+  const windows = ["one", "twoOpposite", "corner", "undecidable", "one"] as const;
+  const bedroom = ["street", "courtyard", "undecidable"] as const;
+  const rows = [f61Row({ position: 1 })];
+  for (let i = 1; i <= n; i++) {
+    rows.push(judged(i, { position: i + 1, balconySide: balcony[i % 4], windowSides: windows[i % 5], bedroomSide: bedroom[i % 3], livingOnBalconySide: i % 2 ? "yes" : "no" }));
+  }
+  return fileOf(rows);
+}
+
+describe("selectTruthSet", () => {
+  it("takes decided balcony or bedroom rows and Folkungagatan 61, then window-only rows, and leaves out rows with nothing decided", () => {
+    const rows = [
+      f61Row({ windowSides: "undecidable" }),
+      judged(1, { balconySide: "street" }),
+      judged(2, { bedroomSide: "courtyard" }),
+      judged(3, { balconySide: "none", windowSides: "one" }), // window-only
+      judged(4, { windowSides: "corner" }), // window-only
+      judged(5), // nothing decided
+      judged(6, { balconySide: "none" }), // none is not a decided side: nothing decided
+    ];
+    const out = selectTruthSet(fileOf(rows), "14.5");
+    expect(out.map((r) => [r.booliId, r.inSet])).toEqual([
+      [150148, true],
+      [1, true],
+      [2, true],
+      [3, true],
+      [4, true],
+      [5, false],
+      [6, false],
+    ]);
+  });
+
+  it("excludes rows whose pictures were unavailable", () => {
+    const rows = [f61Row(), judged(1, { balconySide: "street" }), judged(2, { balconySide: "courtyard" })];
+    const out = selectTruthSet(fileOf(rows, { unavailable: [2] }), "14.5");
+    expect(out.find((r) => r.booliId === 2)?.inSet).toBe(false);
+    expect(out.find((r) => r.booliId === 1)?.inSet).toBe(true);
+  });
+
+  it("caps the set at 45 rows, keeping Folkungagatan 61 and the decided-side rows before window-only rows", () => {
+    const out = selectTruthSet(bigFile(120), "14.5");
+    const inSet = out.filter((r) => r.inSet);
+    expect(inSet).toHaveLength(TRUTH_SET_MAX_ROWS);
+    expect(inSet.some((r) => r.booliId === 150148)).toBe(true);
+    // 120 judged rows hold more than 44 side-decided rows, so no window-only row can be in the set
+    expect(inSet.every((r) => r.booliId === 150148 || r.balconySide === "street" || r.balconySide === "courtyard" || r.bedroomSide !== "undecidable")).toBe(true);
+  });
+
+  it("fills with window-only rows in seeded order until the pool is empty", () => {
+    const rows = [f61Row(), judged(1, { balconySide: "street" })];
+    for (let i = 10; i < 20; i++) rows.push(judged(i, { windowSides: "one" }));
+    const out = selectTruthSet(fileOf(rows), "14.5");
+    expect(out.filter((r) => r.inSet)).toHaveLength(12);
+    const small = selectTruthSet(fileOf(rows.slice(0, 5)), "14.5");
+    expect(small.filter((r) => r.inSet)).toHaveLength(5);
+  });
+
+  it("is deterministic and does not touch split or order", () => {
+    const a = selectTruthSet(bigFile(60), "14.5");
+    expect(selectTruthSet(bigFile(60), "14.5")).toEqual(a);
+    expect(a.every((r) => r.split === null && r.order === null)).toBe(true);
+  });
+});
+
+describe("assignSplit", () => {
+  const selected = selectTruthSet(bigFile(70), "14.5");
+  const out = assignSplit(selected, "14.5");
+  const inSet = out.filter((r) => r.inSet);
+  const stratumOf = (r: TruthRow) => `${r.balconySide === "street" || r.balconySide === "courtyard"}|${r.bedroomSide !== "undecidable"}|${r.windowSides}`;
+
+  it("puts Folkungagatan 61 in the holdout", () => {
+    expect(out.find((r) => r.booliId === 150148)?.split).toBe("holdout");
+  });
+
+  it("gives every set row a split and a unique read order 1..n, and no one else", () => {
+    expect(inSet.every((r) => r.split !== null && r.order !== null)).toBe(true);
+    expect(inSet.map((r) => r.order).sort((a, b) => (a as number) - (b as number))).toEqual(inSet.map((_, i) => i + 1));
+    expect(out.filter((r) => !r.inSet).every((r) => r.split === null && r.order === null)).toBe(true);
+  });
+
+  it("keeps the two halves within one row of each other in every stratum", () => {
+    const strata = new Map<string, { dev: number; holdout: number }>();
+    for (const r of inSet) {
+      const c = strata.get(stratumOf(r)) ?? { dev: 0, holdout: 0 };
+      c[r.split as "dev" | "holdout"] += 1;
+      strata.set(stratumOf(r), c);
+    }
+    expect(strata.size).toBeGreaterThan(1);
+    for (const c of strata.values()) expect(Math.abs(c.dev - c.holdout)).toBeLessThanOrEqual(1);
+  });
+
+  it("orders the read by seeded rank across the whole set", () => {
+    const byOrder = [...inSet].sort((a, b) => (a.order as number) - (b.order as number));
+    const ranks = byOrder.map((r) => seededRank("14.5", r.booliId));
+    expect(ranks).toEqual([...ranks].sort());
+  });
+
+  it("is deterministic", () => {
+    expect(assignSplit(selected, "14.5")).toEqual(out);
+  });
+});
+
+describe("rowsHashOf", () => {
+  it("is 16 hex characters, stable, and changes when any field of a row changes", () => {
+    const rows = bigFile(5).rows;
+    const h = rowsHashOf(rows);
+    expect(h).toMatch(/^[0-9a-f]{16}$/);
+    expect(rowsHashOf(rows)).toBe(h);
+    expect(rowsHashOf([{ ...rows[0], note: "annan notering" }, ...rows.slice(1)])).not.toBe(h);
+    expect(rowsHashOf([{ ...rows[0], split: "dev" }, ...rows.slice(1)])).not.toBe(h);
+  });
+  it("does not depend on key order", () => {
+    const rows = bigFile(3).rows;
+    const reordered = rows.map((r) => Object.fromEntries(Object.entries(r).reverse())) as TruthRow[];
+    expect(rowsHashOf(reordered)).toBe(rowsHashOf(rows));
+  });
+});
+
+describe("lockTruthFile", () => {
+  const NOW = "2026-10-17T16:30:00.000Z";
+  const procedure = "Så bedöms en lägenhet.";
+  const locked = lockTruthFile(bigFile(60), { seed: "14.5", procedureText: procedure, now: NOW });
+
+  it("writes the lock fields, the split, the order and the triage counts", () => {
+    expect(locked.lockedAt).toBe(NOW);
+    expect(locked.seed).toBe("14.5");
+    expect(locked.rowsHash).toBe(rowsHashOf(locked.rows));
+    expect(locked.procedureHash).toBe(createHash("sha256").update(procedure).digest("hex").slice(0, 16));
+    expect(locked.selectionRule).toMatch(/\S/);
+    expect(locked.triage).toMatchObject({ judged: 60, unavailable: 0 });
+    // over all judged rows, not only the set: i % 4 in {0,1} are street/courtyard of 60 -> 30
+    expect(locked.triage?.balconyDecided).toBe(30);
+    expect(locked.rows.filter((r) => r.inSet)).toHaveLength(45);
+    expect(locked.rows.find((r) => r.booliId === 150148)?.split).toBe("holdout");
+  });
+
+  it("passes validation as locked", () => {
+    expect(validateTruthFile(locked, { requireLocked: true })).toEqual({ ok: true, error: null });
+  });
+
+  it("refuses to lock an already locked file", () => {
+    expect(() => lockTruthFile(locked, { seed: "14.5", procedureText: procedure, now: NOW })).toThrow(/redan låst/);
+  });
+
+  it("does not change the input file", () => {
+    const input = bigFile(60);
+    const copy = JSON.stringify(input);
+    lockTruthFile(input, { seed: "14.5", procedureText: procedure, now: NOW });
+    expect(JSON.stringify(input)).toBe(copy);
+  });
+});
+
+describe("validateTruthFile", () => {
+  const NOW = "2026-10-17T16:30:00.000Z";
+  const locked = () => lockTruthFile(bigFile(60), { seed: "14.5", procedureText: "p", now: NOW });
+  const err = (f: TruthFile, requireLocked = false) => validateTruthFile(f, { requireLocked }).error;
+
+  it("accepts the unlocked fixture, and refuses it with requireLocked", () => {
+    expect(validateTruthFile(file, { requireLocked: false })).toEqual({ ok: true, error: null });
+    const v = validateTruthFile(file, { requireLocked: true });
+    expect(v.ok).toBe(false);
+    expect(v.error).toMatch(/olåst|låst/);
+  });
+
+  it("row 1 must be Folkungagatan 61 with source known", () => {
+    expect(err(fileOf([{ ...file.rows[1] }, { ...file.rows[0] }]))).toMatch(/rad 1/);
+    expect(err(fileOf([{ ...file.rows[0], source: "judged" }, ...file.rows.slice(1)]))).toMatch(/rad 1/);
+  });
+
+  it("Booli ids must be unique", () => {
+    expect(err(fileOf([file.rows[0], file.rows[1], { ...file.rows[1] }]))).toMatch(/unik|dubblett|flera gånger/);
+  });
+
+  it("split and order may only be set on rows in the set", () => {
+    const rows = [...file.rows.slice(0, 2), { ...file.rows[2], inSet: false, split: "dev" as const }];
+    expect(err(fileOf(rows))).toMatch(/urval/);
+    const rows2 = [...file.rows.slice(0, 2), { ...file.rows[2], inSet: false, order: 3 }];
+    expect(err(fileOf(rows2))).toMatch(/urval/);
+  });
+
+  it("a locked file whose row was edited fails the hash check", () => {
+    const f = locked();
+    const tampered = { ...f, rows: f.rows.map((r, i) => (i === 3 ? { ...r, balconySide: r.balconySide === "street" ? ("courtyard" as const) : ("street" as const) } : r)) };
+    expect(err(tampered)).toMatch(/hash/i);
+    const victim = f.rows.find((r) => r.inSet && r.booliId !== 150148);
+    expect(victim).toBeDefined();
+    const moved = { ...f, rows: f.rows.map((r) => (r.booliId === victim?.booliId ? { ...r, split: r.split === "dev" ? ("holdout" as const) : ("dev" as const) } : r)) };
+    expect(err(moved)).toMatch(/hash/i);
+  });
+
+  it("a locked file needs 25 to 45 rows in the set, Folkungagatan 61 in the holdout and both halves non-empty", () => {
+    const f = locked();
+    // hash recomputed so only the rule under test fails
+    const rehash = (rows: TruthRow[]): TruthFile => ({ ...f, rows, rowsHash: rowsHashOf(rows) });
+    const fewer = rehash(f.rows.map((r, i) => (r.inSet && i > 10 ? { ...r, inSet: false, split: null, order: null } : r)));
+    expect(err(fewer)).toMatch(/25/);
+    const f61Dev = rehash(f.rows.map((r) => (r.booliId === 150148 ? { ...r, split: "dev" as const } : r)));
+    expect(err(f61Dev)).toMatch(/holdout/);
+    const allHoldout = rehash(f.rows.map((r) => (r.inSet ? { ...r, split: "holdout" as const } : r)));
+    expect(err(allHoldout)).toMatch(/dev/);
+    const missing = rehash(f.rows.map((r, i) => (r.inSet && i === 5 ? { ...r, split: null } : r)));
+    expect(err(missing)).toMatch(/split|order|saknar/);
+  });
+
+  it("a locked file must carry all lock fields", () => {
+    const f = locked();
+    expect(err({ ...f, procedureHash: null })).toMatch(/procedur/);
+    expect(err({ ...f, rowsHash: null })).toMatch(/hash/i);
   });
 });

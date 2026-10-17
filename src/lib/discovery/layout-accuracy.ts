@@ -21,7 +21,13 @@
  *    gate exists, and the same gate holds {@link ACCURACY_TARGET} on the locked holdout rows and on dev + holdout
  *    pooled, each with enough believed calls. All-calls accuracy and the raw accuracy are printed beside it;
  *  - {@link accuracyReport} and {@link renderAccuracyMd}: the whole picture, counts only, in JSON and in Swedish
- *    markdown; the truth-set tools (worklist, select-and-lock, validation) follow in plan 02 task 3.
+ *    markdown;
+ *  - the truth-set tools: {@link worklistOf} (the Booli ids to judge, Folkungagatan 61 first, then a seeded
+ *    order; ids and allowed picture URLs only, never a read), {@link selectTruthSet} and {@link assignSplit}
+ *    (which judged flats form the measured set, the 50/50 stratified dev/holdout split with Folkungagatan 61
+ *    forced into the holdout, and the seeded read order), {@link lockTruthFile} (fixes all of that plus a hash of
+ *    the rows and of the written procedure BEFORE any paid run) and {@link validateTruthFile} (catches a
+ *    malformed or edited file).
  *
  * The numbers are precision on flats a judge could decide, not accuracy on a random sample: selecting flats
  * whose pictures settle the question favours cases where the model also sees the evidence. The triage counts in
@@ -34,7 +40,10 @@
  * STRUCTURAL SEPARATION (LOCKED): `niche-score.ts` and `report/flags.ts` must never import it (the
  * "discovery/layout-" specifier in niche-score.test.ts enforces that).
  */
+import { createHash } from "node:crypto";
 import { z } from "zod/v4";
+import { isAllowedImageHost } from "@/lib/booli/image-host";
+import { booliIdOf } from "@/lib/discovery/fit-score";
 import {
   LAYOUT_MIN_CONFIDENCE,
   STREET_EVIDENCE,
@@ -751,4 +760,209 @@ export function renderAccuracyMd(report: AccuracyReport): string {
   out.push("");
   out.push(`Helhet: ${report.pass ? "Godkänd" : "Inte godkänd"} (alla tre fälten måste godkännas).`);
   return `${out.join("\n")}\n`;
+}
+
+// ---------------------------------------------------------------------------
+// The truth-set tools (plan 02 task 3)
+// ---------------------------------------------------------------------------
+
+/** The seed of the worklist order, the selection order, the split and the read order. */
+export const TRUTH_SEED = "14.5";
+/** Fewer rows in the set than this and the file cannot be locked: the research asked for at least 25 judged flats (D-09). */
+export const TRUTH_SET_MIN_ROWS = 25;
+/** The cap keeps one Opus round under 40 kr at about 0,6 to 0,8 kr per flat (D-13). */
+export const TRUTH_SET_MAX_ROWS = 45;
+/** Folkungagatan 61: the one flat with a known truth (row 1 of the file, forced into the holdout). */
+export const F61_BOOLI_ID = 150148;
+
+/** The selection rule as it is stored in the locked file. */
+export const SELECTION_RULE =
+  `Urval: bedömda lägenheter vars bilder gick att hämta. Först Folkungagatan 61 och alla lägenheter där balkongens eller sovrummets sida ` +
+  `(gata eller gård) kunde avgöras, sedan lägenheter där fönstersidorna kunde avgöras, i en ordning som bestäms av fröet, högst ${TRUTH_SET_MAX_ROWS} rader. ` +
+  `Lägenheter där inget kunde avgöras ingår inte. Siffrorna gäller därför precision på lägenheter en bedömare kunde avgöra, inte ett slumpmässigt urval.`;
+
+/** The seeded rank of a Booli id: sha256 of "seed:id" in hex. Smaller sorts first. Deterministic and pure. */
+export function seededRank(seed: string, booliId: number): string {
+  return createHash("sha256").update(`${seed}:${booliId}`).digest("hex");
+}
+
+/** Items sorted by seeded rank of their Booli id. Does not mutate the input. */
+function sortSeeded<T extends { booliId: number }>(items: readonly T[], seed: string): T[] {
+  return items
+    .map((item) => ({ item, rank: seededRank(seed, item.booliId) }))
+    .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
+    .map((x) => x.item);
+}
+
+// -- the worklist ------------------------------------------------------------
+
+export interface WorklistEntry {
+  /** 1-based place in the list. */
+  position: number;
+  booliId: number;
+  /** The picture URLs that pass the Booli image-host allowlist, in snapshot order. */
+  imageUrls: string[];
+}
+
+/**
+ * The flats to judge: Booli ids of snapshot rows with at least two allowed picture URLs. Folkungagatan 61 is
+ * position 1 when present; the rest follow sha256(seed:id) order. The same input always gives the same list, in
+ * any input order. It carries no layout read and takes none: the judge works blind.
+ */
+export function worklistOf(
+  snapshotRows: ReadonlyArray<{ candidate: { sourceListingUrl: string | null; imageUrls: readonly string[] | null } }>,
+  seed: string = TRUTH_SEED,
+): WorklistEntry[] {
+  const byId = new Map<number, string[]>();
+  for (const row of snapshotRows) {
+    const booliId = booliIdOf(row.candidate);
+    if (booliId === null || byId.has(booliId)) continue;
+    const imageUrls = (row.candidate.imageUrls ?? []).filter((url) => isAllowedImageHost(url));
+    if (imageUrls.length >= 2) byId.set(booliId, imageUrls);
+  }
+  const entries = [...byId].map(([booliId, imageUrls]) => ({ booliId, imageUrls }));
+  const f61 = entries.filter((e) => e.booliId === F61_BOOLI_ID);
+  const rest = sortSeeded(
+    entries.filter((e) => e.booliId !== F61_BOOLI_ID),
+    seed,
+  );
+  return [...f61, ...rest].map((e, i) => ({ position: i + 1, booliId: e.booliId, imageUrls: e.imageUrls }));
+}
+
+// -- selection, split, hash, lock ----------------------------------------------
+
+const sideDecidedRow = (r: TruthRow): boolean => isSide(r.balconySide) || isSide(r.bedroomSide);
+const windowsDecidedRow = (r: TruthRow): boolean => r.windowSides !== "undecidable";
+
+/**
+ * Which rows form the measured set. Rows whose pictures were unavailable are out. In priority order: Folkungagatan
+ * 61; every row with a decided balcony or bedroom side (street or courtyard), in seeded order; then rows with
+ * decided window sides, in seeded order; at most {@link TRUTH_SET_MAX_ROWS}. A row where nothing is decided stays
+ * out. Returns every row of the file in its place with `inSet` set and `split` and `order` cleared. Pure.
+ */
+export function selectTruthSet(file: TruthFile, seed: string = file.seed): TruthRow[] {
+  const unavailable = new Set(file.unavailable);
+  const candidates = file.rows.filter((r) => !unavailable.has(r.booliId));
+  const f61 = candidates.filter((r) => r.booliId === F61_BOOLI_ID);
+  const rest = candidates.filter((r) => r.booliId !== F61_BOOLI_ID);
+  const core = sortSeeded(rest.filter(sideDecidedRow), seed);
+  const windowsOnly = sortSeeded(
+    rest.filter((r) => !sideDecidedRow(r) && windowsDecidedRow(r)),
+    seed,
+  );
+  const chosen = new Set([...f61, ...core, ...windowsOnly].slice(0, TRUTH_SET_MAX_ROWS).map((r) => r.booliId));
+  return file.rows.map((r) => ({ ...r, inSet: chosen.has(r.booliId), split: null, order: null }));
+}
+
+/**
+ * The 50/50 split and the read order of the set rows. Folkungagatan 61 is the holdout (nothing is tuned to the one
+ * flat with a known truth). The other set rows are grouped into strata by (balcony side decided, bedroom side
+ * decided, window sides truth) and alternate dev, holdout, dev, ... within each stratum in seeded order, so the
+ * halves differ by at most one row per stratum. `order` is the seeded rank across the whole set (1-based), the
+ * order the paid reads will run in. Rows outside the set get no split and no order. Pure.
+ */
+export function assignSplit(rows: readonly TruthRow[], seed: string): TruthRow[] {
+  const inSet = rows.filter((r) => r.inSet);
+  const splitOf = new Map<number, "dev" | "holdout">();
+  const strata = new Map<string, TruthRow[]>();
+  for (const r of inSet) {
+    if (r.booliId === F61_BOOLI_ID) {
+      splitOf.set(r.booliId, "holdout");
+      continue;
+    }
+    const key = `${isSide(r.balconySide)}|${isSide(r.bedroomSide)}|${r.windowSides}`;
+    strata.set(key, [...(strata.get(key) ?? []), r]);
+  }
+  for (const key of [...strata.keys()].sort()) {
+    sortSeeded(strata.get(key) ?? [], seed).forEach((r, i) => splitOf.set(r.booliId, i % 2 === 0 ? "dev" : "holdout"));
+  }
+  const orderOf = new Map(sortSeeded(inSet, seed).map((r, i) => [r.booliId, i + 1] as const));
+  return rows.map((r) =>
+    r.inSet ? { ...r, split: splitOf.get(r.booliId) ?? null, order: orderOf.get(r.booliId) ?? null } : { ...r, split: null, order: null },
+  );
+}
+
+/** JSON with object keys sorted at every level: the same data gives the same text. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+const sha16 = (text: string): string => createHash("sha256").update(text).digest("hex").slice(0, 16);
+
+/** The first 16 hex characters of the sha256 of the canonical JSON of the rows (key order does not matter). */
+export function rowsHashOf(rows: readonly TruthRow[]): string {
+  return sha16(canonicalJson(rows));
+}
+
+/**
+ * Locks a truth file: selects the set, assigns split and order, and writes the lock fields (time, seed, rows hash,
+ * procedure hash, the selection rule and the triage counts over all judged rows). Throws on an already locked file
+ * (T-14.5-06: a goalpost is not moved twice). Returns a new file; the input is not changed. Pure: the clock and the
+ * procedure text come from the caller.
+ */
+export function lockTruthFile(file: TruthFile, opts: { seed: string; procedureText: string; now: string }): TruthFile {
+  if (file.lockedAt !== null) throw new Error("Sanningsfilen är redan låst");
+  const rows = assignSplit(selectTruthSet(file, opts.seed), opts.seed);
+  const judged = rows.filter((r) => r.source === "judged");
+  return {
+    ...file,
+    seed: opts.seed,
+    lockedAt: opts.now,
+    rows,
+    rowsHash: rowsHashOf(rows),
+    procedureHash: sha16(opts.procedureText),
+    selectionRule: SELECTION_RULE,
+    triage: {
+      judged: judged.length,
+      unavailable: file.unavailable.length,
+      balconyDecided: judged.filter((r) => isSide(r.balconySide)).length,
+      windowsDecided: judged.filter(windowsDecidedRow).length,
+      bedroomDecided: judged.filter((r) => isSide(r.bedroomSide)).length,
+      livingDecided: judged.filter((r) => r.livingOnBalconySide !== "undecidable").length,
+    },
+  };
+}
+
+/**
+ * Checks a truth file and names the first rule it breaks. Always: row 1 is Folkungagatan 61 with source "known",
+ * Booli ids are unique, split and order are set only on rows in the set. When locked: the rows hash matches the
+ * rows, the procedure hash and selection rule are present, the set holds {@link TRUTH_SET_MIN_ROWS} to
+ * {@link TRUTH_SET_MAX_ROWS} rows, every set row has a split and a unique order, Folkungagatan 61 is in the
+ * holdout and both halves are non-empty. With `requireLocked` an unlocked file fails. Pure.
+ */
+export function validateTruthFile(file: TruthFile, opts: { requireLocked: boolean }): { ok: boolean; error: string | null } {
+  const fail = (error: string) => ({ ok: false, error });
+  const first = file.rows[0];
+  if (first === undefined || first.booliId !== F61_BOOLI_ID || first.source !== "known") {
+    return fail(`rad 1 måste vara Folkungagatan 61 (${F61_BOOLI_ID}) med källan known`);
+  }
+  const seen = new Set<number>();
+  for (const r of file.rows) {
+    if (seen.has(r.booliId)) return fail(`Booli-id ${r.booliId} förekommer flera gånger; id:n måste vara unika`);
+    seen.add(r.booliId);
+    if (!r.inSet && (r.split !== null || r.order !== null)) return fail(`rad för ${r.booliId} har split eller order men ingår inte i urvalet`);
+  }
+  if (file.lockedAt === null) return opts.requireLocked ? fail("sanningsfilen är olåst; kör --select-and-lock först") : { ok: true, error: null };
+
+  if (file.rowsHash === null) return fail("låst fil saknar rowsHash");
+  if (file.procedureHash === null) return fail("låst fil saknar procedureHash (proceduren)");
+  if (file.selectionRule === null) return fail("låst fil saknar urvalsregeln");
+  if (rowsHashOf(file.rows) !== file.rowsHash) return fail("raderna stämmer inte med rowsHash; filen har ändrats efter låsningen");
+  const inSet = file.rows.filter((r) => r.inSet);
+  if (inSet.length < TRUTH_SET_MIN_ROWS || inSet.length > TRUTH_SET_MAX_ROWS) {
+    return fail(`urvalet har ${inSet.length} rader; ${TRUTH_SET_MIN_ROWS} till ${TRUTH_SET_MAX_ROWS} krävs`);
+  }
+  if (inSet.some((r) => r.split === null || r.order === null)) return fail("en rad i urvalet saknar split eller order");
+  if (new Set(inSet.map((r) => r.order)).size !== inSet.length) return fail("order är inte unik i urvalet");
+  if (!inSet.some((r) => r.booliId === F61_BOOLI_ID && r.split === "holdout")) return fail(`Folkungagatan 61 (${F61_BOOLI_ID}) måste ingå i urvalet och ligga i holdout`);
+  if (!inSet.some((r) => r.split === "dev")) return fail("dev-halvan är tom");
+  if (!inSet.some((r) => r.split === "holdout")) return fail("holdout-halvan är tom");
+  return { ok: true, error: null };
 }
