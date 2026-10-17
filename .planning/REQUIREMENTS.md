@@ -67,6 +67,16 @@
   - *Amended 2026-10-13 (14.4-CONTEXT R-08):* no public source was found for ±2 pp; when the condition term is not fitted (no sold photos, or cross-validation rejects it) the prior is 0 with the flag "budpremie: skick ej mätt".
 - [x] **BID-02**: `expectedOverbid` takes the candidate's vision condition (the existing deep-pass verdict) so a dated flat's expected final price rises less; the table prints the premium used and its source (fit/prior); the before/after on the current snapshot is in the VAL-05 report.
 
+### Full Enrichment, Layout Accuracy, Ceiling Height (Phase 14.5, inserted 2026-10-17)
+
+- [ ] **ENR-01**: The remaining ≈ 4 300 sold rows in the 2025-10-20+ window and every new distinct BRF are enriched through the free local rung (R-10 rules: no_data never retried, failures judged after 100, a challenge stops at once, 0 USD Apify); the run log and `--enrich-report` are in the phase evidence with counts per field (avgift, BRF id, days on market, debt/kvm, image ids, takhöjd when ENR-/CEIL- adds it).
+- [ ] **ENR-02**: The hedonic model is refitted on the full enriched set; the report shows every coefficient with SE before (n ≈ 1 200) and after (n ≈ 5 500), R²/CV, the avgift–debt correlation, and whether balcony and 1961–1990 still sit on the ±8 % stage-2 cap; if they do, the cap is widened in ONE documented step (±12 %) and refitted again, with Folkungagatan 61's rank and decomposition before/after each step — measured, not tuned.
+- [ ] **CEIL-01**: Stated ceiling height is parsed from broker text ("takhöjd 3,2 m", "takhöjd om ca 3 meter", "3,5 meter i takhöjd", … ) into a `ceilingHeightM` fact (metres, source "angiven", plausibility 2,2–5,0 m) on for-sale detail pages (text already read) and, if the probe shows sold-detail pages carry the description, on sold rows during enrichment; coverage per source is measured and printed; nothing is guessed from photos into the valuation.
+- [ ] **CEIL-02**: If ≥ 300 sold rows carry a stated height, `ceilingHeightM` enters the hedonic model with the honesty rule (null → mean, listed in `imputed`) and is reported with SE; whether or not it is fitted, a taste term inside the unchanged 5 % cap (+1 % of resale at ≥ 3,0 m, +2 % at ≥ 3,5 m, unknown adds 0) and a "Takhöjd" column in the table and mail are added; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched.
+- [ ] **LAYACC-01**: A hand-judged truth set of ≥ 25 current or recent flats (balcony side, window sides, bedroom side, street evidence, each with a one-line justification) is stored as data under the phase directory (never photos), with Folkungagatan 61 as row 1; the judging procedure is written down so a second judge can repeat it.
+- [ ] **LAYACC-02**: The layout read is reworked against the truth set — model tier comparison (Sonnet vs Opus on the plan + photos), explicit evidence rules in the prompt (cars/street lamps/shopfronts = street; bicycle racks/lawns/own back facade = courtyard; artificial grass on a balcony is not greenery; the plan's entrance arrow is not a side), per-field confidence — with per-field accuracy and a confidence-vs-accuracy curve measured and recorded; ≤ 40 kr per experiment round, 0 USD Apify, cached.
+- [ ] **LAYACC-03**: `LAYOUT_INFLUENCE_ENABLED` is flipped back on ONLY if balcony side, korsdrag and bedroom side each reach ≥ 75 % accuracy on the truth set with the gate set from the measured curve; otherwise it stays off and the report says which field failed and why; the Sol/Korsdrag/Sovrum cells follow the switch.
+
 ### Opportunity Brief (Phase A.5)
 
 - [ ] **ROI-01**: Analysis produces a prioritized opportunity list — each item has cheap/mid/high cost band, expected uplift, confidence, and rationale; structural items retain the "kräver konstruktör / väggutredning" caveat.
@@ -145,6 +155,13 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | LAY-04 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | BID-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | BID-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
+| ENR-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| ENR-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| CEIL-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| CEIL-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| LAYACC-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| LAYACC-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| LAYACC-03 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-03 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
