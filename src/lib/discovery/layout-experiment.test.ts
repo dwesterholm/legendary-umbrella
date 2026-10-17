@@ -8,10 +8,14 @@ import type { BrokerImageBytes } from "@/lib/broker/broker-images";
 import { believedLayout, layoutFactSchema, type LayoutGatePolicy } from "@/lib/discovery/layout-fact";
 import type { AccuracyReport, FieldReport, Precision } from "@/lib/discovery/layout-accuracy";
 import { wilson } from "@/lib/discovery/layout-accuracy";
+import Anthropic from "@anthropic-ai/sdk";
+import { makeTwoStepLayoutCall } from "@/lib/discovery/layout-call";
+import { layoutCallCostSek } from "@/lib/discovery/layout-cost";
 import {
   LAYOUT_ROUND_CAP_SEK,
   LAYOUT_SMOKE_CAP_SEK,
   LAYOUT_VARIANTS,
+  combineTwoStep,
   decideRounds,
   factFromVariantRead,
   layoutVariantCachePath,
@@ -35,11 +39,18 @@ import {
   LAYOUT_OPUS_MODEL,
   LAYOUT_READ_VERSION,
   LAYOUT_SYSTEM_PROMPT,
+  LAYOUT_STEP_A_SYSTEM_PROMPT,
+  LAYOUT_STEP_B_SYSTEM_PROMPT,
   LAYOUT_SYSTEM_PROMPT_V2,
   LAYOUT_USER_INSTRUCTION,
   LAYOUT_USER_INSTRUCTION_V2,
+  LayoutCallError,
   layoutReadSchema,
   layoutReadSchemaV2,
+  layoutStepASchema,
+  layoutStepBSchema,
+  type LayoutStepA,
+  type LayoutStepB,
   type LayoutImageBlock,
   type LayoutRead,
 } from "@/lib/discovery/layout-read";
@@ -679,5 +690,426 @@ describe("runVariantReads: checkpoint and the smoke estimate", () => {
     expect(strict.reads.map((r) => r.status)).toEqual(["read", "cost_cap"]);
     const lowered = await runVariantReads([item(1), item(2)], { variant: c, call, cache: emptyCache(c), runCapSek: 1, today: "d", estSekPerFlat: 0.45 });
     expect(lowered.reads.map((r) => r.status)).toEqual(["read", "read"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Variant d: the two-step combination, one test per row of the truth table
+// ---------------------------------------------------------------------------
+
+type Pic = LayoutStepB["pictures"][number];
+const stepA = (over: Partial<LayoutStepA> = {}): LayoutStepA => ({
+  planPresent: true,
+  balconyWall: "unknown",
+  livingWall: "unknown",
+  bedroomWall: "unknown",
+  windowTop: false,
+  windowBottom: false,
+  windowLeft: false,
+  windowRight: false,
+  confidence: 0.9,
+  ...over,
+});
+const pic = (over: Partial<Pic> = {}): Pic => ({ index: 1, takenFrom: "other", outside: "unknown", evidence: "none", ...over });
+const stepB = (pictures: Pic[], confidence = 0.8): LayoutStepB => ({ pictures, confidence });
+
+describe("combineTwoStep: balconySide", () => {
+  it("balconyWall none gives balconySide none, whatever the photos say", () => {
+    const out = combineTwoStep(stepA({ balconyWall: "none" }), stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })]));
+    expect(out.balconySide).toBe("none");
+    expect(out.livingOnBalconySide).toBe(false);
+  });
+
+  it("the first balcony photo with a known outside decides", () => {
+    const out = combineTwoStep(
+      stepA({ balconyWall: "top" }),
+      stepB([
+        pic({ index: 1, takenFrom: "balcony", outside: "unknown" }),
+        pic({ index: 2, takenFrom: "balcony", outside: "courtyard", evidence: "courtyardGreenery" }),
+        pic({ index: 3, takenFrom: "balcony", outside: "street", evidence: "cars" }),
+      ]),
+    );
+    expect(out.balconySide).toBe("courtyard");
+    expect(out.streetEvidence).toBe("courtyardGreenery");
+  });
+
+  it("a balcony photo decides even when the plan names no balcony wall", () => {
+    const out = combineTwoStep(stepA({ balconyWall: "unknown" }), stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })]));
+    expect(out.balconySide).toBe("street");
+  });
+
+  it("a living-room photo decides when the living room is on the balcony wall", () => {
+    const out = combineTwoStep(
+      stepA({ balconyWall: "left", livingWall: "left" }),
+      stepB([pic({ takenFrom: "living", outside: "street", evidence: "cars" })]),
+    );
+    expect(out.balconySide).toBe("street");
+    expect(out.streetEvidence).toBe("cars");
+  });
+
+  it("a living-room photo is ignored when the living room is on another wall", () => {
+    const out = combineTwoStep(
+      stepA({ balconyWall: "left", livingWall: "right" }),
+      stepB([pic({ takenFrom: "living", outside: "street", evidence: "cars" })]),
+    );
+    expect(out.balconySide).toBe("unknown");
+    expect(out.streetEvidence).toBe("none");
+  });
+
+  it("a balcony photo wins over a living-room photo", () => {
+    const out = combineTwoStep(
+      stepA({ balconyWall: "left", livingWall: "left" }),
+      stepB([pic({ takenFrom: "living", outside: "street", evidence: "cars" }), pic({ index: 2, takenFrom: "balcony", outside: "courtyard", evidence: "courtyardGreenery" })]),
+    );
+    expect(out.balconySide).toBe("courtyard");
+  });
+
+  it("is unknown when no photo settles it, and when there are no photos at all", () => {
+    expect(combineTwoStep(stepA({ balconyWall: "top" }), stepB([pic({ takenFrom: "kitchen", outside: "street" })])).balconySide).toBe("unknown");
+    expect(combineTwoStep(stepA({ balconyWall: "top" }), stepB([])).balconySide).toBe("unknown");
+    expect(combineTwoStep(stepA({ balconyWall: "top", livingWall: "top" }), null).balconySide).toBe("unknown");
+  });
+
+  it("with no photos a plan that shows no balcony still says none", () => {
+    expect(combineTwoStep(stepA({ balconyWall: "none" }), null).balconySide).toBe("none");
+  });
+});
+
+describe("combineTwoStep: bedroomSide", () => {
+  it("a bedroom photo with a known outside decides, even over the inference from the balcony", () => {
+    const out = combineTwoStep(
+      stepA({ balconyWall: "top", bedroomWall: "top" }),
+      stepB([
+        pic({ takenFrom: "balcony", outside: "street", evidence: "cars" }),
+        pic({ index: 2, takenFrom: "bedroom", outside: "courtyard", evidence: "courtyardGreenery" }),
+      ]),
+    );
+    expect(out.bedroomSide).toBe("courtyard");
+  });
+
+  it("a bedroom photo with an unknown outside does not decide", () => {
+    const out = combineTwoStep(
+      stepA({ balconyWall: "top", bedroomWall: "top" }),
+      stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" }), pic({ index: 2, takenFrom: "bedroom", outside: "unknown" })]),
+    );
+    expect(out.bedroomSide).toBe("street");
+  });
+
+  it("with no bedroom photo the bedroom is on the balcony side when bedroomWall equals balconyWall", () => {
+    const out = combineTwoStep(stepA({ balconyWall: "left", bedroomWall: "left" }), stepB([pic({ takenFrom: "balcony", outside: "courtyard", evidence: "courtyardGreenery" })]));
+    expect(out.bedroomSide).toBe("courtyard");
+    expect(out.bedroomOnBalconySide).toBe(true);
+  });
+
+  it("is the other side when bedroomWall is the wall opposite the balcony, top against bottom and left against right", () => {
+    const street = pic({ takenFrom: "balcony", outside: "street", evidence: "cars" });
+    const courtyard = pic({ takenFrom: "balcony", outside: "courtyard", evidence: "courtyardGreenery" });
+    expect(combineTwoStep(stepA({ balconyWall: "top", bedroomWall: "bottom" }), stepB([street])).bedroomSide).toBe("courtyard");
+    expect(combineTwoStep(stepA({ balconyWall: "bottom", bedroomWall: "top" }), stepB([courtyard])).bedroomSide).toBe("street");
+    expect(combineTwoStep(stepA({ balconyWall: "left", bedroomWall: "right" }), stepB([street])).bedroomSide).toBe("courtyard");
+    expect(combineTwoStep(stepA({ balconyWall: "right", bedroomWall: "left" }), stepB([courtyard])).bedroomSide).toBe("street");
+    expect(combineTwoStep(stepA({ balconyWall: "top", bedroomWall: "bottom" }), stepB([street])).bedroomOnBalconySide).toBe(false);
+  });
+
+  it("is unknown when the bedroom wall is adjacent to the balcony wall", () => {
+    const street = pic({ takenFrom: "balcony", outside: "street", evidence: "cars" });
+    expect(combineTwoStep(stepA({ balconyWall: "top", bedroomWall: "left" }), stepB([street])).bedroomSide).toBe("unknown");
+  });
+
+  it("is unknown when the balcony side itself is not street or courtyard", () => {
+    expect(combineTwoStep(stepA({ balconyWall: "top", bedroomWall: "top" }), stepB([])).bedroomSide).toBe("unknown");
+    expect(combineTwoStep(stepA({ balconyWall: "none", bedroomWall: "top" }), stepB([])).bedroomSide).toBe("unknown");
+    expect(combineTwoStep(stepA({ balconyWall: "top", bedroomWall: "unknown" }), stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })])).bedroomSide).toBe("unknown");
+  });
+});
+
+describe("combineTwoStep: windowSides from the four booleans only", () => {
+  const sides = (t: boolean, b: boolean, l: boolean, r: boolean) =>
+    combineTwoStep(stepA({ windowTop: t, windowBottom: b, windowLeft: l, windowRight: r }), null).windowSides;
+
+  it("an opposite pair is twoOpposite", () => {
+    expect(sides(true, true, false, false)).toBe("twoOpposite");
+    expect(sides(false, false, true, true)).toBe("twoOpposite");
+  });
+
+  it("two adjacent walls are a corner", () => {
+    expect(sides(true, false, true, false)).toBe("corner");
+    expect(sides(false, true, false, true)).toBe("corner");
+  });
+
+  it("one wall is one", () => {
+    expect(sides(true, false, false, false)).toBe("one");
+    expect(sides(false, false, false, true)).toBe("one");
+  });
+
+  it("no wall is unknown", () => {
+    expect(sides(false, false, false, false)).toBe("unknown");
+  });
+
+  it("three walls with an opposite pair, and four walls, are twoOpposite", () => {
+    expect(sides(true, true, true, false)).toBe("twoOpposite");
+    expect(sides(true, true, true, true)).toBe("twoOpposite");
+  });
+
+  it("does not depend on the photos", () => {
+    const withPhotos = combineTwoStep(stepA({ windowTop: true, windowBottom: true }), stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })]));
+    expect(withPhotos.windowSides).toBe("twoOpposite");
+  });
+});
+
+describe("combineTwoStep: the rest of the answer", () => {
+  it("livingOnBalconySide is livingWall equal to balconyWall, and unknown walls never match each other", () => {
+    expect(combineTwoStep(stepA({ balconyWall: "top", livingWall: "top" }), null).livingOnBalconySide).toBe(true);
+    expect(combineTwoStep(stepA({ balconyWall: "top", livingWall: "bottom" }), null).livingOnBalconySide).toBe(false);
+    expect(combineTwoStep(stepA({ balconyWall: "unknown", livingWall: "unknown" }), null).livingOnBalconySide).toBe(false);
+    expect(combineTwoStep(stepA({ balconyWall: "none", livingWall: "none" }), null).livingOnBalconySide).toBe(false);
+  });
+
+  it("kitchenOnBalconySide is false because step A does not ask for the kitchen", () => {
+    expect(combineTwoStep(stepA({ balconyWall: "top", livingWall: "top", bedroomWall: "top" }), null).kitchenOnBalconySide).toBe(false);
+  });
+
+  it("planPresent is step A's", () => {
+    expect(combineTwoStep(stepA({ planPresent: false }), stepB([])).planPresent).toBe(false);
+    expect(combineTwoStep(stepA({ planPresent: true }), stepB([])).planPresent).toBe(true);
+  });
+
+  it("windowsConfidence is step A's alone", () => {
+    expect(combineTwoStep(stepA({ confidence: 0.9 }), stepB([], 0.3)).windowsConfidence).toBe(0.9);
+  });
+
+  it("a balcony decided by a photo uses step B's certainty, a plan-only 'none' uses step A's", () => {
+    const photo = combineTwoStep(stepA({ balconyWall: "top", confidence: 0.9 }), stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })], 0.6));
+    expect(photo.balconyConfidence).toBe(0.6);
+    const none = combineTwoStep(stepA({ balconyWall: "none", confidence: 0.85 }), stepB([], 0.3));
+    expect(none.balconyConfidence).toBe(0.85);
+  });
+
+  it("a balcony decided through the living room, and an inferred bedroom, use the minimum of both steps", () => {
+    const living = combineTwoStep(
+      stepA({ balconyWall: "left", livingWall: "left", confidence: 0.9 }),
+      stepB([pic({ takenFrom: "living", outside: "street", evidence: "cars" })], 0.7),
+    );
+    expect(living.balconyConfidence).toBe(0.7);
+    const inferred = combineTwoStep(
+      stepA({ balconyWall: "top", bedroomWall: "bottom", confidence: 0.5 }),
+      stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })], 0.9),
+    );
+    expect(inferred.bedroomConfidence).toBe(0.5);
+    expect(inferred.confidence).toBe(0.5);
+  });
+
+  it("a bedroom decided by a bedroom photo uses step B's certainty", () => {
+    const out = combineTwoStep(stepA({ confidence: 0.4 }), stepB([pic({ takenFrom: "bedroom", outside: "street", evidence: "cars" })], 0.8));
+    expect(out.bedroomConfidence).toBe(0.8);
+    expect(out.streetEvidence).toBe("cars");
+  });
+
+  it("an unknown answer carries the minimum of the steps that ran, and step A's alone without photos", () => {
+    expect(combineTwoStep(stepA({ confidence: 0.9 }), stepB([], 0.4)).balconyConfidence).toBe(0.4);
+    expect(combineTwoStep(stepA({ confidence: 0.9 }), null).balconyConfidence).toBe(0.9);
+    expect(combineTwoStep(stepA({ confidence: 0.9 }), null).confidence).toBe(0.9);
+  });
+
+  it("a certainty that is not a number counts as 0, never NaN", () => {
+    const out = combineTwoStep(stepA({ confidence: Number.NaN }), stepB([], 0.5));
+    expect(out.confidence).toBe(0);
+    expect(Number.isFinite(out.windowsConfidence)).toBe(true);
+  });
+
+  it("the output parses as layoutReadSchemaV2 in every case, so the fact and the gate work unchanged", () => {
+    const policy: LayoutGatePolicy = { balconyGate: 0.5, windowsGate: 0.5, bedroomGate: 0.5, negativeGate: 0.5, sideEvidence: ["cars", "courtyardGreenery"], trustedVersion: null };
+    const cases: [LayoutStepA, LayoutStepB | null][] = [
+      [stepA(), null],
+      [stepA({ balconyWall: "none" }), stepB([])],
+      [stepA({ balconyWall: "top", bedroomWall: "bottom", windowTop: true, windowBottom: true }), stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })])],
+    ];
+    for (const [a, b] of cases) {
+      const out = combineTwoStep(a, b);
+      expect(layoutReadSchemaV2.safeParse(out).success).toBe(true);
+      const fact = factFromVariantRead(LAYOUT_VARIANTS["d-sonnet"], { stepA: a, stepB: b }, { booli: 4 });
+      expect(layoutFactSchema.safeParse(fact).success).toBe(true);
+      expect(() => believedLayout(fact, policy)).not.toThrow();
+    }
+  });
+
+  it("a believed two-step read: street balcony from a photo, courtyard bedroom by inference, korsdrag from the plan", () => {
+    const policy: LayoutGatePolicy = { balconyGate: 0.5, windowsGate: 0.5, bedroomGate: 0.5, negativeGate: 0.5, sideEvidence: ["cars"], trustedVersion: null };
+    const a = stepA({ balconyWall: "top", bedroomWall: "bottom", windowTop: true, windowBottom: true, confidence: 0.9 });
+    const b = stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })], 0.8);
+    const fact = factFromVariantRead(LAYOUT_VARIANTS["d-sonnet"], { stepA: a, stepB: b }, { booli: 4 });
+    expect(believedLayout(fact, policy)).toEqual({ balconySide: "street", noBalcony: false, korsdrag: true, bedroomSide: "courtyard" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Variant d: specs and plumbing
+// ---------------------------------------------------------------------------
+
+describe("variants d-sonnet and d-opus", () => {
+  const dS = LAYOUT_VARIANTS["d-sonnet"];
+  const dO = LAYOUT_VARIANTS["d-opus"];
+
+  it("have two steps and the call shapes of b and c", () => {
+    expect(dS.steps).toBe(2);
+    expect(dO.steps).toBe(2);
+    expect(dS.model).toBe(LAYOUT_VARIANTS.b.model);
+    expect(dS.temperature).toBe(0);
+    expect(dS.effort).toBeNull();
+    expect(dS.maxTokens).toBe(LAYOUT_VARIANTS.b.maxTokens);
+    expect(dS.estSekPerFlat).toBe(0.5);
+    expect(dO.model).toBe(LAYOUT_OPUS_MODEL);
+    expect(dO.temperature).toBeNull();
+    expect(dO.effort).toBe("low");
+    expect(dO.maxTokens).toBe(LAYOUT_VARIANTS.c.maxTokens);
+    expect(dO.estSekPerFlat).toBe(1.2);
+    expect(dS.schema).toBe(layoutReadSchemaV2);
+    expect(dS.twoStep?.stepA.schema).toBe(layoutStepASchema);
+    expect(dS.twoStep?.stepB.schema).toBe(layoutStepBSchema);
+    expect(dS.twoStep?.stepA.systemPrompt).toBe(LAYOUT_STEP_A_SYSTEM_PROMPT);
+    expect(dS.twoStep?.stepB.systemPrompt).toBe(LAYOUT_STEP_B_SYSTEM_PROMPT);
+  });
+
+  it("all five versions are pairwise different", () => {
+    const versions = Object.values(LAYOUT_VARIANTS).map(variantVersion);
+    expect(Object.keys(LAYOUT_VARIANTS)).toEqual(["a", "b", "c", "d-sonnet", "d-opus"]);
+    expect(new Set(versions).size).toBe(5);
+  });
+
+  it("their cache holds both step answers and refuses a single-step answer", () => {
+    const dir = mkdtempSync(join(tmpdir(), "layout-exp-"));
+    try {
+      const path = join(dir, "layout-exp-d-sonnet.json");
+      const good = { stepA: stepA(), stepB: stepB([pic()]) };
+      saveVariantCache(path, {
+        ...emptyCache(dS),
+        entries: {
+          good: { id: "good", storedAt: "d", costSek: 0.4, result: good },
+          noPhotos: { id: "noPhotos", storedAt: "d", costSek: 0.2, result: { stepA: stepA(), stepB: null } },
+          single: { id: "single", storedAt: "d", costSek: 0.4, result: readV2() },
+        },
+      }, { dir });
+      const loaded = loadVariantCache(path, dS);
+      expect(Object.keys(loaded.cache.entries).sort()).toEqual(["good", "noPhotos"]);
+      expect(loaded.dropped).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/** A client whose parse() answers step A or step B by its system prompt, recording what each request carried. */
+function twoStepClient(opts: { stepBFails?: "max_tokens" | "http400" | "http500"; usage?: { input_tokens: number; output_tokens: number } } = {}) {
+  const requests: { system: string; images: number; effort?: unknown; temperature?: unknown; model: string }[] = [];
+  const usage = opts.usage ?? { input_tokens: 2000, output_tokens: 300 };
+  const client = {
+    beta: {
+      messages: {
+        parse: async (request: { system: string; model: string; temperature?: number; output_config: { effort?: string }; messages: { content: { type: string }[] }[] }) => {
+          const isA = request.system === LAYOUT_STEP_A_SYSTEM_PROMPT;
+          requests.push({
+            system: request.system,
+            model: request.model,
+            images: request.messages[0].content.filter((b) => b.type === "image").length,
+            effort: request.output_config.effort,
+            temperature: request.temperature,
+          });
+          // Real SDK errors, so the call's "transport error: not billed" test sees what it sees in production.
+          if (!isA && opts.stepBFails === "http400") throw Anthropic.APIError.generate(400, undefined, "bad request", new Headers());
+          if (!isA && opts.stepBFails === "http500") throw Anthropic.APIError.generate(500, undefined, "server", new Headers());
+          return {
+            usage,
+            stop_reason: !isA && opts.stepBFails === "max_tokens" ? "max_tokens" : "end_turn",
+            parsed_output: isA
+              ? stepA({ balconyWall: "top", bedroomWall: "bottom", windowTop: true, windowBottom: true })
+              : stepB([pic({ takenFrom: "balcony", outside: "street", evidence: "cars" })]),
+          };
+        },
+      },
+    },
+  } as unknown as Anthropic;
+  return { client, requests };
+}
+
+describe("runVariantReads with a two-step variant", () => {
+  const dS = LAYOUT_VARIANTS["d-sonnet"];
+  const dO = LAYOUT_VARIANTS["d-opus"];
+
+  it("sends picture 1 to step A alone and pictures 2 to 4 to step B alone", async () => {
+    const { client, requests } = twoStepClient();
+    const out = await runVariantReads([item(1)], { variant: dS, call: makeTwoStepLayoutCall(client, dS), cache: emptyCache(dS), runCapSek: 5, today: "d" });
+    expect(requests.map((r) => [r.system === LAYOUT_STEP_A_SYSTEM_PROMPT ? "A" : "B", r.images])).toEqual([
+      ["A", 1],
+      ["B", 3],
+    ]);
+    expect(out.reads[0].status).toBe("read");
+  });
+
+  it("sums both costs and caches both step answers", async () => {
+    const usage = { input_tokens: 2000, output_tokens: 300 };
+    const { client } = twoStepClient({ usage });
+    const out = await runVariantReads([item(1)], { variant: dS, call: makeTwoStepLayoutCall(client, dS), cache: emptyCache(dS), runCapSek: 5, today: "d" });
+    expect(out.reads[0].costSek).toBeCloseTo(2 * layoutCallCostSek(LAYOUT_MODEL, usage), 10);
+    const [entry] = Object.values(out.cacheNext.entries);
+    expect(entry.result).toHaveProperty("stepA");
+    expect(entry.result).toHaveProperty("stepB");
+    expect(out.reads[0].fact?.balconySide).toBe("street");
+    expect(out.reads[0].fact?.bedroomSide).toBe("courtyard");
+    expect(out.reads[0].fact?.windowSides).toBe("twoOpposite");
+  });
+
+  it("skips step B when there are no photos and records stepB null, all photo fields unknown", async () => {
+    const { client, requests } = twoStepClient();
+    const out = await runVariantReads([item(1, { imageUrls: [url(1)] })], { variant: dS, call: makeTwoStepLayoutCall(client, dS), cache: emptyCache(dS), runCapSek: 5, today: "d" });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].system).toBe(LAYOUT_STEP_A_SYSTEM_PROMPT);
+    expect(out.reads[0].status).toBe("read");
+    expect(Object.values(out.cacheNext.entries)[0].result).toMatchObject({ stepB: null });
+    expect(out.reads[0].fact?.balconySide).toBe("unknown");
+    expect(out.reads[0].fact?.bedroomSide).toBe("unknown");
+    expect(out.reads[0].fact?.windowSides).toBe("twoOpposite");
+  });
+
+  it("uses the spec's call shape in both steps: no temperature and effort low on Opus", async () => {
+    const { client, requests } = twoStepClient();
+    await runVariantReads([item(1)], { variant: dO, call: makeTwoStepLayoutCall(client, dO), cache: emptyCache(dO), runCapSek: 5, today: "d" });
+    expect(requests.map((r) => r.model)).toEqual([LAYOUT_OPUS_MODEL, LAYOUT_OPUS_MODEL]);
+    expect(requests.map((r) => r.effort)).toEqual(["low", "low"]);
+    expect(requests.every((r) => r.temperature === undefined)).toBe(true);
+  });
+
+  it("counts step A's money when step B fails, as a failed read", async () => {
+    const usage = { input_tokens: 2000, output_tokens: 300 };
+    const { client } = twoStepClient({ stepBFails: "max_tokens", usage });
+    const one = layoutCallCostSek(LAYOUT_MODEL, usage);
+    const out = await runVariantReads([item(1)], { variant: dS, call: makeTwoStepLayoutCall(client, dS), cache: emptyCache(dS), runCapSek: 5, today: "d" });
+    expect(out.reads[0].status).toBe("failed");
+    expect(out.reads[0].errorCode).toBe("STEP_B_CLAUDE_MAX_TOKENS");
+    expect(out.spentSek).toBeCloseTo(2 * one, 10);
+    expect(out.cacheNext.entries).toEqual({});
+    expect(out.cacheNext.spentSekTotal).toBeCloseTo(2 * one, 10);
+  });
+
+  it("counts step A's money and keeps the HTTP status when step B is rejected", async () => {
+    const usage = { input_tokens: 2000, output_tokens: 300 };
+    for (const [mode, status] of [
+      ["http400", 400],
+      ["http500", 500],
+    ] as const) {
+      const { client } = twoStepClient({ stepBFails: mode, usage });
+      const call = makeTwoStepLayoutCall(client, dS);
+      const error = await call([
+        { type: "image", source: { type: "url", url: url(1) } },
+        { type: "image", source: { type: "url", url: url(2) } },
+      ]).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(LayoutCallError);
+      expect((error as LayoutCallError).billedSek).toBeCloseTo(layoutCallCostSek(LAYOUT_MODEL, usage), 10);
+      expect((error as { status?: number }).status).toBe(status);
+    }
+  });
+
+  it("refuses to build a two-step call for a one-step spec", () => {
+    const { client } = twoStepClient();
+    expect(() => makeTwoStepLayoutCall(client, LAYOUT_VARIANTS.b)).toThrow();
   });
 });

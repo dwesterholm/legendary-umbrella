@@ -189,6 +189,82 @@ export const layoutReadSchemaV2Slim = layoutReadSchema.extend({
 
 export type LayoutReadV2Slim = z.infer<typeof layoutReadSchemaV2Slim>;
 
+// -- the two-step read (variant d) ---------------------------------------------------------------------------------
+//
+// Step A sees the plan picture only and answers in the plan's OWN wall names (top, bottom, left, right as drawn), never
+// "relative to the entrance": the arrow at the front door is not a side (14.3). Step B sees the photos only and answers
+// per photo. Plain code (`combineTwoStep` in layout-experiment.ts) joins them into the V2 answer. Both schemas are flat
+// enums, booleans and plain numbers; step B's array of small objects is the riskiest strict-output shape (Pitfall 6) and
+// is smoked live before its round (plan 09), a 400 being a finding and not a retry loop.
+
+/** The walls a plan can name, plus "none" (no such thing on the plan) and "unknown". */
+export const STEP_WALLS = ["top", "bottom", "left", "right", "none", "unknown"] as const;
+/** The rooms a photo can be taken from. */
+export const STEP_TAKEN_FROM = ["balcony", "living", "bedroom", "kitchen", "other", "unknown"] as const;
+/** What a photo shows outside the window or the balcony. */
+export const STEP_OUTSIDE = ["street", "courtyard", "unknown"] as const;
+
+/** Step A: the plan picture only. */
+export const layoutStepASchema = z.object({
+  planPresent: z.boolean().describe("True om bilden är en planritning ovanifrån, annars false."),
+  balconyWall: z.enum(STEP_WALLS).describe("Vilken yttervägg balkongen sitter på enligt ritningens egna väggar (top, bottom, left, right), none om ritningen tydligt saknar balkong, annars unknown."),
+  livingWall: z.enum(STEP_WALLS).describe("Vilken yttervägg vardagsrummet har sina fönster eller sin balkongdörr mot (top, bottom, left, right), annars unknown."),
+  bedroomWall: z.enum(STEP_WALLS).describe("Vilken yttervägg huvudsovrummet har sina fönster mot (top, bottom, left, right), annars unknown."),
+  windowTop: z.boolean().describe("True om övre ytterväggen har fönster."),
+  windowBottom: z.boolean().describe("True om nedre ytterväggen har fönster."),
+  windowLeft: z.boolean().describe("True om vänstra ytterväggen har fönster."),
+  windowRight: z.boolean().describe("True om högra ytterväggen har fönster."),
+  confidence: z.number().describe("Din säkerhet 0 till 1 i hela bedömningen av ritningen."),
+});
+
+export type LayoutStepA = z.infer<typeof layoutStepASchema>;
+
+/** Step B: the photos only, one small object per photo. */
+export const layoutStepBSchema = z.object({
+  pictures: z
+    .array(
+      z.object({
+        index: z.number().describe("Fotots plats i ordningen, räknat från 1."),
+        takenFrom: z.enum(STEP_TAKEN_FROM).describe("Vilket rum fotot är taget i eller från: balcony, living, bedroom, kitchen, other eller unknown."),
+        outside: z.enum(STEP_OUTSIDE).describe("Vad som syns utanför fönstret eller balkongen: street (gata), courtyard (gård) eller unknown."),
+        evidence: z.enum(STREET_EVIDENCE).describe("Vad i fotot som visar det: cars, oppositeFacade, courtyardGreenery eller none."),
+      }),
+    )
+    .describe("Ett objekt per foto."),
+  confidence: z.number().describe("Din säkerhet 0 till 1 i hela bedömningen av fotona."),
+});
+
+export type LayoutStepB = z.infer<typeof layoutStepBSchema>;
+
+/** Step A system prompt: the plan only, walls as drawn, nothing about street or courtyard. */
+export const LAYOUT_STEP_A_SYSTEM_PROMPT = [
+  "Du tittar på en planritning från en svensk bostadsannons: en ritning av lägenheten ovanifrån.",
+  "Beskriv bara vad som syns på ritningen, med ritningens egna väggar: top är övre kanten, bottom nedre kanten, left vänstra kanten och right högra kanten.",
+  "Pilen vid ytterdörren visar var man går in. Den är ingen sida och används aldrig som utgångspunkt.",
+  "Säg ingenting om gata eller gård, det avgörs av fotona i ett annat steg.",
+  "Ange i balconyWall vilken yttervägg balkongen sitter på (none om ritningen tydligt saknar balkong), i livingWall vilken yttervägg vardagsrummet har sina fönster eller sin balkongdörr mot och i bedroomWall vilken yttervägg huvudsovrummet har sina fönster mot.",
+  "Sätt windowTop, windowBottom, windowLeft och windowRight till true för varje yttervägg som har fönster.",
+  "Fönster räknas bara i yttervägg. Glas mellan rum, till exempel mot en sovalkov, räknas inte.",
+  "Är bilden ingen planritning ovanifrån, sätt planPresent till false och svara unknown och false.",
+  "unknown är ett fullgott svar. Gissa inte. Ange din säkerhet 0 till 1 i confidence. Svara bara genom fälten.",
+].join(" ");
+
+export const LAYOUT_STEP_A_USER_INSTRUCTION = "Läs av ritningens väggar enligt instruktionen.";
+
+/** Step B system prompt: per photo, the room and what is outside, with the evidence rules of V2. */
+export const LAYOUT_STEP_B_SYSTEM_PROMPT = [
+  "Du tittar på foton från en svensk bostadsannons. Fotona kommer i den ordning de visas; räkna index från 1.",
+  "Ange för varje foto i pictures: index, takenFrom (balcony om fotot är taget på eller från balkongen, living i vardagsrummet, bedroom i sovrummet, kitchen i köket, other i annat rum, unknown om du inte ser det), outside (street eller courtyard om du ser vad som ligger utanför fönstret eller balkongen, annars unknown) och evidence.",
+  "Gatan syns på bilar, en körbana, gatlyktor, butiksfasader, spårvagnsledningar eller en sammanhängande fasadlinje på andra sidan en väg (evidence cars).",
+  "Gården syns på cykelställ, en gräsmatta, en sandlåda eller lekplats, stenläggning med planteringar eller husets egen baksida (evidence courtyardGreenery).",
+  "Konstgräs eller trall på balkonggolvet är inte gårdsgrönska.",
+  "Ett träd med fasader på avstånd, utan väg och utan gårdsyta, avgör ingenting.",
+  "En husfasad på nära håll mitt emot och inget mer är evidence oppositeFacade.",
+  "Ser du inget som avgör, svara outside unknown och evidence none. Gissa inte. Ange din säkerhet 0 till 1 i confidence. Svara bara genom fälten.",
+].join(" ");
+
+export const LAYOUT_STEP_B_USER_INSTRUCTION = "Läs av varje foto enligt instruktionen.";
+
 // ---------------------------------------------------------------------------
 // Pictures
 // ---------------------------------------------------------------------------

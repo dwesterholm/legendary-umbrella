@@ -45,6 +45,10 @@ import {
   LAYOUT_MAX_TOKENS,
   LAYOUT_MODEL,
   LAYOUT_OPUS_MODEL,
+  LAYOUT_STEP_A_SYSTEM_PROMPT,
+  LAYOUT_STEP_A_USER_INSTRUCTION,
+  LAYOUT_STEP_B_SYSTEM_PROMPT,
+  LAYOUT_STEP_B_USER_INSTRUCTION,
   LAYOUT_SYSTEM_PROMPT,
   LAYOUT_SYSTEM_PROMPT_V2,
   LAYOUT_USER_INSTRUCTION,
@@ -55,7 +59,12 @@ import {
   layoutReadSchema,
   layoutReadSchemaV2,
   layoutReadVersion,
+  layoutStepASchema,
+  layoutStepBSchema,
   type LayoutImageBlock,
+  type LayoutReadV2,
+  type LayoutStepA,
+  type LayoutStepB,
   type LayoutReadStatus,
 } from "@/lib/discovery/layout-read";
 import { FloorPlanCallError, formatSek } from "@/lib/discovery/sun-floorplan";
@@ -151,6 +160,44 @@ export const LAYOUT_VARIANTS: Readonly<Record<string, LayoutVariantSpec>> = {
     steps: 1,
     images: { maxBooliPhotos: LAYOUT_MAX_BOOLI_PHOTOS, maxBrokerPhotos: 0 },
     estSekPerFlat: 1.0,
+  },
+  // Variant d (D-10): plan only, then photos only, joined by combineTwoStep. The top-level prompts hold both step prompts so a
+  // printout shows the whole prompt; the calls use `twoStep`. The tier (Sonnet or Opus) is chosen by pickTwoStepTier.
+  "d-sonnet": {
+    id: "d-sonnet",
+    label: "tvåstegsläsning (planritning, sedan foton) på Sonnet",
+    model: LAYOUT_MODEL,
+    systemPrompt: `${LAYOUT_STEP_A_SYSTEM_PROMPT}\n---\n${LAYOUT_STEP_B_SYSTEM_PROMPT}`,
+    userInstruction: `${LAYOUT_STEP_A_USER_INSTRUCTION}\n---\n${LAYOUT_STEP_B_USER_INSTRUCTION}`,
+    schema: layoutReadSchemaV2,
+    temperature: 0,
+    effort: null,
+    maxTokens: 600,
+    steps: 2,
+    images: { maxBooliPhotos: LAYOUT_MAX_BOOLI_PHOTOS, maxBrokerPhotos: 0 },
+    estSekPerFlat: 0.5,
+    twoStep: {
+      stepA: { systemPrompt: LAYOUT_STEP_A_SYSTEM_PROMPT, userInstruction: LAYOUT_STEP_A_USER_INSTRUCTION, schema: layoutStepASchema },
+      stepB: { systemPrompt: LAYOUT_STEP_B_SYSTEM_PROMPT, userInstruction: LAYOUT_STEP_B_USER_INSTRUCTION, schema: layoutStepBSchema },
+    },
+  },
+  "d-opus": {
+    id: "d-opus",
+    label: "tvåstegsläsning (planritning, sedan foton) på Opus-nivån",
+    model: LAYOUT_OPUS_MODEL,
+    systemPrompt: `${LAYOUT_STEP_A_SYSTEM_PROMPT}\n---\n${LAYOUT_STEP_B_SYSTEM_PROMPT}`,
+    userInstruction: `${LAYOUT_STEP_A_USER_INSTRUCTION}\n---\n${LAYOUT_STEP_B_USER_INSTRUCTION}`,
+    schema: layoutReadSchemaV2,
+    temperature: null,
+    effort: "low",
+    maxTokens: 4000,
+    steps: 2,
+    images: { maxBooliPhotos: LAYOUT_MAX_BOOLI_PHOTOS, maxBrokerPhotos: 0 },
+    estSekPerFlat: 1.2,
+    twoStep: {
+      stepA: { systemPrompt: LAYOUT_STEP_A_SYSTEM_PROMPT, userInstruction: LAYOUT_STEP_A_USER_INSTRUCTION, schema: layoutStepASchema },
+      stepB: { systemPrompt: LAYOUT_STEP_B_SYSTEM_PROMPT, userInstruction: LAYOUT_STEP_B_USER_INSTRUCTION, schema: layoutStepBSchema },
+    },
   },
 };
 
@@ -491,19 +538,131 @@ export async function runVariantReads(
 
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
 
+// ---------------------------------------------------------------------------
+// The two-step combination (variant d)
+// ---------------------------------------------------------------------------
+
+const REAL_WALLS = ["top", "bottom", "left", "right"] as const;
+type Wall = (typeof REAL_WALLS)[number];
+const isWall = (w: string): w is Wall => (REAL_WALLS as readonly string[]).includes(w);
+const OPPOSITE_WALL: Record<Wall, Wall> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+
+type StepBPicture = LayoutStepB["pictures"][number];
+const outsideKnown = (p: StepBPicture): boolean => p.outside === "street" || p.outside === "courtyard";
+const otherSide = (side: "street" | "courtyard"): "street" | "courtyard" => (side === "street" ? "courtyard" : "street");
+const zeroIfBad = (n: number): number => (Number.isFinite(n) ? n : 0);
+
+/**
+ * Joins the two steps of variant d into the V2 answer, by plain code, so the cache entry, {@link factFromVariantRead} and
+ * `believedLayout` work unchanged. `b` is null when the flat had no photos (step B was skipped): every photo-derived field is
+ * then unknown. The truth table (every row has a unit test):
+ *  - balconySide: balconyWall "none" gives "none"; else the first balcony photo with a known outside decides; else a living
+ *    room photo decides when livingWall equals balconyWall; else "unknown";
+ *  - bedroomSide: the first bedroom photo with a known outside decides; else the balcony side when bedroomWall equals
+ *    balconyWall; else the OTHER side when bedroomWall is the wall opposite balconyWall (top/bottom, left/right); the two
+ *    inferences need a balcony side that is street or courtyard; else "unknown";
+ *  - windowSides from the four booleans only: an opposite pair (also with three or four walls) is twoOpposite, two adjacent
+ *    walls are corner, one wall is one, none is unknown;
+ *  - livingOnBalconySide and bedroomOnBalconySide: the room's wall equals balconyWall (both real walls); kitchenOnBalconySide
+ *    is false because step A does not ask for the kitchen;
+ *  - each certainty is the minimum of the step confidences USED for that field (a photo decision uses step B, a plan-only
+ *    decision uses step A, an inference uses both; an unknown uses every step that ran); `confidence` is the minimum of both;
+ *  - streetEvidence is the deciding photo's evidence (the balcony photo, else the bedroom photo), else "none";
+ *  - planPresent is step A's.
+ * Pure.
+ */
+export function combineTwoStep(a: LayoutStepA, b: LayoutStepB | null): LayoutReadV2 {
+  const pictures = b?.pictures ?? [];
+  const aConf = zeroIfBad(a.confidence);
+  const bConf = b === null ? null : zeroIfBad(b.confidence);
+  const bothConf = bConf === null ? aConf : Math.min(aConf, bConf);
+
+  let balconySide: LayoutReadV2["balconySide"] = "unknown";
+  let balconyConfidence = bothConf;
+  let balconyPicture: StepBPicture | null = null;
+  if (a.balconyWall === "none") {
+    balconySide = "none";
+    balconyConfidence = aConf;
+  } else {
+    const direct = pictures.find((p) => p.takenFrom === "balcony" && outsideKnown(p));
+    if (direct !== undefined) {
+      balconySide = direct.outside as "street" | "courtyard";
+      balconyPicture = direct;
+      balconyConfidence = bConf ?? aConf;
+    } else if (isWall(a.livingWall) && a.livingWall === a.balconyWall) {
+      const living = pictures.find((p) => p.takenFrom === "living" && outsideKnown(p));
+      if (living !== undefined) {
+        balconySide = living.outside as "street" | "courtyard";
+        balconyPicture = living;
+        balconyConfidence = bothConf;
+      }
+    }
+  }
+
+  let bedroomSide: LayoutReadV2["bedroomSide"] = "unknown";
+  let bedroomConfidence = bothConf;
+  let bedroomPicture: StepBPicture | null = null;
+  const bedroomPhoto = pictures.find((p) => p.takenFrom === "bedroom" && outsideKnown(p));
+  if (bedroomPhoto !== undefined) {
+    bedroomSide = bedroomPhoto.outside as "street" | "courtyard";
+    bedroomPicture = bedroomPhoto;
+    bedroomConfidence = bConf ?? aConf;
+  } else if ((balconySide === "street" || balconySide === "courtyard") && isWall(a.bedroomWall) && isWall(a.balconyWall)) {
+    if (a.bedroomWall === a.balconyWall) {
+      bedroomSide = balconySide;
+      bedroomConfidence = bothConf;
+    } else if (a.bedroomWall === OPPOSITE_WALL[a.balconyWall]) {
+      bedroomSide = otherSide(balconySide);
+      bedroomConfidence = bothConf;
+    }
+  }
+
+  const { windowTop: t, windowBottom: bo, windowLeft: l, windowRight: r } = a;
+  let windowSides: LayoutReadV2["windowSides"] = "unknown";
+  if ((t && bo) || (l && r)) windowSides = "twoOpposite";
+  else if ((t || bo) && (l || r)) windowSides = "corner";
+  else if (t || bo || l || r) windowSides = "one";
+
+  const onBalconyWall = (wall: string): boolean => isWall(wall) && isWall(a.balconyWall) && wall === a.balconyWall;
+
+  return {
+    balconySide,
+    livingOnBalconySide: onBalconyWall(a.livingWall),
+    kitchenOnBalconySide: false,
+    bedroomOnBalconySide: onBalconyWall(a.bedroomWall),
+    windowSides,
+    bedroomSide,
+    streetEvidence: balconyPicture?.evidence ?? bedroomPicture?.evidence ?? "none",
+    confidence: bothConf,
+    planPresent: a.planPresent,
+    balconyConfidence,
+    windowsConfidence: aConf,
+    bedroomConfidence,
+  };
+}
+
+/** The V2-shaped answer of a stored result: the answer itself for one step, the two steps combined for two. */
+function answerOf(spec: LayoutVariantSpec, result: unknown): LayoutReadV2 | Record<string, unknown> {
+  if (spec.steps === 2) {
+    const stored = storedSchemaOf(spec).parse(result) as { stepA: LayoutStepA; stepB: LayoutStepB | null };
+    return combineTwoStep(stored.stepA, stored.stepB);
+  }
+  return spec.schema.parse(result) as Record<string, unknown>;
+}
+
 /**
  * The stored fact of one variant's answer: the version is the variant's, the pictures are the Booli ones it saw,
- * and the gate that decides whether it is believed stays in layout-fact.ts (`believedLayout`). A V2 answer also fills
- * `fieldConfidence` (each certainty clamped to 0..1) and `planPresent`; a variant a answer fills neither, so
- * `believedLayout` falls back to the single `confidence`. Throws on an answer that does not parse as the variant's
- * schema.
+ * and the gate that decides whether it is believed stays in layout-fact.ts (`believedLayout`). A V2 answer (and the
+ * combined answer of a two-step variant) also fills `fieldConfidence` (each certainty clamped to 0..1) and `planPresent`;
+ * a variant a answer fills neither, so `believedLayout` falls back to the single `confidence`. Throws on an answer that
+ * does not parse as the variant's stored schema.
  */
 export function factFromVariantRead(
   spec: LayoutVariantSpec,
   result: unknown,
   meta: { booli: number; broker?: number },
 ): LayoutFact {
-  const answer = spec.schema.parse(result) as Record<string, unknown>;
+  const answer = answerOf(spec, result) as Record<string, unknown>;
   const fact = layoutFactFromRead(layoutReadSchema.parse(answer), {
     version: variantVersion(spec),
     booli: meta.booli,

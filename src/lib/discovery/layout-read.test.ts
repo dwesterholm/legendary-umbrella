@@ -14,6 +14,10 @@ import {
   LAYOUT_OPUS_MODEL,
   LAYOUT_READ_VERSION,
   LAYOUT_RUN_CAP_SEK,
+  LAYOUT_STEP_A_SYSTEM_PROMPT,
+  LAYOUT_STEP_A_USER_INSTRUCTION,
+  LAYOUT_STEP_B_SYSTEM_PROMPT,
+  LAYOUT_STEP_B_USER_INSTRUCTION,
   LAYOUT_SYSTEM_PROMPT,
   LAYOUT_SYSTEM_PROMPT_V2,
   LAYOUT_USER_INSTRUCTION,
@@ -26,6 +30,8 @@ import {
   layoutReadSchemaV2,
   layoutReadSchemaV2Slim,
   layoutReadVersion,
+  layoutStepASchema,
+  layoutStepBSchema,
   layoutSpentSek,
   loadLayoutCache,
   runLayoutReads,
@@ -203,6 +209,72 @@ describe("the reworked prompt and schemas of the experiments (Phase 14.5, D-10)"
   it("does not change the production read version, prompt or schema", () => {
     expect(LAYOUT_READ_VERSION).toBe("7cfdc6834b5010f4");
     expect(LAYOUT_SYSTEM_PROMPT_V2).not.toBe(LAYOUT_SYSTEM_PROMPT);
+  });
+});
+
+describe("the two-step schemas and prompts of variant d (Phase 14.5, D-10)", () => {
+  const jsonOf = (schema: z.ZodType) => z.toJSONSchema(schema, { unrepresentable: "any" }) as {
+    properties: Record<string, { items?: { properties: Record<string, unknown>; required: string[] } }>;
+    required: string[];
+  };
+
+  it("step A has the nine plan fields, all required, and names walls as drawn", () => {
+    const json = jsonOf(layoutStepASchema);
+    expect(Object.keys(json.properties).sort()).toEqual(
+      ["balconyWall", "bedroomWall", "confidence", "livingWall", "planPresent", "windowBottom", "windowLeft", "windowRight", "windowTop"].sort(),
+    );
+    expect(json.required).toHaveLength(9);
+    expect(layoutStepASchema.shape.balconyWall.options).toEqual(["top", "bottom", "left", "right", "none", "unknown"]);
+    expect(layoutStepASchema.shape.livingWall.options).toEqual(["top", "bottom", "left", "right", "none", "unknown"]);
+    expect(layoutStepASchema.shape.bedroomWall.options).toEqual(["top", "bottom", "left", "right", "none", "unknown"]);
+  });
+
+  it("step B is an array of small objects with enums, plus one confidence", () => {
+    const json = jsonOf(layoutStepBSchema);
+    expect(Object.keys(json.properties).sort()).toEqual(["confidence", "pictures"]);
+    const item = json.properties.pictures.items;
+    expect(Object.keys(item?.properties ?? {}).sort()).toEqual(["evidence", "index", "outside", "takenFrom"]);
+    expect(item?.required).toHaveLength(4);
+  });
+
+  it("neither step schema carries a union, a null type or a numeric bound (Pitfall 6)", () => {
+    for (const schema of [layoutStepASchema, layoutStepBSchema]) {
+      const text = JSON.stringify(jsonOf(schema));
+      for (const bad of ["anyOf", "oneOf", "allOf", '"null"', "nullable", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"]) {
+        expect(text, bad).not.toContain(bad);
+      }
+    }
+  });
+
+  it("parses a step A and a step B answer", () => {
+    const a = { planPresent: true, balconyWall: "top", livingWall: "top", bedroomWall: "bottom", windowTop: true, windowBottom: true, windowLeft: false, windowRight: false, confidence: 0.8 };
+    const b = { pictures: [{ index: 1, takenFrom: "balcony", outside: "street", evidence: "cars" }], confidence: 0.7 };
+    expect(layoutStepASchema.safeParse(a).success).toBe(true);
+    expect(layoutStepBSchema.safeParse(b).success).toBe(true);
+    expect(layoutStepBSchema.safeParse({ pictures: [{ ...b.pictures[0], outside: "moon" }], confidence: 0.7 }).success).toBe(false);
+  });
+
+  it("the step prompts say what each step sees, use the plan's own walls and keep the V2 evidence rules for the photos", () => {
+    expect(LAYOUT_STEP_A_SYSTEM_PROMPT).toMatch(/planritning/);
+    expect(LAYOUT_STEP_A_SYSTEM_PROMPT).toMatch(/top är övre kanten/);
+    expect(LAYOUT_STEP_A_SYSTEM_PROMPT).toMatch(/Pilen vid ytterdörren/);
+    expect(LAYOUT_STEP_A_SYSTEM_PROMPT).toMatch(/Säg ingenting om gata eller gård/);
+    expect(LAYOUT_STEP_A_SYSTEM_PROMPT).toMatch(/bara i yttervägg/);
+    for (const rule of [/bilar/, /cykelställ/, /Konstgräs eller trall/, /Ett träd med fasader på avstånd/, /oppositeFacade/, /Gissa inte/]) {
+      expect(LAYOUT_STEP_B_SYSTEM_PROMPT).toMatch(rule);
+    }
+  });
+
+  it("no step prompt, instruction or schema asks for a compass, a bearing, north or people", () => {
+    const texts = [
+      LAYOUT_STEP_A_SYSTEM_PROMPT,
+      LAYOUT_STEP_A_USER_INSTRUCTION,
+      LAYOUT_STEP_B_SYSTEM_PROMPT,
+      LAYOUT_STEP_B_USER_INSTRUCTION,
+      JSON.stringify(jsonOf(layoutStepASchema)),
+      JSON.stringify(jsonOf(layoutStepBSchema)),
+    ];
+    for (const t of texts) expect(t).not.toMatch(/kompass|väderstreck|norr|bäring|person|människ/i);
   });
 });
 

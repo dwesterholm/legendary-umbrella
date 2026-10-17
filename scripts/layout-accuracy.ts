@@ -42,7 +42,7 @@ import {
   type AccuracyReport,
   type TruthFile,
 } from "@/lib/discovery/layout-accuracy";
-import { makeVariantLayoutCall } from "@/lib/discovery/layout-call";
+import { makeTwoStepLayoutCall, makeVariantLayoutCall } from "@/lib/discovery/layout-call";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import {
   LAYOUT_ROUND_CAP_SEK,
@@ -450,7 +450,7 @@ function paidGate(): number | null {
 
 /** The injected call of a variant. */
 function callFor(client: Anthropic, spec: LayoutVariantSpec): VariantCallFn {
-  return makeVariantLayoutCall(client, spec);
+  return spec.steps === 2 ? makeTwoStepLayoutCall(client, spec) : makeVariantLayoutCall(client, spec);
 }
 
 const today = (): string => new Date().toISOString().slice(0, 10);
