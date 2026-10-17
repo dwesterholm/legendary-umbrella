@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "seed": "14.5",
+  "lockedAt": null,
+  "rowsHash": null,
+  "procedureHash": null,
+  "selectionRule": null,
+  "triage": null,
+  "unavailable": [],
+  "rows": [
+    {
+      "booliId": 150148,
+      "position": 1,
+      "source": "known",
+      "inSet": true,
+      "split": null,
+      "order": null,
+      "planPresent": true,
+      "balconySide": "street",
+      "livingOnBalconySide": "yes",
+      "windowSides": "one",
+      "bedroomSide": "street",
+      "judgeConfidence": "high",
+      "evidence": ["cars"],
+      "note": "Känd sanning från Daniel: balkong och sovrum mot gatan, fönster åt ett håll"
+    },
+    {
+      "booliId": 900001,
+      "position": 2,
+      "source": "judged",
+      "inSet": true,
+      "split": null,
+      "order": null,
+      "planPresent": true,
+      "balconySide": "courtyard",
+      "livingOnBalconySide": "yes",
+      "windowSides": "twoOpposite",
+      "bedroomSide": "courtyard",
+      "judgeConfidence": "medium",
+      "evidence": ["bicycleRacks", "lawn"],
+      "note": "Syntetisk rad: cykelställ och gräsmatta syns från balkongen"
+    },
+    {
+      "booliId": 900002,
+      "position": 3,
+      "source": "judged",
+      "inSet": true,
+      "split": null,
+      "order": null,
+      "planPresent": true,
+      "balconySide": "none",
+      "livingOnBalconySide": "undecidable",
+      "windowSides": "corner",
+      "bedroomSide": "undecidable",
+      "judgeConfidence": "low",
+      "evidence": ["none"],
+      "note": "Syntetisk rad: ingen balkong, fönster i två angränsande väggar"
+    }
+  ]
+}
