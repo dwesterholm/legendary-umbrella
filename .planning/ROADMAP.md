@@ -170,18 +170,20 @@ Plans:
 **Why (Daniel, 2026-10-17, answering the 14.4 UAT):** (1) "Enrich the other 4 500 sales first" — the balcony and 1961–1990 coefficients sit on the ±8 % fitting cap and decide Folkungagatan 61's rank; four times the data before touching the cap. (2) "Find the ceiling height according to your judgement" — rooms of 3–4 m are priced by buyers and matter to him; today it is nowhere in the model, the facts or the taste. (3) "No, fix the issue with the layout misreads, don't continue until it's at least > 75 % reliable" — the 14.4 layout read put Folkungagatan 61's balcony on the courtyard (truth: street) and got 2 of 3 "korsdrag ja" wrong by eye; its influence on the score is OFF (`LAYOUT_INFLUENCE_ENABLED = false`) until proven.
 
 **Goal, three parts:**
+
 1. **Full enrichment + refit (ENR-).** Enrich the remaining ≈ 4 300 sold rows in the 2025-10-20+ window and their new BRFs through the free local rung (started 2026-10-17 in the background: `.planning/calibration/data/enrich-14.5-full.log`); refit `data/hedonic-model.json` (version bump only if the shape changes); report every coefficient with SE before/after, the avgift–debt correlation, and whether balcony / 1961–1990 still sit on the ±8 % cap at n ≈ 5 500. If they do, widen the cap in one documented step (e.g. ±12 %) and report what moves, Folkungagatan 61 first. Measured, not tuned.
 2. **Ceiling height (CEIL-).** Read stated ceiling height from broker text ("takhöjd 3,2 m" and variants) on for-sale detail pages (free, text already read for sun phrases) and on sold-detail pages if the probe shows they carry the description; store it as a fact (metres, source "angiven"); coverage measured and printed. If ≥ 300 sold rows carry it, fit it as a hedonic feature (null → mean, imputed) and report; otherwise, or in addition, a taste term inside the 5 % cap (e.g. +1 % at ≥ 3,0 m, +2 % at ≥ 3,5 m; unknown adds 0) and a "Takhöjd" column in table and mail. Build year stays the implicit proxy; no photo-based guessing of height into the valuation.
 3. **Layout read accuracy (LAYACC-).** Build a hand-judged truth set of ≥ 25 flats (balcony side, window sides, bedroom side, street evidence) from floor plans + photos, stored as data only (never photos). Rework the read against it: model tier comparison (Sonnet vs Opus on the plan), explicit evidence rules (cars/street lamps/shopfronts = street; bicycle racks/lawns/own back facade = courtyard; artificial balcony grass is NOT courtyard greenery; the plan's entrance arrow is not a side), per-field confidence calibration; measure accuracy per field and set the gate from the measured curve. Exit: ≥ 75 % per-field accuracy on the truth set (balcony side, korsdrag, bedroom side), then and only then flip `LAYOUT_INFLUENCE_ENABLED` back on. Below 75 %: stays off, report why. Spend ≤ 40 kr per experiment round, 0 USD Apify.
+
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 13 plans
+**Plans:** 1/13 plans executed
 
 Plans:
 
 **Wave 1** *(group A: runs while the enrichment writes; no frozen file touched)*
 
-- [ ] 14.5-01-PLAN.md — Ceiling height read from broker text into the facts and a Takhöjd table column; separation prefix registered first (CEIL-01, CEIL-02)
+- [x] 14.5-01-PLAN.md — Ceiling height read from broker text into the facts and a Takhöjd table column; separation prefix registered first (CEIL-01, CEIL-02)
 - [ ] 14.5-02-PLAN.md — Layout accuracy measuring stick: truth format, per-field precision, curve, gate, Wilson, verdict; worklist and select-and-lock tools (LAYACC-01, LAYACC-02, LAYACC-03)
 - [ ] 14.5-03-PLAN.md — valuation-compare: 14.4 -> 14.5 report with coefficients, SE, cap flags and the R-01 cap rule, Folkungagatan 61 first (ENR-02)
 
