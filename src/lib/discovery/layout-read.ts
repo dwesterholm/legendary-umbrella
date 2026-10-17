@@ -146,8 +146,9 @@ export interface LayoutImages {
 export function layoutImagesOf(
   imageUrls: readonly string[] | null | undefined,
   brokerImages: readonly BrokerImageBytes[] | null | undefined,
-  opts: { planImage?: BrokerImageBytes } = {},
+  opts: { planImage?: BrokerImageBytes; maxBooliPhotos?: number } = {},
 ): LayoutImages {
+  const maxPhotos = opts.maxBooliPhotos ?? LAYOUT_MAX_BOOLI_PHOTOS;
   const urls = imageUrls ?? [];
   const blocks: LayoutImageBlock[] = [];
   let photoUrls: readonly string[];
@@ -162,7 +163,7 @@ export function layoutImagesOf(
   }
   let photos = 0;
   for (const u of photoUrls) {
-    if (photos >= LAYOUT_MAX_BOOLI_PHOTOS) break;
+    if (photos >= maxPhotos) break;
     if (!isAllowedImageHost(u)) continue;
     blocks.push({ type: "image", source: { type: "url", url: u } });
     photos += 1;
@@ -178,8 +179,8 @@ export function layoutImagesOf(
   return { blocks, status: "ok", booli, broker };
 }
 
-/** The URLs a set of blocks holds, in order (for the cache key). */
-const urlsOf = (blocks: readonly LayoutImageBlock[]): string[] =>
+/** The URLs a set of blocks holds, in order (for the cache key). Exported for the experiment runner (Phase 14.5). */
+export const layoutBlockUrls = (blocks: readonly LayoutImageBlock[]): string[] =>
   blocks.flatMap((b) => (b.source.type === "url" ? [b.source.url] : []));
 
 // ---------------------------------------------------------------------------
@@ -354,7 +355,7 @@ export async function runLayoutReads(
       reads.push({ listingPath: item.listingPath, status: images.status, costSek: 0, result: null, images: seen });
       continue;
     }
-    const id = `${visionListingKey(item.listingPath)}|${imageSetKey(urlsOf(images.blocks), images.broker, LAYOUT_READ_VERSION)}`;
+    const id = `${visionListingKey(item.listingPath)}|${imageSetKey(layoutBlockUrls(images.blocks), images.broker, LAYOUT_READ_VERSION)}`;
     const hit = opts.cache.entries[id];
     if (hit && hit.promptVersion === LAYOUT_READ_VERSION) {
       cacheHits += 1;

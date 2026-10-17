@@ -184,6 +184,12 @@ describe("layoutImagesOf (R-07, T-14.4-22)", () => {
     expect(layoutImagesOf(null, null).status).toBe("no_plan");
   });
 
+  it("an experiment variant can cap the Booli photos lower without changing the default (Phase 14.5)", () => {
+    expect(layoutImagesOf(five, [], { maxBooliPhotos: 1 }).blocks).toHaveLength(2);
+    expect(layoutImagesOf(five, [], { maxBooliPhotos: 0 }).blocks).toHaveLength(1);
+    expect(layoutImagesOf(five, []).blocks).toHaveLength(4);
+  });
+
   it("a plan given as bytes goes first and every URL is a photo", () => {
     const plan: BrokerImageBytes = { mediaType: "image/png", data: "plan" };
     const out = layoutImagesOf([], [], { planImage: plan });
