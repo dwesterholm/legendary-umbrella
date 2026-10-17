@@ -1,0 +1,407 @@
+{
+  "version": 1,
+  "trackId": 150148,
+  "trackedAddress": "Folkungagatan 61",
+  "columns": [
+    {
+      "label": "14.4 (före)",
+      "snapshotAsOf": "2026-10-13",
+      "modelVersion": 1,
+      "modelAsOf": "2026-10-13",
+      "modelN": 7380,
+      "r2": 0.6095480203454127,
+      "cvRmseLog": 0.11517550213413906,
+      "ranked": 77
+    },
+    {
+      "label": "14.4 (efter)",
+      "snapshotAsOf": "2026-10-13",
+      "modelVersion": 2,
+      "modelAsOf": "2026-10-12",
+      "modelN": 7379,
+      "r2": 0.6113014570723276,
+      "cvRmseLog": 0.11505442485377466,
+      "ranked": 77
+    }
+  ],
+  "tracked": [
+    {
+      "label": "14.4 (före)",
+      "rank": 29,
+      "resaleSek": 5006593.601893358,
+      "profitSek": 778545.098848864,
+      "creditSek": 732012.1991648916
+    },
+    {
+      "label": "14.4 (efter)",
+      "rank": 17,
+      "resaleSek": 5503112.886901321,
+      "profitSek": 1123047.0986652053,
+      "creditSek": 1061486.2152883252
+    }
+  ],
+  "top": [
+    {
+      "label": "14.4 (före)",
+      "rows": [
+        {
+          "rank": 1,
+          "id": "booli:572581",
+          "address": "Fatburs Kvarngata 18",
+          "resaleSek": 6455648.599375881,
+          "profitSek": 1277084.5846627976,
+          "tracked": false
+        },
+        {
+          "rank": 2,
+          "id": "booli:4309411",
+          "address": "Erstagatan 21",
+          "resaleSek": 6112203.30420192,
+          "profitSek": 1247164.5256222433,
+          "tracked": false
+        },
+        {
+          "rank": 3,
+          "id": "booli:572010",
+          "address": "Fatburstrappan 18",
+          "resaleSek": 6622068.018936453,
+          "profitSek": 1243273.1140295265,
+          "tracked": false
+        },
+        {
+          "rank": 4,
+          "id": "booli:324863",
+          "address": "Tjurbergsgatan 38",
+          "resaleSek": 5748042.521021535,
+          "profitSek": 1175043.1843117324,
+          "tracked": false
+        },
+        {
+          "rank": 5,
+          "id": "booli:6305391",
+          "address": "Sysslomansgatan 26",
+          "resaleSek": 5648009.340011762,
+          "profitSek": 1148583.6023655601,
+          "tracked": false
+        },
+        {
+          "rank": 6,
+          "id": "booli:130457",
+          "address": "Idungatan 5",
+          "resaleSek": 5737085.494572027,
+          "profitSek": 1142386.1342709358,
+          "tracked": false
+        },
+        {
+          "rank": 7,
+          "id": "booli:6295311",
+          "address": "Hornsgatan 119",
+          "resaleSek": 5994223.357246686,
+          "profitSek": 1132307.6046583366,
+          "tracked": false
+        },
+        {
+          "rank": 8,
+          "id": "booli:635120",
+          "address": "Klippgatan 14E",
+          "resaleSek": 5642847.650416748,
+          "profitSek": 1110148.1982675754,
+          "tracked": false
+        },
+        {
+          "rank": 9,
+          "id": "booli:6282457",
+          "address": "Kungsklippan 20",
+          "resaleSek": 5486103.47257619,
+          "profitSek": 1104426.6053945401,
+          "tracked": false
+        },
+        {
+          "rank": 10,
+          "id": "booli:4314237",
+          "address": "Hagaesplanaden 63",
+          "resaleSek": 5908077.796297075,
+          "profitSek": 1091779.6256032444,
+          "tracked": false
+        },
+        {
+          "rank": 11,
+          "id": "booli:6155023",
+          "address": "Sågargatan 14",
+          "resaleSek": 5568446.509446407,
+          "profitSek": 1087774.97935025,
+          "tracked": false
+        },
+        {
+          "rank": 12,
+          "id": "booli:568925",
+          "address": "Falugatan 5",
+          "resaleSek": 6735777.624822897,
+          "profitSek": 1087155.5249645794,
+          "tracked": false
+        },
+        {
+          "rank": 13,
+          "id": "booli:6271664",
+          "address": "Kungsbro Strand 19",
+          "resaleSek": 5284838.581043058,
+          "profitSek": 1049066.0415068099,
+          "tracked": false
+        },
+        {
+          "rank": 14,
+          "id": "booli:4515303",
+          "address": "Hagaesplanaden 73",
+          "resaleSek": 5538612.878675334,
+          "profitSek": 1034774.575413878,
+          "tracked": false
+        },
+        {
+          "rank": 15,
+          "id": "booli:372080",
+          "address": "Ola Hanssonsgatan 4",
+          "resaleSek": 5164523.5951193785,
+          "profitSek": 1033329.28034923,
+          "tracked": false
+        }
+      ]
+    },
+    {
+      "label": "14.4 (efter)",
+      "rows": [
+        {
+          "rank": 1,
+          "id": "booli:572581",
+          "address": "Fatburs Kvarngata 18",
+          "resaleSek": 6494846.34133044,
+          "profitSek": 2318010.102934893,
+          "tracked": false
+        },
+        {
+          "rank": 2,
+          "id": "booli:568925",
+          "address": "Falugatan 5",
+          "resaleSek": 6884977.1586189335,
+          "profitSek": 2123426.4977827733,
+          "tracked": false
+        },
+        {
+          "rank": 3,
+          "id": "booli:572010",
+          "address": "Fatburstrappan 18",
+          "resaleSek": 6456864.542234571,
+          "profitSek": 1982689.4117638865,
+          "tracked": false
+        },
+        {
+          "rank": 4,
+          "id": "booli:6155023",
+          "address": "Sågargatan 14",
+          "resaleSek": 5826960.613338653,
+          "profitSek": 1864930.4866105672,
+          "tracked": false
+        },
+        {
+          "rank": 5,
+          "id": "booli:324863",
+          "address": "Tjurbergsgatan 38",
+          "resaleSek": 5974741.70406704,
+          "profitSek": 1727702.7329621427,
+          "tracked": false
+        },
+        {
+          "rank": 6,
+          "id": "booli:6305391",
+          "address": "Sysslomansgatan 26",
+          "resaleSek": 5958563.217146876,
+          "profitSek": 1638342.5854283639,
+          "tracked": false
+        },
+        {
+          "rank": 7,
+          "id": "booli:635120",
+          "address": "Klippgatan 14E",
+          "resaleSek": 5899240.500022293,
+          "profitSek": 1636711.6219701902,
+          "tracked": false
+        },
+        {
+          "rank": 8,
+          "id": "booli:348671",
+          "address": "Fyrverkarbacken 25",
+          "resaleSek": 4897056.453500281,
+          "profitSek": 1586168.205214303,
+          "tracked": false
+        },
+        {
+          "rank": 9,
+          "id": "booli:6295311",
+          "address": "Hornsgatan 119",
+          "resaleSek": 5893509.0269593075,
+          "profitSek": 1573813.858707995,
+          "tracked": false
+        },
+        {
+          "rank": 10,
+          "id": "booli:700725",
+          "address": "Pokalvägen 4",
+          "resaleSek": 5148869.454065363,
+          "profitSek": 1519265.182532634,
+          "tracked": false
+        },
+        {
+          "rank": 11,
+          "id": "booli:4309411",
+          "address": "Erstagatan 21",
+          "resaleSek": 5877302.605526904,
+          "profitSek": 1467856.829070372,
+          "tracked": false
+        },
+        {
+          "rank": 12,
+          "id": "booli:348715",
+          "address": "Fyrverkarbacken 23",
+          "resaleSek": 4965462.852804012,
+          "profitSek": 1336562.7347381935,
+          "tracked": false
+        },
+        {
+          "rank": 13,
+          "id": "booli:372080",
+          "address": "Ola Hanssonsgatan 4",
+          "resaleSek": 4962174.264362666,
+          "profitSek": 1191211.9993871727,
+          "tracked": false
+        },
+        {
+          "rank": 14,
+          "id": "booli:6271664",
+          "address": "Kungsbro Strand 19",
+          "resaleSek": 5264467.646297029,
+          "profitSek": 1178528.9273563372,
+          "tracked": false
+        },
+        {
+          "rank": 15,
+          "id": "booli:144070",
+          "address": "Fridhemsgatan 41",
+          "resaleSek": 5561350.087393686,
+          "profitSek": 1126397.114732167,
+          "tracked": false
+        }
+      ]
+    }
+  ],
+  "moves": [
+    {
+      "id": "booli:144070",
+      "address": "Fridhemsgatan 41",
+      "ranks": [
+        40,
+        15
+      ],
+      "from": 40,
+      "to": 15,
+      "move": 25
+    },
+    {
+      "id": "booli:3916472",
+      "address": "Fyrverkarbacken 27",
+      "ranks": [
+        25,
+        50
+      ],
+      "from": 25,
+      "to": 50,
+      "move": -25
+    },
+    {
+      "id": "booli:4538398",
+      "address": "Tegelviksgatan 18",
+      "ranks": [
+        41,
+        66
+      ],
+      "from": 41,
+      "to": 66,
+      "move": -25
+    },
+    {
+      "id": "booli:767763",
+      "address": "Tideliusgatan 55",
+      "ranks": [
+        34,
+        58
+      ],
+      "from": 34,
+      "to": 58,
+      "move": -24
+    },
+    {
+      "id": "booli:6286736",
+      "address": "Blekingegatan 36",
+      "ranks": [
+        36,
+        59
+      ],
+      "from": 36,
+      "to": 59,
+      "move": -23
+    },
+    {
+      "id": "booli:6282708",
+      "address": "Wennerbergsgatan 6A",
+      "ranks": [
+        54,
+        33
+      ],
+      "from": 54,
+      "to": 33,
+      "move": 21
+    },
+    {
+      "id": "booli:431217",
+      "address": "Heleneborgsgatan 30A",
+      "ranks": [
+        47,
+        28
+      ],
+      "from": 47,
+      "to": 28,
+      "move": 19
+    },
+    {
+      "id": "booli:328408",
+      "address": "Gyllenborgsgatan 15",
+      "ranks": [
+        63,
+        44
+      ],
+      "from": 63,
+      "to": 44,
+      "move": 19
+    },
+    {
+      "id": "booli:323721",
+      "address": "Bergsundsgatan 14",
+      "ranks": [
+        55,
+        40
+      ],
+      "from": 55,
+      "to": 40,
+      "move": 15
+    },
+    {
+      "id": "booli:309602",
+      "address": "Frödingsvägen 9",
+      "ranks": [
+        72,
+        57
+      ],
+      "from": 72,
+      "to": 57,
+      "move": 15
+    }
+  ]
+}
