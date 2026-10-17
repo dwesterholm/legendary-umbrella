@@ -57,8 +57,12 @@ import {
   formatSovrumCell,
   korsdragOf,
   quietBedroomOf,
-  usableSide,
-  usablyNoBalcony,
+  korsdragWhen,
+  quietBedroomWhen,
+  usableSideWhen,
+  usablyNoBalconyWhen,
+  LAYOUT_INFLUENCE_ENABLED,
+  LAYOUT_NO_INFLUENCE_SUFFIX,
   type LayoutFact,
 } from "@/lib/discovery/layout-fact";
 import { formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
@@ -714,10 +718,10 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
     layout: {
       read: rows.filter((r) => r.layout !== null).length,
       // street / courtyard need the gate, "no balcony" needs only the confidence (layout-fact.ts)
-      balcony: rows.filter((r) => usableSide(r.layout, "balcony") !== null || usablyNoBalcony(r.layout)).length,
-      windowSides: rows.filter((r) => korsdragOf(r.layout) !== null).length,
-      bedroom: rows.filter((r) => quietBedroomOf(r.layout) !== null).length,
-      appliedToSun: rows.filter((r) => inferredSunWithLayout(r.sun, r.layout).applied).length,
+      balcony: rows.filter((r) => usableSideWhen(r.layout, "balcony", true) !== null || usablyNoBalconyWhen(r.layout, true)).length,
+      windowSides: rows.filter((r) => korsdragWhen(r.layout, true) !== null).length,
+      bedroom: rows.filter((r) => quietBedroomWhen(r.layout, true) !== null).length,
+      appliedToSun: rows.filter((r) => inferredSunWithLayout(r.sun, r.layout, true).applied).length,
     },
     reasonsOnFlagged: null,
   };
@@ -775,7 +779,8 @@ export function renderCoverage(coverage: Coverage): string {
   if (l.read === 0) return line;
   return (
     `${line}\nPlanlösning: balkongsida ${l.balcony}, korsdrag känt ${l.windowSides}, sovrumssida ${l.bedroom}, ` +
-    `sol från planlösning ${l.appliedToSun} av ${coverage.n}`
+    `sol från planlösning ${l.appliedToSun} av ${coverage.n}` +
+    (LAYOUT_INFLUENCE_ENABLED ? "" : ` ${LAYOUT_NO_INFLUENCE_SUFFIX}`)
   );
 }
 

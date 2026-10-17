@@ -19,10 +19,13 @@
  *  - eyeSample: the {@link EYE_SAMPLE_SIZE} rows with a layout and the lowest Booli ids, with the read fields, so
  *    a person can check them against the pictures.
  *
+ * Everything here reports what the READ found (the `*When(..., true)` variants), whatever the influence switch
+ * LAYOUT_INFLUENCE_ENABLED says, so accuracy work can measure the read while it does not touch the score.
+ *
  * Pure: no clock, file, network or environment access.
  */
 import { booliIdOf, inferredSunWithLayout, type FitInputRow } from "@/lib/discovery/fit-score";
-import { LAYOUT_MIN_CONFIDENCE, korsdragOf, quietBedroomOf, usableSide, usablyNoBalcony, type LayoutFact } from "@/lib/discovery/layout-fact";
+import { LAYOUT_MIN_CONFIDENCE, korsdragWhen, quietBedroomWhen, usableSideWhen, usablyNoBalconyWhen, type LayoutFact } from "@/lib/discovery/layout-fact";
 
 /** How many flats the by-eye check looks at (D-11). */
 export const EYE_SAMPLE_SIZE = 12;
@@ -101,13 +104,13 @@ export function layoutReportOf(rows: readonly FitInputRow[], lifetimeSek: number
     else if (l.confidence < 0.7) values.confidence.from06to07 += 1;
     else values.confidence.from07 += 1;
 
-    const balcony = usableSide(l, "balcony");
-    const bedroom = usableSide(l, "bedroom");
-    if (balcony !== null || usablyNoBalcony(l)) usable.balcony += 1;
+    const balcony = usableSideWhen(l, "balcony", true);
+    const bedroom = usableSideWhen(l, "bedroom", true);
+    if (balcony !== null || usablyNoBalconyWhen(l, true)) usable.balcony += 1;
     if (balcony !== null) usable.balconyStreetOrCourtyard += 1;
-    if (korsdragOf(l) !== null) usable.windowSides += 1;
-    if (quietBedroomOf(l) !== null) usable.bedroom += 1;
-    if (inferredSunWithLayout(r.sun, l).applied) appliedToSun += 1;
+    if (korsdragWhen(l, true) !== null) usable.windowSides += 1;
+    if (quietBedroomWhen(l, true) !== null) usable.bedroom += 1;
+    if (inferredSunWithLayout(r.sun, l, true).applied) appliedToSun += 1;
 
     // Agreement with a STATED facade (the only independent evidence there is in the data, Pitfall 12).
     const sun = r.sun;
@@ -146,8 +149,8 @@ export function layoutReportOf(rows: readonly FitInputRow[], lifetimeSek: number
       streetEvidence: r.layout.streetEvidence,
       confidence: r.layout.confidence,
       images: r.layout.images,
-      korsdrag: korsdragOf(r.layout),
-      quietBedroom: quietBedroomOf(r.layout),
+      korsdrag: korsdragWhen(r.layout, true),
+      quietBedroom: quietBedroomWhen(r.layout, true),
     }));
 
   return {

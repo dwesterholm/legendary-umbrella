@@ -51,6 +51,23 @@ import { unknownSunFact, type DateHours, type SideHours, type SunFact } from "@/
 import { LOVED_HUBS, tasteBonus } from "@/lib/discovery/taste";
 import type { VisionConditionClaim, VisionResult } from "@/lib/discovery/vision-schema";
 
+// The 14.4 layout tests below exercise the layout WHEN IT INFLUENCES the score; the switch is off in production
+// (LAYOUT_INFLUENCE_ENABLED, Daniel 2026-10-17), so this file runs the module with the switch on. The off
+// behaviour is covered in layout-influence-off.test.ts and layout-fact.test.ts.
+vi.mock("@/lib/discovery/layout-fact", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@/lib/discovery/layout-fact")>();
+  return {
+    ...orig,
+    LAYOUT_INFLUENCE_ENABLED: true,
+    usableSide: (f: Parameters<typeof orig.usableSide>[0], w: Parameters<typeof orig.usableSide>[1]) => orig.usableSideWhen(f, w, true),
+    usablyNoBalcony: (f: Parameters<typeof orig.usablyNoBalcony>[0]) => orig.usablyNoBalconyWhen(f, true),
+    korsdragOf: (f: Parameters<typeof orig.korsdragOf>[0]) => orig.korsdragWhen(f, true),
+    quietBedroomOf: (f: Parameters<typeof orig.quietBedroomOf>[0]) => orig.quietBedroomWhen(f, true),
+    formatSolCellWithLayout: (...a: [Parameters<typeof orig.formatSolCellWithLayout>[0], Parameters<typeof orig.formatSolCellWithLayout>[1], boolean]) =>
+      orig.formatSolCellWithLayoutWhen(a[0], a[1], a[2], true),
+  };
+});
+
 /**
  * fit-score.test.ts - locks the Phase 14.1 tracer: the offline replay, the
  * profit decomposition (D-01, D-05, R-02), the unknown reno bundle (D-10,

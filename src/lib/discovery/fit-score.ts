@@ -79,7 +79,7 @@ import {
   type RenoEstimate,
 } from "@/lib/discovery/reno-tier";
 import { computeNicheScore } from "@/lib/discovery/niche-score";
-import { korsdragOf, layoutFactSchema, quietBedroomOf, usableSide, type LayoutFact } from "@/lib/discovery/layout-fact";
+import { LAYOUT_INFLUENCE_ENABLED, korsdragOf, layoutFactSchema, quietBedroomOf, usableSideWhen, type LayoutFact } from "@/lib/discovery/layout-fact";
 import { sunFactSchema, type SunFact } from "@/lib/discovery/sun-fact";
 import { tasteBonus, type InferredSunInput } from "@/lib/discovery/taste";
 
@@ -349,10 +349,12 @@ export function inferredSunForTaste(sun: SunFact | null): InferredSunInput | nul
 export function inferredSunWithLayout(
   sun: SunFact | null,
   layout: LayoutFact | null,
+  /** The influence switch; the coverage line passes true to count what the read found. */
+  enabled: boolean = LAYOUT_INFLUENCE_ENABLED,
 ): { input: InferredSunInput | null; applied: boolean } {
   const base = inferredSunForTaste(sun);
   if (base === null || sun === null || sun.source !== "fastighet/gata") return { input: base, applied: false };
-  const side = usableSide(layout, "balcony");
+  const side = usableSideWhen(layout, "balcony", enabled);
   if (side === null) return { input: base, applied: false };
   const want = side === "street" ? "gata" : "gård";
   const idx = sun.sides.findIndex((s) => s.side === want);

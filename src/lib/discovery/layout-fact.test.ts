@@ -3,17 +3,32 @@ import { describe, expect, it } from "vitest";
 import {
   LAYOUT_MIN_CONFIDENCE,
   formatKorsdragCell,
-  formatLayoutSummary,
-  formatSolCellWithLayout,
+  LAYOUT_INFLUENCE_ENABLED,
+  formatLayoutSummary as formatLayoutSummarySwitch,
+  formatLayoutSummaryWhen,
+  formatSolCellWithLayout as formatSolCellWithLayoutSwitch,
+  formatSolCellWithLayoutWhen,
   formatSovrumCell,
-  korsdragOf,
+  korsdragOf as korsdragOfSwitch,
+  korsdragWhen,
   layoutFactSchema,
-  quietBedroomOf,
-  usableSide,
-  usablyNoBalcony,
+  quietBedroomOf as quietBedroomOfSwitch,
+  quietBedroomWhen,
+  usableSide as usableSideSwitch,
+  usableSideWhen,
+  usablyNoBalcony as usablyNoBalconySwitch,
+  usablyNoBalconyWhen,
   type LayoutFact,
 } from "@/lib/discovery/layout-fact";
 import { formatSolCell, unknownSunFact, type SunFact } from "@/lib/discovery/sun-fact";
+
+// The gating logic is tested with the switch ON; the switch itself is tested at the end of the file.
+const usableSide = (f: LayoutFact | null, which: "balcony" | "bedroom") => usableSideWhen(f, which, true);
+const usablyNoBalcony = (f: LayoutFact | null) => usablyNoBalconyWhen(f, true);
+const korsdragOf = (f: LayoutFact | null) => korsdragWhen(f, true);
+const quietBedroomOf = (f: LayoutFact | null) => quietBedroomWhen(f, true);
+const formatSolCellWithLayout = (sun: SunFact | null, l: LayoutFact | null, applied: boolean) => formatSolCellWithLayoutWhen(sun, l, applied, true);
+const formatLayoutSummary = (f: LayoutFact | null) => formatLayoutSummaryWhen(f, true);
 
 /**
  * layout-fact.test.ts - the deterministic gate (14.3 lesson: the model fell for the front-door arrow
@@ -218,5 +233,41 @@ describe("formatLayoutSummary and usablyNoBalcony (14.4 plan 08)", () => {
     expect(usablyNoBalcony({ ...none, confidence: 0.59 })).toBe(false);
     expect(usablyNoBalcony(fact())).toBe(false);
     expect(usablyNoBalcony(null)).toBe(false);
+  });
+});
+
+describe("LAYOUT_INFLUENCE_ENABLED off (Daniel 2026-10-17, UAT 14.4 items 4-5)", () => {
+  const confidentFact = fact({ windowSides: "twoOpposite", bedroomSide: "courtyard", streetEvidence: "cars", confidence: 0.95 });
+
+  it("is off until the read is proven at least 75 % reliable", () => {
+    expect(LAYOUT_INFLUENCE_ENABLED).toBe(false);
+  });
+
+  it("every helper returns unknown for a confident fact", () => {
+    expect(usableSideSwitch(confidentFact, "balcony")).toBeNull();
+    expect(usableSideSwitch(confidentFact, "bedroom")).toBeNull();
+    expect(korsdragOfSwitch(confidentFact)).toBeNull();
+    expect(quietBedroomOfSwitch(confidentFact)).toBeNull();
+    expect(usablyNoBalconySwitch(fact({ balconySide: "none", confidence: 0.95 }))).toBe(false);
+  });
+
+  it("the explicit-switch variants return unknown when passed false and the gated value when passed true", () => {
+    expect(usableSideWhen(confidentFact, "balcony", false)).toBeNull();
+    expect(korsdragWhen(confidentFact, false)).toBeNull();
+    expect(quietBedroomWhen(confidentFact, false)).toBeNull();
+    expect(usablyNoBalconyWhen(fact({ balconySide: "none" }), false)).toBe(false);
+    expect(korsdragWhen(confidentFact, true)).toBe(true);
+  });
+
+  it("the cells read okänd and the Sol cell never says planritning+foto", () => {
+    expect(formatKorsdragCell(korsdragOfSwitch(confidentFact))).toBe("okänd");
+    expect(formatSovrumCell(quietBedroomOfSwitch(confidentFact))).toBe("okänd");
+    expect(formatSolCellWithLayoutSwitch(footprintSun(), confidentFact, true)).not.toContain("planritning+foto");
+    expect(formatSolCellWithLayoutSwitch(footprintSun(), confidentFact, false)).toBe(formatSolCell(footprintSun()));
+  });
+
+  it("the tracked-flat summary still shows what the read found, marked as not affecting the score", () => {
+    expect(formatLayoutSummarySwitch(fact())).toBe("balkong gata, fönster en sida, sovrum gata (säkerhet 0,90) (påverkar ej poängen)");
+    expect(formatLayoutSummary(fact())).toBe("balkong gata, fönster en sida, sovrum gata (säkerhet 0,90)");
   });
 });

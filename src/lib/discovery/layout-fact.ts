@@ -29,6 +29,19 @@ import { FACADE_LETTER, formatSolCell, type SunFact } from "@/lib/discovery/sun-
 /** Below this confidence no value of the layout read counts (D-09). */
 export const LAYOUT_MIN_CONFIDENCE = 0.6;
 
+/**
+ * Master switch for the INFLUENCE of the layout read on the score and on the table and mail cells.
+ *
+ * Decision (Daniel, 2026-10-17, UAT 14.4 items 4-5): the layout read misreads flats (Folkungagatan 61 read
+ * as courtyard, 2 of 3 "korsdrag ja" wrong by eye), so it stays off until a hand-judged truth set shows the
+ * read is at least 75 % reliable (Phase 14.5). While false, {@link usableSide}, {@link korsdragOf} and
+ * {@link quietBedroomOf} return null (unknown) and {@link usablyNoBalcony} returns false, so the sun facade,
+ * the taste term, the Korsdrag/Sovrum/Sol cells and the mail all behave as if no layout existed. The read
+ * itself keeps running and caching, and the coverage line still counts what it found (via the `*When`
+ * variants with `enabled` true), so the fix can be measured.
+ */
+export const LAYOUT_INFLUENCE_ENABLED = false;
+
 export const BALCONY_SIDES = ["street", "courtyard", "none", "unknown"] as const;
 export const WINDOW_SIDES = ["one", "twoOpposite", "corner", "unknown"] as const;
 export const BEDROOM_SIDES = ["street", "courtyard", "unknown"] as const;
@@ -64,14 +77,28 @@ const confident = (fact: LayoutFact): boolean => fact.confidence >= LAYOUT_MIN_C
  * the value itself is "none" or "unknown". Boundary: 0,6 counts, 0,59 does not.
  */
 export function usableSide(fact: LayoutFact | null, which: "balcony" | "bedroom"): "street" | "courtyard" | null {
-  if (fact === null || !confident(fact) || fact.streetEvidence === "none") return null;
+  return usableSideWhen(fact, which, LAYOUT_INFLUENCE_ENABLED);
+}
+
+/** {@link usableSide} with the switch passed in: `enabled` false is always null. Pure; the tests and the read-coverage use it. */
+export function usableSideWhen(
+  fact: LayoutFact | null,
+  which: "balcony" | "bedroom",
+  enabled: boolean,
+): "street" | "courtyard" | null {
+  if (!enabled || fact === null || !confident(fact) || fact.streetEvidence === "none") return null;
   const side = which === "balcony" ? fact.balconySide : fact.bedroomSide;
   return side === "street" || side === "courtyard" ? side : null;
 }
 
 /** True when the read is confident that the flat has no balcony. Needs only the confidence: nothing about street or courtyard is claimed. */
 export function usablyNoBalcony(fact: LayoutFact | null): boolean {
-  return fact !== null && confident(fact) && fact.balconySide === "none";
+  return usablyNoBalconyWhen(fact, LAYOUT_INFLUENCE_ENABLED);
+}
+
+/** {@link usablyNoBalcony} with the switch passed in: `enabled` false is always false. */
+export function usablyNoBalconyWhen(fact: LayoutFact | null, enabled: boolean): boolean {
+  return enabled && fact !== null && confident(fact) && fact.balconySide === "none";
 }
 
 /**
@@ -79,7 +106,12 @@ export function usablyNoBalcony(fact: LayoutFact | null): boolean {
  * null (unknown) for "unknown", for a confidence below {@link LAYOUT_MIN_CONFIDENCE} and for no fact.
  */
 export function korsdragOf(fact: LayoutFact | null): boolean | null {
-  if (fact === null || !confident(fact)) return null;
+  return korsdragWhen(fact, LAYOUT_INFLUENCE_ENABLED);
+}
+
+/** {@link korsdragOf} with the switch passed in: `enabled` false is always null. */
+export function korsdragWhen(fact: LayoutFact | null, enabled: boolean): boolean | null {
+  if (!enabled || fact === null || !confident(fact)) return null;
   if (fact.windowSides === "twoOpposite") return true;
   if (fact.windowSides === "one" || fact.windowSides === "corner") return false;
   return null;
@@ -90,7 +122,12 @@ export function korsdragOf(fact: LayoutFact | null): boolean | null {
  * usable street bedroom, null (unknown) otherwise.
  */
 export function quietBedroomOf(fact: LayoutFact | null): boolean | null {
-  const side = usableSide(fact, "bedroom");
+  return quietBedroomWhen(fact, LAYOUT_INFLUENCE_ENABLED);
+}
+
+/** {@link quietBedroomOf} with the switch passed in: `enabled` false is always null. */
+export function quietBedroomWhen(fact: LayoutFact | null, enabled: boolean): boolean | null {
+  const side = usableSideWhen(fact, "bedroom", enabled);
   if (side === null) return null;
   return side === "courtyard";
 }
@@ -119,7 +156,12 @@ const SIDE_WORD = { street: "gata", courtyard: "gård" } as const;
  *  - no layout, or one that cannot be believed: exactly {@link formatSolCell}.
  */
 export function formatSolCellWithLayout(sun: SunFact | null, layout: LayoutFact | null, applied: boolean): string {
-  const balcony = usableSide(layout, "balcony");
+  return formatSolCellWithLayoutWhen(sun, layout, applied, LAYOUT_INFLUENCE_ENABLED);
+}
+
+/** {@link formatSolCellWithLayout} with the switch passed in: `enabled` false is exactly {@link formatSolCell}. */
+export function formatSolCellWithLayoutWhen(sun: SunFact | null, layout: LayoutFact | null, applied: boolean, enabled: boolean): string {
+  const balcony = usableSideWhen(layout, "balcony", enabled);
   if (applied && sun !== null && balcony !== null) {
     const side = sun.sides.find((s) => s.side === SIDE_WORD[balcony]);
     if (side !== undefined) {
@@ -128,21 +170,31 @@ export function formatSolCellWithLayout(sun: SunFact | null, layout: LayoutFact 
   }
   const base = formatSolCell(sun);
   if (balcony !== null) return `${base}, balkong ${SIDE_WORD[balcony]}`;
-  if (usablyNoBalcony(layout)) return `${base}, ingen balkong`;
+  if (usablyNoBalconyWhen(layout, enabled)) return `${base}, ingen balkong`;
   return base;
 }
 
 const WINDOW_WORD = { one: "en sida", twoOpposite: "två motsatta sidor", corner: "hörn", unknown: "okänd" } as const;
 
+/** Suffix on read-only output while the layout does not influence the score ({@link LAYOUT_INFLUENCE_ENABLED} false). */
+export const LAYOUT_NO_INFLUENCE_SUFFIX = "(påverkar ej poängen)";
+
 /**
- * The tracked-flat line of the layout, believed values only: "balkong gata, fönster en sida, sovrum gata
- * (säkerhet 0,90)", with "okänd" for what the gate does not let through, and "-" without a layout. Pure.
+ * The tracked-flat line of the layout: what the READ found, believed values only: "balkong gata, fönster en
+ * sida, sovrum gata (säkerhet 0,90)", with "okänd" for what the gate does not let through, and "-" without a
+ * layout. While the influence switch is off it ends with {@link LAYOUT_NO_INFLUENCE_SUFFIX}. Pure.
  */
 export function formatLayoutSummary(fact: LayoutFact | null): string {
+  return formatLayoutSummaryWhen(fact, LAYOUT_INFLUENCE_ENABLED);
+}
+
+/** {@link formatLayoutSummary} with the switch passed in. The values always show the read; `enabled` false only adds the suffix. */
+export function formatLayoutSummaryWhen(fact: LayoutFact | null, enabled: boolean): string {
   if (fact === null) return "-";
-  const balcony = usableSide(fact, "balcony");
-  const balconyWord = balcony !== null ? SIDE_WORD[balcony] : usablyNoBalcony(fact) ? "ingen" : "okänd";
+  const balcony = usableSideWhen(fact, "balcony", true);
+  const balconyWord = balcony !== null ? SIDE_WORD[balcony] : usablyNoBalconyWhen(fact, true) ? "ingen" : "okänd";
   const windows = confident(fact) ? WINDOW_WORD[fact.windowSides] : WINDOW_WORD.unknown;
-  const bedroom = usableSide(fact, "bedroom");
-  return `balkong ${balconyWord}, fönster ${windows}, sovrum ${bedroom !== null ? SIDE_WORD[bedroom] : "okänd"} (säkerhet ${commaDecimals(fact.confidence)})`;
+  const bedroom = usableSideWhen(fact, "bedroom", true);
+  const line = `balkong ${balconyWord}, fönster ${windows}, sovrum ${bedroom !== null ? SIDE_WORD[bedroom] : "okänd"} (säkerhet ${commaDecimals(fact.confidence)})`;
+  return enabled ? line : `${line} ${LAYOUT_NO_INFLUENCE_SUFFIX}`;
 }
