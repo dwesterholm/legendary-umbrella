@@ -275,6 +275,15 @@ describe("facts from the description", () => {
     expect(facts?.tallCeilingPhrase).toBe(false);
   });
 
+  it("'Högt i tak i hela lägenheten.' stores no number and the flag: { null, null, true }", async () => {
+    const f = brokerFakes("Högt i tak i hela lägenheten.");
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.ceilingHeightM).toBeNull();
+    expect(facts?.ceilingSource).toBeNull();
+    expect(facts?.tallCeilingPhrase).toBe(true);
+  });
+
   it("a description that states no height is read: ceilingHeightM null, tallCeilingPhrase false", async () => {
     const f = brokerFakes("Ljus etta med balkong.");
     const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));

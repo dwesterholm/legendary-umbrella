@@ -45,25 +45,58 @@ export interface CeilingFacts {
   readonly tallCeilingPhrase: boolean | null;
 }
 
-// --- pattern A: keyword first ("takhöjd 3,2 m", "takhöjd på ca 3 meter", "Takhöjd: 3.2m") ---------
+// --- number, units and the three patterns --------------------------------------------------------
+//
+// All quantifiers are bounded and the text is capped before matching (T-14.5-02): no pattern
+// repeats without a limit over the whole text. The letter look-arounds keep "takhöjdsskillnad"
+// and street names from matching.
 
 const KW = String.raw`(?<![\p{L}])(?:tak|rums)h[öo]jd(?:en)?(?![\p{L}])`;
+const KW_BARE = String.raw`(?:tak|rums)h[öo]jd(?![\p{L}])`;
 const FILL = String.raw`[\s:–\-(]{0,12}(?:(?:på|om|är|ca\.?|cirka|ungefär|upp\s{1,3}till|hela|runt)\s{0,3}){0,3}`;
-const NUM = String.raw`(\d{1,3}(?:[.,]\d{1,2})?)(?!\d|[.,]\d)`;
-const UNIT_A = String.raw`(?:\s{0,3}(m(?:eter(?:s)?)?|cm)(?![\p{L}\d²]))?`;
-const PATTERN_A = new RegExp(KW + FILL + NUM + UNIT_A, "giu");
+const NUM = String.raw`(\d{1,3}(?:[.,]\d{1,2})?)`;
+const UNIT_END = String.raw`(?![\p{L}\d²])`;
+
+/** A: keyword first. "takhöjd 3,2 m", "takhöjd på ca 3 meter", "Takhöjd: 3.2m", "takhöjd 270 cm", "Rumshöjd 2,8 m". */
+const PATTERN_A = new RegExp(KW + FILL + NUM + String.raw`(?!\d|[.,]\d)` + String.raw`(?:\s{0,3}(m(?:eter(?:s)?)?|cm)` + UNIT_END + ")?", "giu");
+/** B: number and unit first. "3,5 meters takhöjd", "ca 3 m i takhöjd", "2,7 m takhöjd". */
+const PATTERN_B = new RegExp(
+  String.raw`(?<![\p{L}\d.,])` + NUM + String.raw`\s{0,3}(m(?:eter(?:s)?)?|cm)` + UNIT_END + String.raw`\s{0,3}(?:(?:i|med)\s{1,3})?` + KW_BARE,
+  "giu",
+);
+/** C: a spelled-out number. "tre meter i takhöjd", "fyra meters takhöjd", "tre och en halv meter i takhöjd". */
+const PATTERN_C = new RegExp(
+  String.raw`(?<![\p{L}])(två|tre|fyra)(\s{1,3}och\s{1,3}en\s{1,3}halv)?\s{1,3}meter(?:s)?\s{1,3}(?:i\s{1,3})?` + KW_BARE,
+  "giu",
+);
+const WORD_NUMBERS: Readonly<Record<string, number>> = { två: 2, tre: 3, fyra: 4 };
 
 /** What may NOT follow a bare number (no unit): an area, a room count, more digits. */
 const BARE_NOT_A_HEIGHT = /^\s{0,3}(?:m2|m²|kvm|rum(?![\p{L}])|st(?![\p{L}])|\d)/iu;
 /** A bare whole number is a height only when the text ends or punctuation follows. */
 const BARE_PUNCTUATION_ONLY = /^\s{0,3}(?:$|[.,;:!?)\]])/u;
 
-/** Cap, then drop soft hyphens and zero-width characters and turn no-break spaces into spaces. */
+/** A clause that is about another space: a height there is not the flat's ceiling. */
+const OTHER_SPACE =
+  /(?<![\p{L}])(?:källar\w*|förråd\w*|vind\w*|garage\w*|cykelrum\w*|trapphus\w*|souterräng\w*|loftsäng\w*|tvättstuga\w*|gemensam\w*|bergrum\w*|mellanplan\w*)(?![\p{L}])/iu;
+/** "låg takhöjd", "lågt i tak", "låga tak": a low ceiling is never a number and never the tall flag. */
+const LOW_CEILING = /(?<![\p{L}])(?:låga?\s{1,3}(?:tak|rums)h[öo]jd|lågt\s{1,3}i\s{1,3}tak|låga\s{1,3}tak)(?![\p{L}])/iu;
+/** Tall-ceiling phrases that carry no number. A negation right before them rules them out. */
+const TALL =
+  /(?<!(?:ej|inte|ingen)\s{1,3})(?<![\p{L}])(?:högt\s{1,3}(?:i|till)\s{1,3}tak|höga\s{1,3}tak|hög\s{1,3}takh[öo]jd|generös\s{1,3}takh[öo]jd|extra\s{1,3}hög\s{1,3}takh[öo]jd)(?![\p{L}])/iu;
+
+/** Cap, then drop soft hyphens and zero-width characters, turn no-break spaces into spaces, and unstop "ca.". */
 function prepare(text: string): string {
   return text
     .slice(0, CEILING_TEXT_MAX_CHARS)
-    .replace(/[­​-‍⁠﻿]/g, "")
-    .replace(/[   ]/g, " ");
+    .replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, "")
+    .replace(/[\u00A0\u2007\u202F]/g, " ")
+    .replace(/(?<![\p{L}])(ca)\.(?=\s)/giu, "$1");
+}
+
+/** Clauses end at ! ? ; a newline, or a full stop that is not a decimal point (landLeaseFromText splits the same way). */
+function clausesOf(prepared: string): string[] {
+  return prepared.split(/[!?;\n]+|(?<!\d)\.|\.(?!\d)/);
 }
 
 /** "3,2" and "3.2" are 3,2; no thousands separators exist in this range. */
@@ -71,23 +104,23 @@ function toNumber(raw: string): number {
   return Number(raw.replace(",", "."));
 }
 
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 /** Canonical phrase rebuilt from the number: decimal comma, at most two decimals, no trailing zeros. */
 function canonicalPhrase(metres: number): string {
   return `takhöjd ${String(metres).replace(".", ",")} m`;
 }
 
-/**
- * The stated ceiling height in the text, in metres, with the canonical phrase, or `null`.
- *
- * Accepts 2,2 to 5,0 m only. A bare number without a unit counts when it has decimals, when it is
- * a whole 200 to 500 (centimetres), or when nothing but punctuation follows it. The first match in
- * text order wins. Only the first {@link CEILING_TEXT_MAX_CHARS} characters are read.
- */
-export function ceilingHeightFromText(text: string | null): { metres: number; phrase: string } | null {
-  if (typeof text !== "string" || text.trim() === "") return null;
-  const prepared = prepare(text);
+interface Hit {
+  readonly index: number;
+  readonly metres: number;
+}
 
-  for (const match of prepared.matchAll(PATTERN_A)) {
+/** Every height candidate in one clause, from the three patterns, unsorted and not yet checked against the band. */
+function hitsIn(clause: string): Hit[] {
+  const hits: Hit[] = [];
+
+  for (const match of clause.matchAll(PATTERN_A)) {
     const raw = match[1];
     const unit = match[2]?.toLowerCase();
     const number = toNumber(raw);
@@ -97,34 +130,80 @@ export function ceilingHeightFromText(text: string | null): { metres: number; ph
     } else if (unit) {
       metres = number;
     } else {
-      const rest = prepared.slice(match.index + match[0].length, match.index + match[0].length + 12);
+      const end = match.index + match[0].length;
+      const rest = clause.slice(end, end + 12);
       if (BARE_NOT_A_HEIGHT.test(rest)) continue;
-      const hasDecimals = /[.,]/.test(raw);
-      if (hasDecimals) metres = number;
+      if (/[.,]/.test(raw)) metres = number;
       else if (number >= 200 && number <= 500) metres = number / 100;
       else if (BARE_PUNCTUATION_ONLY.test(rest)) metres = number;
       else continue;
     }
-    metres = Math.round(metres * 100) / 100;
-    if (metres < CEILING_MIN_M || metres > CEILING_MAX_M) continue;
-    return { metres, phrase: canonicalPhrase(metres) };
+    hits.push({ index: match.index, metres: round2(metres) });
   }
-  return null;
+
+  for (const match of clause.matchAll(PATTERN_B)) {
+    const number = toNumber(match[1]);
+    hits.push({ index: match.index, metres: round2(match[2].toLowerCase() === "cm" ? number / 100 : number) });
+  }
+
+  for (const match of clause.matchAll(PATTERN_C)) {
+    const base = WORD_NUMBERS[match[1].toLowerCase()];
+    if (base === undefined) continue;
+    hits.push({ index: match.index, metres: base + (match[2] ? 0.5 : 0) });
+  }
+
+  return hits;
+}
+
+interface CeilingReading {
+  readonly height: { metres: number; phrase: string } | null;
+  readonly tall: boolean;
+}
+
+/** One pass over the clauses: the first plausible height in text order, and whether a tall phrase was stated. */
+function readCeiling(text: string): CeilingReading {
+  let height: { metres: number; phrase: string } | null = null;
+  let tall = false;
+  for (const clause of clausesOf(prepare(text))) {
+    if (OTHER_SPACE.test(clause) || LOW_CEILING.test(clause)) continue;
+    if (!tall && TALL.test(clause)) tall = true;
+    if (height) continue;
+    const hit = hitsIn(clause)
+      .sort((a, b) => a.index - b.index)
+      .find((h) => h.metres >= CEILING_MIN_M && h.metres <= CEILING_MAX_M);
+    if (hit) height = { metres: hit.metres, phrase: canonicalPhrase(hit.metres) };
+  }
+  return { height, tall };
+}
+
+/**
+ * The stated ceiling height in the text, in metres, with the canonical phrase, or `null`.
+ *
+ * Accepts 2,2 to 5,0 m only. A bare number without a unit counts when it has decimals, when it is
+ * a whole 200 to 500 (centimetres), or when nothing but punctuation follows it. The first plausible
+ * match in text order wins (an implausible first match, such as "12 m", is skipped, not trusted). A
+ * clause that names another space (källare, förråd, vind, garage ...) or a low ceiling gives nothing.
+ * Only the first {@link CEILING_TEXT_MAX_CHARS} characters are read.
+ */
+export function ceilingHeightFromText(text: string | null): { metres: number; phrase: string } | null {
+  if (typeof text !== "string" || text.trim() === "") return null;
+  return readCeiling(text).height;
 }
 
 /**
  * The three stored facts for one text. `null` text (or an empty one) means "not read" and gives
- * all three `null`; a text that was read and states nothing gives `{ null, null, false }`. The
- * sentence itself is never returned.
+ * all three `null`; a text that was read and states nothing gives `{ null, null, false }`.
+ * `tallCeilingPhrase` is true for "högt i tak" and its kin, with or without a number beside it, and
+ * never turns into a number (D-05). The sentence itself is never returned.
  */
 export function ceilingFactsFromText(text: string | null): CeilingFacts {
   if (typeof text !== "string" || text.trim() === "") {
     return { ceilingHeightM: null, ceilingSource: null, tallCeilingPhrase: null };
   }
-  const found = ceilingHeightFromText(text);
+  const { height, tall } = readCeiling(text);
   return {
-    ceilingHeightM: found ? found.metres : null,
-    ceilingSource: found ? "angiven" : null,
-    tallCeilingPhrase: false,
+    ceilingHeightM: height ? height.metres : null,
+    ceilingSource: height ? "angiven" : null,
+    tallCeilingPhrase: tall,
   };
 }
