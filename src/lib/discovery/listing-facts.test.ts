@@ -62,6 +62,8 @@ describe("candidateFactsSchema", () => {
         "brf",
         "brfId",
         "brfName",
+        "ceilingHeightM",
+        "ceilingSource",
         "constructionYear",
         "daysOnMarket",
         "daysOnMarketSource",
@@ -77,6 +79,7 @@ describe("candidateFactsSchema", () => {
         "publishedAt",
         "statusKey",
         "sunPhrases",
+        "tallCeilingPhrase",
         "tenureForm",
       ].sort(),
     );
