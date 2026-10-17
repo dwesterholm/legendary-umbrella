@@ -403,5 +403,183 @@
       "to": 57,
       "move": 15
     }
-  ]
+  ],
+  "coefficients": [
+    {
+      "name": "nbLevel",
+      "cells": [
+        null,
+        {
+          "beta": 1.0663224539597498,
+          "se": 0.01185659672437826
+        }
+      ]
+    },
+    {
+      "name": "floor",
+      "cells": [
+        null,
+        {
+          "beta": 0.015134941887938085,
+          "se": 0.0008805637166208251
+        }
+      ]
+    },
+    {
+      "name": "groundOrBelow",
+      "cells": [
+        null,
+        {
+          "beta": -0.06722202862096957,
+          "se": 0.007976724070494925
+        }
+      ]
+    },
+    {
+      "name": "lnArea",
+      "cells": [
+        null,
+        {
+          "beta": 0.0446675706529327,
+          "se": 0.005508152325094067
+        }
+      ]
+    },
+    {
+      "name": "monthsAgo",
+      "cells": [
+        null,
+        {
+          "beta": -0.007752802408912329,
+          "se": 0.00027016976427295336
+        }
+      ]
+    },
+    {
+      "name": "centralityKm",
+      "cells": [
+        null,
+        {
+          "beta": -0.0071093445268832186,
+          "se": 0.004214488341372364
+        }
+      ]
+    },
+    {
+      "name": "avgiftPerSqmMonth",
+      "cells": [
+        null,
+        {
+          "beta": -0.000643599629455161,
+          "se": 0.0001967019428620363
+        }
+      ]
+    },
+    {
+      "name": "brfDebtPerSqm",
+      "cells": [
+        null,
+        {
+          "beta": -0.0000023896852346561204,
+          "se": 8.272498033619409e-7
+        }
+      ]
+    },
+    {
+      "name": "tomtratt",
+      "cells": [
+        null,
+        {
+          "beta": 0,
+          "se": null
+        }
+      ]
+    }
+  ],
+  "stage2": [
+    {
+      "key": "balcony",
+      "label": "Balkong",
+      "cells": [
+        null,
+        {
+          "pct": 0.08,
+          "capPct": 0.08,
+          "onCap": true
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "le1930",
+      "label": "Byggår till 1930",
+      "cells": [
+        null,
+        {
+          "pct": 0.038841320944136726,
+          "capPct": 0.08,
+          "onCap": false
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "y1931to1960",
+      "label": "Byggår 1931–1960",
+      "cells": [
+        null,
+        {
+          "pct": -0.0292229458614508,
+          "capPct": 0.08,
+          "onCap": false
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "y1961to1990",
+      "label": "Byggår 1961–1990",
+      "cells": [
+        null,
+        {
+          "pct": -0.08,
+          "capPct": 0.08,
+          "onCap": true
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "ge1991",
+      "label": "Byggår från 1991",
+      "cells": [
+        null,
+        {
+          "pct": -0.04464857872836503,
+          "capPct": 0.08,
+          "onCap": false
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    }
+  ],
+  "fitReports": [],
+  "capDecision": null,
+  "capStepNeeded": null,
+  "capResaleDiff": null
 }

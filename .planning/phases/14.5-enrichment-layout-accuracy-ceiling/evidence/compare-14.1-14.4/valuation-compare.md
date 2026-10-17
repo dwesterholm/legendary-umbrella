@@ -56,3 +56,33 @@ Mellan första ("14.4 (före)") och sista ("14.4 (efter)") körningen. Plus bety
 | Gyllenborgsgatan 15 | 63 → 44 | +19 |
 | Bergsundsgatan 14 | 55 → 40 | +15 |
 | Frödingsvägen 9 | 72 → 57 | +15 |
+
+## Koefficienter (steg 1)
+
+Varje egenskap som beta ± SE. Ett streck betyder att kolumnen inte har någon modellfil eller att modellen saknar egenskapen.
+
+| Egenskap | 14.4 (före) | 14.4 (efter) |
+| --- | --- | --- |
+| nbLevel | - | 1,066 ± 0,01186 |
+| floor | - | 0,01513 ± 0,0008806 |
+| groundOrBelow | - | -0,06722 ± 0,007977 |
+| lnArea | - | 0,04467 ± 0,005508 |
+| monthsAgo | - | -0,007753 ± 0,0002702 |
+| centralityKm | - | -0,007109 ± 0,004214 |
+| avgiftPerSqmMonth | - | -0,0006436 ± 0,0001967 |
+| brfDebtPerSqm | - | -0,000002390 ± 8,272e-7 |
+| tomtratt | - | 0,000 ± - |
+
+## Steg 2
+
+Värdet modellen använder, markerat när det ligger på den egna modellens tak.
+
+| Värde | 14.4 (före) | 14.4 (efter) |
+| --- | --- | --- |
+| Balkong | - | +8,0 % (på taket ±8 %) |
+| Byggår till 1930 | - | +3,9 % |
+| Byggår 1931–1960 | - | -2,9 % |
+| Byggår 1961–1990 | - | -8,0 % (på taket ±8 %) |
+| Byggår från 1991 | - | -4,5 % |
+
+Steg-2-SE saknas utan fit-rapport: 14.4 räknade ingen steg-2-SE, och den visas inte som en påhittad siffra.
