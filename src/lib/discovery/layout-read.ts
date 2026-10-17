@@ -49,6 +49,13 @@ import { VISION_SONNET_MODEL } from "@/lib/discovery/vision-prompt";
 /** The model of the read: the Sonnet deep-pass tier, because reading a plan is the hard part (D-07). */
 export const LAYOUT_MODEL = VISION_SONNET_MODEL;
 
+/**
+ * The Opus tier of the experiments (Phase 14.5, D-10 variant c, R-04). Defined HERE and never in vision-prompt.ts,
+ * which is one of the four locked vision files (D-14). Opus 5.5 has its own call shape (no temperature, thinking on,
+ * `output_config.effort`), built in layout-call.ts from the variant spec; its rates are in layout-cost.ts.
+ */
+export const LAYOUT_OPUS_MODEL = "claude-opus-5-5";
+
 /** Bump when code that is not text (the gate in layout-fact.ts, the image choice here) changes what a stored read means. */
 export const LAYOUT_LOGIC_REVISION = 1;
 
@@ -119,6 +126,68 @@ export const LAYOUT_READ_VERSION: string = layoutReadVersion({
   schema: z.toJSONSchema(layoutReadSchema, { unrepresentable: "any" }),
   revision: LAYOUT_LOGIC_REVISION,
 });
+
+// ---------------------------------------------------------------------------
+// The reworked prompt and schemas of the experiments (Phase 14.5, D-10 variants b, c and d)
+// ---------------------------------------------------------------------------
+//
+// Written and FROZEN before any paid call (D-10, T-14.5-19): nothing here is tuned on the truth set. The rules come
+// from the 14.4 eye check (evidence/layout-eye-check.md) and from D-10. None of these constants is used by the weekly
+// read; production keeps LAYOUT_SYSTEM_PROMPT, layoutReadSchema and LAYOUT_READ_VERSION, so its cache keeps its keys.
+
+/**
+ * The reworked system prompt (variants b and c). It asks for the plan check (`planPresent`), explicit street and
+ * courtyard evidence, the window rules the eye check found missing, and one certainty per field. Like the 14.4 prompt it
+ * never asks for a compass or a bearing: the arrow at the front door is called out as no side at all.
+ */
+export const LAYOUT_SYSTEM_PROMPT_V2 = [
+  "Du tittar på bilder från en svensk bostadsannons. Bild 1 är normalt planritningen (en ritning av lägenheten ovanifrån) och resten är foton från lägenheten.",
+  "Är ingen av bilderna en planritning ovanifrån, sätt planPresent till false och svara unknown, none eller false på det som bara en planritning kan visa.",
+  "Avgör vilken sida av lägenheten balkongen sitter på, vilka rum (vardagsrum, kök, sovrum) som ligger på samma sida som balkongen, hur fönstren sitter och vilken sida huvudsovrummet vänder åt.",
+  "Gata eller gård avgörs av FOTONA, aldrig av planritningen ensam.",
+  "Gatan syns på bilar, en körbana, gatlyktor, butiksfasader, spårvagnsledningar eller en sammanhängande fasadlinje på andra sidan en väg.",
+  "Gården syns på cykelställ, en gräsmatta, en sandlåda eller lekplats, stenläggning med planteringar eller husets egen baksida.",
+  "Konstgräs eller trall på balkonggolvet är inte gårdsgrönska.",
+  "Ett träd med fasader på avstånd, utan väg och utan gårdsyta, avgör ingenting.",
+  "Ange i streetEvidence: cars för gatubevis, courtyardGreenery för gårdsbevis, oppositeFacade bara när det enda du ser är en husfasad på nära håll mitt emot, annars none.",
+  "Pilen vid ytterdörren på planritningen visar var man går in. Den är ingen sida och säger inget om gata eller gård.",
+  "Fönster räknas bara i yttervägg. Glas mellan rum, till exempel mot en sovalkov, räknas inte som en fönstersida.",
+  "En lång lägenhet med fönster i båda kortändarna är twoOpposite även när kök och vardagsrum är ritade var för sig.",
+  "Ett burspråk på en vägg är en sida (one). corner betyder fönster i två yttre väggar som möts.",
+  "unknown är ett fullgott svar. Visar bilderna det inte, svara unknown, none eller false. Gissa inte.",
+  "Ange en egen säkerhet 0 till 1 för balkongsidan (balconyConfidence), för fönstersidorna (windowsConfidence) och för sovrumssidan (bedroomConfidence), och en samlad säkerhet i confidence.",
+  "Svara bara genom fälten.",
+].join(" ");
+
+/** The short instruction that follows the images in the user turn of variants b and c. */
+export const LAYOUT_USER_INSTRUCTION_V2 =
+  "Läs av balkongens sida, fönstersidorna och sovrummets sida enligt reglerna i instruktionen, och ange om en planritning finns bland bilderna.";
+
+/**
+ * The answer of variants b and c: the eight fields of {@link layoutReadSchema} plus `planPresent` and three plain
+ * certainties. Twelve flat fields: enums, booleans and plain numbers, with NO bound (`.min`/`.max`), no nullable value
+ * and no union (Pitfall 6, memory anthropic-structured-output-limits: strict output answers HTTP 400 to too many unions
+ * or numeric constraints). The bounds are applied by our own stored record, never by the API schema.
+ */
+export const layoutReadSchemaV2 = layoutReadSchema.extend({
+  planPresent: z.boolean().describe("True om en planritning ovanifrån finns bland bilderna, annars false."),
+  balconyConfidence: z.number().describe("Din säkerhet 0 till 1 på balkongsidan (gata eller gård)."),
+  windowsConfidence: z.number().describe("Din säkerhet 0 till 1 på fönstersidorna."),
+  bedroomConfidence: z.number().describe("Din säkerhet 0 till 1 på sovrumssidan."),
+});
+
+export type LayoutReadV2 = z.infer<typeof layoutReadSchemaV2>;
+
+/**
+ * The slimmer fallback of {@link layoutReadSchemaV2}, defined in advance for the case the live smoke answers HTTP 400:
+ * the eight fields and `planPresent`, no per-field certainties (nine fields). Not used by any variant today; a 400 is a
+ * finding for plan 08 or 09 to record, not a retry loop.
+ */
+export const layoutReadSchemaV2Slim = layoutReadSchema.extend({
+  planPresent: z.boolean().describe("True om en planritning ovanifrån finns bland bilderna, annars false."),
+});
+
+export type LayoutReadV2Slim = z.infer<typeof layoutReadSchemaV2Slim>;
 
 // ---------------------------------------------------------------------------
 // Pictures

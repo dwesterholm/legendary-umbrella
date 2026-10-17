@@ -8,6 +8,10 @@
  *   npx tsx scripts/layout-accuracy.ts --select-and-lock <fil> [--dry-run]
  *   npx tsx scripts/layout-accuracy.ts --report --truth <fil> --variant <id> --out <json> [--md <md>]
  *   npx tsx scripts/layout-accuracy.ts --run <id> --dry-run --truth <fil> [--snapshot <fil>] [--cap-sek <n>]
+ *   npx tsx scripts/layout-accuracy.ts --decide --truth <fil> --out <json> [--md <md>]
+ * PAID and GATED (RUN_LLM_EVALS=1; the key is only ever printed as satt/saknas):
+ *   RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --smoke --variant <id> [--snapshot <fil>]     (högst 1 kr)
+ *   RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --run <id> --truth <låst fil> [--snapshot <fil>] [--cap-sek <n>]   (högst 40 kr)
  *
  * What it answers: how often are the layout reads stored in a cache right, measured against a truth file (flats a
  * person judged by eye)? And the tools to build that truth file: the worklist of Booli ids to judge, a check that
@@ -23,6 +27,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import Anthropic from "@anthropic-ai/sdk";
 import { booliIdOf, parseFitSnapshot } from "@/lib/discovery/fit-score";
 import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
 import {
@@ -34,18 +39,27 @@ import {
   renderAccuracyMd,
   validateTruthFile,
   worklistOf,
+  type AccuracyReport,
   type TruthFile,
 } from "@/lib/discovery/layout-accuracy";
+import { makeVariantLayoutCall } from "@/lib/discovery/layout-call";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import {
   LAYOUT_ROUND_CAP_SEK,
+  LAYOUT_SMOKE_CAP_SEK,
   LAYOUT_VARIANTS,
+  LAYOUT_VARIANT_IDS,
+  decideRounds,
   factFromVariantRead,
   layoutVariantCachePath,
   loadVariantCache,
+  renderRoundsMd,
+  runVariantReads,
+  saveVariantCache,
   variantReadId,
   variantVersion,
   type LayoutVariantSpec,
+  type VariantCallFn,
   type VariantReadItem,
 } from "@/lib/discovery/layout-experiment";
 import { LAYOUT_READ_VERSION, layoutFactFromRead, loadLayoutCache } from "@/lib/discovery/layout-read";
@@ -54,6 +68,10 @@ import { formatSek } from "@/lib/discovery/sun-floorplan";
 const OUT_DIRS = [".planning/phases", ".planning/calibration/data"] as const;
 const TRUTH_DIR = ".planning/phases";
 const DEFAULT_SNAPSHOT = ".planning/calibration/data/forsale-snapshot-14.4-layout.json";
+const EVIDENCE_DIR = ".planning/phases/14.5-enrichment-layout-accuracy-ceiling/evidence";
+const SYNTHETIC_PLAN = "src/lib/discovery/__fixtures__/floorplan-north-arrow.fixture.png";
+const F61_BOOLI_ID = 150148;
+const GATE_TEXT = "Hoppar över: RUN_LLM_EVALS=1 krävs för betalda anrop";
 
 const USAGE = `Användning (gratis, inget anrop, ingen Booli-sida):
   npx tsx scripts/layout-accuracy.ts --report --truth <sanningsfil> --cache <layoutcache.json> --out <json> [--md <md>]
@@ -62,13 +80,19 @@ const USAGE = `Användning (gratis, inget anrop, ingen Booli-sida):
   npx tsx scripts/layout-accuracy.ts --select-and-lock <sanningsfil> [--dry-run]
   npx tsx scripts/layout-accuracy.ts --report --truth <sanningsfil> --variant <id> --out <json> [--md <md>]
   npx tsx scripts/layout-accuracy.ts --run <id> --dry-run --truth <sanningsfil> [--snapshot <snapshot>] [--cap-sek <n>]
+  npx tsx scripts/layout-accuracy.ts --decide --truth <sanningsfil> --out <json> [--md <md>]
+Betalt (kräver RUN_LLM_EVALS=1, annars görs inget anrop):
+  RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --smoke --variant <id> [--snapshot <snapshot>]
+  RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --run <id> --truth <låst sanningsfil> [--snapshot <snapshot>] [--cap-sek <n>]
 
   --report         Räknar ut träffsäkerheten för de lagrade läsningarna mot sanningsfilen
   --truth <fil>    Sanningsfilen (zod-kontrollerad, bara id:n och uppräkningar)
   --cache <fil>    Layoutcachen med de lagrade läsningarna (poster med nuvarande läsversion används)
   --variant <id>   Använder i stället experimentcachen för varianten (layout-exp-<id>.json), nyaste läsning per annons
-  --run <id>       Planerar en omgång för varianten (a, b, c, d-sonnet, d-opus); utan --dry-run krävs den betalda grenen
+  --run <id>       Planerar (--dry-run) eller kör (betalt) en omgång för varianten (${LAYOUT_VARIANT_IDS.join(", ")})
   --cap-sek <n>    Taket för omgången i kronor (standard och högsta värde ${LAYOUT_ROUND_CAP_SEK})
+  --smoke          Betald rökprov för en variant (--variant <id>), högst ${LAYOUT_SMOKE_CAP_SEK} kr: Folkungagatan 61 och, för enstegsvarianter, den syntetiska planritningen
+  --decide         Gratis: läser varje evidence/layout-accuracy-<variant>.json och variantcachernas kostnad och skriver beslutet (--out, --md)
   --out <fil>      Var rapporten skrivs (.json under .planning/phases/ eller .planning/calibration/data/)
   --md <fil>       Skriver också rapporten som markdown (samma kataloger, .md)
   --judge-list     Arbetslistan: Booli-id:n att bedöma, Folkungagatan 61 först, sedan en bestämd slumpordning; öppnar ingen cache
@@ -85,6 +109,8 @@ interface Args {
   truth: string | null;
   cache: string | null;
   variant: string | null;
+  smoke: boolean;
+  decide: boolean;
   run: string | null;
   capSek: number | null;
   out: string | null;
@@ -101,7 +127,7 @@ interface Args {
 
 function parseArgs(argv: string[]): Args | null {
   const a: Args = {
-    report: false, truth: null, cache: null, variant: null, run: null, capSek: null, out: null, md: null,
+    report: false, truth: null, cache: null, variant: null, smoke: false, decide: false, run: null, capSek: null, out: null, md: null,
     judgeList: false, snapshot: null, withUrls: false,
     checkTruth: null, requireLocked: false, selectAndLock: null, dryRun: false, help: false,
   };
@@ -113,6 +139,8 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--truth" && value !== undefined) { a.truth = value; i++; }
     else if (flag === "--cache" && value !== undefined) { a.cache = value; i++; }
     else if (flag === "--variant" && value !== undefined) { a.variant = value; i++; }
+    else if (flag === "--smoke") a.smoke = true;
+    else if (flag === "--decide") a.decide = true;
     else if (flag === "--run" && value !== undefined) { a.run = value; i++; }
     else if (flag === "--cap-sek" && value !== undefined) { a.capSek = Number(value); i++; }
     else if (flag === "--out" && value !== undefined) { a.out = value; i++; }
@@ -127,17 +155,22 @@ function parseArgs(argv: string[]): Args | null {
     else return null;
   }
   if (a.help) return a;
-  const modes = [a.report, a.judgeList, a.checkTruth !== null, a.selectAndLock !== null, a.run !== null].filter(Boolean).length;
+  const modes = [a.report, a.judgeList, a.checkTruth !== null, a.selectAndLock !== null, a.run !== null, a.smoke, a.decide].filter(Boolean).length;
   if (modes !== 1) return null;
   if (a.report && (a.truth === null || a.out === null || (a.cache === null) === (a.variant === null))) return null;
   if (a.run !== null && a.truth === null) return null;
-  if (!a.report && a.run === null && a.truth !== null) return null;
-  if (!a.report && (a.cache !== null || a.variant !== null || a.out !== null || a.md !== null)) return null;
+  if (a.smoke && (a.variant === null || a.truth !== null)) return null;
+  if (a.decide && (a.truth === null || a.out === null || a.variant !== null || a.cache !== null)) return null;
+  if (a.truth !== null && !a.report && a.run === null && !a.decide) return null;
+  if (a.cache !== null && !a.report) return null;
+  if (a.variant !== null && !a.report && !a.smoke) return null;
+  if ((a.out !== null || a.md !== null) && !a.report && !a.decide) return null;
   if (a.judgeList && a.snapshot === null) return null;
-  if (!a.judgeList && a.run === null && a.snapshot !== null) return null;
-  if (!a.judgeList && a.withUrls) return null;
+  if (a.snapshot !== null && !a.judgeList && a.run === null && !a.smoke) return null;
+  if (a.withUrls && !a.judgeList) return null;
   if (a.checkTruth === null && a.requireLocked) return null;
   if (a.selectAndLock === null && a.run === null && a.dryRun) return null;
+  if (a.smoke && a.dryRun) return null;
   if (a.run === null && a.capSek !== null) return null;
   return a;
 }
@@ -150,9 +183,6 @@ function guardedIn(path: string, dirs: readonly string[], ext: string): string |
   }
   return null;
 }
-
-/** An error reduced to its class name; the message can carry paths, notes or request details, so it is never printed. */
-const safeError = (error: unknown): string => (error instanceof Error ? error.name : "UNKNOWN");
 
 /** Reads and schema-checks a truth file. On a schema failure prints the first issue's path and message (never a value) and returns null. */
 function readTruth(path: string): TruthFile | null {
@@ -392,7 +422,40 @@ function dryRun(spec: LayoutVariantSpec, items: readonly VariantReadItem[], miss
   return 0;
 }
 
-function run(args: Args & { run: string; truth: string }): number {
+/** The HTTP status of an SDK error, or null. */
+const httpStatusOf = (error: unknown): number | null => {
+  const status = error instanceof Error ? (error as { status?: unknown }).status : undefined;
+  return typeof status === "number" ? status : null;
+};
+
+/** An error reduced to its class name and HTTP status; the message can carry paths, notes, URLs or request details, so it is never printed. */
+function safeError(error: unknown): string {
+  if (error instanceof Error) {
+    const status = httpStatusOf(error);
+    return status !== null ? `${error.name} (HTTP ${status})` : error.name;
+  }
+  return "UNKNOWN";
+}
+
+/** The paid gate: RUN_LLM_EVALS=1, then the key's presence (never its value). Returns an exit code, or null to go on. */
+function paidGate(): number | null {
+  if (process.env.RUN_LLM_EVALS !== "1") {
+    console.log(GATE_TEXT);
+    return 0;
+  }
+  const hasKey = typeof process.env.ANTHROPIC_API_KEY === "string" && process.env.ANTHROPIC_API_KEY.length > 0;
+  console.log(`ANTHROPIC_API_KEY: ${hasKey ? "satt" : "saknas"}`);
+  return hasKey ? null : 1;
+}
+
+/** The injected call of a variant. */
+function callFor(client: Anthropic, spec: LayoutVariantSpec): VariantCallFn {
+  return makeVariantLayoutCall(client, spec);
+}
+
+const today = (): string => new Date().toISOString().slice(0, 10);
+
+async function run(args: Args & { run: string; truth: string }): Promise<number> {
   const spec = LAYOUT_VARIANTS[args.run];
   if (spec === undefined) {
     console.error(`Okänd variant ${args.run}; kända: ${Object.keys(LAYOUT_VARIANTS).join(", ")}`);
@@ -403,24 +466,273 @@ function run(args: Args & { run: string; truth: string }): number {
     console.error(`--cap-sek måste vara över 0 och högst ${LAYOUT_ROUND_CAP_SEK}`);
     return 1;
   }
-  if (!args.dryRun) {
-    console.error("Betald körning kopplas in i uppgift 2");
-    return 1;
-  }
   const file = readTruth(args.truth);
   if (file === null) return 1;
+  // A paid round refuses an unlocked truth file first (R-05), before the gate, the key or the snapshot.
+  if (!args.dryRun) {
+    if (file.lockedAt === null) {
+      console.error("Sanningsfilen är inte låst; en betald omgång kräver en låst fil (--select-and-lock)");
+      return 1;
+    }
+    const v = validateTruthFile(file, { requireLocked: true });
+    if (!v.ok) {
+      console.error(`Sanningsfilen klarar inte kontrollen: ${v.error}`);
+      return 1;
+    }
+    const gate = paidGate();
+    if (gate !== null) return gate;
+  }
   const snapshotPath = args.snapshot ?? DEFAULT_SNAPSHOT;
   if (!existsSync(snapshotPath)) {
     console.error("Snapshoten finns inte; ange --snapshot <fil>");
     return 1;
   }
   const { items, missing } = itemsOf(file, snapshotPath);
-  return dryRun(spec, items, missing, capSek);
+  if (args.dryRun) return dryRun(spec, items, missing, capSek);
+  if (missing.length > 0) {
+    console.error(`Lägenheter i urvalet saknas i snapshoten: ${missing.join(", ")}; ingen omgång kördes`);
+    return 1;
+  }
+
+  const path = layoutVariantCachePath(spec.id);
+  const { cache, warning, unreadable } = loadVariantCache(path, spec);
+  if (warning) console.log(warning);
+  // A cache that could not be read is not overwritten: it may hold reads that were paid for.
+  if (unreadable) {
+    console.error(`Variantcachen ${path} kunde inte läsas; ingen omgång kördes och filen rörs inte`);
+    return 1;
+  }
+  const call = callFor(new Anthropic(), spec);
+  let latest = cache;
+  let out;
+  try {
+    out = await runVariantReads(items, {
+      variant: spec,
+      call,
+      cache,
+      runCapSek: capSek,
+      today: today(),
+      checkpoint: (c) => {
+        latest = c;
+        saveVariantCache(path, c);
+      },
+    });
+  } finally {
+    // Saved whatever happened: a billed read or failure stays in the variant's ledger and a repeat costs 0 kr.
+    saveVariantCache(path, latest);
+  }
+  saveVariantCache(path, out.cacheNext);
+  for (const r of out.reads) {
+    console.log(`${r.booliId} ${r.status}${r.errorCode ? ` (${r.errorCode})` : ""} ${formatSek(r.costSek)} kr`);
+  }
+  const capped = out.reads.filter((r) => r.status === "cost_cap").length;
+  const failed = out.reads.filter((r) => r.status === "failed").length;
+  console.log(
+    `Omgång ${spec.id}: ${out.calls} anrop, ${out.cacheHits} från cache, ${capped} över taket, ${failed} misslyckade; ` +
+      `${formatSek(out.spentSek)} kr denna omgång (tak ${formatSek(capSek)} kr), totalt ${formatSek(out.totalSpentSek)} kr för varianten`,
+  );
+  return capped > 0 || failed > 0 ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// --smoke
+// ---------------------------------------------------------------------------
+
+/** What the earlier smoke of this variant concluded, for a cache-only rerun. */
+function previousGrammar(evidencePath: string): string | null {
+  try {
+    if (!existsSync(evidencePath)) return null;
+    const prev = JSON.parse(readFileSync(evidencePath, "utf8")) as { grammar?: unknown };
+    return typeof prev.grammar === "string" ? prev.grammar : null;
+  } catch {
+    return null;
+  }
+}
+
+async function smoke(args: Args & { variant: string }): Promise<number> {
+  const spec = LAYOUT_VARIANTS[args.variant];
+  if (spec === undefined) {
+    console.error(`Okänd variant ${args.variant}; kända: ${Object.keys(LAYOUT_VARIANTS).join(", ")}`);
+    return 1;
+  }
+  const gate = paidGate();
+  if (gate !== null) return gate;
+
+  const snapshotPath = args.snapshot ?? DEFAULT_SNAPSHOT;
+  if (!existsSync(snapshotPath)) {
+    console.error("Snapshoten finns inte; ange --snapshot <fil>");
+    return 1;
+  }
+  const snapshot = parseFitSnapshot(JSON.parse(readFileSync(snapshotPath, "utf8")));
+  const f61 = snapshot.rows.find((r) => booliIdOf(r.candidate) === F61_BOOLI_ID);
+  if (f61 === undefined) {
+    console.error(`Folkungagatan 61 (${F61_BOOLI_ID}) finns inte i snapshoten`);
+    return 1;
+  }
+  const items: VariantReadItem[] = [
+    { booliId: F61_BOOLI_ID, listingPath: `/bostad/${F61_BOOLI_ID}`, imageUrls: f61.candidate.imageUrls },
+  ];
+  // The plan as bytes only for single-step variants: a two-step read needs photos for its second step.
+  if (spec.steps === 1) {
+    items.push({
+      booliId: 0,
+      listingPath: "/fixture/floorplan-north-arrow",
+      imageUrls: [],
+      planImage: { mediaType: "image/png", data: readFileSync(SYNTHETIC_PLAN).toString("base64") },
+    });
+  }
+
+  const path = layoutVariantCachePath(spec.id);
+  const { cache, warning, unreadable } = loadVariantCache(path, spec);
+  if (warning) console.log(warning);
+  if (unreadable) {
+    console.error(`Variantcachen ${path} kunde inte läsas; inget rökprov kördes och filen rörs inte`);
+    return 1;
+  }
+
+  // Keep the HTTP status of a failure: a 400 is the signal that the strict-output grammar or the call shape is rejected.
+  const statuses: number[] = [];
+  const realCall = callFor(new Anthropic(), spec);
+  const call: VariantCallFn = async (blocks) => {
+    try {
+      return await realCall(blocks);
+    } catch (error) {
+      const status = httpStatusOf(error);
+      if (status !== null) statuses.push(status);
+      throw error;
+    }
+  };
+
+  let latest = cache;
+  let out;
+  try {
+    out = await runVariantReads(items, {
+      variant: spec,
+      call,
+      cache,
+      runCapSek: LAYOUT_SMOKE_CAP_SEK,
+      today: today(),
+      // The smoke may not exceed its cap by an estimate that is larger than the cap itself.
+      estSekPerFlat: Math.min(spec.estSekPerFlat, LAYOUT_SMOKE_CAP_SEK),
+      checkpoint: (c) => {
+        latest = c;
+        saveVariantCache(path, c);
+      },
+    });
+  } finally {
+    saveVariantCache(path, latest);
+  }
+  saveVariantCache(path, out.cacheNext);
+
+  const evidencePath = `${EVIDENCE_DIR}/layout-smoke-${spec.id}.json`;
+  let grammar: "ok" | "400" | "fel";
+  if (statuses.includes(400)) grammar = "400";
+  else if (out.calls > 0) grammar = "ok";
+  else if (out.cacheHits > 0 && previousGrammar(evidencePath) === "ok") grammar = "ok";
+  else grammar = "fel";
+
+  const targets = ["150148", "syntetisk"];
+  const evidence = {
+    date: today(),
+    variant: spec.id,
+    version: variantVersion(spec),
+    model: spec.model,
+    reads: out.reads.map((r, i) => ({
+      target: targets[i] ?? String(r.booliId),
+      status: r.status,
+      errorCode: r.errorCode ?? null,
+      result: r.result,
+      spentSek: Number(r.costSek.toFixed(4)),
+    })),
+    calls: out.calls,
+    cacheHits: out.cacheHits,
+    spentSek: Number(out.spentSek.toFixed(4)),
+    totalSpentSek: Number(out.totalSpentSek.toFixed(4)),
+    smokeCapSek: LAYOUT_SMOKE_CAP_SEK,
+    httpStatuses: statuses,
+    grammar,
+  };
+  const safe = guardedDataPath(evidencePath, { dir: ".planning/phases", ext: ".json" });
+  if (safe === null) throw new Error("Bevisfilen får bara skrivas under .planning/phases/");
+  writeJsonAtomic(safe, evidence);
+
+  for (const [i, r] of out.reads.entries()) {
+    console.log(`Rökprov ${targets[i] ?? r.booliId} (${r.status}${r.errorCode ? `, ${r.errorCode}` : ""}): ${r.result === null ? "ingen tolkning" : JSON.stringify(r.result)}`);
+  }
+  console.log(
+    `Rökprov ${spec.id}: schemat och anropsformen ${grammar === "ok" ? "gick igenom" : grammar === "400" ? "avvisades (HTTP 400)" : "gav annat fel"}, ${out.calls} anrop, ` +
+      `${out.cacheHits} från cache, ${formatSek(out.spentSek)} kr denna körning (tak ${formatSek(LAYOUT_SMOKE_CAP_SEK)} kr), totalt ${formatSek(out.totalSpentSek)} kr för varianten`,
+  );
+  return grammar === "ok" && out.reads.every((r) => r.status === "read" || r.status === "cache" || r.status === "cost_cap") ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// --decide
+// ---------------------------------------------------------------------------
+
+/** The report of a variant from the evidence directory, or undefined when there is none. Identified by its own `source` field. */
+function evidenceReport(id: string): AccuracyReport | undefined | null {
+  const path = `${EVIDENCE_DIR}/layout-accuracy-${id}.json`;
+  if (!existsSync(path)) return undefined;
+  const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<AccuracyReport> | null;
+  if (raw === null || typeof raw !== "object" || raw.source !== `variant:${id}` || typeof raw.fields !== "object" || typeof raw.pass !== "boolean") {
+    return null;
+  }
+  return raw as AccuracyReport;
+}
+
+function decide(args: Args & { truth: string; out: string }): number {
+  const jsonOut = guardedIn(args.out, OUT_DIRS, ".json");
+  if (jsonOut === null) {
+    console.error(`--out måste vara en .json-fil under ${OUT_DIRS.join("/ eller ")}/`);
+    return 1;
+  }
+  const mdOut = args.md === null ? null : guardedIn(args.md, OUT_DIRS, ".md");
+  if (args.md !== null && mdOut === null) {
+    console.error(`--md måste vara en .md-fil under ${OUT_DIRS.join("/ eller ")}/`);
+    return 1;
+  }
+  const file = readTruth(args.truth);
+  if (file === null) return 1;
+  const reports: Record<string, AccuracyReport | undefined> = {};
+  const spentByVariant: Record<string, number> = {};
+  for (const id of LAYOUT_VARIANT_IDS) {
+    const report = evidenceReport(id);
+    if (report === null) {
+      console.error(`Rapporten för variant ${id} har fel form eller hör till en annan variant; inget beslut skrevs`);
+      return 1;
+    }
+    if (report !== undefined) {
+      // A report made against another state of the truth file is stale: its numbers do not answer for this file.
+      if (report.lockedAt !== file.lockedAt) {
+        console.error(`Rapporten för variant ${id} gäller en annan sanningsfil (låsning ${report.lockedAt ?? "ingen"} mot ${file.lockedAt ?? "ingen"}); inget beslut skrevs`);
+        return 1;
+      }
+      reports[id] = report;
+    }
+    const spec = LAYOUT_VARIANTS[id];
+    if (spec !== undefined) {
+      const loaded = loadVariantCache(layoutVariantCachePath(id), spec);
+      if (loaded.unreadable) {
+        console.error(`Variantcachen för ${id} kunde inte läsas; inget beslut skrevs`);
+        return 1;
+      }
+      spentByVariant[id] = loaded.cache.spentSekTotal;
+    }
+  }
+  const decision = decideRounds(reports, spentByVariant);
+  writeJsonAtomic(jsonOut, decision);
+  if (mdOut !== null) writeTextAtomic(mdOut, renderRoundsMd(decision));
+  console.log(
+    `Beslut: vinnare ${decision.winner ?? "ingen"}, nästa ${decision.next ?? "ingen"}, tvåstegsnivå ${decision.tierForD}, ` +
+      `totalt ${formatSek(decision.totalSpentSek)} kr; skrivet till ${args.out}`,
+  );
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
 
-function main(): number {
+async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args === null) {
     console.log(USAGE);
@@ -432,7 +744,9 @@ function main(): number {
   }
   try {
     if (args.report) return report(args as Args & { truth: string; out: string });
-    if (args.run !== null) return run(args as Args & { run: string; truth: string });
+    if (args.run !== null) return await run(args as Args & { run: string; truth: string });
+    if (args.smoke) return await smoke(args as Args & { variant: string });
+    if (args.decide) return decide(args as Args & { truth: string; out: string });
     if (args.judgeList) return judgeList(args.snapshot as string, args.withUrls);
     if (args.checkTruth !== null) return checkTruth(args.checkTruth, args.requireLocked);
     return selectAndLock(args.selectAndLock as string, args.dryRun);
@@ -442,4 +756,10 @@ function main(): number {
   }
 }
 
-process.exit(main());
+main().then(
+  (code) => process.exit(code),
+  (e) => {
+    console.error("FEL:", safeError(e));
+    process.exit(1);
+  },
+);

@@ -11,15 +11,20 @@ import {
   LAYOUT_EST_SEK_PER_FLAT,
   LAYOUT_LOGIC_REVISION,
   LAYOUT_MODEL,
+  LAYOUT_OPUS_MODEL,
   LAYOUT_READ_VERSION,
   LAYOUT_RUN_CAP_SEK,
   LAYOUT_SYSTEM_PROMPT,
+  LAYOUT_SYSTEM_PROMPT_V2,
   LAYOUT_USER_INSTRUCTION,
+  LAYOUT_USER_INSTRUCTION_V2,
   LayoutCallError,
   asBilledFailure,
   layoutFactFromRead,
   layoutImagesOf,
   layoutReadSchema,
+  layoutReadSchemaV2,
+  layoutReadSchemaV2Slim,
   layoutReadVersion,
   layoutSpentSek,
   loadLayoutCache,
@@ -116,6 +121,88 @@ describe("the prompt", () => {
 
   it("uses the Sonnet deep-pass model of the vision module (D-07)", () => {
     expect(LAYOUT_MODEL).toBe(VISION_SONNET_MODEL);
+  });
+});
+
+describe("the reworked prompt and schemas of the experiments (Phase 14.5, D-10)", () => {
+  const jsonOf = (schema: z.ZodType) =>
+    z.toJSONSchema(schema, { unrepresentable: "any" }) as { properties: Record<string, unknown>; required: string[] };
+  const EIGHT = Object.keys(jsonOf(layoutReadSchema).properties).sort();
+
+  it("defines the Opus tier here, as claude-opus-5-5", () => {
+    expect(LAYOUT_OPUS_MODEL).toBe("claude-opus-5-5");
+    expect(LAYOUT_OPUS_MODEL).not.toBe(LAYOUT_MODEL);
+  });
+
+  it("V2 has exactly twelve flat fields: the eight, planPresent and three plain certainties, all required", () => {
+    const json = jsonOf(layoutReadSchemaV2);
+    expect(Object.keys(json.properties).sort()).toEqual(
+      [...EIGHT, "planPresent", "balconyConfidence", "windowsConfidence", "bedroomConfidence"].sort(),
+    );
+    expect(json.required.length).toBe(12);
+    expect(layoutReadSchemaV2.shape.planPresent).toBeDefined();
+  });
+
+  it("V2 and its slim fallback carry no union, no null type and no numeric bound (Pitfall 6)", () => {
+    for (const schema of [layoutReadSchemaV2, layoutReadSchemaV2Slim]) {
+      const text = JSON.stringify(jsonOf(schema));
+      for (const bad of ["anyOf", "oneOf", "allOf", '"null"', "nullable", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"]) {
+        expect(text, bad).not.toContain(bad);
+      }
+    }
+  });
+
+  it("the slim fallback has nine fields: the eight and planPresent, no per-field certainty", () => {
+    const json = jsonOf(layoutReadSchemaV2Slim);
+    expect(Object.keys(json.properties).sort()).toEqual([...EIGHT, "planPresent"].sort());
+    expect(json.required.length).toBe(9);
+  });
+
+  it("V2 parses an answer of twelve fields and the production schema is unchanged", () => {
+    const answer = { ...read(), planPresent: true, balconyConfidence: 0.8, windowsConfidence: 0.9, bedroomConfidence: 0.5 };
+    expect(layoutReadSchemaV2.safeParse(answer).success).toBe(true);
+    expect(layoutReadSchemaV2.safeParse(read()).success).toBe(false);
+    expect(Object.keys(jsonOf(layoutReadSchema).properties)).toHaveLength(8);
+  });
+
+  it("the V2 prompt carries every evidence rule of D-10 and the 14.4 eye check, in Swedish", () => {
+    const p = LAYOUT_SYSTEM_PROMPT_V2;
+    for (const rule of [
+      /Bild 1/,
+      /planPresent/,
+      /bilar/,
+      /gatlyktor/,
+      /butiksfasader/,
+      /spårvagnsledningar/,
+      /cykelställ/,
+      /gräsmatta/,
+      /sandlåda/,
+      /Konstgräs eller trall/,
+      /Ett träd med fasader på avstånd/,
+      /Pilen vid ytterdörren/,
+      /bara i yttervägg/,
+      /kortändarna/,
+      /twoOpposite/,
+      /burspråk/,
+      /corner/,
+      /unknown är ett fullgott svar/,
+      /balconyConfidence/,
+      /windowsConfidence/,
+      /bedroomConfidence/,
+      /FOTONA/,
+    ]) {
+      expect(p).toMatch(rule);
+    }
+  });
+
+  it("the V2 prompt, instruction and schema never ask for a compass, a bearing, north or people", () => {
+    const texts = [LAYOUT_SYSTEM_PROMPT_V2, LAYOUT_USER_INSTRUCTION_V2, JSON.stringify(jsonOf(layoutReadSchemaV2))];
+    for (const t of texts) expect(t).not.toMatch(/kompass|väderstreck|norr|bäring|person|människ/i);
+  });
+
+  it("does not change the production read version, prompt or schema", () => {
+    expect(LAYOUT_READ_VERSION).toBe("7cfdc6834b5010f4");
+    expect(LAYOUT_SYSTEM_PROMPT_V2).not.toBe(LAYOUT_SYSTEM_PROMPT);
   });
 });
 

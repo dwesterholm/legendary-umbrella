@@ -6,13 +6,18 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BrokerImageBytes } from "@/lib/broker/broker-images";
 import { believedLayout, layoutFactSchema, type LayoutGatePolicy } from "@/lib/discovery/layout-fact";
+import type { AccuracyReport, FieldReport, Precision } from "@/lib/discovery/layout-accuracy";
+import { wilson } from "@/lib/discovery/layout-accuracy";
 import {
   LAYOUT_ROUND_CAP_SEK,
   LAYOUT_SMOKE_CAP_SEK,
   LAYOUT_VARIANTS,
+  decideRounds,
   factFromVariantRead,
   layoutVariantCachePath,
   loadVariantCache,
+  pickTwoStepTier,
+  renderRoundsMd,
   runVariantReads,
   saveVariantCache,
   variantReadId,
@@ -27,10 +32,14 @@ import {
   LAYOUT_MAX_BOOLI_PHOTOS,
   LAYOUT_MAX_TOKENS,
   LAYOUT_MODEL,
+  LAYOUT_OPUS_MODEL,
   LAYOUT_READ_VERSION,
   LAYOUT_SYSTEM_PROMPT,
+  LAYOUT_SYSTEM_PROMPT_V2,
   LAYOUT_USER_INSTRUCTION,
+  LAYOUT_USER_INSTRUCTION_V2,
   layoutReadSchema,
+  layoutReadSchemaV2,
   type LayoutImageBlock,
   type LayoutRead,
 } from "@/lib/discovery/layout-read";
@@ -346,12 +355,329 @@ describe("factFromVariantRead", () => {
   it("round-trips every variant through the runner into a fact the schema and the gate accept", async () => {
     for (const variant of Object.values(LAYOUT_VARIANTS)) {
       if (variant.steps !== 1) continue;
-      const { call } = fakeCall(0.2, read());
+      const { call } = fakeCall(0.2, variant.schema === layoutReadSchema ? read() : readV2());
       const out = await runVariantReads([item(1)], { variant, call, cache: emptyCache(variant), runCapSek: 5, today: "d" });
       const fact = out.reads[0].fact;
       expect(fact, variant.id).not.toBeNull();
       expect(layoutFactSchema.safeParse(fact).success).toBe(true);
       expect(() => believedLayout(fact, policy)).not.toThrow();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Variants b and c (Phase 14.5 plan 05 task 2)
+// ---------------------------------------------------------------------------
+
+const readV2 = (over: Record<string, unknown> = {}) => ({
+  ...read(),
+  planPresent: true,
+  balconyConfidence: 0.8,
+  windowsConfidence: 0.9,
+  bedroomConfidence: 0.5,
+  ...over,
+});
+
+describe("variants b and c", () => {
+  const b = LAYOUT_VARIANTS.b;
+  const c = LAYOUT_VARIANTS.c;
+
+  it("b is the reworked prompt on Sonnet with per-field certainty", () => {
+    expect(b.model).toBe(LAYOUT_MODEL);
+    expect(b.systemPrompt).toBe(LAYOUT_SYSTEM_PROMPT_V2);
+    expect(b.userInstruction).toBe(LAYOUT_USER_INSTRUCTION_V2);
+    expect(b.schema).toBe(layoutReadSchemaV2);
+    expect(b.temperature).toBe(0);
+    expect(b.effort).toBeNull();
+    expect(b.maxTokens).toBe(600);
+    expect(b.steps).toBe(1);
+    expect(b.estSekPerFlat).toBe(0.4);
+  });
+
+  it("c is the same prompt and schema on the Opus tier: no temperature, effort low, 4000 tokens", () => {
+    expect(c.model).toBe(LAYOUT_OPUS_MODEL);
+    expect(c.model).toBe("claude-opus-5-5");
+    expect(c.systemPrompt).toBe(b.systemPrompt);
+    expect(c.userInstruction).toBe(b.userInstruction);
+    expect(c.schema).toBe(b.schema);
+    expect(c.temperature).toBeNull();
+    expect(c.effort).toBe("low");
+    expect(c.maxTokens).toBe(4000);
+    expect(c.estSekPerFlat).toBe(1.0);
+  });
+
+  it("the versions of a, b and c are pairwise different", () => {
+    const [va, vb, vc] = [LAYOUT_VARIANTS.a, b, c].map(variantVersion);
+    expect(new Set([va, vb, vc]).size).toBe(3);
+  });
+
+  it("every variant uses the Booli pictures only", () => {
+    for (const v of Object.values(LAYOUT_VARIANTS)) expect(v.images.maxBrokerPhotos).toBe(0);
+  });
+
+  it("factFromVariantRead fills fieldConfidence (clamped) and planPresent from a V2 answer", () => {
+    const fact = factFromVariantRead(b, readV2({ balconyConfidence: 1.7, windowsConfidence: -0.2, bedroomConfidence: 0.4, planPresent: false }), { booli: 4 });
+    expect(fact.fieldConfidence).toEqual({ balcony: 1, windows: 0, bedroom: 0.4 });
+    expect(fact.planPresent).toBe(false);
+    expect(fact.version).toBe(variantVersion(b));
+    expect(layoutFactSchema.safeParse(fact).success).toBe(true);
+  });
+
+  it("a V2 fact with planPresent false is not believed by believedLayout", () => {
+    const policy: LayoutGatePolicy = { balconyGate: 0, windowsGate: 0, bedroomGate: 0, negativeGate: 0, sideEvidence: ["cars"], trustedVersion: null };
+    const fact = factFromVariantRead(b, readV2({ planPresent: false }), { booli: 4 });
+    expect(believedLayout(fact, policy)).toEqual({ balconySide: null, noBalcony: false, korsdrag: null, bedroomSide: null });
+  });
+
+  it("a V2 answer missing its certainties does not fit variant b's schema", () => {
+    expect(() => factFromVariantRead(b, read(), { booli: 4 })).toThrow();
+  });
+
+  it("a variant a answer carries neither fieldConfidence nor planPresent", () => {
+    const fact = factFromVariantRead(LAYOUT_VARIANTS.a, read(), { booli: 4 });
+    expect(fact.fieldConfidence).toBeUndefined();
+    expect(fact.planPresent).toBeUndefined();
+  });
+
+  it("b and c run through the runner on their own caches and cost what their call says", async () => {
+    for (const variant of [b, c]) {
+      const { call } = fakeCall(variant.estSekPerFlat, readV2());
+      const out = await runVariantReads([item(1)], { variant, call, cache: emptyCache(variant), runCapSek: 5, today: "d" });
+      expect(out.reads[0].status).toBe("read");
+      expect(out.reads[0].fact?.fieldConfidence).toEqual({ balcony: 0.8, windows: 0.9, bedroom: 0.5 });
+      expect(out.cacheNext.variantId).toBe(variant.id);
+      expect(out.cacheNext.variantVersion).toBe(variantVersion(variant));
+    }
+  });
+
+  it("a cache of variant b never answers for variant c: the ids carry the variant version", () => {
+    expect(variantReadId(b, item(1))).not.toBe(variantReadId(c, item(1)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The rounds
+// ---------------------------------------------------------------------------
+
+const precision = (k: number, n: number): Precision => ({ k, n, precision: n === 0 ? null : k / n, ...wilson(k, n) });
+
+/** A hand-written report: each field has a dev precision, a holdout precision and a verdict. */
+function fakeReport(
+  source: string,
+  fields: { balcony: [number, number, number, number, boolean]; korsdrag: [number, number, number, number, boolean]; bedroom: [number, number, number, number, boolean] },
+  measurable = true,
+): AccuracyReport {
+  const fieldReport = ([devK, devN, holdK, holdN, pass]: [number, number, number, number, boolean]): FieldReport => ({
+    measurable,
+    decidedRows: measurable ? 20 : 5,
+    curveDev: [],
+    gate: devN > 0 ? 0.7 : null,
+    dev: devN > 0 ? precision(devK, devN) : null,
+    holdout: holdN > 0 ? precision(holdK, holdN) : null,
+    pooled: null,
+    allCalls: null,
+    pass,
+    reason: pass ? null : `holdout-precisionen ${holdK} av ${holdN} är under 75 %`,
+  });
+  const f = { balcony: fieldReport(fields.balcony), korsdrag: fieldReport(fields.korsdrag), bedroom: fieldReport(fields.bedroom) };
+  const m = { measurable, decided: measurable ? 20 : 5, reason: measurable ? null : "ej mätbart (n = 5)" };
+  return {
+    source,
+    version: "0123456789abcdef",
+    truthLocked: true,
+    lockedAt: "2026-10-19T00:00:00Z",
+    rows: 30,
+    noRead: 0,
+    raw: {} as AccuracyReport["raw"],
+    measurability: { balcony: m, korsdrag: m, bedroom: m },
+    sideEvidence: ["cars", "courtyardGreenery"],
+    byEvidence: { dev: [], holdout: [] },
+    fields: f,
+    livingOnBalconySide: { decided: 0, read: 0, correct: 0 },
+    pass: f.balcony.pass && f.korsdrag.pass && f.bedroom.pass,
+  };
+}
+
+const failing = (devRate: number) =>
+  fakeReport("variant:x", {
+    balcony: [Math.round(devRate * 10), 10, 4, 10, false],
+    korsdrag: [Math.round(devRate * 10), 10, 4, 10, false],
+    bedroom: [Math.round(devRate * 10), 10, 4, 10, false],
+  });
+const passing = () =>
+  fakeReport("variant:x", { balcony: [9, 10, 9, 10, true], korsdrag: [9, 10, 8, 10, true], bedroom: [9, 10, 9, 10, true] });
+
+describe("pickTwoStepTier", () => {
+  it("picks Opus only when the Opus variant has the higher mean dev precision", () => {
+    expect(pickTwoStepTier(failing(0.5), failing(0.8))).toBe("opus");
+    expect(pickTwoStepTier(failing(0.8), failing(0.5))).toBe("sonnet");
+  });
+
+  it("picks Sonnet, the cheaper, on a tie or on missing data", () => {
+    expect(pickTwoStepTier(failing(0.6), failing(0.6))).toBe("sonnet");
+    expect(pickTwoStepTier(undefined, failing(0.9))).toBe("sonnet");
+    expect(pickTwoStepTier(failing(0.4), undefined)).toBe("sonnet");
+    expect(pickTwoStepTier(null, null)).toBe("sonnet");
+  });
+
+  it("counts a field with no believed dev answer as 0 and ignores a field that is not measurable", () => {
+    const noGate = fakeReport("variant:c", { balcony: [0, 0, 0, 0, false], korsdrag: [9, 10, 4, 10, false], bedroom: [9, 10, 4, 10, false] });
+    expect(pickTwoStepTier(failing(0.7), noGate)).toBe("sonnet");
+    const unmeasurable = fakeReport("variant:c", { balcony: [9, 10, 4, 10, false], korsdrag: [9, 10, 4, 10, false], bedroom: [9, 10, 4, 10, false] }, false);
+    expect(pickTwoStepTier(failing(0.7), unmeasurable)).toBe("sonnet");
+  });
+});
+
+describe("decideRounds (D-10)", () => {
+  it("with no report yet, names a as next and stops nothing", () => {
+    const d = decideRounds({}, {});
+    expect(d.winner).toBeNull();
+    expect(d.stop).toBe(false);
+    expect(d.next).toBe("a");
+    expect(d.rounds.map((r) => [r.slot, r.variant, r.status])).toEqual([
+      ["a", "a", "not_run"],
+      ["b", "b", "not_run"],
+      ["c", "c", "not_run"],
+      ["d", "d-sonnet", "not_run"],
+    ]);
+    expect(d.totalSpentSek).toBe(0);
+  });
+
+  it("a failing a leaves b as next", () => {
+    const d = decideRounds({ a: failing(0.5) }, { a: 7 });
+    expect(d.winner).toBeNull();
+    expect(d.next).toBe("b");
+    expect(d.rounds[0].status).toBe("run");
+    expect(d.rounds[0].pass).toBe(false);
+    expect(d.rounds[0].spentSek).toBe(7);
+  });
+
+  it("stops at the first passing variant and skips the rest", () => {
+    const d = decideRounds({ a: failing(0.5), b: passing() }, { a: 6, b: 8.5 });
+    expect(d.winner).toBe("b");
+    expect(d.stop).toBe(true);
+    expect(d.next).toBeNull();
+    expect(d.rounds.map((r) => r.status)).toEqual(["run", "run", "skipped", "skipped"]);
+    expect(d.totalSpentSek).toBeCloseTo(14.5, 10);
+  });
+
+  it("the first passing variant in the fixed order wins even when a later one also passes", () => {
+    const d = decideRounds({ c: passing(), b: passing(), a: failing(0.4) }, {});
+    expect(d.winner).toBe("b");
+  });
+
+  it("never chooses a failing variant: a field that fails makes the whole variant fail", () => {
+    const partly = fakeReport("variant:b", { balcony: [9, 10, 9, 10, true], korsdrag: [9, 10, 9, 10, true], bedroom: [9, 10, 5, 10, false] });
+    const d = decideRounds({ a: failing(0.5), b: partly, c: failing(0.6) }, {});
+    expect(d.winner).toBeNull();
+    expect(d.next).toBe("d-sonnet");
+    expect(d.tierForD).toBe("sonnet");
+  });
+
+  it("slot d is the two-step variant that has a report, and its tier follows the rule when none has", () => {
+    const d1 = decideRounds({ a: failing(0.4), b: failing(0.5), c: failing(0.8) }, {});
+    expect(d1.tierForD).toBe("opus");
+    expect(d1.next).toBe("d-opus");
+    const d2 = decideRounds({ a: failing(0.4), b: failing(0.5), c: failing(0.8), "d-sonnet": passing() }, { "d-sonnet": 9 });
+    expect(d2.winner).toBe("d-sonnet");
+    expect(d2.rounds[3].variant).toBe("d-sonnet");
+    expect(d2.rounds[3].spentSek).toBe(9);
+    expect(d2.next).toBeNull();
+  });
+
+  it("totals the spend of all variants, smokes included, ignoring a bad number", () => {
+    const d = decideRounds({}, { a: 1.5, b: 2, "d-opus": 3, c: Number.NaN, x: -4 });
+    expect(d.totalSpentSek).toBeCloseTo(6.5, 10);
+  });
+
+  it("records the best holdout precision per field with its variant and the reason it failed", () => {
+    const a = fakeReport("variant:a", { balcony: [6, 10, 4, 10, false], korsdrag: [7, 10, 6, 10, false], bedroom: [0, 0, 0, 0, false] });
+    const b = fakeReport("variant:b", { balcony: [8, 10, 7, 10, false], korsdrag: [7, 10, 6, 8, false], bedroom: [0, 0, 0, 0, false] });
+    const d = decideRounds({ a, b }, {});
+    expect(d.bestByField.balcony?.variant).toBe("b");
+    expect(d.bestByField.balcony?.holdout.k).toBe(7);
+    expect(d.bestByField.korsdrag?.variant).toBe("b");
+    expect(d.bestByField.bedroom).toBeNull();
+    expect(d.bestByField.balcony?.reason).toMatch(/under 75 %/);
+  });
+});
+
+describe("renderRoundsMd", () => {
+  it("writes one row per variant in the fixed order and a Swedish verdict with the winner", () => {
+    const md = renderRoundsMd(decideRounds({ a: failing(0.5), b: passing() }, { a: 6, b: 8.5 }));
+    const rows = md.split("\n").filter((l) => /^\| (a|b|c|d-sonnet|d-opus) \|/.test(l));
+    expect(rows.map((l) => l.split(" | ")[0].replace("| ", ""))).toEqual(["a", "b", "c", "d-sonnet"]);
+    expect(rows[2]).toContain("hoppas över: stoppregeln, vinnare b");
+    expect(md).toContain("Vinnare: b");
+    expect(md).toContain("Total kostnad för alla varianter: 14,50 kr.");
+  });
+
+  it("says Vinnare: ingen, names the best holdout per field with its interval and count, and the failed rule", () => {
+    const a = fakeReport("variant:a", { balcony: [6, 10, 6, 10, false], korsdrag: [7, 10, 6, 10, false], bedroom: [0, 0, 0, 0, false] });
+    const md = renderRoundsMd(decideRounds({ a }, { a: 5 }));
+    expect(md).toContain("Vinnare: ingen");
+    expect(md).toMatch(/Balkongsida: bästa holdout-precision 6 av 10 \(60 %, 95 %: \d+–\d+ %\) med 10 trodda svar, variant a; regeln som brast: holdout-precisionen 6 av 10/);
+    expect(md).toMatch(/Korsdrag: bästa holdout-precision 6 av 10/);
+    expect(md).toMatch(/Sovrumssida: ingen variant gav någon holdout-precision/);
+    expect(md).toContain("nästa att köra");
+  });
+
+  it("is plain Swedish with no model-tuning words, and ends with a newline", () => {
+    const md = renderRoundsMd(decideRounds({}, {}));
+    expect(md.endsWith("\n")).toBe(true);
+    expect(md).toContain("Vinnare: ingen");
+    expect(md).toContain("inte körd ännu");
+  });
+});
+
+describe("runVariantReads: checkpoint and the smoke estimate", () => {
+  it("hands the cache so far to the checkpoint after every paid call, so nothing already paid for is lost", async () => {
+    const snapshots: VariantCache[] = [];
+    let n = 0;
+    const call: VariantCallFn = async () => {
+      n += 1;
+      if (n === 2) throw new FloorPlanCallError("CLAUDE_REFUSAL", 0.3);
+      return { result: read(), costSek: 0.2 };
+    };
+    const out = await runVariantReads([item(1), item(2), item(3)], {
+      variant: spec,
+      call,
+      cache: emptyCache(),
+      runCapSek: 5,
+      today: "d",
+      checkpoint: (c) => snapshots.push(JSON.parse(JSON.stringify(c)) as VariantCache),
+    });
+    expect(snapshots).toHaveLength(3);
+    expect(Object.keys(snapshots[0].entries)).toHaveLength(1);
+    expect(snapshots[0].spentSekTotal).toBeCloseTo(0.2, 10);
+    expect(Object.keys(snapshots[1].entries)).toHaveLength(1);
+    expect(snapshots[1].spentSekTotal).toBeCloseTo(0.5, 10);
+    expect(snapshots[2]).toEqual(out.cacheNext);
+  });
+
+  it("does not checkpoint a cache hit or a skipped item", async () => {
+    const { call } = fakeCall();
+    const first = await runVariantReads([item(1)], { variant: spec, call, cache: emptyCache(), runCapSek: 5, today: "d" });
+    let checkpoints = 0;
+    await runVariantReads([item(1), item(2, { imageUrls: [] })], {
+      variant: spec,
+      call,
+      cache: first.cacheNext,
+      runCapSek: 5,
+      today: "d",
+      checkpoint: () => {
+        checkpoints += 1;
+      },
+    });
+    expect(checkpoints).toBe(0);
+  });
+
+  it("uses an estimate passed in for the cap test instead of the spec's", async () => {
+    const { call } = fakeCall(0.3, readV2());
+    const c = LAYOUT_VARIANTS.c;
+    const strict = await runVariantReads([item(1), item(2)], { variant: c, call, cache: emptyCache(c), runCapSek: 1, today: "d" });
+    expect(strict.reads.map((r) => r.status)).toEqual(["read", "cost_cap"]);
+    const lowered = await runVariantReads([item(1), item(2)], { variant: c, call, cache: emptyCache(c), runCapSek: 1, today: "d", estSekPerFlat: 0.45 });
+    expect(lowered.reads.map((r) => r.status)).toEqual(["read", "read"]);
   });
 });
