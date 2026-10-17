@@ -48,6 +48,14 @@
  * layout data, so these enter only as taste, inside the unchanged 5 % cap that
  * fit-score.ts applies to the sum.
  *
+ * CEILING HEIGHT (Phase 14.5, D-07, CEIL-02): a stated ceiling height of 3,0 m or more adds 1 % of the
+ * resale value and 3,5 m or more adds 2 % (the higher step replaces the lower, it does not stack). Daniel
+ * values rooms of 3 to 4 metres; buyers pay for them too, but sold flats carry no text (R-03), so the market
+ * value cannot be modelled and the height enters only as taste. An unknown height, and a "högt i tak" flag
+ * without a number, add nothing (taste never subtracts). The highest possible uncapped sum is now 9 %
+ * (sun 3 + hub 2 + korsdrag 1 + quiet bedroom 1 + ceiling 2) against the unchanged 5 % cap, so the cap line
+ * the run prints matters more.
+ *
  * Every number lives in {@link TASTE_WEIGHTS}; the functions own no constants
  * (same discipline as NICHE_WEIGHTS in niches.ts).
  */
@@ -82,6 +90,14 @@ export const TASTE_WEIGHTS: {
   readonly korsdragPct: 0.01;
   /** D-10: a bedroom on the quiet courtyard side, Daniel's own preference, 1 % of resale; not modelled market value. */
   readonly quietBedroomPct: 0.01;
+  /** D-07: stated ceiling height of at least ceilingMidM, Daniel's own preference, not modelled market value (sold pages carry no text, R-03); 1 % of resale. */
+  readonly ceilingMidPct: 0.01;
+  /** D-07: stated ceiling height of at least ceilingHighM, Daniel's own preference, not modelled market value (sold pages carry no text, R-03); 2 % of resale, replaces the mid step. */
+  readonly ceilingHighPct: 0.02;
+  /** D-07: the lower height threshold in metres (inclusive). */
+  readonly ceilingMidM: 3.0;
+  /** D-07: the higher height threshold in metres (inclusive). */
+  readonly ceilingHighM: 3.5;
   readonly hubFullM: 300;
   readonly hubZeroM: 800;
 } = {
@@ -94,6 +110,10 @@ export const TASTE_WEIGHTS: {
   streetOnlyFactor: 0.5,
   korsdragPct: 0.01,
   quietBedroomPct: 0.01,
+  ceilingMidPct: 0.01,
+  ceilingHighPct: 0.02,
+  ceilingMidM: 3.0,
+  ceilingHighM: 3.5,
   hubFullM: 300,
   hubZeroM: 800,
 };
@@ -122,6 +142,19 @@ export function hubProximityPct(meters: number | null): number {
   if (meters <= hubFullM) return hubMaxPct;
   if (meters >= hubZeroM) return 0;
   return (hubMaxPct * (hubZeroM - meters)) / (hubZeroM - hubFullM);
+}
+
+/**
+ * Ceiling part of the bonus as a fraction of resale: {@link TASTE_WEIGHTS.ceilingHighPct} from `ceilingHighM`,
+ * {@link TASTE_WEIGHTS.ceilingMidPct} from `ceilingMidM`, else 0. Unknown (null, undefined, NaN, infinite) is 0:
+ * no information is never a penalty, and a "högt i tak" flag without a number never reaches this function.
+ */
+export function ceilingTastePct(ceilingHeightM: number | null | undefined): number {
+  if (ceilingHeightM === null || ceilingHeightM === undefined || !Number.isFinite(ceilingHeightM)) return 0;
+  const { ceilingMidPct, ceilingHighPct, ceilingMidM, ceilingHighM } = TASTE_WEIGHTS;
+  if (ceilingHeightM >= ceilingHighM) return ceilingHighPct;
+  if (ceilingHeightM >= ceilingMidM) return ceilingMidPct;
+  return 0;
 }
 
 /**
@@ -190,7 +223,9 @@ export interface TasteResult {
   korsdragPct: number;
   /** Quiet-bedroom part, fraction of resale: {@link TASTE_WEIGHTS.quietBedroomPct} for a courtyard bedroom, else 0. */
   quietBedroomPct: number;
-  /** sunPct + hubPct + korsdragPct + quietBedroomPct. Not capped here; fit-score.ts applies TASTE_CAP_PCT. */
+  /** Ceiling part, fraction of resale: 0.01 from 3,0 m, 0.02 from 3,5 m, 0 when unknown (see {@link ceilingTastePct}). */
+  ceilingPct: number;
+  /** sunPct + hubPct + korsdragPct + quietBedroomPct + ceilingPct. Not capped here; fit-score.ts applies TASTE_CAP_PCT. */
   pct: number;
   nearestHub: string | null;
   hubMeters: number | null;
@@ -209,6 +244,8 @@ export function tasteBonus(input: {
    * null (unknown) add 0; absent or null means no layout.
    */
   layout?: { korsdrag: boolean | null; quietBedroom: boolean | null } | null;
+  /** Phase 14.5 (D-07): the stated ceiling height in metres; absent, null or below 3,0 m adds 0. */
+  ceilingHeightM?: number | null;
 }): TasteResult {
   const hub = nearestLovedHub(input.latitude, input.longitude);
   const inferred = input.inferredSun ?? null;
@@ -223,12 +260,14 @@ export function tasteBonus(input: {
   const throughFlatStated = input.sunPhrases?.throughFlat === true;
   const korsdragPct = input.layout?.korsdrag === true && !throughFlatStated ? TASTE_WEIGHTS.korsdragPct : 0;
   const quietBedroomPct = input.layout?.quietBedroom === true ? TASTE_WEIGHTS.quietBedroomPct : 0;
+  const ceilingPct = ceilingTastePct(input.ceilingHeightM);
   return {
     sunPct,
     hubPct,
     korsdragPct,
     quietBedroomPct,
-    pct: sunPct + hubPct + korsdragPct + quietBedroomPct,
+    ceilingPct,
+    pct: sunPct + hubPct + korsdragPct + quietBedroomPct + ceilingPct,
     nearestHub: hub ? hub.name : null,
     hubMeters: hub ? hub.meters : null,
   };

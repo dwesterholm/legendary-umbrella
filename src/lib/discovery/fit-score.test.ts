@@ -1723,11 +1723,87 @@ describe("ceiling height facts reach the result (14.5 CEIL-01)", () => {
     expect(noPrice.tallCeilingPhrase).toBe(true);
   });
 
-  it("a stored ceiling fact changes no money value (the taste term comes in plan 04)", () => {
+  it("a stored ceiling fact changes taste and profit only; price, resale, credit and flags are the same", () => {
     const row = flat({ facades: null });
     const facts = candidateFactsSchema.parse({ ceilingHeightM: 3.6, ceilingSource: "angiven", tallCeilingPhrase: false });
     const a = fitScore(row, model);
     const b = fitScore({ ...row, facts }, model);
-    expect({ ...b, ceilingHeightM: null, tallCeilingPhrase: null }).toEqual({ ...a, ceilingHeightM: null, tallCeilingPhrase: null });
+    expect(b.resaleSek).toBe(a.resaleSek);
+    expect(b.purchaseSek).toBe(a.purchaseSek);
+    expect(b.creditSek).toBe(a.creditSek);
+    expect(b.flags).toEqual(a.flags);
+    expect(b.tasteSek).toBeGreaterThan(a.tasteSek);
+  });
+});
+
+describe("ceiling height in taste (14.5 D-07, CEIL-02)", () => {
+  const factsOf = (ceilingHeightM: number | null, tallCeilingPhrase: boolean | null = null) =>
+    candidateFactsSchema.parse({ ceilingHeightM, ceilingSource: ceilingHeightM === null ? null : "angiven", tallCeilingPhrase });
+
+  it("TASTE_CAP_PCT is still 5 %", () => {
+    expect(TASTE_CAP_PCT).toBe(0.05);
+  });
+
+  it("a stated 3,2 m adds 1 % of resale below the cap (hub 2 % + ceiling 1 %)", () => {
+    const row = flat({ facades: null });
+    const without = fitScore(row, model);
+    const tall = fitScore({ ...row, facts: factsOf(3.2) }, model);
+    expect(tall.tasteCeilingPct).toBe(0.01);
+    expect(without.tasteCeilingPct).toBe(0);
+    expect((tall.tasteSek as number) - (without.tasteSek as number)).toBeCloseTo(0.01 * (tall.resaleSek as number), 4);
+  });
+
+  it("a stated 3,6 m adds 2 % of resale below the cap", () => {
+    const row = flat({ facades: null });
+    const without = fitScore(row, model);
+    const tall = fitScore({ ...row, facts: factsOf(3.6) }, model);
+    expect(tall.tasteCeilingPct).toBe(0.02);
+    expect((tall.tasteSek as number) - (without.tasteSek as number)).toBeCloseTo(0.02 * (tall.resaleSek as number), 4);
+    expect((tall.profitSek as number) - (without.profitSek as number)).toBeCloseTo(0.02 * (tall.resaleSek as number), 4);
+  });
+
+  it("unknown, a 'högt i tak' flag without a number, and a low height add nothing", () => {
+    const row = flat({ facades: null });
+    const base = fitScore(row, model);
+    for (const facts of [null, factsOf(null, null), factsOf(null, true), factsOf(null, false), factsOf(2.7)]) {
+      const r = fitScore({ ...row, facts }, model);
+      expect(r.tasteCeilingPct).toBe(0);
+      expect(r.tasteSek).toBe(base.tasteSek);
+    }
+  });
+
+  it("a row already at 4,5 % taste with 3,6 m is clamped to exactly 5 % of resale", () => {
+    // hub within 300 m (2 %) + east sun (3 %) = 5 % already; the ceiling would make it 7 %.
+    const row = { ...flat({ facades: ["east"] }), facts: factsOf(3.6) };
+    const r = fitScore(row, model);
+    expect(r.tasteSunPct + r.tasteHubPct + r.tasteKorsdragPct + r.tasteQuietBedroomPct + r.tasteCeilingPct).toBeGreaterThan(0.05);
+    expect(r.tasteSek).toBeCloseTo(TASTE_CAP_PCT * (r.resaleSek as number), 4);
+  });
+
+  it("a row at 4 % taste is lifted to the 5 % cap by 1 % of ceiling, not past it", () => {
+    const row = {
+      ...flat({ facades: null }),
+      layout: streetLayout({ windowSides: "twoOpposite", bedroomSide: "courtyard" }), // hub 2 % + 2 % = 4 %
+      facts: factsOf(3.0),
+    };
+    const r = fitScore(row, model);
+    expect(r.tasteCeilingPct).toBe(0.01);
+    expect(r.tasteSek).toBeCloseTo(0.05 * (r.resaleSek as number), 4);
+  });
+
+  it("the not-comparable branch carries 0", () => {
+    const row = { ...flat({ facades: null }), facts: factsOf(3.6) };
+    const noPrice = fitScore({ ...row, candidate: { ...row.candidate, price: null } }, model);
+    expect(noPrice.comparable).toBe(false);
+    expect(noPrice.tasteCeilingPct).toBe(0);
+    expect(noPrice.ceilingHeightM).toBe(3.6);
+  });
+
+  it("rowsAtTasteCap counts a row that reaches 5 % only because of the ceiling term", () => {
+    const layout = streetLayout({ windowSides: "twoOpposite", bedroomSide: "courtyard" }); // hub 2 % + 2 % = 4 %
+    const below = fitScore({ ...flat({ facades: null }), layout }, model);
+    const lifted = fitScore({ ...flat({ facades: null }), layout, facts: factsOf(3.2) }, model);
+    expect(rowsAtTasteCap([below])).toEqual({ reached: 0, of: 1 });
+    expect(rowsAtTasteCap([lifted])).toEqual({ reached: 1, of: 1 });
   });
 });

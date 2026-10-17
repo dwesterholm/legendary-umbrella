@@ -286,6 +286,8 @@ export interface FitScoreResult {
   readonly tasteKorsdragPct: number;
   /** Phase 14.4 (D-10): the quiet-bedroom part of taste, fraction of resale (0 or 0.01). */
   readonly tasteQuietBedroomPct: number;
+  /** Phase 14.5 (D-07): the ceiling-height part of taste, fraction of resale (0, 0.01 from 3,0 m or 0.02 from 3,5 m). */
+  readonly tasteCeilingPct: number;
   readonly nearestHub: string | null;
   readonly hubMeters: number | null;
   readonly salesCostsSek: number;
@@ -382,12 +384,14 @@ export function cappedTasteSek(tastePct: number, resaleSek: number): number {
 
 /**
  * How many of the rows reach the taste cap (R-09, Phase 14.4): rows whose uncapped taste share (sun + hub +
- * korsdrag + quiet bedroom) is at least {@link TASTE_CAP_PCT}, so the cap clamps them. `of` is the number of
+ * korsdrag + quiet bedroom + ceiling height) is at least {@link TASTE_CAP_PCT}, so the cap clamps them. `of` is the number of
  * rows looked at. Printed every run, so a taste term that pushes many rows into the cap is visible.
  */
 export function rowsAtTasteCap(rows: ReadonlyArray<FitScoreResult>): { reached: number; of: number } {
   const reached = rows.filter(
-    (r) => r.tasteSunPct + r.tasteHubPct + r.tasteKorsdragPct + r.tasteQuietBedroomPct >= TASTE_CAP_PCT - 1e-9,
+    (r) =>
+      r.tasteSunPct + r.tasteHubPct + r.tasteKorsdragPct + r.tasteQuietBedroomPct + r.tasteCeilingPct >=
+      TASTE_CAP_PCT - 1e-9,
   ).length;
   return { reached, of: rows.length };
 }
@@ -481,6 +485,7 @@ export function fitScore(
     tasteHubPct: 0,
     tasteKorsdragPct: 0,
     tasteQuietBedroomPct: 0,
+    tasteCeilingPct: 0,
     nearestHub: null,
     hubMeters: null,
   } as const;
@@ -560,6 +565,7 @@ export function fitScore(
     sunPhrases: row.sunPhrases,
     inferredSun: sunWithLayout.input,
     layout: { korsdrag: korsdragOf(row.layout), quietBedroom: quietBedroomOf(row.layout) },
+    ceilingHeightM: row.facts?.ceilingHeightM ?? null,
   });
   const tasteSek = cappedTasteSek(taste.pct, gap.resaleW);
   const askToPred = askingPerSqm / pred;
@@ -588,6 +594,7 @@ export function fitScore(
     tasteHubPct: taste.hubPct,
     tasteKorsdragPct: taste.korsdragPct,
     tasteQuietBedroomPct: taste.quietBedroomPct,
+    tasteCeilingPct: taste.ceilingPct,
     nearestHub: taste.nearestHub,
     hubMeters: taste.hubMeters,
     comparable: !notComparable,

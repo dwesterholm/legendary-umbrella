@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import {
   LOVED_HUBS,
   TASTE_WEIGHTS,
+  ceilingTastePct,
   hubProximityPct,
   inferredSunScore,
   nearestLovedHub,
@@ -158,6 +159,7 @@ describe("tasteBonus (D-06)", () => {
       hubPct: 0,
       korsdragPct: 0,
       quietBedroomPct: 0,
+      ceilingPct: 0,
       pct: 0,
       nearestHub: null,
       hubMeters: null,
@@ -227,6 +229,65 @@ describe("layout terms (14.4, D-10, LAY-03)", () => {
       layout: { korsdrag: true, quietBedroom: true },
     });
     expect(r.pct).toBeCloseTo(0.07, 12);
+  });
+});
+
+describe("ceiling height term (14.5, D-07, CEIL-02)", () => {
+  const far = { latitude: 59.4 as number | null, longitude: 17.9 as number | null, orientation: null, sunPhrases: null };
+  const todayPct = tasteBonus(far).pct;
+
+  it("the weights are 1 % from 3,0 m and 2 % from 3,5 m", () => {
+    expect(TASTE_WEIGHTS.ceilingMidPct).toBe(0.01);
+    expect(TASTE_WEIGHTS.ceilingHighPct).toBe(0.02);
+    expect(TASTE_WEIGHTS.ceilingMidM).toBe(3.0);
+    expect(TASTE_WEIGHTS.ceilingHighM).toBe(3.5);
+  });
+
+  it("ceilingTastePct steps at the two thresholds and is 0 below them", () => {
+    expect(ceilingTastePct(3.6)).toBe(0.02);
+    expect(ceilingTastePct(3.5)).toBe(0.02);
+    expect(ceilingTastePct(4.2)).toBe(0.02);
+    expect(ceilingTastePct(3.49)).toBe(0.01);
+    expect(ceilingTastePct(3.0)).toBe(0.01);
+    expect(ceilingTastePct(2.99)).toBe(0);
+    expect(ceilingTastePct(2.5)).toBe(0);
+  });
+
+  it("unknown adds nothing: null, undefined, NaN and infinity all give 0 (never a penalty)", () => {
+    expect(ceilingTastePct(null)).toBe(0);
+    expect(ceilingTastePct(undefined)).toBe(0);
+    expect(ceilingTastePct(Number.NaN)).toBe(0);
+    expect(ceilingTastePct(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(ceilingTastePct(Number.NEGATIVE_INFINITY)).toBe(0);
+  });
+
+  it("tasteBonus adds the ceiling part on top of the others", () => {
+    const tall = tasteBonus({ ...far, ceilingHeightM: 3.6 });
+    expect(tall.ceilingPct).toBe(0.02);
+    expect(tall.pct).toBeCloseTo(todayPct + 0.02, 12);
+    const mid = tasteBonus({ ...far, ceilingHeightM: 3.2 });
+    expect(mid.ceilingPct).toBe(0.01);
+    expect(mid.pct).toBeCloseTo(todayPct + 0.01, 12);
+  });
+
+  it("without the field, with null or with a low height pct equals today's sum exactly", () => {
+    for (const ceilingHeightM of [undefined, null, 2.6, 2.99]) {
+      const r = tasteBonus({ ...far, ceilingHeightM });
+      expect(r.ceilingPct).toBe(0);
+      expect(r.pct).toBe(todayPct);
+    }
+  });
+
+  it("the cap is not applied here: the best sun and hub part, both layout terms and a 3,6 m ceiling is 9 %", () => {
+    const r = tasteBonus({
+      latitude: FOLKUNGAGATAN.lat,
+      longitude: FOLKUNGAGATAN.lng,
+      orientation: { facades: ["east"] },
+      sunPhrases: null,
+      layout: { korsdrag: true, quietBedroom: true },
+      ceilingHeightM: 3.6,
+    });
+    expect(r.pct).toBeCloseTo(0.09, 12);
   });
 });
 

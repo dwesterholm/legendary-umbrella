@@ -118,6 +118,7 @@ import {
   coverageOfRows,
   estimateFitRunUsd,
   conditionLineOf,
+  formatTakhojdCell,
   fitRowKey,
   incompleteDistricts,
   renderAreaReport,
@@ -538,12 +539,16 @@ function printTracked(
   console.log(`  Innehavskostnad:    ${sek(r.holdingCostsSek)} kr`);
   console.log(`  Skatt:              ${sek(r.taxSek)} kr`);
   console.log(
-    `  Smak:               ${sek(r.tasteSek)} kr (sol ${pct(r.tasteSunPct)}, nav ${pct(r.tasteHubPct)}, korsdrag ${pct(r.tasteKorsdragPct)}, tyst sovrum ${pct(r.tasteQuietBedroomPct)}, närmaste nav ${r.nearestHub ?? "-"})`,
+    `  Smak:               ${sek(r.tasteSek)} kr (sol ${pct(r.tasteSunPct)}, nav ${pct(r.tasteHubPct)}, korsdrag ${pct(r.tasteKorsdragPct)}, tyst sovrum ${pct(r.tasteQuietBedroomPct)}, takhöjd ${pct(r.tasteCeilingPct)}, närmaste nav ${r.nearestHub ?? "-"})`,
   );
   // Phase 14.3: the same three cells as the table (same formatters), so the tracked block and the table never disagree.
   const solCells = toFitTableRows({ ranked: [r] }, new Map())[0];
   console.log(`  Sol:                ${solCells.sol} | fri ${solCells.solTheoretical} | med grannhus ${solCells.solObstructed}`);
   console.log(`  Planlösning:        ${formatLayoutSummary(r.layout)}`);
+  // Phase 14.5 (CEIL-02): the same cell as the table; " (angiven)" says a number was stated, not only a tall-ceiling phrase.
+  console.log(
+    `  Takhöjd:            ${formatTakhojdCell(r.ceilingHeightM, r.tallCeilingPhrase)}${r.ceilingHeightM === null ? "" : " (angiven)"}`,
+  );
   console.log(`  Vinst:              ${orDash(r.profitSek, sek)} kr`);
   console.log(`  Flaggor:            ${r.flags.map((f) => FIT_FLAG_LABELS[f]).join(", ") || "-"}`);
   console.log(`  Varför här:         ${reasonCell(reasonsOf(r), isReasonFlagged(r.flags))}`);
