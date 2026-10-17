@@ -175,11 +175,52 @@ Plans:
 3. **Layout read accuracy (LAYACC-).** Build a hand-judged truth set of ≥ 25 flats (balcony side, window sides, bedroom side, street evidence) from floor plans + photos, stored as data only (never photos). Rework the read against it: model tier comparison (Sonnet vs Opus on the plan), explicit evidence rules (cars/street lamps/shopfronts = street; bicycle racks/lawns/own back facade = courtyard; artificial balcony grass is NOT courtyard greenery; the plan's entrance arrow is not a side), per-field confidence calibration; measure accuracy per field and set the gate from the measured curve. Exit: ≥ 75 % per-field accuracy on the truth set (balcony side, korsdrag, bedroom side), then and only then flip `LAYOUT_INFLUENCE_ENABLED` back on. Below 75 %: stays off, report why. Spend ≤ 40 kr per experiment round, 0 USD Apify.
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 0 plans
+**Plans:** 13 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 14.5 to break down)
+**Wave 1** *(group A: runs while the enrichment writes; no frozen file touched)*
+
+- [ ] 14.5-01-PLAN.md — Ceiling height read from broker text into the facts and a Takhöjd table column; separation prefix registered first (CEIL-01, CEIL-02)
+- [ ] 14.5-02-PLAN.md — Layout accuracy measuring stick: truth format, per-field precision, curve, gate, Wilson, verdict; worklist and select-and-lock tools (LAYACC-01, LAYACC-02, LAYACC-03)
+- [ ] 14.5-03-PLAN.md — valuation-compare: 14.4 -> 14.5 report with coefficients, SE, cap flags and the R-01 cap rule, Folkungagatan 61 first (ENR-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 14.5-04-PLAN.md — Ceiling taste (+1 % / +2 % inside the 5 % cap), mail column, coverage line, no-change replay (CEIL-02, CEIL-01)
+- [ ] 14.5-05-PLAN.md — Layout variants a-d with true per-model prices, own caches, Opus call shape, two-step read; ledger fix (LAYACC-02)
+
+**Wave 3** *(group B; blocked on Wave 2 completion)*
+
+- [ ] 14.5-06-PLAN.md — Judging procedure and blind truth rows 1-37, Folkungagatan 61 as row 1 (LAYACC-01)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 14.5-07-PLAN.md — Blind truth rows 38-end; select, split and lock before any paid call (LAYACC-01)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 14.5-08-PLAN.md — Live schema smoke; paid rounds a (baseline) and b (evidence rules), each at most 40 kr (LAYACC-02)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 14.5-09-PLAN.md — Opus smoke; rounds c (Opus) and d (two-step) under the stop rule; final layout decision (LAYACC-02)
+
+**Wave 7** *(group C; waits for the enrichment's === END line)*
+
+- [ ] 14.5-10-PLAN.md — END gate and run evidence; stage-2 cap as a parameter (±8 % / ±12 % only), stage-2 SE and CV, ceiling line (ENR-01, ENR-02, CEIL-02)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 14.5-11-PLAN.md — Refit on the full enriched set, one widening if needed, R-01 decision, model commit, 14.4 -> 14.5 comparison (ENR-02)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 14.5-12-PLAN.md — Layout switch decision: on with the measured gate and read only if a variant passed, else off with the reason (LAYACC-03)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 14.5-13-PLAN.md — First live run for ceiling coverage (0 kr), phase exit, plain-words summary for Daniel (CEIL-01, CEIL-02, all)
 
 ### Phase 15: ROI-Aware Opportunity Brief
 
