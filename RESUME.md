@@ -6,7 +6,26 @@
 
 ---
 
-## ▶️ PICK UP HERE (2026-10-17 — Phase 14.5 inserted from Daniel's UAT answers; enrichment running)
+## ▶️ PICK UP HERE (2026-10-17 evening — Phase 14.5 paused after wave 2; Booli gate opens 2026-10-18 13:15 UTC)
+
+Branch `gsd/phase-14.5-enrichment-layout-accuracy-ceiling` (main ff'd + pushed). Plans 01–05 DONE (5/13): takhöjd parser +
+fact + Takhöjd column/mail + taste term (+1 % ≥ 3,0 m, +2 % ≥ 3,5 m); layout-accuracy module (precision of money-moving
+answers, Wilson CIs, gate-from-curve, ≥ 12 decided rows else "ej mätbart", dev/holdout lock, Folkungagatan 61 in holdout);
+`valuation-compare` (14.4→14.5, R-01 cap verdict); layout experiment runner (variants a/b/c/d, own caches, Opus 5.5 call
+shape, Sonnet pricing fixed: ≈ 0,21 kr/read not 0,07). No paid call made in 14.5 so far. `LAYOUT_INFLUENCE_ENABLED=false`.
+
+WHY PAUSED (R-07/R-08): Booli answered two 403 challenge pages at 13:09 UTC during the enrichment (3 849 of 5 469 rows
+enriched; ≈ 1 620 left + the BRF pass). Everything from wave 3 touches Booli or bcdn.se (truth-set pictures, the ONE
+enrichment restart, the live ceiling-coverage run) and `booli-gate.mjs` refuses before 2026-10-18 13:15 UTC.
+
+RESUME (not before 2026-10-18 13:15 UTC, Mac awake + unlocked, not Monday 06:30–09:30):
+  `/gsd-execute-phase 14.5 --auto`  → waves 3–10 (plans 06–13). Plan 10 task 1 runs the single restart
+  (concurrency 1, ≥ 2 s gap; a second challenge = ENR-01 partly met, no retry). Plans 06–07 judge ≥ 25 flats by eye
+  (data only, never photos). Plans 08–09 spend ≤ 40 kr/round (≤ 4 rounds) on layout variants; switch flips on ONLY
+  at ≥ 75 % precision per field. Plan 13 = free live run for takhöjd coverage + plain-words SUMMARY for Daniel.
+Still open in 14.4-UAT: item 2 (RESIDUAL_FLAG_BASIS), item 6 (condition term 0). 14.1/14.3 UATs answered, not closed.
+
+## ▶️ STATUS 2026-10-17 midday — Phase 14.5 inserted from Daniel's UAT answers; enrichment running)
 
 Daniel answered 14.4 UAT (2026-10-17): (1) enrich the other 4 500 sales FIRST before judging the ±8 % cap;
 (4)+(5) do NOT accept the layout misreads / thin sun-side evidence — fix the read, nothing continues until it is
