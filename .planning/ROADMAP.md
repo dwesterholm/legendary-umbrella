@@ -192,7 +192,7 @@ Plans:
 
 **Wave 3** *(group B; blocked on Wave 2 completion)*
 
-- [ ] 14.5-06-PLAN.md — Judging procedure and blind truth rows 1-37, Folkungagatan 61 as row 1 (LAYACC-01)
+- [ ] 14.5-06-PLAN.md — Judging procedure and blind truth rows 1-37, Folkungagatan 61 as row 1; picture downloads not before 2026-10-18 13:15 UTC (LAYACC-01)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -206,9 +206,9 @@ Plans:
 
 - [ ] 14.5-09-PLAN.md — Opus smoke; rounds c (Opus) and d (two-step) under the stop rule; final layout decision (LAYACC-02)
 
-**Wave 7** *(group C; waits for the enrichment's === END line)*
+**Wave 7** *(group C; the one R-07 restart, then its === END line gates the rest)*
 
-- [ ] 14.5-10-PLAN.md — END gate and run evidence; stage-2 cap as a parameter (±8 % / ±12 % only), stage-2 SE and CV, ceiling line (ENR-01, ENR-02, CEIL-02)
+- [ ] 14.5-10-PLAN.md — R-07 restart (once, after 2026-10-18 13:15 UTC, concurrency 1, at least 2 s between pages) and run evidence; stage-2 cap as a parameter (±8 % / ±12 % only), stage-2 SE and CV, ceiling line (ENR-01, ENR-02, CEIL-02)
 
 **Wave 8** *(blocked on Wave 7 completion)*
 

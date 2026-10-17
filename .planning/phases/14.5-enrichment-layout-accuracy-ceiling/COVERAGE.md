@@ -21,11 +21,11 @@
 | Anthropic: token counting endpoint | OPT-OUT | Not needed: cost is estimated per flat before each call (estSekPerFlat per variant) and measured after from usage |
 | Anthropic: prompt caching | OPT-OUT | Not needed: every call carries different pictures and the system prompt is short, so cache hits would be rare |
 | Anthropic: citations, web search, code execution, computer use, MCP connector | OPT-OUT | Explicitly out of scope: no document grounding, browsing or tool environment is involved |
-| Booli: sold-detail pages (/annons/<id>) via the local browser | INTEGRATE (unchanged) | The enrichment that started 2026-10-17 12:02 UTC; no code in this phase changes it before its END line (R-06) |
-| Booli: public BRF pages via the local browser | INTEGRATE (unchanged) | The BRF pass of the same run |
+| Booli: sold-detail pages (/annons/<id>) via the local browser | INTEGRATE | The enrichment that started 2026-10-17 12:02 UTC stopped on a Booli challenge at 3 849 of 5 469 rows; R-07: one restart in plan 10, not before 2026-10-18 13:15 UTC, concurrency 1 and at least 2 s between page starts (new `--start-gap-secs`, added in the gap when no process runs); a second challenge ends ENR-01 as partly met |
+| Booli: public BRF pages via the local browser | INTEGRATE | The BRF pass of the same restart, same concurrency and spacing; skipped if the restart stops before it |
 | Booli: sold-detail broker text for ceiling height | OPT-OUT | Not available: sold-detail payloads carry no description (R-03, three dumps checked), so no sold row can state a height and the hedonic ceiling feature is not built |
 | Booli: for-sale detail and broker page text | INTEGRATE | Already read in memory by watch-enrich for sun phrases; the new ceiling parser reads the same text and stores only a number, a literal and a flag (plans 01, 04); first measured on plan 13's live run |
-| Booli: search and for-sale listing pages | INTEGRATE (unchanged) | Plan 13's single live run with --no-vision, local browser, after the END line, not in the Monday job window |
-| Booli: image CDN (bcdn.se) | INTEGRATE | Picture URLs passed to Anthropic for the rounds; the truth-set judging downloads the four pictures per flat over https, one request per second, no browser, into a scratch directory that is deleted (plans 06-07) |
+| Booli: search and for-sale listing pages | INTEGRATE (unchanged) | Plan 13's single live run with --no-vision, local browser, after the restart's END line, gated by booli-gate.mjs (R-07 time, not in the Monday job window) |
+| Booli: image CDN (bcdn.se) | INTEGRATE | Picture URLs passed to Anthropic for the rounds; the truth-set judging downloads the four pictures per flat over https, one request per second, no browser, into a scratch directory that is deleted (plans 06-07), not before 2026-10-18 13:15 UTC (R-07, booli-gate.mjs) |
 | Booli: any new page type | OPT-OUT | Not needed: every number this phase needs is in pages already read |
 | Booli: any page through Apify | OPT-OUT | Explicitly out of scope: 0 USD Apify; no command passes --allow-apify |
