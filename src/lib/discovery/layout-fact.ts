@@ -61,6 +61,14 @@ export const layoutFactSchema = z.object({
   bedroomSide: z.enum(BEDROOM_SIDES),
   streetEvidence: z.enum(STREET_EVIDENCE),
   confidence: z.number().min(0).max(1),
+  /**
+   * Phase 14.5 (optional, so every stored 14.4 fact and every old snapshot still parses; fit-score reads the
+   * stored layout with `.catch(null)`, so a REQUIRED key would silently null every stored layout): one
+   * confidence per field when a read gives them, and whether a floor plan was among the pictures.
+   * {@link believedLayout} uses `fieldConfidence.<field> ?? confidence` and abstains on `planPresent === false`.
+   */
+  fieldConfidence: z.object({ balcony: z.number().min(0).max(1), windows: z.number().min(0).max(1), bedroom: z.number().min(0).max(1) }).optional(),
+  planPresent: z.boolean().optional(),
   /** A display label only ("planritning+foto" in the Sol cell); not one of the SUN_SOURCES. */
   source: z.literal("planritning+foto"),
   version: z.string(),
@@ -130,6 +138,75 @@ export function quietBedroomWhen(fact: LayoutFact | null, enabled: boolean): boo
   const side = usableSideWhen(fact, "bedroom", enabled);
   if (side === null) return null;
   return side === "courtyard";
+}
+
+/**
+ * The policy {@link believedLayout} reads a fact under: one gate per money-moving answer, the gate for the
+ * negative answers ("nej", "ingen balkong"), the photo evidence that may settle street versus courtyard, and the
+ * only read version that is trusted (null = any).
+ */
+export interface LayoutGatePolicy {
+  /** Street or courtyard for the balcony counts from this confidence (the field's own when the fact has one). */
+  balconyGate: number;
+  /** Korsdrag "ja" counts from this confidence (stricter than the negative gate: a wrong "ja" is the costly error, WR-03). */
+  windowsGate: number;
+  /** Street or courtyard for the bedroom counts from this confidence. */
+  bedroomGate: number;
+  /** "nej" for korsdrag and "ingen balkong" count from this confidence. */
+  negativeGate: number;
+  /** The photo evidence that may settle a side (D-12: cars and courtyardGreenery; oppositeFacade only when measured). */
+  sideEvidence: readonly ("cars" | "oppositeFacade" | "courtyardGreenery")[];
+  /** A fact from any other read version is not believed; null trusts every version. */
+  trustedVersion: string | null;
+}
+
+/** What a read is believed to say under a {@link LayoutGatePolicy}: null (or false) is "unknown", which changes nothing. */
+export interface BelievedLayout {
+  balconySide: "street" | "courtyard" | null;
+  noBalcony: boolean;
+  korsdrag: boolean | null;
+  bedroomSide: "street" | "courtyard" | null;
+}
+
+const UNKNOWN_LAYOUT: BelievedLayout = { balconySide: null, noBalcony: false, korsdrag: null, bedroomSide: null };
+
+/**
+ * THE one definition of what a stored read is believed to say under a gate policy (Phase 14.5, LAYACC-03). Both
+ * the measurement (layout-accuracy.ts counts a "believed call" with this function at the gate under test) and any
+ * future production gate use it, so the rule that was measured and the rule that runs cannot drift apart.
+ *  - a fact from another version than `trustedVersion`, or one whose pictures held no floor plan
+ *    (`planPresent === false`), is all unknown;
+ *  - each field uses its own confidence when the fact has one, else the single `confidence`;
+ *  - street or courtyard (balcony, bedroom) needs the field gate AND photo evidence in `sideEvidence`
+ *    ("none" never counts: a plan alone cannot tell street from courtyard);
+ *  - korsdrag "ja" (twoOpposite) needs `windowsGate`, "nej" (one or corner) needs `negativeGate`;
+ *  - "ingen balkong" needs `negativeGate`.
+ * Boundaries are inclusive: confidence equal to the gate counts. Today's {@link usableSide}, {@link korsdragOf},
+ * {@link quietBedroomOf} and the switch are separate and unchanged; plan 12 decides whether they route here.
+ * Pure.
+ */
+export function believedLayout(fact: LayoutFact | null, policy: LayoutGatePolicy): BelievedLayout {
+  if (fact === null) return UNKNOWN_LAYOUT;
+  if (policy.trustedVersion !== null && fact.version !== policy.trustedVersion) return UNKNOWN_LAYOUT;
+  if (fact.planPresent === false) return UNKNOWN_LAYOUT;
+
+  const balconyConfidence = fact.fieldConfidence?.balcony ?? fact.confidence;
+  const windowsConfidence = fact.fieldConfidence?.windows ?? fact.confidence;
+  const bedroomConfidence = fact.fieldConfidence?.bedroom ?? fact.confidence;
+  const evidenceOk = fact.streetEvidence !== "none" && policy.sideEvidence.includes(fact.streetEvidence);
+  const sideOf = (side: "street" | "courtyard" | "none" | "unknown", confidence: number, gate: number) =>
+    evidenceOk && confidence >= gate && (side === "street" || side === "courtyard") ? side : null;
+
+  let korsdrag: boolean | null = null;
+  if (fact.windowSides === "twoOpposite" && windowsConfidence >= policy.windowsGate) korsdrag = true;
+  else if ((fact.windowSides === "one" || fact.windowSides === "corner") && windowsConfidence >= policy.negativeGate) korsdrag = false;
+
+  return {
+    balconySide: sideOf(fact.balconySide, balconyConfidence, policy.balconyGate),
+    noBalcony: fact.balconySide === "none" && balconyConfidence >= policy.negativeGate,
+    korsdrag,
+    bedroomSide: sideOf(fact.bedroomSide, bedroomConfidence, policy.bedroomGate),
+  };
 }
 
 /** The Korsdrag cell from {@link korsdragOf}: "ja", "nej" or "okänd". */

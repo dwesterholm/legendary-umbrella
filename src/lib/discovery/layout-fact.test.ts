@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LAYOUT_MIN_CONFIDENCE,
+  believedLayout,
   formatKorsdragCell,
   LAYOUT_INFLUENCE_ENABLED,
   formatLayoutSummary as formatLayoutSummarySwitch,
@@ -12,6 +13,7 @@ import {
   korsdragOf as korsdragOfSwitch,
   korsdragWhen,
   layoutFactSchema,
+  type LayoutGatePolicy,
   quietBedroomOf as quietBedroomOfSwitch,
   quietBedroomWhen,
   usableSide as usableSideSwitch,
@@ -269,5 +271,102 @@ describe("LAYOUT_INFLUENCE_ENABLED off (Daniel 2026-10-17, UAT 14.4 items 4-5)",
   it("the tracked-flat summary still shows what the read found, marked as not affecting the score", () => {
     expect(formatLayoutSummarySwitch(fact())).toBe("balkong gata, fönster en sida, sovrum gata (säkerhet 0,90) (påverkar ej poängen)");
     expect(formatLayoutSummary(fact())).toBe("balkong gata, fönster en sida, sovrum gata (säkerhet 0,90)");
+  });
+});
+
+describe("layoutFactSchema: the optional 14.5 keys", () => {
+  it("still parses a 14.4 fact with neither fieldConfidence nor planPresent", () => {
+    expect(layoutFactSchema.safeParse(fact()).success).toBe(true);
+  });
+
+  it("parses a fact with per-field confidences and planPresent", () => {
+    const parsed = layoutFactSchema.safeParse(fact({ fieldConfidence: { balcony: 0.9, windows: 0.4, bedroom: 0.7 }, planPresent: true }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.fieldConfidence?.windows).toBe(0.4);
+  });
+
+  it("rejects a per-field confidence outside 0..1", () => {
+    expect(layoutFactSchema.safeParse(fact({ fieldConfidence: { balcony: 1.2, windows: 0.4, bedroom: 0.7 } })).success).toBe(false);
+  });
+});
+
+describe("believedLayout: the one definition of what a read is believed to say", () => {
+  const policy = (over: Partial<LayoutGatePolicy> = {}): LayoutGatePolicy => ({
+    balconyGate: 0.8,
+    windowsGate: 0.8,
+    bedroomGate: 0.8,
+    negativeGate: 0.6,
+    sideEvidence: ["cars", "courtyardGreenery"],
+    trustedVersion: null,
+    ...over,
+  });
+  const UNKNOWN = { balconySide: null, noBalcony: false, korsdrag: null, bedroomSide: null };
+
+  it("no fact is all unknown", () => {
+    expect(believedLayout(null, policy())).toEqual(UNKNOWN);
+  });
+
+  it("a fact of another version than the trusted one is all unknown; null trusts every version", () => {
+    expect(believedLayout(fact({ version: "old" }), policy({ trustedVersion: "new" }))).toEqual(UNKNOWN);
+    expect(believedLayout(fact({ version: "new" }), policy({ trustedVersion: "new" })).balconySide).toBe("street");
+    expect(believedLayout(fact({ version: "old" }), policy({ trustedVersion: null })).balconySide).toBe("street");
+  });
+
+  it("planPresent false abstains on everything; planPresent true or absent does not", () => {
+    expect(believedLayout(fact({ planPresent: false }), policy())).toEqual(UNKNOWN);
+    expect(believedLayout(fact({ planPresent: true }), policy()).balconySide).toBe("street");
+    expect(believedLayout(fact(), policy()).balconySide).toBe("street");
+  });
+
+  it("the balcony needs its field confidence at the gate (inclusive) and evidence in the allowlist", () => {
+    const f = (c: number, over: Partial<LayoutFact> = {}) => fact({ balconySide: "street", streetEvidence: "cars", confidence: c, ...over });
+    expect(believedLayout(f(0.8), policy()).balconySide).toBe("street");
+    expect(believedLayout(f(0.79), policy()).balconySide).toBeNull();
+    expect(believedLayout(f(0.9, { streetEvidence: "oppositeFacade" }), policy()).balconySide).toBeNull();
+    expect(believedLayout(f(0.9, { streetEvidence: "oppositeFacade" }), policy({ sideEvidence: ["cars", "oppositeFacade"] })).balconySide).toBe("street");
+    expect(believedLayout(f(0.9, { streetEvidence: "none" }), policy()).balconySide).toBeNull();
+    expect(believedLayout(f(0.9, { balconySide: "courtyard", streetEvidence: "courtyardGreenery" }), policy()).balconySide).toBe("courtyard");
+    expect(believedLayout(f(0.9, { balconySide: "unknown" }), policy()).balconySide).toBeNull();
+  });
+
+  it("uses fieldConfidence.<field> when present, else the single confidence", () => {
+    const f = fact({ confidence: 0.95, fieldConfidence: { balcony: 0.5, windows: 0.9, bedroom: 0.85 }, windowSides: "twoOpposite", bedroomSide: "courtyard" });
+    const b = believedLayout(f, policy());
+    expect(b.balconySide).toBeNull(); // balcony field confidence 0.5 < 0.8, although the single confidence is 0.95
+    expect(b.korsdrag).toBe(true);
+    expect(b.bedroomSide).toBe("courtyard");
+  });
+
+  it("korsdrag: a positive needs the stricter gate, a negative the negative gate", () => {
+    const two = (c: number) => fact({ windowSides: "twoOpposite", confidence: c });
+    expect(believedLayout(two(0.8), policy()).korsdrag).toBe(true);
+    expect(believedLayout(two(0.79), policy()).korsdrag).toBeNull();
+    expect(believedLayout(fact({ windowSides: "one", confidence: 0.6 }), policy()).korsdrag).toBe(false);
+    expect(believedLayout(fact({ windowSides: "corner", confidence: 0.6 }), policy()).korsdrag).toBe(false);
+    expect(believedLayout(fact({ windowSides: "one", confidence: 0.59 }), policy()).korsdrag).toBeNull();
+    expect(believedLayout(fact({ windowSides: "unknown", confidence: 0.99 }), policy()).korsdrag).toBeNull();
+  });
+
+  it("noBalcony: balconySide none at or above the negative gate", () => {
+    expect(believedLayout(fact({ balconySide: "none", confidence: 0.6 }), policy()).noBalcony).toBe(true);
+    expect(believedLayout(fact({ balconySide: "none", confidence: 0.59 }), policy()).noBalcony).toBe(false);
+    expect(believedLayout(fact({ balconySide: "street", confidence: 0.99 }), policy()).noBalcony).toBe(false);
+  });
+
+  it("the bedroom follows the balcony rule with its own gate; a quiet bedroom is bedroomSide courtyard", () => {
+    const f = (c: number, side: LayoutFact["bedroomSide"]) => fact({ bedroomSide: side, confidence: c });
+    expect(believedLayout(f(0.8, "courtyard"), policy()).bedroomSide).toBe("courtyard");
+    expect(believedLayout(f(0.79, "courtyard"), policy()).bedroomSide).toBeNull();
+    expect(believedLayout(f(0.9, "unknown"), policy()).bedroomSide).toBeNull();
+    expect(believedLayout(f(0.9, "courtyard"), policy({ bedroomGate: 0.95 })).bedroomSide).toBeNull();
+  });
+
+  it("leaves the 14.4 gate functions exactly as they were", () => {
+    const f = fact({ balconySide: "courtyard", streetEvidence: "courtyardGreenery", confidence: 0.6 });
+    expect(usableSide(f, "balcony")).toBe("courtyard");
+    expect(usableSide(fact({ confidence: 0.59 }), "balcony")).toBeNull();
+    expect(korsdragOf(fact({ windowSides: "twoOpposite", confidence: 0.6 }))).toBe(true);
+    // the new optional keys do not move the old gate
+    expect(usableSide(fact({ planPresent: false, fieldConfidence: { balcony: 0.1, windows: 0.1, bedroom: 0.1 } }), "balcony")).toBe("street");
   });
 });

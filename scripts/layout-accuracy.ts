@@ -12,8 +12,8 @@
  * the class name only (a message can carry a path or request details).
  */
 import { readFileSync } from "node:fs";
-import { guardedDataPath, writeJsonAtomic } from "@/lib/discovery/json-store";
-import { accuracyReport, layoutTruthFileSchema } from "@/lib/discovery/layout-accuracy";
+import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
+import { accuracyReport, layoutTruthFileSchema, renderAccuracyMd } from "@/lib/discovery/layout-accuracy";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import { LAYOUT_READ_VERSION, layoutFactFromRead, loadLayoutCache } from "@/lib/discovery/layout-read";
 
@@ -26,6 +26,7 @@ const USAGE = `Användning (gratis, inget anrop, ingen Booli-sida):
   --truth <fil>    Sanningsfilen (zod-kontrollerad, bara id:n och uppräkningar)
   --cache <fil>    Layoutcachen med de lagrade läsningarna (poster med nuvarande läsversion används)
   --out <fil>      Var rapporten skrivs (.json under .planning/phases/ eller .planning/calibration/data/)
+  --md <fil>       Skriver också rapporten som markdown (samma kataloger, .md)
 Rapporten innehåller bara antal, id:n och uppräkningar, aldrig en enskild läsning. Slutkoder: 0 klart, 1 fel.`;
 
 interface Args {
@@ -33,11 +34,12 @@ interface Args {
   truth: string | null;
   cache: string | null;
   out: string | null;
+  md: string | null;
   help: boolean;
 }
 
 function parseArgs(argv: string[]): Args | null {
-  const out: Args = { report: false, truth: null, cache: null, out: null, help: false };
+  const out: Args = { report: false, truth: null, cache: null, out: null, md: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -46,10 +48,11 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--truth" && value !== undefined) { out.truth = value; i++; }
     else if (flag === "--cache" && value !== undefined) { out.cache = value; i++; }
     else if (flag === "--out" && value !== undefined) { out.out = value; i++; }
+    else if (flag === "--md" && value !== undefined) { out.md = value; i++; }
     else return null;
   }
   if (out.report && (out.truth === null || out.cache === null || out.out === null)) return null;
-  if (!out.report && (out.truth !== null || out.cache !== null || out.out !== null)) return null;
+  if (!out.report && (out.truth !== null || out.cache !== null || out.out !== null || out.md !== null)) return null;
   return out;
 }
 
@@ -97,10 +100,16 @@ function report(args: Args & { truth: string; cache: string; out: string }): num
     console.error(`--out måste vara en .json-fil under ${OUT_DIRS.join("/ eller ")}/`);
     return 1;
   }
+  const mdOut = args.md === null ? null : guardedOut(args.md, ".md");
+  if (args.md !== null && mdOut === null) {
+    console.error(`--md måste vara en .md-fil under ${OUT_DIRS.join("/ eller ")}/`);
+    return 1;
+  }
   const file = layoutTruthFileSchema.parse(JSON.parse(readFileSync(args.truth, "utf8")));
   const reads = productionReads(args.cache);
   const r = accuracyReport(file, reads, { source: "production", version: LAYOUT_READ_VERSION });
   writeJsonAtomic(jsonOut, r);
+  if (mdOut !== null) writeTextAtomic(mdOut, renderAccuracyMd(r));
   const { balcony, korsdrag, bedroom } = r.raw;
   console.log(
     `Rapport: ${r.rows} rader i urvalet, ${r.noRead} utan lagrad läsning; rå träffsäkerhet (utan spärr): ` +
