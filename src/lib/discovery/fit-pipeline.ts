@@ -697,6 +697,16 @@ export interface Coverage {
     readonly bedroom: number;
     readonly appliedToSun: number;
   };
+  /**
+   * Phase 14.5 (CEIL-01): `read` counts the rows whose description was parsed for a ceiling height (the
+   * facts' tallCeilingPhrase is not null; a stored snapshot holds no text, so it reads 0), `stated` those with
+   * a height in metres, `tallOnly` those with a tall-ceiling phrase and no number.
+   */
+  readonly ceiling: {
+    readonly read: number;
+    readonly stated: number;
+    readonly tallOnly: number;
+  };
   /** Reasons on flagged rows; null until {@link withReasonsOnFlagged} sets it (it needs the table rows). */
   readonly reasonsOnFlagged: ReasonsOnFlagged | null;
 }
@@ -740,6 +750,11 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
       bedroom: rows.filter((r) => quietBedroomWhen(r.layout, true) !== null).length,
       appliedToSun: rows.filter((r) => inferredSunWithLayout(r.sun, r.layout, true).applied).length,
     },
+    ceiling: {
+      read: rows.filter((r) => r.facts?.tallCeilingPhrase != null).length,
+      stated: rows.filter((r) => r.facts?.ceilingHeightM != null).length,
+      tallOnly: rows.filter((r) => r.facts?.tallCeilingPhrase === true && r.facts.ceilingHeightM == null).length,
+    },
     reasonsOnFlagged: null,
   };
 }
@@ -780,6 +795,10 @@ const percent = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 
  * "Planlösning: balkongsida <a>, korsdrag känt <b>, sovrumssida <c>, sol från planlösning <d> av <N>"
  * (rows where the gate lets the field through, and rows where the layout picked the sun's facade).
  * The Täckning line itself is unchanged, so what plan 09 parses stays as it was.
+ *
+ * Phase 14.5 (CEIL-01): when at least one description was parsed for a ceiling height, a line follows the
+ * Täckning line (before the Planlösning line): "Takhöjd: angiven i <a> av <n> lästa beskrivningar (högt i tak
+ * utan siffra <b>)". With none parsed (every replay of a stored snapshot) the output is what it always was.
  */
 export function renderCoverage(coverage: Coverage): string {
   const item = (label: string, known: number): string => `${label} ${known} av ${coverage.n} (${percent(known, coverage.n)} %)`;
@@ -791,11 +810,17 @@ export function renderCoverage(coverage: Coverage): string {
   const r = coverage.reasonsOnFlagged;
   if (r !== null) items.push(`anledning på flaggade rader: ${r.explained} förklarade, ${r.unexplained} oförklarat fynd av ${r.flagged}`);
   const line = `Täckning (${coverage.n} annonser): ${items.join(", ")}`;
-  // Phase 14.4: a second line, only when the run read at least one layout (a replay of an older snapshot prints the line it always did).
+  // Phase 14.5: the ceiling line, only when at least one description was parsed for a height.
+  const c = coverage.ceiling;
+  const withCeiling =
+    c.read === 0
+      ? line
+      : `${line}\nTakhöjd: angiven i ${c.stated} av ${c.read} lästa beskrivningar (högt i tak utan siffra ${c.tallOnly})`;
+  // Phase 14.4: a further line, only when the run read at least one layout (a replay of an older snapshot prints the line it always did).
   const l = coverage.layout;
-  if (l.read === 0) return line;
+  if (l.read === 0) return withCeiling;
   return (
-    `${line}\nPlanlösning: balkongsida ${l.balcony}, korsdrag känt ${l.windowSides}, sovrumssida ${l.bedroom}, ` +
+    `${withCeiling}\nPlanlösning: balkongsida ${l.balcony}, korsdrag känt ${l.windowSides}, sovrumssida ${l.bedroom}, ` +
     `sol från planlösning ${l.appliedToSun} av ${coverage.n}` +
     (LAYOUT_INFLUENCE_ENABLED ? "" : ` ${LAYOUT_NO_INFLUENCE_SUFFIX}`)
   );

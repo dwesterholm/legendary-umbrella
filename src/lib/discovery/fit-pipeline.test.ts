@@ -1354,3 +1354,56 @@ describe("layout coverage (Phase 14.4, LAY-04)", () => {
     expect(renderCoverage(computeCoverage([baseRow()]))).not.toContain("Planlösning");
   });
 });
+
+describe("ceiling coverage (Phase 14.5, CEIL-01)", () => {
+  const baseRow = (): FitInputRow => ({ ...(snapshot.rows[0] as FitInputRow), layout: null, sun: null, facts: null });
+  const withCeiling = (ceilingHeightM: number | null, tallCeilingPhrase: boolean | null): FitInputRow => ({
+    ...baseRow(),
+    facts: candidateFactsSchema.parse({ ceilingHeightM, ceilingSource: ceilingHeightM === null ? null : "angiven", tallCeilingPhrase }),
+  });
+
+  it("counts read (the parser ran), stated (a number) and tallOnly (the flag and no number)", () => {
+    const rows: FitInputRow[] = [
+      withCeiling(3.2, false), // read, stated
+      withCeiling(3.6, true), // read, stated, flag too: not tallOnly
+      withCeiling(null, true), // read, tallOnly
+      withCeiling(null, false), // read, nothing stated
+      baseRow(), // no facts: not read
+      { ...baseRow(), facts: candidateFactsSchema.parse({}) }, // facts without the keys: not read
+    ];
+    expect(computeCoverage(rows).ceiling).toEqual({ read: 4, stated: 2, tallOnly: 1 });
+  });
+
+  it("an old snapshot (no row read) has all three at 0", () => {
+    expect(computeCoverage([baseRow(), baseRow()]).ceiling).toEqual({ read: 0, stated: 0, tallOnly: 0 });
+    expect(computeCoverage([]).ceiling).toEqual({ read: 0, stated: 0, tallOnly: 0 });
+  });
+
+  it("with read 0 the output is byte-identical to today's (no Takhöjd line)", () => {
+    const text = renderCoverage(computeCoverage([baseRow(), baseRow()]));
+    expect(text).not.toContain("Takhöjd");
+    expect(text.split("\n")).toHaveLength(1);
+  });
+
+  it("prints the Takhöjd line right after the Täckning line, and the Täckning line itself is unchanged", () => {
+    const rows: FitInputRow[] = [withCeiling(3.2, false), withCeiling(null, true), withCeiling(null, false)];
+    const lines = renderCoverage(computeCoverage(rows)).split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0].startsWith("Täckning (3 annonser): ")).toBe(true);
+    expect(lines[0]).not.toContain("Takhöjd");
+    expect(lines[1]).toBe("Takhöjd: angiven i 1 av 3 lästa beskrivningar (högt i tak utan siffra 1)");
+  });
+
+  it("the Takhöjd line goes before the Planlösning line when both are printed", () => {
+    const layout: LayoutFact = {
+      balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
+      windowSides: "one", bedroomSide: "street", streetEvidence: "cars", confidence: 0.9,
+      source: "planritning+foto", version: "v", images: { booli: 4, broker: 0 },
+    };
+    const rows: FitInputRow[] = [{ ...withCeiling(3.4, false), layout }];
+    const lines = renderCoverage(computeCoverage(rows)).split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe("Takhöjd: angiven i 1 av 1 lästa beskrivningar (högt i tak utan siffra 0)");
+    expect(lines[2].startsWith("Planlösning: ")).toBe(true);
+  });
+});

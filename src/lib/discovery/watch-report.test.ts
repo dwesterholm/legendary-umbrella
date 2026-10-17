@@ -204,7 +204,7 @@ describe("renderWatchHtml", () => {
   });
 
   it("has every column of D-15", () => {
-    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Flaggor", "Varför här", "Booli"]) {
+    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Takhöjd", "Flaggor", "Varför här", "Booli"]) {
       expect(html).toMatch(new RegExp(`<th[^>]*>${heading.replace(/[().]/g, "\\$&")}</th>`));
     }
   });
@@ -225,20 +225,35 @@ describe("renderWatchHtml", () => {
     expect(headings.some((h) => /^Okapad|^Kredit/.test(h))).toBe(false);
   });
 
-  it("'Korsdrag' and 'Sovrum' follow the sun-hour columns right before 'Flaggor'; their cells sit at the heading indexes, are text, and are escaped (LAY-03)", () => {
+  it("'Korsdrag', 'Sovrum' and 'Takhöjd' follow the sun-hour columns right before 'Flaggor'; their cells sit at the heading indexes, are text, and are escaped (LAY-03, CEIL-02)", () => {
     const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
     const headings = [...firstTable.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
     const at = headings.indexOf("Soltim. med grannhus (mar/jun/dec)");
-    expect(headings.slice(at, at + 4)).toEqual(["Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Flaggor"]);
+    expect(headings.slice(at, at + 5)).toEqual(["Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Takhöjd", "Flaggor"]);
     const firstRow = firstTable.split("<tr>")[2];
     const cells = [...firstRow.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
     expect(cells).toHaveLength(headings.length);
     expect(cells[headings.indexOf("Korsdrag")]).toBe("nej");
     expect(cells[headings.indexOf("Sovrum")]).toBe("gata");
+    expect(cells[headings.indexOf("Takhöjd")]).toBe("okänd");
     const hostile = renderWatchHtml(input({ sections: { under: [newEntry(tableRow({ korsdrag: "<b>ja</b>", sovrum: "g & g" }))], over: [] } }));
     expect(hostile).toContain("&lt;b&gt;ja&lt;/b&gt;");
     expect(hostile).toContain("g &amp; g");
     expect(hostile).not.toContain("<b>ja</b>");
+  });
+
+  it("the 'Takhöjd' cell is text (left-aligned), shows a stated height, and a hostile value is escaped (T-14.5-16)", () => {
+    const stated = renderWatchHtml(input({ sections: { under: [newEntry(tableRow({ takhojd: "3,6 m" }))], over: [] } }));
+    const firstTable = stated.slice(stated.indexOf("<table"), stated.indexOf("</table>"));
+    const headings = [...firstTable.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    const tds = [...firstTable.split("<tr>")[2].matchAll(/<td([^>]*)>(.*?)<\/td>/g)];
+    expect(tds).toHaveLength(headings.length);
+    const at = headings.indexOf("Takhöjd");
+    expect(tds[at][2]).toBe("3,6 m");
+    expect(tds[at][1]).not.toContain("text-align:right");
+    const hostile = renderWatchHtml(input({ sections: { under: [newEntry(tableRow({ takhojd: "<b>3 m</b> & x" }))], over: [] } }));
+    expect(hostile).toContain("&lt;b&gt;3 m&lt;/b&gt; &amp; x");
+    expect(hostile).not.toContain("<b>3 m</b>");
   });
 
   it("the three Sol columns sit right after 'Smak', and each row's cells are at the same index as the headings", () => {
@@ -361,7 +376,9 @@ describe("renderWatchText", () => {
     expect(r[h.indexOf("Korsdrag")]).toBe("nej");
     expect(r[h.indexOf("Sovrum")]).toBe("gata");
     expect(h.indexOf("Korsdrag")).toBe(h.indexOf("Soltim. med grannhus (mar/jun/dec)") + 1);
-    expect(h.indexOf("Flaggor")).toBe(h.indexOf("Sovrum") + 1);
+    expect(r[h.indexOf("Takhöjd")]).toBe("okänd");
+    expect(h.indexOf("Takhöjd")).toBe(h.indexOf("Sovrum") + 1);
+    expect(h.indexOf("Flaggor")).toBe(h.indexOf("Takhöjd") + 1);
   });
 });
 
