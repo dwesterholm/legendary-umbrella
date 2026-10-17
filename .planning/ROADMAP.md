@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 3/13 plans executed
+**Plans:** 4/13 plans executed
 
 Plans:
 
@@ -189,7 +189,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14.5-04-PLAN.md — Ceiling taste (+1 % / +2 % inside the 5 % cap), mail column, coverage line, no-change replay (CEIL-02, CEIL-01)
+- [x] 14.5-04-PLAN.md — Ceiling taste (+1 % / +2 % inside the 5 % cap), mail column, coverage line, no-change replay (CEIL-02, CEIL-01)
 - [ ] 14.5-05-PLAN.md — Layout variants a-d with true per-model prices, own caches, Opus call shape, two-step read; ledger fix (LAYACC-02)
 
 **Wave 3** *(group B; blocked on Wave 2 completion)*
