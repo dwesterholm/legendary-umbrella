@@ -230,12 +230,11 @@ function negatedKeywords(clause: string, keywords: readonly Span[]): Set<number>
       } else if (word.start >= k.end) {
         const gap = word.start - k.end;
         const between = clause.slice(k.end, word.start);
-        const yearBetween = /(?<!\d)(?:19[5-9]\d|20[0-3]\d|204[0-5])(?!\d)/.test(between);
         if (
           gap <= NEGATION_AFTER_REACH &&
+          gap < targetGap &&
           !/,/.test(between) &&
-          (!yearBetween || NEGATES_COMPLETION.test(clause.slice(word.end))) &&
-          gap < targetGap
+          (!/(?<!\d)(?:19[5-9]\d|20[0-3]\d|204[0-5])(?!\d)/.test(between) || NEGATES_COMPLETION.test(clause.slice(word.end, word.end + 40)))
         ) {
           target = i;
           targetGap = gap;
