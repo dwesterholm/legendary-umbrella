@@ -16,8 +16,9 @@
  * before the next request, on Mondays between 06:30 and 09:30 (R-02). At most `--max-requests` requests per run (default
  * 140). No request to any Booli or listing site, no paid call.
  *
- * --dry-run reads saved pages (`--fixtures <dir>`) instead of the network, uses a virtual clock and a throw-away block
- * list, ignores what is cached, and replaces the global `fetch` with a function that throws. A page with no saved
+ * --dry-run reads saved pages (`--fixtures <dir>`) instead of the network, uses a virtual clock, a throw-away block
+ * list and (unless `--cache-dir` names another one) a throw-away cache directory; it never writes to the live cache
+ * and refuses a `--cache-dir` that is or contains it (WR-05). It ignores what is cached, and replaces the global `fetch` with a function that throws. A page with no saved
  * answer fails the run (it would have been a real request).
  *
  * What goes into the cache and the evidence: tags, case numbers, addresses, fastighetsbeteckningar, dates and counts
@@ -38,6 +39,7 @@ import {
   type SweepQuery,
 } from "@/lib/stockholm/bygglov-cache";
 import type { CityClient, CityFetch } from "@/lib/stockholm/bygglov-client";
+import { assertDryRunCacheNotLive, dryRunCacheDir } from "@/lib/stockholm/dry-run-cache";
 import { makeFixtureFetch, type FixtureRoute } from "@/lib/stockholm/fixture-fetch";
 import { CITY_DATA_DIR, CITY_LOCK_PATH, HOST_GATES_PATH, assertManualRunAllowed, hostBlockedUntil, readHostGates } from "@/lib/stockholm/host-gate";
 import {
@@ -69,7 +71,8 @@ interface Args {
   districts: string[];
   keywords: string[] | null;
   windows: SweepWindow[] | null;
-  cacheDir: string;
+  /** Null only in a dry run that was not given one: it then uses a throw-away directory (WR-05). */
+  cacheDir: string | null;
   maxRequests: number;
   evidence: string | null;
 }
@@ -137,8 +140,16 @@ function parseArgs(argv: readonly string[]): Args {
   const windowsRaw = values.get("--windows");
   const windows = windowsRaw === undefined ? null : parseWindows(windowsRaw);
 
-  const cacheDir = values.get("--cache-dir") ?? BYGGLOV_CACHE_DIR;
-  if (!insideDir(cacheDir, DATA_DIR)) throw new Error(`--cache-dir måste ligga under ${DATA_DIR}/ (fick ${cacheDir.slice(0, 120)})`);
+  const requestedCacheDir = values.get("--cache-dir") ?? null;
+  if (requestedCacheDir !== null && !insideDir(requestedCacheDir, DATA_DIR)) {
+    throw new Error(`--cache-dir måste ligga under ${DATA_DIR}/ (fick ${requestedCacheDir.slice(0, 120)})`);
+  }
+  // A dry run never touches the live cache: no --cache-dir means a throw-away directory, the live one is refused.
+  const cacheDir = dryRun
+    ? requestedCacheDir === null
+      ? null
+      : assertDryRunCacheNotLive(requestedCacheDir, BYGGLOV_CACHE_DIR)
+    : (requestedCacheDir ?? BYGGLOV_CACHE_DIR);
 
   const maxRaw = values.get("--max-requests");
   const maxRequests = maxRaw === undefined ? DEFAULT_MAX_REQUESTS : Number(maxRaw);
@@ -271,6 +282,7 @@ async function main(): Promise<number> {
   const unrouted: string[] = [];
   let gatesPath = HOST_GATES_PATH;
   let dataDir = CITY_DATA_DIR;
+  let cacheDir: string = args.cacheDir ?? BYGGLOV_CACHE_DIR;
   let keywords: string[];
   let substring: boolean | null = null;
 
@@ -280,6 +292,7 @@ async function main(): Promise<number> {
     workDir = mkdtempSync(join(tmpdir(), "bygglov-sweep-dry-"));
     gatesPath = join(workDir, "host-gates.json");
     dataDir = workDir;
+    cacheDir = dryRunCacheDir({ requested: args.cacheDir, liveDir: BYGGLOV_CACHE_DIR, tempDir: workDir });
     let t = Date.now();
     now = () => new Date(t);
     sleep = async (ms) => {
@@ -301,7 +314,7 @@ async function main(): Promise<number> {
     substring = spike.substring;
     keywords = args.keywords ?? sweepKeywords(spike.substring);
     mkdirSync(BYGGLOV_CACHE_DIR, { recursive: true });
-    mkdirSync(args.cacheDir, { recursive: true });
+    mkdirSync(cacheDir, { recursive: true });
     lock = acquireRunLock(CITY_LOCK_PATH);
     if (lock.warning !== null) log(`[stockholm] ${lock.warning}`);
     now = () => new Date();
@@ -325,9 +338,9 @@ async function main(): Promise<number> {
 
   async function run(): Promise<number> {
     const isoDay = (d: Date) => d.toISOString().slice(0, 10);
-    const state = args.dryRun ? emptyState() : loadState(args.cacheDir, log);
+    const state = args.dryRun ? emptyState() : loadState(cacheDir, log);
     const persist = () => {
-      if (!args.dryRun) saveState(args.cacheDir, state);
+      if (!args.dryRun) saveState(cacheDir, state);
     };
 
     // Seconds per request come from the client's own log lines ("<host>/<path> HTTP 200, 114 kB, 3,3 s").
@@ -351,7 +364,7 @@ async function main(): Promise<number> {
     /** The cache file of a query when it is there and fresh. A dry run trusts only what it saved itself. */
     const loadFresh = (q: SweepQuery) => {
       if (args.dryRun && !savedThisRun.has(queryKey(q))) return null;
-      const loaded = loadSweep(q, { dir: args.cacheDir });
+      const loaded = loadSweep(q, { dir: cacheDir });
       if (!loaded.ok || sweepNeedsRefresh(loaded.entry, now())) return null;
       return loaded.entry;
     };
@@ -366,7 +379,7 @@ async function main(): Promise<number> {
       },
       isFresh: (q) => loadFresh(q) !== null,
       save: (q, answer) => {
-        saveSweep(q, answer, { dir: args.cacheDir, now: now() });
+        saveSweep(q, answer, { dir: cacheDir, now: now() });
         savedThisRun.add(queryKey(q));
       },
       splitRecorded: (q) => state.splits.some(sameQuery(q)),

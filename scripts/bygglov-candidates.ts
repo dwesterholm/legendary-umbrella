@@ -32,6 +32,7 @@ import { parseFitSnapshot } from "@/lib/discovery/fit-score";
 import { acquireRunLock, type RunLock } from "@/lib/discovery/watch-state";
 import { rungSummaryLine, type MinKartaResolver } from "@/lib/stockholm/beteckning";
 import { BYGGLOV_CACHE_DIR } from "@/lib/stockholm/bygglov-cache";
+import { assertDryRunCacheNotLive } from "@/lib/stockholm/dry-run-cache";
 import type { CityFetch } from "@/lib/stockholm/bygglov-client";
 import { cityStageLine, runCityStage, type CityStageRow } from "@/lib/stockholm/city-stage";
 import { makeFixtureFetch } from "@/lib/stockholm/fixture-fetch";
@@ -93,6 +94,7 @@ function parseArgs(argv: readonly string[]): Args {
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
     throw new Error(`--cache-dir måste ligga under ${DATA_DIR}/ (fick ${cacheDir.slice(0, 120)})`);
   }
+  if (dryRun) assertDryRunCacheNotLive(cacheDir, BYGGLOV_CACHE_DIR); // a dry run never writes to the live cache (WR-05)
 
   const maxRaw = values.get("--max-requests");
   const maxRequests = maxRaw === undefined ? DEFAULT_MAX_REQUESTS : Number(maxRaw);
