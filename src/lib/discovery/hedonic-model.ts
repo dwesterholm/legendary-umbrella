@@ -179,6 +179,12 @@ const stambyteTermSchema = z.object({
   nominalCounts: z.array(num.min(0)),
   /** Null when the term was not tried (too few rows). */
   cvRmse: z.object({ without: num, with: num }).nullable(),
+  /**
+   * How big the cross-validation gain is, and how sure (WR-13): `relativeRmseGain` = 1 - with/without, `t` = the mean of
+   * the per-row drop in squared error over its own standard error (null when it cannot be computed). A graft needs
+   * `t >= 2` (R-08), so the number travels with the term. Absent in a term fitted before this field existed.
+   */
+  cvGain: z.object({ relativeRmseGain: num, t: num.nullable() }).optional(),
   note: z.string(),
 });
 
@@ -2369,6 +2375,13 @@ export function fitStambyteTerm(
   const cvWithout = Math.sqrt(sqWithout / idx.length);
   const cvWith = Math.sqrt(sqWith / idx.length);
   const keep = cvWith < cvWithout;
+  const meanDrop = meanOfValues(drops);
+  const dropSe = sampleSd(drops) / Math.sqrt(drops.length);
+  const cvGain = {
+    relativeRmseGain: 1 - cvWith / cvWithout,
+    meanSqErrorDrop: meanDrop,
+    t: dropSe > 0 ? meanDrop / dropSe : null,
+  };
   const term: StambyteTerm = {
     kept: keep,
     edges,
@@ -2378,14 +2391,8 @@ export function fitStambyteTerm(
     ongoing,
     nominalCounts,
     cvRmse: { without: cvWithout, with: cvWith },
+    cvGain: { relativeRmseGain: cvGain.relativeRmseGain, t: cvGain.t },
     note: keep ? `med: korsvalidering ${sv(cvWithout, 4)} -> ${sv(cvWith, 4)}` : "prövad, förkastad: korsvalidering",
-  };
-  const meanDrop = meanOfValues(drops);
-  const dropSe = sampleSd(drops) / Math.sqrt(drops.length);
-  const cvGain = {
-    relativeRmseGain: 1 - cvWith / cvWithout,
-    meanSqErrorDrop: meanDrop,
-    t: dropSe > 0 ? meanDrop / dropSe : null,
   };
   return { term, report: { ...counts, term, cvGain, correlation: corr } };
 }
@@ -2458,9 +2465,10 @@ export function formatStambyteBlock(report: StambyteReport): string[] {
         `  Pågående vid försäljningen: ${svPct(term.ongoing.pct)} (SE ${sv(term.ongoing.se * 100, 1)}, n ${term.ongoing.n}); mot inget registrerat ${svPct(vs.pct)}`,
       );
     }
-    out.push(
-      `  Korsvalidering: utan ${sv(term.cvRmse.without, 4)}, med ${sv(term.cvRmse.with, 4)} -> ${term.kept ? "behålls" : "förkastas"}`,
-    );
+    // Kept by the CV rule but not significant (t < 2) is not a finding: say so, and a graft will refuse it (R-08, WR-13).
+    const t = report.cvGain?.t ?? term.cvGain?.t ?? null;
+    const verdict = !term.kept ? "förkastas" : t !== null && t >= STAMBYTE_GRAFT_MIN_T ? "behålls" : "behålls (ej signifikant)";
+    out.push(`  Korsvalidering: utan ${sv(term.cvRmse.without, 4)}, med ${sv(term.cvRmse.with, 4)} -> ${verdict}`);
     if (report.cvGain !== undefined) {
       const g = report.cvGain;
       out.push(
@@ -2490,12 +2498,35 @@ function sameJson(a: unknown, b: unknown): boolean {
   return ka.every((k) => k in b && sameJson((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
+/** R-08: a graft needs the cross-validation rule AND a per-row t of at least this much. */
+export const STAMBYTE_GRAFT_MIN_T = 2;
+
 /**
- * Moves ONLY the stambyte term from a scratch model onto a base model (plan 12's swap). Refuses unless every other
- * field except `fittedAt`, `note` and `stambyteTerm` is equal in both, so no other number of the base can change.
+ * Whether a fitted stambyte term may be grafted into the committed model (R-08, orchestrator 2026-10-18): the
+ * cross-validation must have kept it AND the row-by-row t must be at least {@link STAMBYTE_GRAFT_MIN_T}. A term with no
+ * stored t cannot show either, so it is refused. Pure.
+ */
+export function stambyteGraftVerdict(term: StambyteTerm): { ok: true } | { ok: false; reason: string } {
+  if (!term.kept) return { ok: false, reason: "korsvalideringen behöll inte termen" };
+  const t = term.cvGain?.t;
+  if (t === undefined) return { ok: false, reason: "termen saknar t-värde (cvGain), så signifikansen kan inte styrkas" };
+  if (t === null) return { ok: false, reason: "t-värdet kunde inte beräknas" };
+  if (!(t >= STAMBYTE_GRAFT_MIN_T)) {
+    return { ok: false, reason: `t = ${sv(t, 1)} är under ${STAMBYTE_GRAFT_MIN_T} (korsvalideringens vinst är inte skild från noll)` };
+  }
+  return { ok: true };
+}
+
+/**
+ * Moves ONLY the stambyte term from a scratch model onto a base model (plan 12's swap). Refuses unless the term passes
+ * R-08 ({@link stambyteGraftVerdict}: kept by cross-validation AND t >= 2), and unless every other field except
+ * `fittedAt`, `note` and `stambyteTerm` is equal in both, so no other number of the base can change. A key the schema
+ * does not know would be stripped silently, so that is refused too.
  */
 export function graftStambyteTerm(base: HedonicModel, donor: HedonicModel): HedonicModel {
   if (donor.stambyteTerm === undefined) throw new Error("graftStambyteTerm: donatormodellen har ingen stambyteTerm att flytta");
+  const verdict = stambyteGraftVerdict(donor.stambyteTerm);
+  if (!verdict.ok) throw new Error(`graftStambyteTerm: termen flyttas inte (R-08 kräver korsvalidering OCH t >= 2): ${verdict.reason}`);
   const skip = new Set(["fittedAt", "note", "stambyteTerm"]);
   const keys = [...new Set([...Object.keys(base), ...Object.keys(donor)])].filter((k) => !skip.has(k));
   for (const key of keys) {
@@ -2503,7 +2534,13 @@ export function graftStambyteTerm(base: HedonicModel, donor: HedonicModel): Hedo
       throw new Error(`graftStambyteTerm: basmodellen och donatormodellen skiljer sig i "${key}"; bara stambyteTerm får flyttas, så ingenting flyttas`);
     }
   }
-  return hedonicModelSchema.parse({ ...base, stambyteTerm: donor.stambyteTerm });
+  const input = { ...base, stambyteTerm: donor.stambyteTerm };
+  const grafted = hedonicModelSchema.parse(input);
+  const lost = Object.keys(input).filter((k) => !(k in grafted));
+  if (lost.length > 0) {
+    throw new Error(`graftStambyteTerm: schemat känner inte nyckeln "${lost[0]}" och skulle tyst ta bort den, så ingenting flyttas`);
+  }
+  return grafted;
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,8 @@
  * avgift. The file must sit under .planning/calibration/data/ and pass its schema, or the script stops BEFORE the sold
  * cache is read. Without the flag the model has no stambyteTerm key and is byte-compatible with a pre-14.6 fit.
  * --graft-stambyte <donor> moves ONLY the donor's stambyteTerm onto --base (default data/hedonic-model.json) after checking
- * that every other number except fittedAt and note is equal; it reads no sold cache, needs an explicit --out and writes
+ * that the term passes R-08 (kept by cross-validation AND a row-by-row t of at least 2; it refuses otherwise, there is no
+ * override) and that every other number except fittedAt and note is equal; it reads no sold cache, needs an explicit --out and writes
  * atomically. Plan 14.6-12 does the swap; plan 14.6-07 only fits to scratch files.
  *
  * 14.5 (R-01, D-03): --stage2-cap sets the limit on the balcony and build-year effects. Only 0.08 (default) and 0.12

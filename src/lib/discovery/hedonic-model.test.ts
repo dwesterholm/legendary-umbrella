@@ -25,6 +25,7 @@ import {
   fitStambyteTerm,
   formatStambyteBlock,
   graftStambyteTerm,
+  stambyteGraftVerdict,
   expectedOverbidDetail,
   fitBidPremium,
   fitHedonicModel,
@@ -2694,7 +2695,8 @@ describe("fitStambyteTerm: thin data and the report block", () => {
       at = next;
     }
     expect(text).toMatch(/\(SE \d+,\d, n \d+\)/);
-    expect(text).toMatch(/Korsvalidering: utan \d+,\d{4}, med \d+,\d{4} -> behålls/);
+    expect(text).toMatch(/Korsvalidering: utan \d+,\d{4}, med \d+,\d{4} -> behålls$/m);
+    expect(text).not.toContain("ej signifikant");
     expect(text).toMatch(/mot avgift\/kvm r=-?\d,\d{2} \(n=\d+\)/);
     expect(STAMBYTE_FOLKLORE).toBe("Spridda uppgifter: -8 till -15 % före, +5 till +12 % efter (ett blogginlägg utan källa, Boio)");
     expect(report.stambyte!.correlation.debt.n).toBeGreaterThan(100);
@@ -2745,10 +2747,48 @@ describe("graftStambyteTerm (plan 12's swap)", () => {
     expect(() => graftStambyteTerm(plain, plain)).toThrow(/stambyteTerm/);
   });
 
-  it("with the term not kept the grafted model prices 50 random inputs exactly like the base", () => {
+  it("WR-13 / R-08: a term the cross-validation did not keep is not grafted", () => {
     const rejected = structuredClone(donor);
     rejected.stambyteTerm = { ...rejected.stambyteTerm!, kept: false, note: "prövad, förkastad: korsvalidering" };
-    const grafted = graftStambyteTerm(plain, rejected);
+    expect(() => graftStambyteTerm(plain, rejected)).toThrow(/R-08.*korsvalideringen behöll inte/);
+  });
+
+  it("WR-13 / R-08: a kept term with t under 2 (a hair of a gain), a missing t or an uncomputable t is refused, with the reason", () => {
+    const withGain = (cvGain: { relativeRmseGain: number; t: number | null } | undefined) => {
+      const m = structuredClone(donor);
+      m.stambyteTerm = { ...m.stambyteTerm!, kept: true, cvGain };
+      return m;
+    };
+    expect(() => graftStambyteTerm(plain, withGain({ relativeRmseGain: 0.0007, t: 0.9 }))).toThrow(/t = 0,9 är under 2/);
+    expect(() => graftStambyteTerm(plain, withGain({ relativeRmseGain: 0.0007, t: 1.99 }))).toThrow(/under 2/);
+    expect(() => graftStambyteTerm(plain, withGain(undefined))).toThrow(/saknar t-värde/);
+    expect(() => graftStambyteTerm(plain, withGain({ relativeRmseGain: 0.01, t: null }))).toThrow(/inte beräknas/);
+    expect(stambyteGraftVerdict(withGain({ relativeRmseGain: 0.01, t: 2 }).stambyteTerm!)).toEqual({ ok: true });
+  });
+
+  it("WR-13: the planted effect carries its t inside the term and passes", () => {
+    expect(donor.stambyteTerm!.kept).toBe(true);
+    expect(donor.stambyteTerm!.cvGain!.t!).toBeGreaterThan(3);
+    expect(stambyteGraftVerdict(donor.stambyteTerm!)).toEqual({ ok: true });
+  });
+
+  it("WR-13: a key the schema would strip silently stops the graft instead of vanishing", () => {
+    const odd = { ...structuredClone(plain), futureKey: 1 } as unknown as HedonicModel;
+    const oddDonor = { ...structuredClone(donor), futureKey: 1 } as unknown as HedonicModel;
+    expect(() => graftStambyteTerm(odd, oddDonor)).toThrow(/futureKey/);
+  });
+
+  it("WR-13: a kept term that is not significant is marked 'behålls (ej signifikant)' in the report block", () => {
+    const rows2 = withStambyte(generateRows({ seed: 1462, perDistrict: { Södermalm: 300, Kungsholmen: 300, Vasastan: 300, Östermalm: 300 } }), 11, Math.log(0.94));
+    const { report } = fitHedonicModel(rows2, { ...OPTS, stambyteStage: true });
+    const weak = { ...report.stambyte!, cvGain: { relativeRmseGain: 0.0007, meanSqErrorDrop: 1e-6, t: 0.9 } };
+    expect(formatStambyteBlock(weak).join("\n")).toMatch(/-> behålls \(ej signifikant\)$/m);
+    const none = { ...report.stambyte!, cvGain: undefined, term: { ...report.stambyte!.term, cvGain: undefined } };
+    expect(formatStambyteBlock(none).join("\n")).toContain("behålls (ej signifikant)");
+  });
+
+  it("with a kept, significant term the grafted model prices 50 inputs of unknown stambyte history exactly like the base", () => {
+    const grafted = graftStambyteTerm(plain, donor);
     const g = lcg(99);
     for (let i = 0; i < 50; i++) {
       const input: HedonicInput = {
@@ -2757,12 +2797,13 @@ describe("graftStambyteTerm (plan 12's swap)", () => {
         livingArea: 30 + g.uniform() * 80,
         balcony: g.uniform() < 0.5 ? null : g.uniform() < 0.5,
         constructionYear: g.uniform() < 0.3 ? null : 1880 + Math.floor(g.uniform() * 140),
-        stambyte: g.uniform() < 0.3 ? null : { identified: true, yearsSince: g.uniform() < 0.3 ? null : g.uniform() * 60, ongoing: g.uniform() < 0.1 },
+        stambyte: null,
       };
       const a = predictKrPerSqm(grafted, input);
       const b = predictKrPerSqm(plain, input);
       expect(a.krPerSqm).toBe(b.krPerSqm);
-      expect(a.imputed).toEqual(b.imputed);
+      // a kept term lists "stambyte" as imputed for a building with unknown history; nothing else differs
+      expect(a.imputed.filter((name) => name !== "stambyte")).toEqual(b.imputed);
     }
   });
 });
