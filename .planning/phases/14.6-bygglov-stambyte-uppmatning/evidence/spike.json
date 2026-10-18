@@ -1,0 +1,748 @@
+{
+  "schemaVersion": 1,
+  "ranAt": "2026-10-18T17:27:58.231Z",
+  "dryRun": false,
+  "verdict": "go",
+  "stopReason": null,
+  "requests": {
+    "city": 35,
+    "minkarta": 2
+  },
+  "secondsPerRequest": {
+    "median": 0.5,
+    "max": 3.7,
+    "n": 35
+  },
+  "minkartaSecondsPerRequest": {
+    "median": 0.4,
+    "max": 0.4,
+    "n": 2
+  },
+  "robots": {
+    "status": 404,
+    "disallowsCasePages": false,
+    "rulesUnderService": []
+  },
+  "termsLinks": [],
+  "redirects": 0,
+  "substringTest": {
+    "query": "ambyte",
+    "count": 9,
+    "stambyteCount": 9,
+    "overlap": 9,
+    "substring": true
+  },
+  "minkarta": {
+    "address": "Folkungagatan 61",
+    "status": "accepted",
+    "beteckning": "Droskhästen 8",
+    "agreesWithCity": true,
+    "calls": 2
+  },
+  "distinctBeteckningar": 12,
+  "buildings": [
+    {
+      "booliIds": [
+        "150148"
+      ],
+      "address": "Folkungagatan 61",
+      "constructionYear": 1912,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Droskhästen 8",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 53,
+      "otherCases": 27,
+      "kinds": {
+        "vind_inredning": 6,
+        "annat": 33,
+        "hiss": 5,
+        "balkong_renovering": 4,
+        "balkong_ny": 1,
+        "balkongdorr": 1,
+        "stambyte": 1,
+        "tak": 1,
+        "fasad": 3
+      },
+      "stambyteYears": [
+        2006
+      ],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_renovering",
+          "month": "2017-11",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "2017-09",
+          "decision": null
+        },
+        {
+          "kind": "balkong_ny",
+          "month": "2016-03",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "2012-08",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "2010-11",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [
+        {
+          "kind": "vind_inredning",
+          "month": "2023-10",
+          "decision": "slutbesked"
+        },
+        {
+          "kind": "hiss",
+          "month": "2021-12",
+          "decision": "slutbesked"
+        }
+      ],
+      "detailPagesRead": 2,
+      "requestSeconds": [
+        0.3,
+        3,
+        0.5,
+        0.6
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "130457"
+      ],
+      "address": "Idungatan 5",
+      "constructionYear": 1969,
+      "rungsTried": [
+        "a2"
+      ],
+      "rung": "a2",
+      "beteckning": "Skalmejblåsaren 12",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 20,
+      "otherCases": 4,
+      "kinds": {
+        "hiss": 2,
+        "annat": 12,
+        "balkongdorr": 1,
+        "fasad": 4,
+        "vind_inredning": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkongdorr",
+          "month": "2008-09",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [
+        {
+          "kind": "hiss",
+          "month": "2025-07",
+          "decision": "slutbesked"
+        },
+        {
+          "kind": "hiss",
+          "month": "2025-07",
+          "decision": "slutbesked"
+        }
+      ],
+      "detailPagesRead": 2,
+      "requestSeconds": [
+        3,
+        0.4,
+        0.4
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "142942"
+      ],
+      "address": "Karlsviksgatan 9",
+      "constructionYear": 1926,
+      "rungsTried": [
+        "a2"
+      ],
+      "rung": "a2",
+      "beteckning": "Gjuteriet 4",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 30,
+      "otherCases": 12,
+      "kinds": {
+        "annat": 19,
+        "stambyte": 1,
+        "hiss": 1,
+        "vind_inredning": 4,
+        "fasad": 6,
+        "balkongdorr": 2
+      },
+      "stambyteYears": [
+        2016
+      ],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkongdorr",
+          "month": "2012-05",
+          "decision": null
+        },
+        {
+          "kind": "balkongdorr",
+          "month": "2011-12",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        3
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "144070"
+      ],
+      "address": "Fridhemsgatan 41",
+      "constructionYear": 1884,
+      "rungsTried": [
+        "a2"
+      ],
+      "rung": "a2",
+      "beteckning": "Ankaret 1",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 38,
+      "otherCases": 18,
+      "kinds": {
+        "annat": 33,
+        "vind_inredning": 4,
+        "balkongdorr": 1,
+        "fasad": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkongdorr",
+          "month": "2016-01",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        3.1
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "208640"
+      ],
+      "address": "Creutzgatan 2",
+      "constructionYear": 1926,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Påfågeln 1",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 33,
+      "otherCases": 12,
+      "kinds": {
+        "annat": 27,
+        "fasad": 2,
+        "vind_inredning": 2,
+        "balkong_renovering": 2,
+        "hiss": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_renovering",
+          "month": "2012-10",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "1967-01",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        0.3,
+        3
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "309602"
+      ],
+      "address": "Frödingsvägen 9",
+      "constructionYear": 1931,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Purpur 1",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 23,
+      "otherCases": 9,
+      "kinds": {
+        "annat": 15,
+        "vind_inredning": 4,
+        "fasad": 4,
+        "hiss": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        0.4,
+        3.2
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "315823"
+      ],
+      "address": "Hallandsgatan 30",
+      "constructionYear": 1929,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Kniven 25",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 28,
+      "otherCases": 5,
+      "kinds": {
+        "annat": 22,
+        "balkong_renovering": 1,
+        "fasad": 2,
+        "balkong_ny": 1,
+        "vind_inredning": 2
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_renovering",
+          "month": "2021-04",
+          "decision": null
+        },
+        {
+          "kind": "balkong_ny",
+          "month": "2003-06",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        0.2,
+        3.1
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "323721"
+      ],
+      "address": "Bergsundsgatan 14",
+      "constructionYear": 1939,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Skrovet 10",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 11,
+      "otherCases": 5,
+      "kinds": {
+        "hiss": 1,
+        "annat": 6,
+        "balkong_inglasning": 1,
+        "balkongdorr": 1,
+        "fasad": 1,
+        "stambyte": 1
+      },
+      "stambyteYears": [
+        2002
+      ],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_inglasning",
+          "month": "2018-11",
+          "decision": null
+        },
+        {
+          "kind": "balkongdorr",
+          "month": "2011-04",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [
+        {
+          "kind": "hiss",
+          "month": "2023-05",
+          "decision": "slutbesked"
+        }
+      ],
+      "detailPagesRead": 1,
+      "requestSeconds": [
+        0.3,
+        3.7,
+        0.6
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "324812"
+      ],
+      "address": "Tjurbergsgatan 34",
+      "constructionYear": 1927,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Vågskivan 37",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 28,
+      "otherCases": 14,
+      "kinds": {
+        "annat": 23,
+        "fasad": 3,
+        "balkong_ny": 1,
+        "balkong_renovering": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_ny",
+          "month": "2006-02",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "1997-05",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        0.2,
+        3.1
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "324847",
+        "324863"
+      ],
+      "address": "Tjurbergsgatan 38",
+      "constructionYear": null,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Vågskivan 37",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 28,
+      "otherCases": 14,
+      "kinds": {
+        "annat": 23,
+        "fasad": 3,
+        "balkong_ny": 1,
+        "balkong_renovering": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_ny",
+          "month": "2006-02",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "1997-05",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        0.2
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "328402"
+      ],
+      "address": "Gyllenborgsgatan 15",
+      "constructionYear": 1926,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Påfågeln 2",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 12,
+      "otherCases": 6,
+      "kinds": {
+        "annat": 10,
+        "hiss": 1,
+        "vind_inredning": 1,
+        "fasad": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [],
+      "recentInteresting": [],
+      "detailPagesRead": 0,
+      "requestSeconds": [
+        0.2,
+        2.9
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "767763"
+      ],
+      "address": "Tideliusgatan 55",
+      "constructionYear": 1968,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Pinnpojken 1",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 17,
+      "otherCases": 29,
+      "kinds": {
+        "balkong_inglasning": 5,
+        "annat": 10,
+        "balkongdorr": 1,
+        "fasad": 1,
+        "hiss": 1,
+        "balkong_renovering": 1
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_inglasning",
+          "month": "2023-04",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2023-04",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2015-06",
+          "decision": null
+        },
+        {
+          "kind": "balkong_renovering",
+          "month": "2010-11",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2009-10",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "1986-11",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [
+        {
+          "kind": "balkong_inglasning",
+          "month": "2023-04",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2023-04",
+          "decision": "lov"
+        }
+      ],
+      "detailPagesRead": 2,
+      "requestSeconds": [
+        0.2,
+        2.9,
+        0.5,
+        0.6
+      ],
+      "notes": [],
+      "refusal": null
+    },
+    {
+      "booliIds": [
+        "6295311"
+      ],
+      "address": "Hornsgatan 119",
+      "constructionYear": 1970,
+      "rungsTried": [
+        "b"
+      ],
+      "rung": "b",
+      "beteckning": "Drakenberg 15",
+      "status": "resolved",
+      "fromCache": false,
+      "buildCases": 37,
+      "otherCases": 27,
+      "kinds": {
+        "annat": 22,
+        "balkong_inglasning": 10,
+        "balkong_ny": 1,
+        "hiss": 2,
+        "fasad": 2
+      },
+      "stambyteYears": [],
+      "stambyteOngoing": false,
+      "balconyCases": [
+        {
+          "kind": "balkong_inglasning",
+          "month": "2025-06",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2022-11",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2022-10",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2021-10",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2021-09",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2020-07",
+          "decision": null
+        },
+        {
+          "kind": "balkong_ny",
+          "month": "2015-03",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2006-11",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2002-09",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "1996-04",
+          "decision": null
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "1987-03",
+          "decision": null
+        }
+      ],
+      "recentInteresting": [
+        {
+          "kind": "balkong_inglasning",
+          "month": "2025-06",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2022-11",
+          "decision": "lov"
+        },
+        {
+          "kind": "balkong_inglasning",
+          "month": "2022-10",
+          "decision": "lov"
+        }
+      ],
+      "detailPagesRead": 3,
+      "requestSeconds": [
+        0.4,
+        3.1,
+        0.4,
+        0.5,
+        0.5
+      ],
+      "notes": [],
+      "refusal": null
+    }
+  ]
+}
