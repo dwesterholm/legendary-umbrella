@@ -12,7 +12,9 @@ import {
   MIN_DISTRICT_N,
   MIN_FIT_ROWS,
   OPTIONAL_14_4_FEATURES,
+  STAGE2_ALLOWED_CAPS,
   STAGE2_CAP_PCT,
+  STAGE2_CAP_WIDENED_PCT,
   buildFeatureRow,
   choleskySolve,
   describeModel,
@@ -28,6 +30,7 @@ import {
   haversineMeters,
   hedonicModelSchema,
   kernelLevel,
+  modelStage2Cap,
   parseHedonicModel,
   predictKrPerSqm,
   readConditionTerm,
@@ -1086,6 +1089,75 @@ describe("fitHedonicModel: stage 2, balcony and build year (D-02, R-05)", () => 
     const rows = generateRows({ seed: 94, enrichedShare: 0.03 });
     const { model } = fitHedonicModel(rows, OPTS);
     expect(model.stage2.buildYear).toBeNull();
+  });
+});
+
+describe("fitHedonicModel: the stage-2 cap as a parameter (R-01, D-03)", () => {
+  const rows = generateRows({ seed: 95, enrichedShare: 0.8, balconyEffect: Math.log(1.11) });
+
+  it("allows exactly two caps, 0,08 and 0,12", () => {
+    expect(STAGE2_CAP_WIDENED_PCT).toBe(0.12);
+    expect([...STAGE2_ALLOWED_CAPS]).toEqual([0.08, 0.12]);
+  });
+
+  it("at 0,12 a true +11 % balcony effect is recovered and capPct 0.12 is written; the default stays 0,08", () => {
+    const wide = fitHedonicModel(rows, { ...OPTS, stage2CapPct: 0.12 }).model;
+    expect(wide.stage2.capPct).toBe(0.12);
+    expect(wide.stage2.balcony.source).toBe("fit");
+    expect(Math.abs(wide.stage2.balcony.pct - 0.11)).toBeLessThan(0.02);
+    const dflt = fitHedonicModel(rows, OPTS).model;
+    expect(dflt.stage2.capPct).toBe(0.08);
+    expect(dflt.stage2.balcony.pct).toBe(0.08);
+  });
+
+  it("writes capPct also when stage 2 has too few rows (the prior case)", () => {
+    const { model } = fitHedonicModel(generateRows({ seed: 90 }), { ...OPTS, stage2CapPct: 0.12 });
+    expect(model.stage2.capPct).toBe(0.12);
+  });
+
+  it("refuses any other cap with a message that says only 0,08 or 0,12 is allowed", () => {
+    for (const bad of [0.1, 0.09, 0.2, 0, -0.08, Number.NaN]) {
+      expect(() => fitHedonicModel(rows, { ...OPTS, stage2CapPct: bad })).toThrow(RangeError);
+    }
+    expect(() => fitHedonicModel(rows, { ...OPTS, stage2CapPct: 0.1 })).toThrow(/0,08 eller 0,12/);
+  });
+
+  it("parses today's file without capPct (modelStage2Cap is 0,08), round-trips capPct 0.12, and stays version 2", () => {
+    expect(model.stage2.capPct).toBeUndefined();
+    expect(modelStage2Cap(model)).toBe(0.08);
+    const wide = fitHedonicModel(rows, { ...OPTS, stage2CapPct: 0.12 }).model;
+    const back = parseHedonicModel(JSON.parse(JSON.stringify(wide)));
+    expect(back.stage2.capPct).toBe(0.12);
+    expect(modelStage2Cap(back)).toBe(0.12);
+    expect(back.version).toBe(2);
+  });
+});
+
+describe("describeModel: the on-cap mark follows the model's own cap", () => {
+  const withStage2 = (capPct: number | undefined, balcony: number, le1930 = 0.01): HedonicModel => ({
+    ...model,
+    stage2: {
+      ...(capPct === undefined ? {} : { capPct }),
+      balcony: { pct: balcony, source: "fit" },
+      buildYear: { pctByBucket: { le1930, y1931to1960: 0, y1961to1990: -0.01, ge1991: 0.02 }, source: "fit" },
+    },
+  });
+  const balconyLine = (m: HedonicModel) => describeModel(m).find((l) => l.startsWith("Balkong"))!;
+  const buildYearLine = (m: HedonicModel) => describeModel(m).find((l) => l.startsWith("Byggår,"))!;
+
+  it("a ±12 % model with a balcony at +8,0 % has no mark; at +12,0 % it says (på taket ±12 %)", () => {
+    expect(balconyLine(withStage2(0.12, 0.08))).not.toMatch(/på taket/);
+    expect(balconyLine(withStage2(0.12, 0.12))).toMatch(/\+12,0 % \(på taket ±12 %\)/);
+  });
+
+  it("an old model without capPct is judged against 0,08", () => {
+    expect(balconyLine(withStage2(undefined, 0.08))).toMatch(/\(på taket ±8 %\)/);
+    expect(balconyLine(withStage2(undefined, 0.05))).not.toMatch(/på taket/);
+  });
+
+  it("a build-year bucket on the cap is marked, also when negative", () => {
+    expect(buildYearLine(withStage2(0.08, 0.02, -0.08))).toMatch(/före 1931 -8,0 % \(på taket ±8 %\)/);
+    expect(buildYearLine(withStage2(0.12, 0.02, -0.08))).not.toMatch(/på taket/);
   });
 });
 

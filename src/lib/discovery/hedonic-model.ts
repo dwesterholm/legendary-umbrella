@@ -179,6 +179,11 @@ export const hedonicModelSchema = z
     }),
     districtLnMedian: perDistrict(num),
     stage2: z.object({
+      /**
+       * The limit the fit clamped the stage-2 values at (R-01, 14.5-10). Optional: files written before 14.5 have no
+       * such field and are read as {@link STAGE2_CAP_PCT} (see {@link modelStage2Cap}); no version bump.
+       */
+      capPct: num.min(0).optional(),
       balcony: z.object({ pct: num, source: z.enum(["fit", "prior"]) }),
       buildYear: z
         .object({
@@ -696,8 +701,22 @@ export const KERNEL_BANDWIDTH_M = 300;
 export const KERNEL_CUTOFF_M = 1000;
 export const KERNEL_MIN_WEIGHT = 0.5;
 
-/** Balcony and build-year effects are never allowed to exceed this (RESEARCH Pattern 1, item 5). */
+/**
+ * Balcony and build-year effects are never allowed to exceed this (RESEARCH Pattern 1, item 5). Since 14.5 it is the
+ * default cap and the cap assumed for model files written before capPct existed; a fitted model carries its own.
+ */
 export const STAGE2_CAP_PCT = 0.08;
+
+/** The one widening D-03 allows, decided by the stage-2 cross-validation (R-01). */
+export const STAGE2_CAP_WIDENED_PCT = 0.12;
+
+/** The only caps a fit may use; any other value throws (D-03, T-14.5-45). */
+export const STAGE2_ALLOWED_CAPS = [STAGE2_CAP_PCT, STAGE2_CAP_WIDENED_PCT] as const;
+
+/** The stage-2 cap a model was fitted with; models without capPct (written before 14.5) were fitted at 0,08. */
+export function modelStage2Cap(model: Pick<HedonicModel, "stage2">): number {
+  return model.stage2.capPct ?? STAGE2_CAP_PCT;
+}
 
 /** A row is an outlier when |residual - median| exceeds this many robust standard deviations. */
 export const OUTLIER_MAD_K = 3;
@@ -1809,21 +1828,22 @@ function bucketIndex(year: number): number {
   return 3;
 }
 
-function clampPct(x: number): number {
-  return Math.min(STAGE2_CAP_PCT, Math.max(-STAGE2_CAP_PCT, x));
+function clampPct(x: number, cap: number): number {
+  return Math.min(cap, Math.max(-cap, x));
 }
 
 function fitStage2(
   rows: readonly HedonicTrainingRow[],
   residuals: readonly number[],
   lambda: number,
+  cap: number,
 ): { stage2: HedonicModel["stage2"]; fallbacks: HedonicModel["fallbacks"]; usedN: number } {
   const eligible = rows
     .map((r, i) => i)
     .filter((i) => rows[i].enriched && rows[i].balcony !== null && rows[i].buildYear !== null);
   if (eligible.length < MIN_DISTRICT_N) {
     return {
-      stage2: { balcony: { pct: HEDONIC_PRIORS.balconyPct, source: "prior" }, buildYear: null },
+      stage2: { capPct: cap, balcony: { pct: HEDONIC_PRIORS.balconyPct, source: "prior" }, buildYear: null },
       fallbacks: [
         {
           item: "balcony",
@@ -1879,7 +1899,7 @@ function fitStage2(
         `(koefficient ${sv(gamma, 4)}, SE ${sv(withBalcony.se[0], 4)}); ersatt med studiens värde ${svPct(pct)}.`,
     });
   } else {
-    pct = clampPct(Math.exp(gamma) - 1);
+    pct = clampPct(Math.exp(gamma) - 1, cap);
     source = "fit";
     gammaUsed = gamma;
     bucketFit = withBalcony;
@@ -1891,10 +1911,10 @@ function fitStage2(
   const pctByBucket = {} as BuildYearBuckets;
   BUCKET_KEYS.forEach((key, b) => {
     const level = bucketFit.intercept + bucketFit.beta[bucketOffset + b] + gammaUsed * share;
-    pctByBucket[key] = clampPct(Math.exp(level) - 1);
+    pctByBucket[key] = clampPct(Math.exp(level) - 1, cap);
   });
   return {
-    stage2: { balcony: { pct, source }, buildYear: { pctByBucket, source: "fit" } },
+    stage2: { capPct: cap, balcony: { pct, source }, buildYear: { pctByBucket, source: "fit" } },
     fallbacks,
     usedN: eligible.length,
   };
@@ -1944,10 +1964,14 @@ export interface HedonicFitReport {
  */
 export function fitHedonicModel(
   rows: readonly HedonicTrainingRow[],
-  opts: { asOf: string; fittedAt: string; lambda?: number },
+  opts: { asOf: string; fittedAt: string; lambda?: number; stage2CapPct?: number },
 ): { model: HedonicModel; report: HedonicFitReport } {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.asOf)) {
     throw new RangeError(`fitHedonicModel: asOf måste vara YYYY-MM-DD (fick "${opts.asOf}")`);
+  }
+  const stage2Cap = opts.stage2CapPct ?? STAGE2_CAP_PCT;
+  if (!(STAGE2_ALLOWED_CAPS as readonly number[]).includes(stage2Cap)) {
+    throw new RangeError(`fitHedonicModel: steg-2-taket kan bara vara 0,08 eller 0,12 (fick ${String(stage2Cap)})`);
   }
   const lambda = opts.lambda ?? HEDONIC_RIDGE_LAMBDA;
 
@@ -2049,7 +2073,7 @@ export function fitHedonicModel(
   }
 
   // Stage 2.
-  const stage2Result = fitStage2(keptRows, residuals, lambda);
+  const stage2Result = fitStage2(keptRows, residuals, lambda, stage2Cap);
   fallbacks.push(...stage2Result.fallbacks);
 
   // Bid premium on out-of-fold predictions (plus ln smearing, as at prediction time).
@@ -2197,14 +2221,16 @@ export function describeModel(model: HedonicModel): string[] {
   // monthsAgo is months BEFORE asOf: a negative coefficient means older sales were cheaper, i.e. rising prices.
   lines.push(`${effect("monthsAgo", "Prisutveckling per månad", -1)}; priset avser ${model.asOf}.`);
 
+  const cap = modelStage2Cap(model);
+  const onCap = (x: number): string => (Math.abs(Math.abs(x) - cap) < 1e-9 ? ` (på taket ±${sv(cap * 100, 0)} %)` : "");
   const balcony = model.stage2.balcony;
-  lines.push(`Balkong ≈ ${svPct(balcony.pct)}, källa: ${balcony.source === "fit" ? "data" : "studie"}.`);
+  lines.push(`Balkong ≈ ${svPct(balcony.pct)}${onCap(balcony.pct)}, källa: ${balcony.source === "fit" ? "data" : "studie"}.`);
   if (model.stage2.buildYear === null) {
     lines.push("Byggår: ingen uppskattning (för få försäljningar med detaljuppgifter); ingen byggårsjustering görs.");
   } else {
     const b = model.stage2.buildYear.pctByBucket;
     lines.push(
-      `Byggår, jämfört med en genomsnittlig lägenhet: före 1931 ${svPct(b.le1930)}, 1931–1960 ${svPct(b.y1931to1960)}, 1961–1990 ${svPct(b.y1961to1990)}, 1991 och senare ${svPct(b.ge1991)}, källa: data.`,
+      `Byggår, jämfört med en genomsnittlig lägenhet: före 1931 ${svPct(b.le1930)}${onCap(b.le1930)}, 1931–1960 ${svPct(b.y1931to1960)}${onCap(b.y1931to1960)}, 1961–1990 ${svPct(b.y1961to1990)}${onCap(b.y1961to1990)}, 1991 och senare ${svPct(b.ge1991)}${onCap(b.ge1991)}, källa: data.`,
     );
   }
 

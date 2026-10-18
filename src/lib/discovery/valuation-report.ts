@@ -33,7 +33,7 @@ import {
   type FitInputRow,
   type FitScoreResult,
 } from "@/lib/discovery/fit-score";
-import { STAGE2_CAP_PCT, readConditionTerm, type HedonicModel } from "@/lib/discovery/hedonic-model";
+import { modelStage2Cap, readConditionTerm, type HedonicModel } from "@/lib/discovery/hedonic-model";
 
 /** Bumped only when a field the report reads changes meaning or is removed. */
 export const FIT_RUN_RECORD_VERSION = 1;
@@ -392,7 +392,9 @@ export interface ValuationReport {
     }[];
     readonly balconyPct: number;
     readonly buildYearPct: { readonly le1930: number; readonly y1931to1960: number; readonly y1961to1990: number; readonly ge1991: number } | null;
-    /** Stage-2 coefficients that sit exactly on the +-8 % limit the fit allows. */
+    /** The stage-2 limit the after model was fitted with (modelStage2Cap). */
+    readonly stage2CapPct: number;
+    /** Stage-2 coefficients that sit exactly on that limit. */
     readonly onStage2Cap: string[];
     readonly daysTerm: { readonly beta: number; readonly kept: boolean } | null;
     readonly fallbacks: readonly string[];
@@ -600,7 +602,8 @@ export function buildValuationReport(input: ValuationReportInputs): ValuationRep
   // The model block.
   const by = afterModel.stage2.buildYear;
   const onStage2Cap: string[] = [];
-  const onCap = (x: number): boolean => Math.abs(Math.abs(x) - STAGE2_CAP_PCT) < 1e-9;
+  const stage2CapPct = modelStage2Cap(afterModel);
+  const onCap = (x: number): boolean => Math.abs(Math.abs(x) - stage2CapPct) < 1e-9;
   if (onCap(afterModel.stage2.balcony.pct)) onStage2Cap.push(`balkong ${pctSigned(afterModel.stage2.balcony.pct)}`);
   if (by !== null) {
     const labels = { le1930: "byggår till 1930", y1931to1960: "byggår 1931–1960", y1961to1990: "byggår 1961–1990", ge1991: "byggår från 1991" } as const;
@@ -613,6 +616,7 @@ export function buildValuationReport(input: ValuationReportInputs): ValuationRep
     features: afterModel.features.map((f) => ({ name: f.name, beta: f.beta, se: f.se, source: f.source })),
     balconyPct: afterModel.stage2.balcony.pct,
     buildYearPct: by === null ? null : { ...by.pctByBucket },
+    stage2CapPct,
     onStage2Cap,
     daysTerm: dom === null ? null : { beta: dom.beta, kept: dom.kept },
     fallbacks: afterModel.fallbacks.map((f) => `${f.item} (${f.reason}): ${f.detail}`),
@@ -817,7 +821,7 @@ function findingsOf(r: Omit<ValuationReport, "findings">): string[] {
   }
   if (r.model.onStage2Cap.length > 0) {
     out.push(
-      `These stage-2 coefficients sit exactly on the +-${sv(STAGE2_CAP_PCT * 100, 0)} % limit the fit allows: ${r.model.onStage2Cap.join(", ")}. The fit clamps stage-2 effects at this limit, so the unclamped estimate may be larger than shown. Open point; nothing was changed.`,
+      `These stage-2 coefficients sit exactly on the +-${sv(r.model.stage2CapPct * 100, 0)} % limit the fit allows: ${r.model.onStage2Cap.join(", ")}. The fit clamps stage-2 effects at this limit, so the unclamped estimate may be larger than shown. Open point; nothing was changed.`,
     );
   }
   return out;

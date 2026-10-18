@@ -6,7 +6,10 @@
  *
  *   npx tsx scripts/fit-hedonic.ts [--cache .planning/calibration/data/slutpriser-cache.json] \
  *       [--out data/hedonic-model.json] [--as-of <YYYY-MM-DD, default: the cache's asOf>] \
- *       [--before-record <fil.json>] [--without-new-features --out <fil>]
+ *       [--before-record <fil.json>] [--without-new-features --out <fil>] [--stage2-cap 0.08|0.12]
+ *
+ * 14.5 (R-01, D-03): --stage2-cap sets the limit on the balcony and build-year effects. Only 0.08 (default) and 0.12
+ * are allowed; anything else stops the script before the cache is read. The fitted model records it as stage2.capPct.
  *
  * 14.4 (VAL-02): avgift per m2 and month, the association's debt per m2 and tomträtt are fitted
  * features. `--before-record` reads (never writes) a frozen run record and prints the new model's
@@ -48,6 +51,8 @@ import {
   type HedonicFitReport,
   type HedonicModel,
   type HedonicTrainingRow,
+  STAGE2_ALLOWED_CAPS,
+  STAGE2_CAP_PCT,
   type InnerstanDistrict,
   type TrainingPoint,
 } from "@/lib/discovery/hedonic-model";
@@ -121,6 +126,15 @@ function argValue(name: string): string | null {
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(name);
+}
+
+/** --stage2-cap: exactly "0.08" or "0.12" (D-03, one widening); read before anything else is touched. */
+function resolveStage2Cap(): number {
+  const raw = argValue("--stage2-cap");
+  if (raw === null) return STAGE2_CAP_PCT;
+  const allowed = STAGE2_ALLOWED_CAPS.find((c) => c.toFixed(2) === raw);
+  if (allowed === undefined) throw new Error(`--stage2-cap kan bara vara 0.08 eller 0.12 (fick "${raw}")`);
+  return allowed;
 }
 
 function resolveOutPath(): string {
@@ -531,6 +545,7 @@ function printConditionBlock(
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
+  const stage2Cap = resolveStage2Cap();
   const cachePath = resolve(argValue("--cache") ?? DEFAULT_CACHE);
   const outPath = resolveOutPath();
   // R-05: the intermediate model (old feature set) must never replace the committed one.
@@ -584,7 +599,8 @@ function main(): void {
   console.log(`Rader i cachen: ${fmt(cache.rows.length)}. Uteslutna som kalibreringsobjekt (Folkungagatan 61, ${CALIBRATION_AREA_RANGE[0]}-${CALIBRATION_AREA_RANGE[1]} kvm): ${excluded.length}`);
   console.log(`Rader med detaljuppgifter (byggår/balkong från försäljningssidan): ${fmt(enrichedRows.length)}`);
 
-  let { model: fitted, report } = fitHedonicModel(training, { asOf, fittedAt });
+  console.log(`Steg-2-tak: ±${sv(stage2Cap * 100, 0)} % (balkong och byggår begränsas till detta)`);
+  let { model: fitted, report } = fitHedonicModel(training, { asOf, fittedAt, stage2CapPct: stage2Cap });
 
   // Detail-sample evidence, and the gate that decides whether to trust it.
   const detail = training.filter((r) => r.enriched && r.balcony !== null && r.buildYear !== null);
@@ -606,7 +622,7 @@ function main(): void {
     console.log("  Detaljurvalet lämnas därför utanför modellen: balkong = studiens värde, ingen byggårsjustering (D-18/R-05 reservväg).");
     ({ model: fitted, report } = fitHedonicModel(
       training.map((r) => ({ ...r, balcony: null, buildYear: null, enriched: false })),
-      { asOf, fittedAt },
+      { asOf, fittedAt, stage2CapPct: stage2Cap },
     ));
     detailDropped = true;
   }

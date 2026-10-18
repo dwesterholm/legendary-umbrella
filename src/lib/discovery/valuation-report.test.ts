@@ -422,6 +422,30 @@ describe("buildValuationReport: Folkungagatan 61", () => {
   });
 });
 
+describe("buildValuationReport: the on-cap list uses the model's own cap (14.5-10)", () => {
+  const rows = rowsWithFacts();
+  const withCap = (capPct: number | undefined, balcony: number): HedonicModel => {
+    const m = modelWithFeatures(-0.004);
+    return { ...m, stage2: { ...(capPct === undefined ? {} : { capPct }), balcony: { pct: balcony, source: "fit" }, buildYear: null } };
+  };
+  const onCapOf = (m: HedonicModel) => buildValuationReport({ ...threeRecords(rows, m), snapshotRows: rows }).model.onStage2Cap;
+
+  it("a ±12 % model with a balcony at +8,0 % is not listed; at +12,0 % it is", () => {
+    expect(onCapOf(withCap(0.12, 0.08))).toEqual([]);
+    expect(onCapOf(withCap(0.12, 0.12))).toHaveLength(1);
+    expect(onCapOf(withCap(0.12, 0.12))[0]).toMatch(/balkong/);
+  });
+
+  it("a model without capPct is judged against 0,08", () => {
+    expect(onCapOf(withCap(undefined, 0.08))).toHaveLength(1);
+  });
+
+  it("the narrative prints the model's own cap", () => {
+    const report = buildValuationReport({ ...threeRecords(rows, withCap(0.12, 0.12)), snapshotRows: rows });
+    expect(renderValuationReportMd(report)).toMatch(/\+-12 % limit/);
+  });
+});
+
 describe("buildValuationReport: credit removed, flag counts, bid premium", () => {
   const rows = rowsWithFacts();
   const featured = modelWithFeatures(-0.004);
