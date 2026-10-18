@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.6"
 current_phase_name: Bygglov & Stambyte, Uppmätning Flags
 status: executing
-stopped_at: Completed 14.6-02-PLAN.md
-last_updated: "2026-10-18T17:05:55.773Z"
+stopped_at: Completed 14.6-03-PLAN.md
+last_updated: "2026-10-18T17:18:10.506Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: "0bdcace65d89b1249e5ce58b59a586ceef012b7a"
+state_head: 060c1bfa54e21fa8bad6f209657fddba6453a2a4
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 77
-  completed_plans: 61
+  completed_plans: 62
   percent: 13
 ---
 
@@ -123,6 +123,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.5 P11 | 12 min | 3 tasks | 26 files |
 | Phase 14.6 P01 | 18 min | 3 tasks | 13 files |
 | Phase 14.6 P02 | 11 min | 3 tasks | 7 files |
+| Phase 14.6 P03 | 11 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -305,6 +306,8 @@ Recent decisions affecting current work:
 - [Phase 14.6]: 14.6-01: stored cases never carry officer names or free text; enforcement (tillsyn) cases are left out of stambyte facts, the short list and detail fetching — A complaint is not a recorded work; names and sentences cannot reach a cache or a mail
 - [Phase 14.6]: 14.6-01: only Startbesked and Lov decisions count as granted; null (not false) when a qualifying case's decisions were not read — Avoids printing a balcony or stambyte line that rests on a guess
 - [Phase 14.6]: City client: a refusal (403/429, login, terms, changed page, non-HTML) blocks etjanster.stockholm.se for 24 h; size, network error, other statuses and budget stop the run without blocking — D-01 politeness; only a 'no' from the site earns a day's silence
+- [Phase 14.6]: 14.6-03: Min Karta stops at the first candidate plot whose boundary contains the address point (building plots before district-named street land), within 5 calls per address — The 5-call politeness budget cannot fetch all four candidate boundaries after search plus three buffer steps; street land is never accepted anyway.
+- [Phase 14.6]: 14.6-03: A failed Min Karta lookup leaves the address okand and stores nothing; empty or ambiguous answers are cached 30 days only when every asked rung answered — Nothing from two rungs is not the whole truth while the third did not answer; storing it would hide the address behind an outage for 30 days.
 
 ### Pending Todos
 
@@ -337,8 +340,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-18T17:05:49.300Z
-Stopped at: Completed 14.6-02-PLAN.md
+Last session: 2026-10-18T17:18:05.178Z
+Stopped at: Completed 14.6-03-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

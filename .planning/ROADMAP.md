@@ -237,7 +237,7 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 2/12 plans executed
+**Plans:** 3/12 plans executed
 
 Plans:
 **Wave 1**
@@ -250,7 +250,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 14.6-03-PLAN.md — address to fastighetsbeteckning: text, BRF-name guess, city search, Min Karta (CASE-01)
+- [x] 14.6-03-PLAN.md — address to fastighetsbeteckning: text, BRF-name guess, city search, Min Karta (CASE-01)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
