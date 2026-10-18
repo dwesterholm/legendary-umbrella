@@ -10,6 +10,7 @@ import {
   SWEEP_DISTRICTS,
   buildCaseIndex,
   classifySoldAddress,
+  collectSweep,
   isStambyteCase,
   joinCounts,
   normaliseAddress,
@@ -521,13 +522,14 @@ describe("runSweep: a capped or oversized answer is split and never hidden", () 
     expect(rig.store.splits[0].reason).toBe("antal");
   });
 
-  it("splits a span again by year when a span is capped too, and gives up on a single year without stopping", async () => {
+  it("splits a short window by year, and reports a single year whose count cannot be trusted without stopping the run", async () => {
     const rig = sweepRig({
-      // Every window answers 500 rows until it is one year long.
+      // Every window answers 500 rows until it is one year long; Kungsholmen's single year has a count that does not fit.
       answer: (p) => {
         const from = p.get("CaseStartDateFrom") as string;
         const to = p.get("CaseStartDateTo");
         const oneYear = to !== null && from.slice(0, 4) === to.slice(0, 4);
+        if (oneYear && p.get("District") === "Kungsholmen") return html(listPage(50, 97));
         return oneYear ? html(listPage(40)) : html(listPage(500));
       },
     });
@@ -536,6 +538,18 @@ describe("runSweep: a capped or oversized answer is split and never hidden", () 
     expect(rig.fetchImpl.asked).toHaveLength(1 + 5 + 1);
     expect(result.status).toBe("klar");
     expect(result.unsplittable).toEqual([query("Kungsholmen", "stam", "2005-01-01", "2005-12-31")]);
+    expect(rig.store.unsplittable).toHaveLength(1);
+    expect(result.saved).toBe(1);
+    expect(result.total).toBe(2);
+  });
+
+  it("keeps a single year of 500 consistent rows (nothing smaller exists to ask for)", async () => {
+    const rig = sweepRig({ answer: () => html(listPage(500)) });
+    const result = await rig.run([query("Södermalm", "vatten", "2005-01-01", "2005-12-31")]);
+    expect(rig.fetchImpl.asked).toHaveLength(1);
+    expect(rig.store.files.size).toBe(1);
+    expect(result.unsplittable).toEqual([]);
+    expect(result.saved).toBe(1);
   });
 
   it("does not ask a recorded split again on a second run, and never asks a cached query", async () => {
@@ -622,12 +636,13 @@ describe("runSweep: the Monday window is checked before every request", () => {
     const result = await rig.run(plan);
     expect(result.status).toBe("stoppad");
     expect(result.stop?.kind).toBe("fonster");
-    expect(rig.fetchImpl.asked.length).toBeGreaterThan(0);
-    expect(rig.fetchImpl.asked.length).toBeLessThan(8);
-    expect(rig.store.files.size).toBe(rig.fetchImpl.asked.length);
-    // No request started inside the window: the 3 s gate is counted in.
+    // Requests start at 06:29:50, :53, :56 and :59. The fifth would start at 06:30:02, so the check, which counts the
+    // 3 s gate in, refuses it.
+    expect(rig.fetchImpl.asked).toHaveLength(4);
+    expect(rig.store.files.size).toBe(4);
+    expect(result.saved).toBe(4);
     const last = rig.clock.now();
-    expect(last.getHours() * 60 + last.getMinutes()).toBeLessThan(6 * 60 + 31);
+    expect(last.getHours() * 60 + last.getMinutes()).toBeLessThan(6 * 60 + 30);
   });
 
   it("runs on a Monday at 09:30 and on a Sunday evening", async () => {
@@ -636,5 +651,29 @@ describe("runSweep: the Monday window is checked before every request", () => {
       const result = await rig.run(plan.slice(0, 2));
       expect(result.status).toBe("klar");
     }
+  });
+});
+
+describe("collectSweep reads the plan back from the cache", () => {
+  const cases = [{ rec: "1", beteckning: "A 1", addresses: ["Testgatan 1"], startDate: "2001-01-01", kinds: ["stambyte"], primary: "stambyte", tillsyn: false, archived: true }] as const;
+  const whole = query("Södermalm", "stam", "1985-01-01", "2009-12-31");
+
+  it("takes a cached query as a leaf, a split query as its spans, and lists what is missing", () => {
+    const cached = new Set<string>();
+    const key = (q: SweepQuery) => `${q.district}|${q.from}|${q.to ?? "open"}`;
+    for (const span of splitWindow({ from: whole.from, to: whole.to })) cached.add(key({ ...whole, from: span.from, to: span.to }));
+    cached.delete(key({ ...whole, from: "1995-01-01", to: "1999-12-31" }));
+    const open = query("Södermalm", "stam", "2010-01-01", null);
+    cached.add(key(open));
+
+    const result = collectSweep([whole, open, query("Kungsholmen", "stam", "2010-01-01", null)], {
+      load: (q) => (cached.has(key(q)) ? { cases, headingCount: 1 } : null),
+      splitRecorded: (q) => key(q) === key(whole),
+      today: "2026-10-18",
+    });
+
+    expect(result.splitParents).toEqual([whole]);
+    expect(result.leaves.map((l) => l.query.from)).toEqual(["1985-01-01", "1990-01-01", "2000-01-01", "2005-01-01", "2010-01-01"]);
+    expect(result.missing).toEqual([query("Södermalm", "stam", "1995-01-01", "1999-12-31"), query("Kungsholmen", "stam", "2010-01-01", null)]);
   });
 });

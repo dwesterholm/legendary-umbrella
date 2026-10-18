@@ -26,20 +26,31 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { z } from "zod/v4";
 import { acquireRunLock, type RunLock } from "@/lib/discovery/watch-state";
 import { readJsonIfExists } from "@/lib/discovery/json-store";
 import {
   BYGGLOV_CACHE_DIR,
   loadSweep,
+  saveGuardedJson,
   saveSweep,
   sweepNeedsRefresh,
-  type SweepEntry,
   type SweepQuery,
 } from "@/lib/stockholm/bygglov-cache";
 import type { CityClient, CityFetch } from "@/lib/stockholm/bygglov-client";
 import { makeFixtureFetch, type FixtureRoute } from "@/lib/stockholm/fixture-fetch";
 import { CITY_DATA_DIR, CITY_LOCK_PATH, HOST_GATES_PATH, assertManualRunAllowed, hostBlockedUntil, readHostGates } from "@/lib/stockholm/host-gate";
-import { SWEEP_DISTRICTS, summariseCases, sweepKeywords, sweepWindows, type SweepWindow } from "@/lib/discovery/stambyte-join";
+import {
+  SWEEP_DISTRICTS,
+  collectSweep,
+  planSweep,
+  runSweep,
+  summariseCases,
+  sweepKeywords,
+  sweepWindows,
+  type RunSweepDeps,
+  type SweepWindow,
+} from "@/lib/discovery/stambyte-join";
 
 const EVIDENCE_DIR = ".planning/phases/14.6-bygglov-stambyte-uppmatning/evidence";
 const SPIKE_PATH = `${EVIDENCE_DIR}/spike.json`;
@@ -160,18 +171,65 @@ function readSpike(): { substring: boolean | null } {
 }
 
 // ---------------------------------------------------------------------------
-// The plan
+// The run state: what a stopped run must not forget
 // ---------------------------------------------------------------------------
 
-function planQueries(districts: readonly string[], keywords: readonly string[], windows: readonly SweepWindow[]): SweepQuery[] {
-  const out: SweepQuery[] = [];
-  for (const district of districts) {
-    for (const description of keywords) {
-      for (const w of windows) out.push({ district, description, from: w.from, to: w.to });
-    }
+const SECONDS_KEPT = 2000;
+
+const splitSchema = z.strictObject({
+  district: z.string().min(1).max(60),
+  description: z.string().min(1).max(60),
+  from: z.string().regex(DATE),
+  to: z.string().regex(DATE).nullable(),
+  reason: z.enum(["storlek", "antal"]),
+});
+
+const stateSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  /** Requests made to the city across all runs on this cache. */
+  requests: z.number().int().nonnegative(),
+  /** Seconds the city took per request (the last 2000). */
+  seconds: z.array(z.number().nonnegative()).max(SECONDS_KEPT),
+  /** Queries that were split, so a resumed run never asks them whole again. */
+  splits: z.array(splitSchema).max(2000),
+  /** Capped single years that could not be split. */
+  unsplittable: z.array(splitSchema).max(2000),
+});
+
+type RunState = z.infer<typeof stateSchema>;
+
+const emptyState = (): RunState => ({ schemaVersion: 1, requests: 0, seconds: [], splits: [], unsplittable: [] });
+const statePath = (cacheDir: string) => join(cacheDir, "sweep-state.json");
+
+/** A damaged state file is said out loud and starts a new one: the cache files themselves are what counts. */
+function loadState(cacheDir: string, log: (line: string) => void): RunState {
+  try {
+    const raw = readJsonIfExists(statePath(cacheDir));
+    if (raw === null) return emptyState();
+    const parsed = stateSchema.safeParse(raw);
+    if (parsed.success) return parsed.data;
+    log("[svep] sweep-state.json har fel format och börjar om (cachefilerna behålls)");
+  } catch {
+    log("[svep] sweep-state.json går inte att läsa och börjar om (cachefilerna behålls)");
   }
-  return out;
+  return emptyState();
 }
+
+const saveState = (cacheDir: string, state: RunState) => saveGuardedJson(statePath(cacheDir), state, cacheDir);
+
+const sameQuery = (a: SweepQuery) => (b: { district: string; description: string; from: string; to: string | null }) =>
+  a.district === b.district && a.description === b.description && a.from === b.from && a.to === b.to;
+
+const queryKey = (q: SweepQuery) => `${q.district}|${q.description}|${q.from}|${q.to ?? "open"}`;
+
+const median = (values: readonly number[]): number | null => {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((x, y) => x - y);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+const secondsText = (value: number | null) => (value === null ? "-" : value.toFixed(1).replace(".", ","));
 
 // ---------------------------------------------------------------------------
 // The dry-run's saved pages
@@ -262,48 +320,94 @@ async function main(): Promise<number> {
   }
 
   async function run(): Promise<number> {
-    let requests = 0;
+    const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+    const state = args.dryRun ? emptyState() : loadState(args.cacheDir, log);
+    const persist = () => {
+      if (!args.dryRun) saveState(args.cacheDir, state);
+    };
+
+    // Seconds per request come from the client's own log lines ("<host>/<path> HTTP 200, 114 kB, 3,3 s").
+    const clientLog = (line: string) => {
+      log(line);
+      if (!line.includes(`${CITY_HOST}/`)) return;
+      const m = /(\d+),(\d) s\)?$/.exec(line);
+      if (m !== null) state.seconds = [...state.seconds, Number(`${m[1]}.${m[2]}`)].slice(-SECONDS_KEPT);
+    };
     const countingFetch: CityFetch = async (url, init) => {
-      requests += 1;
+      state.requests += 1;
       return baseFetch(url, init);
     };
-    const client: CityClient = makeCityClient({ fetchImpl: countingFetch, sleep, now, log, gatesPath, dataDir, budget: args.maxRequests });
-    const plan = planQueries(args.districts, keywords, args.windows ?? sweepWindows());
-    const entries: SweepEntry[] = [];
+    const client: CityClient = makeCityClient({ fetchImpl: countingFetch, sleep, now, log: clientLog, gatesPath, dataDir, budget: args.maxRequests });
 
-    try {
-      for (const q of plan) {
-        if (!args.dryRun) {
-          const cached = loadSweep(q, { dir: args.cacheDir });
-          if (cached.ok && !sweepNeedsRefresh(cached.entry, now())) {
-            entries.push(cached.entry);
-            continue;
-          }
-          assertManualRunAllowed(now());
+    const windows = args.windows ?? sweepWindows();
+    const plan = planSweep(args.districts, keywords, windows, () => false);
+    const today = isoDay(now());
+    const savedThisRun = new Set<string>();
+
+    /** The cache file of a query when it is there and fresh. A dry run trusts only what it saved itself. */
+    const loadFresh = (q: SweepQuery) => {
+      if (args.dryRun && !savedThisRun.has(queryKey(q))) return null;
+      const loaded = loadSweep(q, { dir: args.cacheDir });
+      if (!loaded.ok || sweepNeedsRefresh(loaded.entry, now())) return null;
+      return loaded.entry;
+    };
+
+    const deps: RunSweepDeps = {
+      search: async (q) => {
+        try {
+          return await client.extendedSearch({ district: q.district, description: q.description, from: q.from, to: q.to ?? undefined });
+        } finally {
+          persist();
         }
-        const answer = await client.extendedSearch({ district: q.district, description: q.description, from: q.from, to: q.to ?? undefined });
-        if (!answer.ok) throw new Error(`Svaret var för stort eller stämde inte med sitt antal (${answer.reason}); delning av tidsfönstret saknas ännu`);
+      },
+      isFresh: (q) => loadFresh(q) !== null,
+      save: (q, answer) => {
         saveSweep(q, answer, { dir: args.cacheDir, now: now() });
-        const saved = loadSweep(q, { dir: args.cacheDir });
-        if (!saved.ok) throw new Error(`Sökningen sparades men gick inte att läsa tillbaka (${saved.error})`);
-        entries.push(saved.entry);
-      }
-    } catch (error) {
-      if (error instanceof CityStop) {
-        console.error(`Svepet stoppat (${error.label}): ${entries.length} av ${plan.length} sökningar sparade`);
-        return 2;
-      }
-      throw error;
-    }
+        savedThisRun.add(queryKey(q));
+      },
+      splitRecorded: (q) => state.splits.some(sameQuery(q)),
+      recordSplit: (q, reason) => {
+        state.splits.push({ district: q.district, description: q.description, from: q.from, to: q.to, reason });
+        persist();
+      },
+      recordUnsplittable: (q, reason) => {
+        if (!state.unsplittable.some(sameQuery(q))) state.unsplittable.push({ district: q.district, description: q.description, from: q.from, to: q.to, reason });
+        persist();
+      },
+      now,
+      allowed: (at) => {
+        if (!args.dryRun) assertManualRunAllowed(at);
+      },
+      stopOf: (error) => (error instanceof CityStop ? error.label : null),
+      log,
+      today,
+    };
 
-    const totals = summariseCases(entries.flatMap((e) => e.cases));
+    const result = await runSweep(plan, deps);
+    persist();
+
+    const collection = collectSweep(plan, {
+      load: (q) => loadFresh(q),
+      splitRecorded: deps.splitRecorded,
+      today,
+    });
+    const totals = summariseCases(collection.leaves.flatMap((l) => l.cases));
     console.log(
-      `Svep: ${plural(entries.length, "sökning", "sökningar")}, ${totals.cases} ärenden, ${totals.beteckningar} fastigheter (stambyte ${totals.stambyte}, relining ${totals.relining})`,
+      `Svep: ${plural(collection.leaves.length, "sökning", "sökningar")}, ${totals.cases} ärenden, ${totals.beteckningar} fastigheter (stambyte ${totals.stambyte}, relining ${totals.relining})`,
     );
-    console.log(`Anrop: ${requests}`);
+    console.log(
+      `Anrop: ${state.requests}, median ${secondsText(median(state.seconds))} s per anrop, ${plural(result.splits.length, "delning", "delningar")} i den här körningen, ${result.saved} av ${result.total} sökningar sparade`,
+    );
+    for (const q of result.unsplittable) {
+      console.error(`Saknas: ${q.district} ${q.description} ${q.from}..${q.to ?? "idag"} (ett enda år vars antal inte går att lita på)`);
+    }
     if (unrouted.length > 0) {
       console.error(`Torrkörningen bad om sidor som inte finns sparade (${[...new Set(unrouted)].join(", ")}): ett skarpt anrop hade gjorts.`);
       return 1;
+    }
+    if (result.message !== null) {
+      console.error(result.message);
+      return 2;
     }
     return 0;
   }

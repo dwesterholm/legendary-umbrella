@@ -24,6 +24,7 @@
  * path. `niche-score.ts` and `report/flags.ts` must NEVER import it; the "discovery/stambyte-" prefix is registered in
  * `niche-score.test.ts` (in an earlier commit than this file).
  */
+import type { SweepCase, SweepQuery } from "@/lib/stockholm/bygglov-cache";
 import { decisionKind } from "@/lib/stockholm/bygglov-classify";
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,264 @@ export function sweepWindows(): SweepWindow[] {
     { from: SWEEP_START, to: "2009-12-31" },
     { from: "2010-01-01", to: null },
   ];
+}
+
+/** The queries of the sweep: every stadsdel x search word x window, in that order. Cached ones (`isCached`) are left out. */
+export function planSweep(
+  districts: readonly string[],
+  keywords: readonly string[],
+  windows: readonly SweepWindow[],
+  isCached: (query: SweepQuery) => boolean,
+): SweepQuery[] {
+  const out: SweepQuery[] = [];
+  for (const district of districts) {
+    for (const description of keywords) {
+      for (const w of windows) {
+        const query: SweepQuery = { district, description, from: w.from, to: w.to };
+        if (!isCached(query)) out.push(query);
+      }
+    }
+  }
+  return out;
+}
+
+/** A span longer than this many calendar years is split into spans of this length; a shorter one is split by year. */
+export const SPLIT_SPAN_YEARS = 5;
+
+/**
+ * Splits a window into 5-year spans (inclusive dates, no gap, no overlap): 1985 to 2009 becomes 1985-1989 ... 2005-2009.
+ * A window that is 5 years long or shorter is split by year. A single year cannot be split (empty list). The first span
+ * keeps the window's own start, the last its own end, so an open end stays open (`today` is then needed to count the
+ * years, and is not sent anywhere).
+ */
+export function splitWindow(window: SweepWindow, today?: string): SweepWindow[] {
+  const fromYear = Number(window.from.slice(0, 4));
+  let toYear: number;
+  if (window.to !== null) {
+    toYear = Number(window.to.slice(0, 4));
+  } else {
+    if (today === undefined) throw new Error("splitWindow: a window with an open end needs today's date");
+    toYear = Number(today.slice(0, 4));
+  }
+  const years = toYear - fromYear + 1;
+  if (years <= 1) return [];
+  const step = years > SPLIT_SPAN_YEARS ? SPLIT_SPAN_YEARS : 1;
+  const out: SweepWindow[] = [];
+  for (let year = fromYear; year <= toYear; year += step) {
+    const last = Math.min(year + step - 1, toYear);
+    out.push({ from: year === fromYear ? window.from : `${year}-01-01`, to: last === toYear ? window.to : `${last}-12-31` });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// The runner (the cache, the clock and the city are handed in)
+// ---------------------------------------------------------------------------
+
+/** What one extended search answers. The city client's `ExtendedSearchAnswer` fits. */
+export type SweepAnswer =
+  | { readonly ok: true; readonly cases: readonly SweepCase[]; readonly headingCount: number | null }
+  /** `storlek`: the page is over the size cap. `antal`: the page's own count differs from its rows (a hidden cap). */
+  | { readonly ok: false; readonly reason: "storlek" | "antal" };
+
+/** Why a window was split: the answer was too big, or its count could not be trusted (500 rows or more, or a mismatch). */
+export type SplitReason = "storlek" | "antal";
+
+export interface SplitRecord extends SweepQuery {
+  readonly reason: SplitReason;
+}
+
+export interface RunSweepDeps {
+  /** One extended search. A refusal or a pause throws; `stopOf` tells which throw ends the run. */
+  search(query: SweepQuery): Promise<SweepAnswer>;
+  /** True when the query has a cache file that is not stale. */
+  isFresh(query: SweepQuery): boolean;
+  save(query: SweepQuery, answer: { readonly cases: readonly SweepCase[]; readonly headingCount: number | null }): void;
+  /** True when the query was split in an earlier run (its spans are asked instead). */
+  splitRecorded(query: SweepQuery): boolean;
+  recordSplit(query: SweepQuery, reason: SplitReason): void;
+  /** A window that is capped and cannot be split further (a single year). */
+  recordUnsplittable(query: SweepQuery, reason: SplitReason): void;
+  now(): Date;
+  /** Throws a Swedish message when a manual run must not make a request at `at` (the Monday window). */
+  allowed(at: Date): void;
+  /** The label of a throw that ends the run (a refusal, a pause, the budget), or null for any other error. */
+  stopOf(error: unknown): string | null;
+  log(line: string): void;
+  /** YYYY-MM-DD, to count the years of an open window. */
+  today: string;
+}
+
+export interface SweepStop {
+  /** `stad`: the city client ended the run. `fonster`: the Monday window. */
+  readonly kind: "stad" | "fonster";
+  readonly label: string;
+  readonly detail: string;
+}
+
+export interface SweepRunResult {
+  readonly status: "klar" | "stoppad";
+  readonly stop: SweepStop | null;
+  /** Queries of the plan that are fully in the cache (cached, or split with all spans cached). */
+  readonly saved: number;
+  readonly total: number;
+  /** Searches answered in this run. */
+  readonly searches: number;
+  readonly splits: readonly SplitRecord[];
+  /** Capped windows of a single year: they could not be split and are not in the cache. */
+  readonly unsplittable: readonly SweepQuery[];
+  /** The sentence to print when the run stopped, else null. */
+  readonly message: string | null;
+}
+
+/** The start gate holds a request up to this long, so the window check looks this far ahead. */
+const GATE_MS = 3000;
+
+class SweepHalt extends Error {
+  constructor(readonly stop: SweepStop) {
+    super(stop.detail);
+    this.name = "SweepHalt";
+  }
+}
+
+/**
+ * Runs the plan: each query that is not in the cache is asked once, in order. An answer that is too big (storlek),
+ * whose count differs from its rows or that holds 500 rows or more is NOT saved; its window is split into 5-year spans
+ * (by year when already short), the split is recorded and the spans are asked instead. A single year that is still capped
+ * is reported (`unsplittable`), the run goes on. A refusal, a pause, the request budget or the Monday window ends the run
+ * at once; everything saved stays, and the next run resumes (cached queries and recorded splits are never asked again).
+ */
+export async function runSweep(plan: readonly SweepQuery[], deps: RunSweepDeps): Promise<SweepRunResult> {
+  let searches = 0;
+  const splits: SplitRecord[] = [];
+  const unsplittable: SweepQuery[] = [];
+
+  const childrenOf = (q: SweepQuery): SweepQuery[] =>
+    splitWindow({ from: q.from, to: q.to }, deps.today).map((w) => ({ district: q.district, description: q.description, from: w.from, to: w.to }));
+
+  const covered = (q: SweepQuery): boolean => {
+    if (deps.isFresh(q)) return true;
+    if (!deps.splitRecorded(q)) return false;
+    const kids = childrenOf(q);
+    return kids.length > 0 && kids.every(covered);
+  };
+
+  const label = (q: SweepQuery) => `${q.district} ${q.description} ${q.from}..${q.to ?? "idag"}`;
+
+  async function ask(q: SweepQuery): Promise<SweepAnswer> {
+    try {
+      deps.allowed(new Date(deps.now().getTime() + GATE_MS));
+    } catch (error) {
+      throw new SweepHalt({ kind: "fonster", label: "fonster", detail: error instanceof Error ? error.message : "körfönstret är stängt" });
+    }
+    try {
+      const answer = await deps.search(q);
+      searches += 1;
+      return answer;
+    } catch (error) {
+      const stopLabel = deps.stopOf(error);
+      if (stopLabel === null) throw error;
+      throw new SweepHalt({ kind: "stad", label: stopLabel, detail: stopLabel });
+    }
+  }
+
+  async function split(q: SweepQuery, reason: SplitReason): Promise<void> {
+    const kids = childrenOf(q);
+    if (kids.length === 0) {
+      deps.recordUnsplittable(q, reason);
+      unsplittable.push(q);
+      deps.log(`[svep] ${label(q)}: svaret kan inte delas mer (${reason}); sökningen saknas`);
+      return;
+    }
+    deps.recordSplit(q, reason);
+    splits.push({ ...q, reason });
+    deps.log(`[svep] ${label(q)}: delas i ${kids.length} tidsfönster (${reason})`);
+    for (const kid of kids) await ensure(kid);
+  }
+
+  async function ensure(q: SweepQuery): Promise<void> {
+    if (deps.isFresh(q)) return;
+    if (deps.splitRecorded(q)) {
+      for (const kid of childrenOf(q)) await ensure(kid);
+      return;
+    }
+    const answer = await ask(q);
+    if (!answer.ok) return split(q, answer.reason);
+    const rows = answer.cases.length;
+    const stated = answer.headingCount;
+    if (stated !== null && stated !== rows) return split(q, "antal");
+    if ((rows >= SPLIT_ROWS || (stated ?? 0) >= SPLIT_ROWS) && childrenOf(q).length > 0) return split(q, "antal");
+    deps.save(q, { cases: answer.cases, headingCount: stated });
+    deps.log(`[svep] ${label(q)}: ${rows} ärenden`);
+  }
+
+  let stop: SweepStop | null = null;
+  try {
+    for (const q of plan) await ensure(q);
+  } catch (error) {
+    if (!(error instanceof SweepHalt)) throw error;
+    stop = error.stop;
+  }
+
+  const saved = plan.filter(covered).length;
+  const total = plan.length;
+  let message: string | null = null;
+  if (stop !== null) {
+    message = `Svepet stoppat (${stop.label}): ${saved} av ${total} sökningar sparade`;
+    if (stop.kind === "fonster") message += `. ${stop.detail}`;
+  }
+  return { status: stop === null ? "klar" : "stoppad", stop, saved, total, searches, splits, unsplittable, message };
+}
+
+/** One query that is in the cache and answers for its window. */
+export interface SweepLeaf {
+  readonly query: SweepQuery;
+  readonly cases: readonly SweepCase[];
+  readonly headingCount: number | null;
+}
+
+export interface SweepCollection {
+  /** The cached queries that together cover the plan (a split query is replaced by its spans). */
+  readonly leaves: readonly SweepLeaf[];
+  /** Queries that were split (their spans are in `leaves`, or in `missing`). */
+  readonly splitParents: readonly SweepQuery[];
+  /** Queries (or spans) that are not in the cache. */
+  readonly missing: readonly SweepQuery[];
+}
+
+/**
+ * Reads the plan back from the cache: a fresh file is a leaf, a recorded split is replaced by its spans, anything else
+ * is missing. `load` returns null for a missing, damaged or stale file.
+ */
+export function collectSweep(
+  plan: readonly SweepQuery[],
+  deps: {
+    load(query: SweepQuery): { readonly cases: readonly SweepCase[]; readonly headingCount: number | null } | null;
+    splitRecorded(query: SweepQuery): boolean;
+    today: string;
+  },
+): SweepCollection {
+  const leaves: SweepLeaf[] = [];
+  const splitParents: SweepQuery[] = [];
+  const missing: SweepQuery[] = [];
+  const walk = (q: SweepQuery): void => {
+    const loaded = deps.load(q);
+    if (loaded !== null) {
+      leaves.push({ query: q, cases: loaded.cases, headingCount: loaded.headingCount });
+      return;
+    }
+    if (deps.splitRecorded(q)) {
+      const kids = splitWindow({ from: q.from, to: q.to }, deps.today);
+      if (kids.length > 0) {
+        splitParents.push(q);
+        for (const k of kids) walk({ district: q.district, description: q.description, from: k.from, to: k.to });
+        return;
+      }
+    }
+    missing.push(q);
+  };
+  for (const q of plan) walk(q);
+  return { leaves, splitParents, missing };
 }
 
 // ---------------------------------------------------------------------------
