@@ -1,0 +1,1138 @@
+{
+  "schemaVersion": 1,
+  "ranAt": "2026-10-18T17:51:26.991Z",
+  "complete": true,
+  "stop": null,
+  "substring": true,
+  "keywords": [
+    "stam",
+    "avlopp",
+    "vatten",
+    "relin"
+  ],
+  "districts": [
+    "Södermalm",
+    "Kungsholmen",
+    "Vasastaden",
+    "Östermalm",
+    "Norrmalm",
+    "Marieberg",
+    "Fredhäll",
+    "Kristineberg",
+    "Reimersholme",
+    "Hjorthagen",
+    "Ladugårdsgärdet"
+  ],
+  "windows": [
+    {
+      "from": "1985-01-01",
+      "to": "2009-12-31"
+    },
+    {
+      "from": "2010-01-01",
+      "to": null
+    }
+  ],
+  "requests": 88,
+  "secondsMedian": 3.1,
+  "secondsMax": 5,
+  "queries": [
+    {
+      "district": "Södermalm",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 442,
+      "headingCount": 442,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 88,
+      "headingCount": 88,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 63,
+      "headingCount": 63,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 106,
+      "headingCount": 106,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 77,
+      "headingCount": 77,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 116,
+      "headingCount": 116,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Södermalm",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 242,
+      "headingCount": 242,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 35,
+      "headingCount": 35,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 36,
+      "headingCount": 36,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 49,
+      "headingCount": 49,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 50,
+      "headingCount": 50,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 45,
+      "headingCount": 45,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Kungsholmen",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 412,
+      "headingCount": 412,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 92,
+      "headingCount": 92,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 66,
+      "headingCount": 66,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 118,
+      "headingCount": 118,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 99,
+      "headingCount": 99,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 119,
+      "headingCount": 119,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Vasastaden",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 334,
+      "headingCount": 334,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 61,
+      "headingCount": 61,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 47,
+      "headingCount": 47,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 138,
+      "headingCount": 138,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 89,
+      "headingCount": 89,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 143,
+      "headingCount": 143,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Östermalm",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 62,
+      "headingCount": 62,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 24,
+      "headingCount": 24,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 21,
+      "headingCount": 21,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 57,
+      "headingCount": 57,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 31,
+      "headingCount": 31,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 58,
+      "headingCount": 58,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Norrmalm",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 2,
+      "headingCount": 2,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 23,
+      "headingCount": 23,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 4,
+      "headingCount": 4,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 1,
+      "headingCount": 1,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 3,
+      "headingCount": 3,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 5,
+      "headingCount": 5,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 3,
+      "headingCount": 3,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Marieberg",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 48,
+      "headingCount": 48,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 4,
+      "headingCount": 4,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 3,
+      "headingCount": 3,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 2,
+      "headingCount": 2,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 5,
+      "headingCount": 5,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 1,
+      "headingCount": 1,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Fredhäll",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 44,
+      "headingCount": 44,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 1,
+      "headingCount": 1,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 6,
+      "headingCount": 6,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 6,
+      "headingCount": 6,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 6,
+      "headingCount": 6,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 6,
+      "headingCount": 6,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Kristineberg",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 19,
+      "headingCount": 19,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 1,
+      "headingCount": 1,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 8,
+      "headingCount": 8,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 3,
+      "headingCount": 3,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 16,
+      "headingCount": 16,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 3,
+      "headingCount": 3,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Reimersholme",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 31,
+      "headingCount": 31,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 1,
+      "headingCount": 1,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 10,
+      "headingCount": 10,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 7,
+      "headingCount": 7,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 18,
+      "headingCount": 18,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 7,
+      "headingCount": 7,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Hjorthagen",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "stam",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 135,
+      "headingCount": 135,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "stam",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 24,
+      "headingCount": 24,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "avlopp",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 27,
+      "headingCount": 27,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "avlopp",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 19,
+      "headingCount": 19,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "vatten",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 28,
+      "headingCount": 28,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "vatten",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 19,
+      "headingCount": 19,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "relin",
+      "from": "1985-01-01",
+      "to": "2009-12-31",
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "keyword": "relin",
+      "from": "2010-01-01",
+      "to": null,
+      "rows": 0,
+      "headingCount": 0,
+      "split": false
+    }
+  ],
+  "splits": [],
+  "missing": [],
+  "totals": {
+    "searches": 88,
+    "cases": 2928,
+    "distinctBeteckningar": 2274,
+    "stambyteTagged": 1613,
+    "stambyteBeteckningar": 1446,
+    "reliningTagged": 2,
+    "active": 871,
+    "archived": 2057,
+    "casesPerStartYear": {
+      "1985": 27,
+      "1986": 72,
+      "1987": 69,
+      "1988": 63,
+      "1989": 67,
+      "1990": 86,
+      "1991": 81,
+      "1992": 195,
+      "1993": 77,
+      "1994": 121,
+      "1995": 116,
+      "1996": 90,
+      "1997": 86,
+      "1998": 84,
+      "1999": 85,
+      "2000": 82,
+      "2001": 82,
+      "2002": 77,
+      "2003": 95,
+      "2004": 83,
+      "2005": 89,
+      "2006": 69,
+      "2007": 61,
+      "2008": 61,
+      "2009": 45,
+      "2010": 57,
+      "2011": 48,
+      "2012": 43,
+      "2013": 42,
+      "2014": 33,
+      "2015": 37,
+      "2016": 38,
+      "2017": 34,
+      "2018": 31,
+      "2019": 38,
+      "2020": 34,
+      "2021": 41,
+      "2022": 72,
+      "2023": 62,
+      "2024": 62,
+      "2025": 97,
+      "2026": 96
+    },
+    "stambytePerStartYear": {
+      "1985": 6,
+      "1986": 14,
+      "1987": 15,
+      "1988": 14,
+      "1989": 28,
+      "1990": 42,
+      "1991": 48,
+      "1992": 109,
+      "1993": 38,
+      "1994": 75,
+      "1995": 81,
+      "1996": 59,
+      "1997": 47,
+      "1998": 46,
+      "1999": 62,
+      "2000": 69,
+      "2001": 69,
+      "2002": 70,
+      "2003": 88,
+      "2004": 74,
+      "2005": 78,
+      "2006": 49,
+      "2007": 47,
+      "2008": 48,
+      "2009": 37,
+      "2010": 46,
+      "2011": 37,
+      "2012": 34,
+      "2013": 32,
+      "2014": 19,
+      "2015": 19,
+      "2016": 16,
+      "2017": 13,
+      "2018": 7,
+      "2019": 4,
+      "2020": 10,
+      "2021": 3,
+      "2022": 7,
+      "2023": 7,
+      "2024": 10,
+      "2025": 22,
+      "2026": 14
+    }
+  },
+  "byDistrict": [
+    {
+      "district": "Södermalm",
+      "complete": true,
+      "searches": 8,
+      "cases": 707,
+      "stambyteTagged": 429,
+      "reliningTagged": 0,
+      "beteckningar": 569,
+      "stambyteBeteckningar": 383,
+      "stambyteByDecade": {
+        "1980": 14,
+        "1990": 171,
+        "2000": 162,
+        "2010": 59,
+        "2020": 23
+      }
+    },
+    {
+      "district": "Kungsholmen",
+      "complete": true,
+      "searches": 8,
+      "cases": 348,
+      "stambyteTagged": 229,
+      "reliningTagged": 0,
+      "beteckningar": 279,
+      "stambyteBeteckningar": 208,
+      "stambyteByDecade": {
+        "1980": 17,
+        "1990": 97,
+        "2000": 81,
+        "2010": 20,
+        "2020": 14
+      }
+    },
+    {
+      "district": "Vasastaden",
+      "complete": true,
+      "searches": 8,
+      "cases": 690,
+      "stambyteTagged": 362,
+      "reliningTagged": 0,
+      "beteckningar": 513,
+      "stambyteBeteckningar": 318,
+      "stambyteByDecade": {
+        "1980": 18,
+        "1990": 132,
+        "2000": 129,
+        "2010": 69,
+        "2020": 14
+      }
+    },
+    {
+      "district": "Östermalm",
+      "complete": true,
+      "searches": 8,
+      "cases": 574,
+      "stambyteTagged": 275,
+      "reliningTagged": 0,
+      "beteckningar": 435,
+      "stambyteBeteckningar": 245,
+      "stambyteByDecade": {
+        "1980": 19,
+        "1990": 86,
+        "2000": 118,
+        "2010": 40,
+        "2020": 12
+      }
+    },
+    {
+      "district": "Norrmalm",
+      "complete": true,
+      "searches": 8,
+      "cases": 185,
+      "stambyteTagged": 63,
+      "reliningTagged": 2,
+      "beteckningar": 148,
+      "stambyteBeteckningar": 58,
+      "stambyteByDecade": {
+        "1980": 2,
+        "1990": 15,
+        "2000": 29,
+        "2010": 11,
+        "2020": 6
+      }
+    },
+    {
+      "district": "Marieberg",
+      "complete": true,
+      "searches": 8,
+      "cases": 33,
+      "stambyteTagged": 24,
+      "reliningTagged": 0,
+      "beteckningar": 23,
+      "stambyteBeteckningar": 20,
+      "stambyteByDecade": {
+        "1990": 8,
+        "2000": 12,
+        "2010": 4
+      }
+    },
+    {
+      "district": "Fredhäll",
+      "complete": true,
+      "searches": 8,
+      "cases": 54,
+      "stambyteTagged": 36,
+      "reliningTagged": 0,
+      "beteckningar": 46,
+      "stambyteBeteckningar": 33,
+      "stambyteByDecade": {
+        "1980": 4,
+        "1990": 16,
+        "2000": 13,
+        "2010": 3
+      }
+    },
+    {
+      "district": "Kristineberg",
+      "complete": true,
+      "searches": 8,
+      "cases": 57,
+      "stambyteTagged": 26,
+      "reliningTagged": 0,
+      "beteckningar": 39,
+      "stambyteBeteckningar": 25,
+      "stambyteByDecade": {
+        "1990": 10,
+        "2000": 15,
+        "2010": 1
+      }
+    },
+    {
+      "district": "Reimersholme",
+      "complete": true,
+      "searches": 8,
+      "cases": 24,
+      "stambyteTagged": 18,
+      "reliningTagged": 0,
+      "beteckningar": 22,
+      "stambyteBeteckningar": 18,
+      "stambyteByDecade": {
+        "1990": 17,
+        "2020": 1
+      }
+    },
+    {
+      "district": "Hjorthagen",
+      "complete": true,
+      "searches": 8,
+      "cases": 49,
+      "stambyteTagged": 20,
+      "reliningTagged": 0,
+      "beteckningar": 38,
+      "stambyteBeteckningar": 19,
+      "stambyteByDecade": {
+        "1990": 10,
+        "2000": 9,
+        "2010": 1
+      }
+    },
+    {
+      "district": "Ladugårdsgärdet",
+      "complete": true,
+      "searches": 8,
+      "cases": 207,
+      "stambyteTagged": 131,
+      "reliningTagged": 0,
+      "beteckningar": 166,
+      "stambyteBeteckningar": 119,
+      "stambyteByDecade": {
+        "1980": 3,
+        "1990": 45,
+        "2000": 61,
+        "2010": 19,
+        "2020": 3
+      }
+    }
+  ],
+  "byKeyword": [
+    {
+      "keyword": "stam",
+      "searches": 22,
+      "cases": 2127,
+      "stambyteTagged": 1613
+    },
+    {
+      "keyword": "avlopp",
+      "searches": 22,
+      "cases": 796,
+      "stambyteTagged": 129
+    },
+    {
+      "keyword": "vatten",
+      "searches": 22,
+      "cases": 944,
+      "stambyteTagged": 168
+    },
+    {
+      "keyword": "relin",
+      "searches": 22,
+      "cases": 2,
+      "stambyteTagged": 0
+    }
+  ]
+}
