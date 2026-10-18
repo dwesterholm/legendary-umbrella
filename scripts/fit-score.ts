@@ -104,7 +104,7 @@
  *
  * Secret posture: environment variables are reported as satt/saknas only.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { USD_SEK_RATE } from "@/lib/brf/cost";
 import { seedResolve } from "@/lib/discovery/area-seed";
@@ -133,7 +133,10 @@ import {
   withReasonsOnFlagged,
   FIT_FLAG_LABELS,
   asOfYearOf,
+  makeAreaAudit,
+  withCityStage,
   type AreaReport,
+  type CityStageHook,
   type FitPipelineDeps,
   type FitPipelineResult,
   type FitTableRow,
@@ -246,7 +249,7 @@ const USAGE = `Användning:
   Uppspelning (gratis, offline):
     npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>] [--json <fil.json>] [--city-cache <mapp>|none]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
-    npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--osm <utdrag.json>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
+    npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--osm <utdrag.json>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--city-cache <mapp>|none] [--no-city] [--area-audit]
   Veckomejl med bevakningsminne (båda lägena):
     npx tsx scripts/fit-score.ts --email [--state <fil>] [--no-state-write] [--no-vision] [--dry-run]
     npx tsx scripts/fit-score.ts --replay <snapshot.json> --email [--state <fil>] [--no-state-write]
@@ -268,7 +271,10 @@ const USAGE = `Användning:
                      som en körningspost. Filen måste sluta på .json och ligga under ${RUN_RECORD_ROOTS.map((r) => `${r}/`).join(" eller ")}.
                      Tabellen som skrivs ut är oförändrad; raden "Körningspost: <fil>" läggs till efter täckningsraden
   --city-cache <mapp> Stadens ärendecache att läsa (standard ${DEFAULT_CITY_CACHE}; none = hoppa över). Uppspelning lägger stadens uppgifter
-                     (stambyte, byggärenden) på raderna från cachen, utan nätverk; kolumnerna Stambyte och Byggärenden ändrar aldrig en siffra
+                     (stambyte, byggärenden) på raderna från cachen, utan nätverk; kolumnerna Stambyte, Byggärenden och Area ändrar aldrig en siffra.
+                     Live-körning sparar stadens svar i samma mapp
+  --no-city          Live: hoppa över stadens ärendelista
+  --area-audit       Live: skriv maskerade areameningar till terminalen (granskning, sparas aldrig)
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
   --track <id>       Booli-id att visa uppdelat i detalj, standard ${DEFAULT_TRACK_ID}
   --window all|<n>   Live: antal annonser som får detaljsida (och bildtolkning). Standard: all (alla jämförbara) med lokal webbläsare,
@@ -366,6 +372,10 @@ interface Args {
    * run's city stage); "none" skips the city facts altogether. null = {@link DEFAULT_CITY_CACHE}.
    */
   cityCache: string | null;
+  /** Live only (14.6): skip the city stage (the city's case lists) altogether. */
+  noCity: boolean;
+  /** Live only (14.6, FLAG-02): print masked area clauses of the first 60 descriptions to the terminal (never written anywhere). */
+  areaAudit: boolean;
   help: boolean;
 }
 
@@ -389,6 +399,8 @@ function parseArgs(argv: string[]): Args | null {
     state: null,
     noStateWrite: false,
     cityCache: null,
+    noCity: false,
+    areaAudit: false,
     help: false,
   };
   let liveOnly = false;
@@ -416,6 +428,8 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--state" && value !== undefined) { out.state = value; i++; }
     else if (flag === "--no-state-write") out.noStateWrite = true;
     else if (flag === "--city-cache" && value !== undefined && value !== "") { out.cityCache = value; i++; }
+    else if (flag === "--no-city") { out.noCity = true; liveOnly = true; }
+    else if (flag === "--area-audit") { out.areaAudit = true; liveOnly = true; }
     else if (
       flag === "--apify-max-renders" &&
       value !== undefined &&
@@ -1116,6 +1130,88 @@ async function printSpend(
   console.log(`  Totalt: ${sek(apifyUsd * USD_SEK_RATE + visionSek + layoutSek)} kr`);
 }
 
+// ---------------------------------------------------------------------------
+// Stadens ärendelista in a live run (Phase 14.6, R-02)
+// ---------------------------------------------------------------------------
+
+/**
+ * The live city stage as the hook {@link withCityStage} calls after the enrichment. Everything that can reach the city is loaded
+ * by dynamic import in here, so a replay and a dry run never load the client. The stage reads the cache first, asks the city only
+ * for what is missing, and is bounded by its own request budget and deadline and by the client's gates (3 s per host, the
+ * 24 hour block after a refusal). The city lock keeps it from running beside `scripts/bygglov-candidates.ts`; when the lock is
+ * taken the stage reads the cache only. Allowed inside the Monday window (R-02), so there is no window check.
+ */
+function makeLiveCityHook(cacheDir: string, asOf: string): CityStageHook {
+  const log = (line: string): void => console.log(line);
+  return {
+    log,
+    run: async (rows) => {
+      const { runCityStage, cityStageLine } = await import("@/lib/stockholm/city-stage");
+      const { makeCityClient } = await import("@/lib/stockholm/bygglov-client");
+      const { makeMinKartaResolver, MINKARTA_HOST } = await import("@/lib/stockholm/minkarta");
+      const { CITY_DATA_DIR, CITY_LOCK_PATH, HOST_GATES_PATH, hostBlockedUntil, readHostGates } = await import("@/lib/stockholm/host-gate");
+      const stageRows = rows.map((row) => ({ address: row.address, brfName: row.brfName, facts: row.facts }));
+      mkdirSync(resolve(cacheDir), { recursive: true });
+      mkdirSync(dirname(resolve(CITY_LOCK_PATH)), { recursive: true });
+      let lock: RunLock | null = null;
+      try {
+        lock = acquireRunLock(CITY_LOCK_PATH);
+      } catch (e) {
+        if (!(e instanceof RunLockedError)) throw e;
+        log("Stadens lås är upptaget av en annan körning: stadssteget läser bara cachen");
+        const cached = await runCityStage(stageRows, { mode: "cache-only", asOf, cacheDir, log });
+        return { facts: cached.facts, line: cityStageLine(cached.stats) };
+      }
+      try {
+        if (lock.warning) log(`[stockholm] ${lock.warning}`);
+        const now = (): Date => new Date();
+        const sleep = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
+        const client = makeCityClient({
+          fetchImpl: globalThis.fetch as Parameters<typeof makeCityClient>[0]["fetchImpl"],
+          sleep,
+          now,
+          log,
+          gatesPath: HOST_GATES_PATH,
+          dataDir: CITY_DATA_DIR,
+        });
+        // Rung (c) only while Min Karta is neither blocked nor turned off in host-gates.json.
+        const minkartaBlocked = hostBlockedUntil(readHostGates(HOST_GATES_PATH, log), MINKARTA_HOST, now());
+        const minkarta =
+          minkartaBlocked === null
+            ? makeMinKartaResolver({
+                fetchImpl: globalThis.fetch as Parameters<typeof makeMinKartaResolver>[0]["fetchImpl"],
+                sleep,
+                now,
+                log,
+                gatesPath: HOST_GATES_PATH,
+                dataDir: CITY_DATA_DIR,
+              })
+            : null;
+        if (minkarta === null) log("[stockholm] Min Karta är spärrad eller avstängd: steg c är av");
+        const result = await runCityStage(stageRows, { mode: "live", asOf, cacheDir, client, minkarta, now, log });
+        return { facts: result.facts, line: cityStageLine(result.stats) };
+      } finally {
+        lock.release();
+      }
+    },
+  };
+}
+
+/** The two dry-run lines about the city: whether its e-service is free or paused (read from the gates file, no request) and how many buildings the cache holds. */
+async function printCityDryRun(cacheDir: string): Promise<void> {
+  const { CITY_HOST } = await import("@/lib/stockholm/bygglov-client");
+  const { HOST_GATES_PATH, hostBlockedUntil, readHostGates } = await import("@/lib/stockholm/host-gate");
+  const gates = readHostGates(HOST_GATES_PATH);
+  const until = hostBlockedUntil(gates, CITY_HOST, new Date());
+  const reason = gates[CITY_HOST]?.reason ?? "okänd";
+  if (until === null) console.log("Stadens e-tjänst: fri");
+  else if (gates[CITY_HOST]?.disabled === true) console.log(`Stadens e-tjänst: avstängd (${reason})`);
+  else console.log(`Stadens e-tjänst: pausad till ${until.toISOString()} (${reason})`);
+  const casesDir = join(resolve(cacheDir), "cases");
+  const buildings = existsSync(casesDir) ? readdirSync(casesDir).filter((name) => name.endsWith(".json")).length : 0;
+  console.log(`Stadens cache: ${buildings} fastigheter`);
+}
+
 async function runLive(args: Args): Promise<void> {
   // W5: the renderer line is the FIRST line runLive writes to stdout, so every dry run and every live log opens with it.
   // local-browser.ts is loaded by dynamic import only here, so --replay stays offline (FIT-06).
@@ -1199,10 +1295,15 @@ async function runLive(args: Args): Promise<void> {
   const osmMeta = sunSource.kind === "cache" ? readOsmCacheMeta(OSM_CACHE_PATH) : null;
   const osmDecisionAt = new Date();
   const osmNeedsRefresh = sunSource.kind === "cache" && osmCacheNeedsRefresh(osmMeta, osmDecisionAt);
+  // Phase 14.6: the city stage runs after the enrichment unless --no-city (or --city-cache none) turns it off.
+  const cityEnabled = !args.noCity && args.cityCache !== "none";
+  const cityCacheDir = args.cityCache ?? DEFAULT_CITY_CACHE;
   if (args.dryRun) {
     if (sunSource.kind === "file") console.log(`OSM-utdrag: ${sunSource.path}, ingen hämtning`);
     else if (osmNeedsRefresh) console.log(`OSM-cache: ${osmCacheDescribe(osmMeta, osmDecisionAt)}, hämtas vid riktig körning (gratis)`);
     else console.log(renderOsmCacheLine({ action: "fresh", ageDays: cacheAgeDays(osmMeta, osmDecisionAt), meta: osmMeta }));
+    if (cityEnabled) await printCityDryRun(cityCacheDir);
+    else console.log(`Stadens ärendelista: hoppas över (${args.noCity ? "--no-city" : "--city-cache none"})`);
     console.log(localMode ? "--dry-run: förkontrollerna är klara, ingen webbläsare startades." : "--dry-run: förkontrollerna är klara, ingen betald körning startades.");
     return;
   }
@@ -1258,6 +1359,10 @@ async function runLive(args: Args): Promise<void> {
   let layoutSpentSek = 0;
   let layoutCacheSaveError: string | null = null;
   if (layoutMods === null) console.log("Planlösning: avstängd (ingen bildtolkning)");
+  if (!cityEnabled) console.log(`Stadens ärendelista: hoppas över (${args.noCity ? "--no-city" : "--city-cache none"})`);
+  const areaAudit = args.areaAudit ? makeAreaAudit((line) => console.log(line)) : undefined;
+  const enrichOnly: FitPipelineDeps["enrich"] = (candidates, limit, opts) =>
+    enrichAllCandidates(candidates, limit, { ...opts, asOf, fetchBrokerImages: !args.noVision, areaAudit });
   const deps: FitPipelineDeps = {
     scrape: async () => {
       const targets: { name: string; district: InnerstanDistrict | null; areaId: string | null }[] = [];
@@ -1317,7 +1422,10 @@ async function runLive(args: Args): Promise<void> {
       return { rows, areas };
     },
     // Detail page, broker page and facts for every candidate (D-06); broker photos only when something will read them.
-    enrich: (candidates, limit, opts) => enrichAllCandidates(candidates, limit, { ...opts, asOf, fetchBrokerImages: !args.noVision }),
+    // Phase 14.6: the city stage follows right after (never fails the run); --area-audit prints masked area clauses.
+    enrich: cityEnabled
+      ? withCityStage(enrichOnly, makeLiveCityHook(cityCacheDir, asOf))
+      : enrichOnly,
     // Picture reading for every candidate (D-06, R-09): 3 parallel lanes of at most 60 / 3 SEK each, flats already
     // read with the same picture set come from the cache. --no-vision (or no key) turns it off entirely.
     vision: visionActive

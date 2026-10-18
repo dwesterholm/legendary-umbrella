@@ -50,7 +50,7 @@ import {
 } from "@/lib/discovery/fit-score";
 import { readConditionTerm, type HedonicModel, type InnerstanDistrict, type OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
-import { areaUpsideSek, type AreaSource } from "@/lib/discovery/area-source";
+import { areaUpsideSek, type AreaFacts, type AreaSource } from "@/lib/discovery/area-source";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
   formatKorsdragCell,
@@ -178,6 +178,83 @@ export interface FitPipelineDeps {
     candidates: DiscoveryCandidate[],
     opts: { brokerImagesOf: (candidate: DiscoveryCandidate, index: number) => BrokerImageBytes[] },
   ) => Promise<(LayoutFact | null)[]>;
+}
+
+/**
+ * The city stage as the live run uses it (Phase 14.6, STAM-03, FLAG-01). `run` gets one row per detail-fetched candidate and
+ * answers the new facts in the same order plus the coverage line to print; the caller builds it (dynamic imports, the city
+ * client, Min Karta), so this module loads no city or network module. See {@link withCityStage}.
+ */
+export interface CityStageHook {
+  run(rows: ReadonlyArray<{ address: string; brfName: string | null; facts: CandidateFacts }>): Promise<{
+    readonly facts: ReadonlyArray<CandidateFacts | null>;
+    readonly line: string;
+  }>;
+  log(line: string): void;
+}
+
+/** What the run says when the city stage failed outright; the run goes on with the facts the enrichment made. */
+export const CITY_STAGE_FAILED_LINE = "Stadens ärendelista: misslyckades, körningen fortsätter utan stadens uppgifter";
+
+/**
+ * Wraps the enrichment so the city stage runs right after it, over the candidates that got a facts record (R-02: the stage is
+ * allowed inside the weekly window). The new facts replace the enrichment's own for those candidates. NEVER lets the stage fail
+ * the run: any error inside it (a refusal included) is swallowed, one fixed line is logged, and the enrichment is returned as
+ * it was. Nothing about the error is printed, so no text from the city can reach the log.
+ */
+export function withCityStage(enrich: FitPipelineDeps["enrich"], hook: CityStageHook): FitPipelineDeps["enrich"] {
+  return async (candidates, limit, opts) => {
+    const enrichment = await enrich(candidates, limit, opts);
+    try {
+      const own = enrichment.facts;
+      if (own === undefined || own.size === 0) return enrichment;
+      const indexes = [...own.keys()].sort((a, b) => a - b);
+      const result = await hook.run(
+        indexes.map((i) => ({
+          address: enrichment.candidates[i]?.address ?? candidates[i]?.address ?? "",
+          brfName: (own.get(i) as CandidateFacts).brfName,
+          facts: own.get(i) as CandidateFacts,
+        })),
+      );
+      const next = new Map(own);
+      indexes.forEach((index, k) => {
+        const facts = result.facts[k];
+        if (facts !== undefined && facts !== null) next.set(index, facts);
+      });
+      hook.log(result.line);
+      return { ...enrichment, facts: next };
+    } catch {
+      try {
+        hook.log(CITY_STAGE_FAILED_LINE);
+      } catch {
+        // A log that throws must not cost the run either.
+      }
+      return enrichment;
+    }
+  };
+}
+
+/** How many descriptions the area audit prints (FLAG-02). */
+export const AREA_AUDIT_MAX_TEXTS = 60;
+
+/**
+ * The terminal callback of `--area-audit` (FLAG-02, T-14.6-93): one "Areagranskning <i>: <källa> | <masked clause>" line per
+ * clause of each of the first {@link AREA_AUDIT_MAX_TEXTS} descriptions, "(ingen areamening)" for a text with no clause.
+ * The clauses arrive already masked from the reader; this only prints them (to `print`, which the caller points at stdout)
+ * and writes nothing anywhere.
+ */
+export function makeAreaAudit(
+  print: (line: string) => void,
+  limit: number = AREA_AUDIT_MAX_TEXTS,
+): (lines: string[], facts: AreaFacts) => void {
+  let seen = 0;
+  return (lines, facts) => {
+    if (seen >= limit) return;
+    seen += 1;
+    const source = facts.areaSource === null ? "okänd" : formatAreaCell({ areaSource: facts.areaSource, areaMeasuredYear: facts.areaMeasuredYear });
+    if (lines.length === 0) print(`Areagranskning ${seen}: ${source} | (ingen areamening)`);
+    for (const line of lines) print(`Areagranskning ${seen}: ${source} | ${line}`);
+  };
 }
 
 export interface FitWindowStats {
@@ -898,9 +975,22 @@ export interface Coverage {
     readonly stated: number;
     readonly tallOnly: number;
   };
+  /**
+   * Phase 14.6 (FLAG-02): `read` counts the rows whose description was read by the 14.6 text readers (the facts hold a
+   * stambyte reading of the text, or an area source; a stored snapshot from before 14.6 holds neither, so it reads 0),
+   * `stated` those whose text named where the area figure comes from, `bySource` that count per source.
+   */
+  readonly area: {
+    readonly read: number;
+    readonly stated: number;
+    readonly bySource: Readonly<Record<AreaSource, number>>;
+  };
   /** Reasons on flagged rows; null until {@link withReasonsOnFlagged} sets it (it needs the table rows). */
   readonly reasonsOnFlagged: ReasonsOnFlagged | null;
 }
+
+/** The area sources in the order the Areakälla line prints them. */
+const AREA_SOURCE_ORDER = ["uppmatt", "forening", "ekonomisk_plan", "lagenhetsregister", "saljare", "ej_kontrollmatt"] as const satisfies readonly AreaSource[];
 
 /** Rows whose fact is known, by the R-05 definitions. One predicate per label, in {@link COVERAGE_LABELS} order. */
 const COVERAGE_KNOWN: readonly ((row: FitInputRow) => boolean)[] = [
@@ -946,6 +1036,13 @@ export function computeCoverage(rows: readonly FitInputRow[]): Coverage {
       stated: rows.filter((r) => r.facts?.ceilingHeightM != null).length,
       tallOnly: rows.filter((r) => r.facts?.tallCeilingPhrase === true && r.facts.ceilingHeightM == null).length,
     },
+    area: {
+      read: rows.filter((r) => r.facts?.textStambyte != null || r.facts?.areaSource != null).length,
+      stated: rows.filter((r) => r.facts?.areaSource != null).length,
+      bySource: Object.fromEntries(
+        AREA_SOURCE_ORDER.map((source) => [source, rows.filter((r) => r.facts?.areaSource === source).length]),
+      ) as Record<AreaSource, number>,
+    },
     reasonsOnFlagged: null,
   };
 }
@@ -990,6 +1087,10 @@ const percent = (k: number, n: number): string => (n === 0 ? "0,0" : ((k / n) * 
  * Phase 14.5 (CEIL-01): when at least one description was parsed for a ceiling height, a line follows the
  * Täckning line (before the Planlösning line): "Takhöjd: angiven i <a> av <n> lästa beskrivningar (högt i tak
  * utan siffra <b>)". With none parsed (every replay of a stored snapshot) the output is what it always was.
+ *
+ * Phase 14.6 (FLAG-02): when at least one description was read by the 14.6 readers, a line follows the Takhöjd line (before
+ * the Planlösning line): "Areakälla: angiven i <a> av <n> lästa beskrivningar (uppmätt <u>, föreningen <f>, ekonomisk plan
+ * <e>, lägenhetsregistret <l>, säljaren <s>, ej kontrollmätt <k>)". With none read the output is byte-identical to before.
  */
 export function renderCoverage(coverage: Coverage): string {
   const item = (label: string, known: number): string => `${label} ${known} av ${coverage.n} (${percent(known, coverage.n)} %)`;
@@ -1007,11 +1108,18 @@ export function renderCoverage(coverage: Coverage): string {
     c.read === 0
       ? line
       : `${line}\nTakhöjd: angiven i ${c.stated} av ${c.read} lästa beskrivningar (högt i tak utan siffra ${c.tallOnly})`;
+  // Phase 14.6: the area-source line, only when at least one description was read by the 14.6 readers.
+  const a = coverage.area;
+  const by = a.bySource;
+  const withArea =
+    a.read === 0
+      ? withCeiling
+      : `${withCeiling}\nAreakälla: angiven i ${a.stated} av ${a.read} lästa beskrivningar (uppmätt ${by.uppmatt}, föreningen ${by.forening}, ekonomisk plan ${by.ekonomisk_plan}, lägenhetsregistret ${by.lagenhetsregister}, säljaren ${by.saljare}, ej kontrollmätt ${by.ej_kontrollmatt})`;
   // Phase 14.4: a further line, only when the run read at least one layout (a replay of an older snapshot prints the line it always did).
   const l = coverage.layout;
-  if (l.read === 0) return withCeiling;
+  if (l.read === 0) return withArea;
   return (
-    `${withCeiling}\nPlanlösning: balkongsida ${l.balcony}, korsdrag känt ${l.windowSides}, sovrumssida ${l.bedroom}, ` +
+    `${withArea}\nPlanlösning: balkongsida ${l.balcony}, korsdrag känt ${l.windowSides}, sovrumssida ${l.bedroom}, ` +
     `sol från planlösning ${l.appliedToSun} av ${coverage.n}` +
     (LAYOUT_INFLUENCE_ENABLED ? "" : ` ${LAYOUT_NO_INFLUENCE_SUFFIX}`)
   );

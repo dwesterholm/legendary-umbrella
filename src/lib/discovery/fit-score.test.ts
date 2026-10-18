@@ -2023,3 +2023,23 @@ describe("no number changes: the building facts are information only (14.6 D-08,
     });
   });
 });
+
+describe("the script keeps the replay offline while it gains the city columns (14.6 R-01, FIT-06)", () => {
+  const script = readFileSync(join(process.cwd(), "scripts/fit-score.ts"), "utf-8");
+  const staticImports = script.split("\n").filter((l) => /^import /.test(l));
+
+  it("loads the city client, Min Karta and the city stage only by dynamic import", () => {
+    expect(staticImports.filter((l) => /stockholm\/(bygglov-client|minkarta|city-stage|host-gate)/.test(l))).toEqual([]);
+    expect(script).toContain('await import("@/lib/stockholm/city-stage")');
+    expect(script).toContain('await import("@/lib/stockholm/bygglov-client")');
+    expect(script).toContain('await import("@/lib/stockholm/minkarta")');
+  });
+
+  it("knows the three new flags, and the live-only ones are refused together with --replay", () => {
+    for (const flag of ["--city-cache", "--no-city", "--area-audit"]) expect(script).toContain(`"${flag}"`);
+    expect(script).toMatch(/--no-city"\) \{ out\.noCity = true; liveOnly = true; \}/);
+    expect(script).toMatch(/--area-audit"\) \{ out\.areaAudit = true; liveOnly = true; \}/);
+    // --city-cache is allowed with both modes: it is not a live-only flag.
+    expect(script).toMatch(/--city-cache" && value !== undefined && value !== ""\) \{ out\.cityCache = value; i\+\+; \}/);
+  });
+});

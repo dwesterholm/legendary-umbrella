@@ -28,6 +28,10 @@ import {
   formatByggarendenCell,
   formatAreaCell,
   areaFlagLines,
+  AREA_AUDIT_MAX_TEXTS,
+  CITY_STAGE_FAILED_LINE,
+  makeAreaAudit,
+  withCityStage,
   checkApifyHeadroom,
   computeCoverage,
   reasonsOnFlaggedOf,
@@ -46,6 +50,7 @@ import {
   splitFitSections,
   toFitTableRows,
   type AreaReport,
+  type CityStageHook,
   type EnrichmentLike,
   type FitPipelineDeps,
   type FitTableRow,
@@ -1559,5 +1564,199 @@ describe("ceiling coverage (Phase 14.5, CEIL-01)", () => {
     expect(lines).toHaveLength(3);
     expect(lines[1]).toBe("Takhöjd: angiven i 1 av 1 lästa beskrivningar (högt i tak utan siffra 0)");
     expect(lines[2].startsWith("Planlösning: ")).toBe(true);
+  });
+});
+
+describe("area-source coverage (Phase 14.6, FLAG-02)", () => {
+  const baseRow = (): FitInputRow => ({ ...(snapshot.rows[0] as FitInputRow), layout: null, sun: null, facts: null });
+  /** A description the 14.6 readers read: textStambyte is set, areaSource only when the text named one. */
+  const withText = (areaSource: CandidateFacts["areaSource"]): FitInputRow => ({
+    ...baseRow(),
+    facts: candidateFactsSchema.parse({
+      textStambyte: { lastYear: null, plannedYear: null, ongoing: false, relining: false },
+      areaSource,
+    }),
+  });
+
+  it("counts read (the 14.6 readers ran), stated (a source named) and the rows per source", () => {
+    const rows: FitInputRow[] = [
+      withText("uppmatt"),
+      withText("forening"),
+      withText("forening"),
+      withText("saljare"),
+      withText(null), // read, nothing stated
+      baseRow(), // no facts: not read
+      { ...baseRow(), facts: candidateFactsSchema.parse({}) }, // a stored snapshot's facts: not read
+    ];
+    expect(computeCoverage(rows).area).toEqual({
+      read: 5,
+      stated: 4,
+      bySource: { uppmatt: 1, forening: 2, ekonomisk_plan: 0, lagenhetsregister: 0, saljare: 1, ej_kontrollmatt: 0 },
+    });
+  });
+
+  it("prints 'Areakälla: angiven i <a> av <n> lästa beskrivningar (...)' right after the Täckning line", () => {
+    const rows: FitInputRow[] = [withText("uppmatt"), withText("ekonomisk_plan"), withText("lagenhetsregister"), withText("ej_kontrollmatt"), withText(null)];
+    const lines = renderCoverage(computeCoverage(rows)).split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0].startsWith("Täckning (5 annonser): ")).toBe(true);
+    expect(lines[1]).toBe(
+      "Areakälla: angiven i 4 av 5 lästa beskrivningar (uppmätt 1, föreningen 0, ekonomisk plan 1, lägenhetsregistret 1, säljaren 0, ej kontrollmätt 1)",
+    );
+  });
+
+  it("with no description read the output is byte-identical to the old one (every replay of a stored snapshot)", () => {
+    const text = renderCoverage(computeCoverage([baseRow(), { ...baseRow(), facts: candidateFactsSchema.parse({ descriptionRead: true }) }]));
+    expect(text).not.toContain("Areakälla");
+    expect(text.split("\n")).toHaveLength(1);
+    expect(computeCoverage([]).area).toEqual({
+      read: 0,
+      stated: 0,
+      bySource: { uppmatt: 0, forening: 0, ekonomisk_plan: 0, lagenhetsregister: 0, saljare: 0, ej_kontrollmatt: 0 },
+    });
+  });
+
+  it("the lines come in the order Täckning, Takhöjd, Areakälla, Planlösning", () => {
+    const layout: LayoutFact = {
+      balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
+      windowSides: "one", bedroomSide: "street", streetEvidence: "cars", confidence: 0.9,
+      source: "planritning+foto", version: "v", images: { booli: 4, broker: 0 },
+    };
+    const row: FitInputRow = {
+      ...baseRow(),
+      layout,
+      facts: candidateFactsSchema.parse({
+        ceilingHeightM: 3.4,
+        ceilingSource: "angiven",
+        tallCeilingPhrase: false,
+        textStambyte: { lastYear: null, plannedYear: null, ongoing: false, relining: false },
+        areaSource: "forening",
+      }),
+    };
+    const lines = renderCoverage(computeCoverage([row])).split("\n");
+    expect(lines).toHaveLength(4);
+    expect(lines[1].startsWith("Takhöjd: ")).toBe(true);
+    expect(lines[2].startsWith("Areakälla: angiven i 1 av 1 lästa beskrivningar")).toBe(true);
+    expect(lines[3].startsWith("Planlösning: ")).toBe(true);
+  });
+});
+
+describe("withCityStage: the city stage after the enrichment (Phase 14.6, STAM-03, FLAG-01)", () => {
+  const candidate = (address: string): DiscoveryCandidate => ({ ...(snapshot.rows[0].candidate as DiscoveryCandidate), address });
+  const factsOf = (patch: object): CandidateFacts => candidateFactsSchema.parse(patch);
+  const OPTS = { deadlineMs: 1000, concurrency: 1 };
+
+  /** An enrichment of three candidates; indexes 0 and 2 got a facts record (a failed detail page leaves index 1 without one). */
+  const enrichmentOf = (candidates: DiscoveryCandidate[]): EnrichmentLike => ({
+    candidates,
+    brokerImages: new Map(),
+    sunPhrases: new Map(),
+    facts: new Map<number, CandidateFacts>([
+      [0, factsOf({ brfName: "BRF Ett" })],
+      [2, factsOf({ brfName: null })],
+    ]),
+  });
+  const threeCandidates = [candidate("Folkungagatan 61"), candidate("Hornsgatan 42"), candidate("Götgatan 1")];
+
+  const hookWith = (run: CityStageHook["run"], lines: string[]): CityStageHook => ({ run, log: (line) => lines.push(line) });
+
+  it("runs after the enrichment over the candidates that got facts, replaces their facts, keeps the others and prints the stage's line", async () => {
+    const seen: Array<{ address: string; brfName: string | null }> = [];
+    const lines: string[] = [];
+    const enrich = withCityStage(
+      async () => enrichmentOf(threeCandidates),
+      hookWith(async (rows) => {
+        seen.push(...rows.map((r) => ({ address: r.address, brfName: r.brfName })));
+        return { facts: rows.map((r, k) => factsOf({ ...r.facts, lastStambyteYear: 2000 + k })), line: "Stadens ärendelista: fastighetsbeteckning 2 av 2" };
+      }, lines),
+    );
+    const out = await enrich(threeCandidates, 3, OPTS);
+    expect(seen).toEqual([
+      { address: "Folkungagatan 61", brfName: "BRF Ett" },
+      { address: "Götgatan 1", brfName: null },
+    ]);
+    expect(out.facts?.get(0)?.lastStambyteYear).toBe(2000);
+    expect(out.facts?.get(2)?.lastStambyteYear).toBe(2001);
+    expect(out.facts?.has(1)).toBe(false);
+    expect(out.candidates).toBe(threeCandidates);
+    expect(lines).toEqual(["Stadens ärendelista: fastighetsbeteckning 2 av 2"]);
+  });
+
+  it("a stage that throws never fails the run: the enrichment comes back as it was and one fixed line is logged, without the error's text", async () => {
+    const lines: string[] = [];
+    const original = enrichmentOf(threeCandidates);
+    const enrich = withCityStage(
+      async () => original,
+      hookWith(async () => {
+        throw new Error("403 <html>secret city text</html>");
+      }, lines),
+    );
+    const out = await enrich(threeCandidates, 3, OPTS);
+    expect(out).toBe(original);
+    expect(lines).toEqual([CITY_STAGE_FAILED_LINE]);
+    expect(lines.join("\n")).not.toContain("secret");
+  });
+
+  it("a log that throws, or a stage answer with a null entry, costs nothing", async () => {
+    const original = enrichmentOf(threeCandidates);
+    const throwingLog: CityStageHook = {
+      run: async () => {
+        throw new Error("x");
+      },
+      log: () => {
+        throw new Error("log broken");
+      },
+    };
+    await expect(withCityStage(async () => original, throwingLog)(threeCandidates, 3, OPTS)).resolves.toBe(original);
+    const lines: string[] = [];
+    const partial = withCityStage(async () => enrichmentOf(threeCandidates), hookWith(async (rows) => ({ facts: rows.map(() => null), line: "l" }), lines));
+    const out = await partial(threeCandidates, 3, OPTS);
+    expect(out.facts?.get(0)?.brfName).toBe("BRF Ett");
+  });
+
+  it("makes no stage call when the enrichment produced no facts", async () => {
+    const run = vi.fn();
+    const none: EnrichmentLike = { candidates: threeCandidates, brokerImages: new Map(), sunPhrases: new Map(), facts: new Map() };
+    const out = await withCityStage(async () => none, { run, log: () => undefined })(threeCandidates, 3, OPTS);
+    expect(out).toBe(none);
+    expect(run).not.toHaveBeenCalled();
+    const noMap: EnrichmentLike = { candidates: threeCandidates, brokerImages: new Map(), sunPhrases: new Map() };
+    await withCityStage(async () => noMap, { run, log: () => undefined })(threeCandidates, 3, OPTS);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("an enrichment that itself fails is not the stage's to hide", async () => {
+    const enrich = withCityStage(
+      async () => {
+        throw new Error("enrichment failed");
+      },
+      { run: vi.fn(), log: () => undefined },
+    );
+    await expect(enrich(threeCandidates, 3, OPTS)).rejects.toThrow("enrichment failed");
+  });
+});
+
+describe("makeAreaAudit: the terminal-only area audit (Phase 14.6, FLAG-02, T-14.6-93)", () => {
+  it("prints 'Areagranskning <i>: <källa> | <clause>' per clause, the source in plain words, and a marker for a text with no clause", () => {
+    const out: string[] = [];
+    const audit = makeAreaAudit((line) => out.push(line));
+    audit(["Boarean är uppmätt av ▒ ▒ 2019.", "Arean är enligt föreningen."], { areaSource: "uppmatt", areaMeasuredYear: 2019, areaMeasuredFirm: true });
+    audit([], { areaSource: null, areaMeasuredYear: null, areaMeasuredFirm: null });
+    audit(["Uppgifter om area hämtade från ekonomisk plan."], { areaSource: "ekonomisk_plan", areaMeasuredYear: null, areaMeasuredFirm: null });
+    expect(out).toEqual([
+      "Areagranskning 1: uppmätt 2019 | Boarean är uppmätt av ▒ ▒ 2019.",
+      "Areagranskning 1: uppmätt 2019 | Arean är enligt föreningen.",
+      "Areagranskning 2: okänd | (ingen areamening)",
+      "Areagranskning 3: ekonomisk plan | Uppgifter om area hämtade från ekonomisk plan.",
+    ]);
+  });
+
+  it("stops after the first 60 descriptions", () => {
+    const out: string[] = [];
+    const audit = makeAreaAudit((line) => out.push(line));
+    for (let i = 0; i < AREA_AUDIT_MAX_TEXTS + 25; i++) audit(["en mening"], { areaSource: "forening", areaMeasuredYear: null, areaMeasuredFirm: null });
+    expect(AREA_AUDIT_MAX_TEXTS).toBe(60);
+    expect(out).toHaveLength(60);
+    expect(out[59].startsWith("Areagranskning 60: ")).toBe(true);
   });
 });
