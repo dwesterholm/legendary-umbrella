@@ -145,14 +145,14 @@ const SOURCE_PHRASES: ReadonlyArray<{
   {
     source: "lagenhetsregister",
     pattern: new RegExp(
-      String.raw`${W}(?:enligt|ur|från|i)\s{1,3}(?:föreningens\s{1,3})?(?:lägenhetsregist\p{L}{2,5}|lägenhetsförteckning\p{L}{0,3})${E}`,
+      String.raw`${W}(?:enligt|ur|från|i)\s{1,3}(?:(?:bostadsrätts)?föreningens\s{1,3})?(?:lägenhetsregist\p{L}{2,5}|lägenhetsförteckning\p{L}{0,3})${E}`,
       "iu",
     ),
   },
   {
     source: "ekonomisk_plan",
     pattern: new RegExp(
-      String.raw`${W}(?:enligt|ur|från|i)\s{1,3}(?:föreningens\s{1,3})?ekonomisk\p{L}{0,3}\s{1,3}plan\p{L}{0,3}${E}`,
+      String.raw`${W}(?:enligt|ur|från|i)\s{1,3}(?:(?:bostadsrätts)?föreningens\s{1,3})?ekonomisk\p{L}{0,3}\s{1,3}plan\p{L}{0,3}${E}`,
       "iu",
     ),
   },

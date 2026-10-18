@@ -175,7 +175,6 @@ const FRESH_KNOWN_MISSES: readonly string[] = [
   "Mäklaren har mätt lägenheten på plats 2022.",
   "Ytan stämmer med lägenhetsförteckningen från föreningen.",
   "Boarean är verifierad genom mätning 2021.",
-  "Areauppgiften är hämtad från bostadsrättsföreningens ekonomiska plan.",
   "Uppmätt av oss i maj 2024, boarea 33 kvm.",
 ];
 
@@ -229,6 +228,11 @@ describe("areaFactsFromText: the rules in their own words", () => {
     expect(areaFactsFromText("Takhöjd ej uppmätt.", RUN)).toEqual(NONE);
     expect(areaFactsFromText("Terrassen är uppmätt till 12 kvm.", RUN)).toEqual(NONE);
     expect(areaFactsFromText("Källaren är uppmätt.", RUN)).toEqual(NONE);
+  });
+
+  it("'bostadsrättsföreningens ekonomiska plan' is the plan, not just the association", () => {
+    expect(areaFactsFromText("Areauppgiften är hämtad från bostadsrättsföreningens ekonomiska plan.", RUN)).toEqual(s("ekonomisk_plan"));
+    expect(areaFactsFromText("Ytan är enligt bostadsrättsföreningens lägenhetsregister.", RUN)).toEqual(s("lagenhetsregister"));
   });
 
   it("a balcony clause that also names the flat's own boarea is read", () => {
