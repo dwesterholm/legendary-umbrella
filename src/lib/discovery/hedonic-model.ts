@@ -184,7 +184,17 @@ export const hedonicModelSchema = z
        * such field and are read as {@link STAGE2_CAP_PCT} (see {@link modelStage2Cap}); no version bump.
        */
       capPct: num.min(0).optional(),
-      balcony: z.object({ pct: num, source: z.enum(["fit", "prior"]) }),
+      balcony: z.object({
+        pct: num,
+        source: z.enum(["fit", "prior"]),
+        /**
+         * The share of the stage-2 sample (sold flats with both balcony flag and build year) that had a balcony (14.5-11).
+         * The build-year values are levels at THIS balcony mix, so prediction centres the balcony effect on it
+         * ({@link predictKrPerSqm}). Optional: files written before 14.5-11 and models without a build-year term have
+         * none, and then the balcony effect is applied uncentred as before.
+         */
+        share: num.min(0).max(1).optional(),
+      }),
       buildYear: z
         .object({
           pctByBucket: z.object({
@@ -529,8 +539,17 @@ function buildYearBucket(
 
 /**
  * Predicted market price per m2 today: exp(ln-prediction) x smearing x the
- * stage-2 multipliers. Balcony true multiplies by 1 + pct; false or unknown
- * leaves the price alone (unknown is also listed in `imputed`). The build-year
+ * stage-2 multipliers. The build-year values are levels for a flat at the average
+ * balcony mix of the stage-2 sample (fitStage2), so the balcony effect is applied
+ * CENTRED on that mix, exactly as the fit and the stage-2 cross-validation do:
+ * multiplier (1 + pct)^(balcony - share), where balcony is 1 for true and 0 for
+ * false. A flat with a balcony gets (1 + pct)^(1 - share), a flat without one
+ * (1 + pct)^(-share), and a flat whose balcony flag is unknown leaves the price
+ * alone (unknown is also listed in `imputed`). Without the centring a known flag
+ * would be priced about (share x pct) too high, because the build-year level
+ * already holds the average balcony effect (14.5-11). A model with no `share`
+ * (written before 14.5-11, or without a build-year term) applies a balcony as
+ * x (1 + pct) and leaves "no balcony" alone, as before. The build-year
  * multiplier applies only when the model has that term AND the year is known.
  */
 export function predictKrPerSqm(
@@ -541,8 +560,15 @@ export function predictKrPerSqm(
   const notes = [...imputed];
   let price = Math.exp(lnKrPerSqm) * model.smearing;
 
-  if (input.balcony === true) price *= 1 + model.stage2.balcony.pct;
-  else if (input.balcony === null) notes.push("balcony");
+  if (input.balcony === null) notes.push("balcony");
+  else {
+    const { pct, share } = model.stage2.balcony;
+    if (share === undefined) {
+      if (input.balcony === true) price *= 1 + pct;
+    } else {
+      price *= Math.exp(Math.log(1 + pct) * ((input.balcony ? 1 : 0) - share));
+    }
+  }
 
   const by = model.stage2.buildYear;
   if (by !== null) {
@@ -1872,7 +1898,7 @@ export interface Stage2Report {
     without: number;
     /** Held-out error with stage 2 clamped at each allowed cap, on the same folds. */
     byCap: { "0.08": number; "0.12": number };
-    /** The same two errors when the fitted values are applied the way predictKrPerSqm applies them (see {@link stage2CvRmse}). */
+    /** The same two errors with the uncentred multipliers predictKrPerSqm used before 14.5-11 (see {@link stage2CvRmse}). */
     asApplied: { "0.08": number; "0.12": number };
   };
 }
@@ -1965,8 +1991,8 @@ function fitStage2(
     bucketOffset = 1;
   }
 
-  // Bucket level for a flat at the average balcony mix of the enriched sample, so
-  // "balcony unknown" stays unbiased and a known balcony adds `pct` on top.
+  // Bucket level for a flat at the average balcony mix of the enriched sample (`share`, stored in the model),
+  // so "balcony unknown" stays unbiased and prediction centres a known flag on that mix (predictKrPerSqm).
   const pctByBucket = {} as BuildYearBuckets;
   const bucketReports = {} as Stage2Report["buckets"];
   BUCKET_KEYS.forEach((key, b) => {
@@ -1981,7 +2007,7 @@ function fitStage2(
   if (sitsOnCap(pct)) onCapLabels.push("balkong");
   for (const key of BUCKET_KEYS) if (sitsOnCap(pctByBucket[key])) onCapLabels.push(STAGE2_BUCKET_LABELS[key]);
   return {
-    stage2: { capPct: cap, balcony: { pct, source }, buildYear: { pctByBucket, source: "fit" } },
+    stage2: { capPct: cap, balcony: { pct, source, share }, buildYear: { pctByBucket, source: "fit" } },
     fallbacks,
     usedN: eligible.length,
     detail: {
@@ -2012,10 +2038,11 @@ function sdOverSqrtN(values: readonly number[]): number | null {
  * - `withCap`: the regression's own prediction, ln(1 + bucket pct) + ln(1 + balcony pct) x (balcony - training share of
  *   balconies). The bucket values are levels at the average balcony mix (fitStage2), so a known balcony is centred on
  *   that mix. This measures how well the clamped effect sizes predict held-out sales, which is what the cap decides.
- * - `withCapAsApplied`: the multipliers exactly as {@link predictKrPerSqm} applies them (balcony true: x (1 + pct);
- *   false: x 1; plus the bucket value). Because the bucket values already include the average balcony effect, this
- *   over-predicts every flat with a known balcony flag by about (balcony share x balcony effect); a bigger balcony
- *   effect is penalised for that, not for predicting worse. Reported next to withCap so the difference is visible.
+ * - `withCapAsApplied`: the UNCENTRED multipliers (balcony true: x (1 + pct); false: x 1; plus the bucket value), which
+ *   is how predictKrPerSqm priced before 14.5-11 (it now centres on the stored share, so `withCap` is what production
+ *   applies). Because the bucket values already include the average balcony effect, this over-predicts every flat with
+ *   a known balcony flag by about (balcony share x balcony effect); a bigger balcony effect is penalised for that, not
+ *   for predicting worse. Kept next to withCap so the old pricing's error stays visible.
  * Returns NaN for all when no row is eligible.
  */
 export function stage2CvRmse(

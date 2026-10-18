@@ -592,8 +592,8 @@ function printStage2(s2: Stage2Report | null, stage1Cv: number): void {
       `Steg-2-korsvalidering (fel i ln kr/kvm): utan steg 2 ${sv(s2.cv.without, 5)}, med ±8 % ${sv(s2.cv.byCap["0.08"], 5)}, med ±12 % ${sv(s2.cv.byCap["0.12"], 5)}`,
     );
     console.log(
-      `  Samma fel när värdena läggs på som prissättningen gör (balkong sant x (1 + procent), annars x 1): med ±8 % ${sv(s2.cv.asApplied["0.08"], 5)}, med ±12 % ${sv(s2.cv.asApplied["0.12"], 5)}. ` +
-        "Byggårsvärdena gäller en lägenhet med genomsnittlig balkongandel, så en känd balkong får där ett tillägg som överskattar ungefär (andel med balkong x balkongeffekt).",
+      `  Samma fel med den gamla, ocentrerade prissättningen före 14.5-11 (balkong sant x (1 + procent), annars x 1): med ±8 % ${sv(s2.cv.asApplied["0.08"], 5)}, med ±12 % ${sv(s2.cv.asApplied["0.12"], 5)}. ` +
+        "Byggårsvärdena gäller en lägenhet med genomsnittlig balkongandel, så en känd balkong fick där ett tillägg som överskattade ungefär (andel med balkong x balkongeffekt). Prissättningen centrerar nu balkongen på den andelen, så det som gäller är raden ovan.",
     );
   }
   console.log(

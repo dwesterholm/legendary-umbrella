@@ -1082,7 +1082,7 @@ describe("fitHedonicModel: stage 2, balcony and build year (D-02, R-05)", () => 
   it("a balcony effect that comes out the wrong way falls back to the prior 1.9 %", () => {
     const rows = generateRows({ seed: 93, enrichedShare: 0.8, balconyEffect: Math.log(0.9) });
     const { model } = fitHedonicModel(rows, OPTS);
-    expect(model.stage2.balcony).toEqual({ pct: HEDONIC_PRIORS.balconyPct, source: "prior" });
+    expect(model.stage2.balcony).toEqual({ pct: HEDONIC_PRIORS.balconyPct, source: "prior", share: expect.any(Number) });
     expect(model.fallbacks).toContainEqual(expect.objectContaining({ item: "balcony", reason: "wrong-sign" }));
   });
 
@@ -1131,6 +1131,88 @@ describe("fitHedonicModel: the stage-2 cap as a parameter (R-01, D-03)", () => {
     expect(back.stage2.capPct).toBe(0.12);
     expect(modelStage2Cap(back)).toBe(0.12);
     expect(back.version).toBe(2);
+  });
+});
+
+describe("predictKrPerSqm: the balcony effect is centred on the stage-2 balcony mix (14.5-11)", () => {
+  const rows = generateRows({ seed: 98, enrichedShare: 0.8, balconyEffect: Math.log(1.06) });
+  const fitted = fitHedonicModel(rows, OPTS).model;
+  const { pct, share } = fitted.stage2.balcony;
+  const flat: HedonicInput = { ...FOLKUNGAGATAN, constructionYear: 1900 };
+
+  it("the fit stores the balcony share of its stage-2 sample; the prior case without enriched rows stores none", () => {
+    expect(share).toBeGreaterThan(0.4);
+    expect(share).toBeLessThan(0.6);
+    expect(fitHedonicModel(generateRows({ seed: 90 }), OPTS).model.stage2.balcony.share).toBeUndefined();
+    expect(parseHedonicModel(JSON.parse(JSON.stringify(fitted))).stage2.balcony.share).toBe(share);
+  });
+
+  it("a share outside 0..1 is refused", () => {
+    const bad = JSON.parse(JSON.stringify(fitted)) as { stage2: { balcony: { share: number } } };
+    bad.stage2.balcony.share = 1.5;
+    expect(() => parseHedonicModel(bad)).toThrow();
+  });
+
+  it("a known-balcony flat is priced at the centred value: build-year level x (1 + pct)^(1 - share), no balcony x (1 + pct)^(-share)", () => {
+    const { lnKrPerSqm } = predictLnKrPerSqm(fitted, flat);
+    const level = Math.exp(lnKrPerSqm) * fitted.smearing * (1 + fitted.stage2.buildYear!.pctByBucket.le1930);
+    const yes = predictKrPerSqm(fitted, { ...flat, balcony: true }).krPerSqm;
+    const no = predictKrPerSqm(fitted, { ...flat, balcony: false }).krPerSqm;
+    const unknown = predictKrPerSqm(fitted, { ...flat, balcony: null }).krPerSqm;
+    expect(unknown).toBeCloseTo(level, 6);
+    expect(yes).toBeCloseTo(level * (1 + pct) ** (1 - share!), 6);
+    expect(no).toBeCloseTo(level * (1 + pct) ** -share!, 6);
+    expect(yes / no).toBeCloseTo(1 + pct, 10);
+  });
+
+  it("the double counting is gone: weighted by the balcony mix, the known-flag prices average to the unknown-flag price", () => {
+    const yes = predictKrPerSqm(fitted, { ...flat, balcony: true }).krPerSqm;
+    const no = predictKrPerSqm(fitted, { ...flat, balcony: false }).krPerSqm;
+    const unknown = predictKrPerSqm(fitted, { ...flat, balcony: null }).krPerSqm;
+    expect(Math.exp(share! * Math.log(yes) + (1 - share!) * Math.log(no))).toBeCloseTo(unknown, 6);
+  });
+
+  it("the prediction equals the regression the cross-validation scores (train and serve agree)", () => {
+    const { lnKrPerSqm } = predictLnKrPerSqm(fitted, flat);
+    const bucketLn = Math.log(1 + fitted.stage2.buildYear!.pctByBucket.le1930);
+    const yes = predictKrPerSqm(fitted, { ...flat, balcony: true }).krPerSqm;
+    expect(Math.log(yes)).toBeCloseTo(lnKrPerSqm + Math.log(fitted.smearing) + bucketLn + Math.log(1 + pct) * (1 - share!), 10);
+  });
+
+  it("over the enriched sales, a known flag no longer prices flats above an unknown one (the old form did, by about share x pct)", () => {
+    const eligible = rows.filter((r) => r.enriched && r.balcony !== null && r.buildYear !== null);
+    expect(eligible.length).toBeGreaterThan(200);
+    const meanOffset = (m: HedonicModel): number => {
+      let sum = 0;
+      for (const r of eligible) {
+        const input: HedonicInput = {
+          district: r.district, latitude: r.lat, longitude: r.lng, floor: r.floor, livingArea: r.livingArea,
+          balcony: r.balcony, constructionYear: r.buildYear, avgiftPerSqmMonth: null, brfDebtPerSqm: null, tomtratt: null,
+        };
+        sum += Math.log(predictKrPerSqm(m, input).krPerSqm) - Math.log(predictKrPerSqm(m, { ...input, balcony: null }).krPerSqm);
+      }
+      return sum / eligible.length;
+    };
+    const old = structuredClone(fitted);
+    delete old.stage2.balcony.share;
+    expect(Math.abs(meanOffset(fitted))).toBeLessThan(0.005);
+    expect(meanOffset(old)).toBeGreaterThan(0.02);
+  });
+
+  it("a model without a stored share (written before 14.5-11) keeps the old form: balcony x (1 + pct), no balcony x 1", () => {
+    const old = structuredClone(fitted);
+    delete old.stage2.balcony.share;
+    const yes = predictKrPerSqm(old, { ...flat, balcony: true }).krPerSqm;
+    const no = predictKrPerSqm(old, { ...flat, balcony: false }).krPerSqm;
+    const unknown = predictKrPerSqm(old, { ...flat, balcony: null }).krPerSqm;
+    expect(no).toBe(unknown);
+    expect(yes / no).toBeCloseTo(1 + pct, 12);
+  });
+
+  it("an unknown balcony flag is still listed as imputed and a known one is not", () => {
+    expect(predictKrPerSqm(fitted, { ...flat, balcony: null }).imputed).toContain("balcony");
+    expect(predictKrPerSqm(fitted, { ...flat, balcony: false }).imputed).not.toContain("balcony");
+    expect(predictKrPerSqm(fitted, { ...flat, balcony: true }).imputed).not.toContain("balcony");
   });
 });
 
