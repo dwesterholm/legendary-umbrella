@@ -1,76 +1,76 @@
 {
   "version": 2,
-  "fittedAt": "2026-10-14",
+  "fittedAt": "2026-10-18",
   "asOf": "2026-10-12",
-  "n": 7379,
-  "r2": 0.6113014570723276,
-  "cvRmseLog": 0.11505442485377466,
-  "residualSdLog": 0.11480404330536306,
-  "smearing": 1.006575568675724,
-  "residualP75Log": 0.07970015286722276,
+  "n": 7381,
+  "r2": 0.61635317537722,
+  "cvRmseLog": 0.11432712065452255,
+  "residualSdLog": 0.11415821908622945,
+  "smearing": 1.0065061925804035,
+  "residualP75Log": 0.07886016457912248,
   "minLivingArea": 35,
   "maxLivingArea": 120,
-  "intercept": 11.677100259589288,
+  "intercept": 11.677035267825524,
   "features": [
     {
       "name": "nbLevel",
-      "mean": 11.680177693637235,
-      "beta": 1.0663224539597498,
-      "se": 0.01185659672437826,
+      "mean": 11.680132461159904,
+      "beta": 1.049658693448891,
+      "se": 0.01192988605301473,
       "source": "fit"
     },
     {
       "name": "floor",
-      "mean": 2.6939381033503724,
-      "beta": 0.015134941887938085,
-      "se": 0.0008805637166208251,
+      "mean": 2.6939815471965796,
+      "beta": 0.015606238453950882,
+      "se": 0.0008801833530510163,
       "source": "fit"
     },
     {
       "name": "groundOrBelow",
-      "mean": 0.033645655877342195,
-      "beta": -0.06722202862096957,
-      "se": 0.007976724070494925,
+      "mean": 0.033640880056777574,
+      "beta": -0.06616888851834885,
+      "se": 0.007933671481682123,
       "source": "fit"
     },
     {
       "name": "lnArea",
-      "mean": 3.895888996725348,
-      "beta": 0.0446675706529327,
-      "se": 0.005508152325094067,
+      "mean": 3.8957455808764974,
+      "beta": 0.040368703629822145,
+      "se": 0.005518539858914672,
       "source": "fit"
     },
     {
       "name": "monthsAgo",
-      "mean": 7.530048227766586,
-      "beta": -0.007752802408912329,
-      "se": 0.00027016976427295336,
+      "mean": 7.531743499250354,
+      "beta": -0.007825915404427513,
+      "se": 0.00026875140290056704,
       "source": "fit"
     },
     {
       "name": "centralityKm",
-      "mean": 0.723001875328662,
-      "beta": -0.0071093445268832186,
-      "se": 0.004214488341372364,
+      "mean": 0.7229964001845856,
+      "beta": -0.004364536932546244,
+      "se": 0.004201233126750904,
       "source": "fit"
     },
     {
       "name": "avgiftPerSqmMonth",
-      "mean": 61.1079050453085,
-      "beta": -0.000643599629455161,
-      "se": 0.0001967019428620363,
+      "mean": 60.81901909199856,
+      "beta": -0.0010084637000047458,
+      "se": 0.00011368059743056137,
       "source": "fit",
-      "lo": 20.565183752417795,
-      "hi": 123.9140628930818
+      "lo": 18.231225534477566,
+      "hi": 116.93845528455286
     },
     {
       "name": "brfDebtPerSqm",
-      "mean": 5616.208540218468,
-      "beta": -0.0000023896852346561204,
-      "se": 8.272498033619409e-7,
+      "mean": 5701.528483800918,
+      "beta": -0.0000025025720335726862,
+      "se": 5.283372613608994e-7,
       "source": "fit",
       "lo": 0,
-      "hi": 21337
+      "hi": 20955.56000000012
     },
     {
       "name": "tomtratt",
@@ -1602,7 +1602,6 @@
       [59.32, 18.06, 11.7627372633666],
       [59.309, 18.084, 11.656026308610901],
       [59.319, 18.046, 11.7468218080607],
-      [59.308, 18.082, 11.274868629805301],
       [59.338, 18.078, 11.741459864919314],
       [59.343, 18.066, 11.884489021402711],
       [59.337, 18.087, 11.909088180416079],
@@ -2782,6 +2781,7 @@
       [59.335, 18.017, 11.415933198982918],
       [59.328, 18.011, 11.592677854743627],
       [59.329, 18.031, 11.827876565537562],
+      [59.333, 18.038, 11.357732575564526],
       [59.33, 18.032, 11.780129006078468],
       [59.34, 18.01, 11.334233676226852],
       [59.333, 18.016, 11.460708382988114],
@@ -3758,7 +3758,6 @@
       [59.346, 18.062, 11.921786162079531],
       [59.34, 18.036, 11.972978763362796],
       [59.346, 18.058, 11.550870396534352],
-      [59.347, 18.058, 11.49039084831773],
       [59.343, 18.048, 11.898587945782213],
       [59.34, 18.045, 12.027779660381317],
       [59.337, 18.046, 11.733916162923338],
@@ -4695,6 +4694,7 @@
       [59.319, 18.033, 11.712901957002904],
       [59.317, 18.034, 11.630708500626612],
       [59.313, 18.085, 11.76756768334381],
+      [59.313, 18.076, 11.986213169417153],
       [59.32, 18.061, 11.53959371205239],
       [59.311, 18.097, 11.339511486067387],
       [59.313, 18.099, 11.438817492816506],
@@ -4734,6 +4734,7 @@
       [59.336, 18.031, 11.651511628256376],
       [59.333, 18.015, 11.395142429313845],
       [59.334, 18.035, 11.549895895888774],
+      [59.331, 18.048, 11.261796548237948],
       [59.331, 18.024, 11.498536727518129],
       [59.333, 18.015, 11.47758609852492],
       [59.336, 18.033, 11.697437603144001],
@@ -6274,7 +6275,6 @@
       [59.309, 18.062, 11.444606220992751],
       [59.317, 18.081, 11.58191833645718],
       [59.315, 18.064, 11.618285980628055],
-      [59.314, 18.076, 11.408565449645986],
       [59.319, 18.043, 11.615073278252158],
       [59.31, 18.074, 11.7429418955722],
       [59.316, 18.076, 11.736069016284437],
@@ -6763,6 +6763,7 @@
       [59.313, 18.078, 11.815012218624558],
       [59.317, 18.066, 11.791128793467465],
       [59.314, 18.092, 11.401429960744887],
+      [59.313, 18.06, 11.192017744890126],
       [59.316, 18.077, 11.736069016284437],
       [59.316, 18.064, 11.859201701688063],
       [59.318, 18.062, 11.890219696111696],
@@ -7222,6 +7223,7 @@
       [59.318, 18.022, 11.413552991157024],
       [59.313, 18.077, 11.533230731130974],
       [59.318, 18.053, 11.439458313088355],
+      [59.313, 18.058, 11.250561200502737],
       [59.318, 18.027, 11.693051631200747],
       [59.309, 18.08, 11.58191833645718],
       [59.311, 18.081, 11.718777519174377],
@@ -7468,22 +7470,24 @@
     ]
   },
   "districtLnMedian": {
-    "Södermalm": 11.6387599526456,
+    "Södermalm": 11.63880571085923,
     "Kungsholmen": 11.559445480605122,
-    "Vasastan": 11.747997587149712,
+    "Vasastan": 11.748043545144137,
     "Östermalm": 11.910015914633416
   },
   "stage2": {
+    "capPct": 0.12,
     "balcony": {
-      "pct": 0.08,
-      "source": "fit"
+      "pct": 0.08322235594612537,
+      "source": "fit",
+      "share": 0.5092669432918395
     },
     "buildYear": {
       "pctByBucket": {
-        "le1930": 0.038841320944136726,
-        "y1931to1960": -0.0292229458614508,
-        "y1961to1990": -0.08,
-        "ge1991": -0.04464857872836503
+        "le1930": 0.03550086600210345,
+        "y1931to1960": -0.022473920174970186,
+        "y1961to1990": -0.11163695400655005,
+        "ge1991": -0.05258124394646457
       },
       "source": "fit"
     }
@@ -7492,46 +7496,46 @@
     "kind": "slope",
     "perDistrict": {
       "Södermalm": {
-        "a": 0.1153182074248037,
-        "n": 1790,
+        "a": 0.11315210313955273,
+        "n": 1792,
         "source": "fit"
       },
       "Kungsholmen": {
-        "a": 0.06169286142262943,
+        "a": 0.0641203669142622,
         "n": 1571,
         "source": "fit"
       },
       "Vasastan": {
-        "a": 0.06707796598456368,
+        "a": 0.0649683034946383,
         "n": 1360,
         "source": "fit"
       },
       "Östermalm": {
-        "a": 0.0496296216033896,
+        "a": 0.047945781309702847,
         "n": 640,
         "source": "fit"
       }
     },
-    "b": -0.09772797797569453,
-    "overallA": 0.07847978477617874,
+    "b": -0.11155737542691775,
+    "overallA": 0.07742588348523413,
     "cvRmse": {
-      "flat": 0.07575060700845646,
-      "slope": 0.07360646085110364
+      "flat": 0.07577962819527527,
+      "slope": 0.07474122908094274
     },
-    "nullLabelShare": 0.2734787911641144,
+    "nullLabelShare": 0.2734046877116922,
     "terms": {
       "dom": {
-        "beta": -0.035051376007615924,
-        "mean": 2.6816507757152683,
+        "beta": -0.02994122179208904,
+        "mean": 2.6562925382756073,
         "lnLo": 0,
-        "lnHi": 4.977207127348382,
-        "n": 837,
+        "lnHi": 4.926523745186145,
+        "n": 2706,
         "kept": true,
         "cvRmse": {
-          "without": 0.07360646085110364,
-          "with": 0.0727472506003549
+          "without": 0.07474122908094274,
+          "with": 0.07275457549197833
         },
-        "note": "med: korsvalidering 0,0736 -> 0,0727"
+        "note": "med: korsvalidering 0,0747 -> 0,0728"
       },
       "condition": {
         "beta": 0,
@@ -7539,10 +7543,10 @@
         "kept": false,
         "n": 186,
         "cvRmse": {
-          "without": 0.06358923295924183,
-          "with": 0.06362127976544038
+          "without": 0.06408065850309526,
+          "with": 0.064126828988994
         },
-        "note": "budpremie: skick ej mätt: korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186."
+        "note": "budpremie: skick ej mätt: korsvalidering förkastade termen (0,06408 -> 0,06413, skattning -0,0080). corr(skick, utgångspris/modell) = 0,17; en effekt under ≈ 2 pp kan inte ses med n = 186."
       }
     }
   },
@@ -7553,5 +7557,5 @@
       "detail": "tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)"
     }
   ],
-  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-14). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-14 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0447, SE 0,0055, t = 8,1, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 1 192 försäljningar, skuld för 1 014 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd. Dagar på marknaden i budpremien: används (med: korsvalidering 0,0736 -> 0,0727). Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat). Skick i budpremien: används inte, budpremien säger \"skick ej mätt\" (korsvalidering förkastade termen (0,06359 -> 0,06362, skattning -0,0086). corr(skick, utgångspris/modell) = 0,16; en effekt under ≈ 2 pp kan inte ses med n = 186.)"
+  "note": "Storlek: koefficienten tas från data (beslut D-10, 2026-10-18). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-18 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0404, SE 0,0055, t = 7,3, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 3 880 försäljningar, skuld för 2 329 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd. Dagar på marknaden i budpremien: används (med: korsvalidering 0,0747 -> 0,0728). Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat). Skick i budpremien: används inte, budpremien säger \"skick ej mätt\" (korsvalidering förkastade termen (0,06408 -> 0,06413, skattning -0,0080). corr(skick, utgångspris/modell) = 0,17; en effekt under ≈ 2 pp kan inte ses med n = 186.)"
 }
