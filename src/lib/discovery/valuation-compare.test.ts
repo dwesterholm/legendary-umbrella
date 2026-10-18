@@ -549,6 +549,23 @@ describe("the report with models and fit reports", () => {
     expect(renderValuationCompareMd(c)).toContain("Taket ±8 % mot ±12 %: återförsäljning 5 503 113 kr mot 5 560 000 kr, skillnad +56 887 kr");
   });
 
+  it("compares the two caps, not the 14.4 column, when older columns also read as +-8 % (a model file with no capPct)", () => {
+    const rOld = recordOf(2, [{ id: FOLKUNGAGATAN_61_BOOLI_ID, address: "Folkungagatan 61", rank: 1, resale: 5_900_000 }]);
+    const r8 = recordOf(2, [{ id: FOLKUNGAGATAN_61_BOOLI_ID, address: "Folkungagatan 61", rank: 1, resale: 5_280_587 }]);
+    const r12 = recordOf(2, [{ id: FOLKUNGAGATAN_61_BOOLI_ID, address: "Folkungagatan 61", rank: 1, resale: 5_288_313 }]);
+    const c = buildValuationCompare({
+      columns: [
+        { label: "14.4", record: rOld, model: modelFile({ features: feats(1), balcony: 0.08 }) },
+        { label: "mellan", record: rOld, model: modelFile({ features: feats(1), balcony: 0.08 }) },
+        { label: "åtta", record: r8, model: modelFile({ features: feats(1), capPct: 0.08, balcony: 0.08 }) },
+        { label: "tolv", record: r12, model: modelFile({ features: feats(1), capPct: 0.12, balcony: 0.095 }) },
+      ],
+      trackId: FOLKUNGAGATAN_61_BOOLI_ID,
+    });
+    expect(c.capResaleDiff).toEqual({ cap8Label: "åtta", cap12Label: "tolv", resale8: 5_280_587, resale12: 5_288_313, diffSek: 7_726 });
+    expect(renderValuationCompareMd(c)).toContain("skillnad +7 726 kr");
+  });
+
   it("reads the committed model: balcony +8,0 % and 1961-1990 -8,0 % sit on its +-8 % cap", () => {
     const committed = JSON.parse(readFileSync("data/hedonic-model.json", "utf8")) as unknown;
     const md = renderValuationCompareMd(

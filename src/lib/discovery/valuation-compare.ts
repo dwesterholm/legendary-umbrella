@@ -487,8 +487,14 @@ export function buildValuationCompare(input: CompareInput): ValuationCompare {
 
   // The tracked flat's resale value under the +-8 % and the +-12 % column.
   const caps = columns.map(columnCapOf);
-  const i8 = caps.findIndex((c) => c !== null && Math.abs(c - 0.08) < 1e-9);
-  const i12 = caps.findIndex((c) => c !== null && Math.abs(c - 0.12) < 1e-9);
+  // The LAST column at each cap: a 14.4 model file has no capPct and reads as +-8 %, so the first match would be the
+  // "before" column and the line would compare 14.4 with the +-12 % run instead of the two caps (14.5-11).
+  const lastAt = (cap: number): number => {
+    for (let i = caps.length - 1; i >= 0; i--) if (caps[i] !== null && Math.abs((caps[i] as number) - cap) < 1e-9) return i;
+    return -1;
+  };
+  const i8 = lastAt(0.08);
+  const i12 = lastAt(0.12);
   const resale8 = i8 >= 0 ? tracked[i8].resaleSek : null;
   const resale12 = i12 >= 0 ? tracked[i12].resaleSek : null;
   const capResaleDiff: CapResaleDiff | null =
