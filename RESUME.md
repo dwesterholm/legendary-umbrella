@@ -6,7 +6,23 @@
 
 ---
 
-## ▶️ PICK UP HERE (2026-10-17 evening — Phase 14.5 paused after wave 2; Booli gate opens 2026-10-18 13:15 UTC)
+## ▶️ PICK UP HERE (2026-10-18 evening — 14.5: 7/13 done; Booli gate closed until 2026-10-19 14:57 UTC)
+
+Done today: plan 10 (restart blocked by Booli again after 64 pages at 2 s → ENR-01 PARTLY MET: 3 912/5 469 enriched,
+2 329 with debt/kvm, BRF pass not run; stage-2 cap as model parameter + stage-2 CV) and plan 11 (refit n≈3 900: avgift
+−1,00 %/10 kr (SE 0,11), debt −0,25 %/1 000 kr (SE 0,05); ±12 % cap committed per R-01 by a thin 0,4 % CV margin; the
+1961–1990 bucket is what needed room (raw −11,2 %); FIXED a stage-2 double count that over-priced every known-balcony flat
+≈ 4 % → all 77 resale values −3,99 %, Folkungagatan 61 plats 17 → 16, profit 1 123 047 → 938 661 kr). Research doc on
+uppmätning/bygglov/stambyte committed (`.planning/research/2026-10-18-…md`) — proposed Phase 14.6, awaiting Daniel.
+Open: bid premium is trained on stage-1 predictions but served with stage-2 (plan 11 open point); Daniel may swap ±12 → ±8.
+
+REMAINING (needs Booli/bcdn.se; `booli-gate.mjs` refuses before 2026-10-19 14:57 UTC): plans 06–07 truth set (≈ 300
+picture downloads, 1/s, stop on 403), 08–09 paid layout rounds (≤ 40 kr each), 12 switch verdict, 13 live run + SUMMARY.
+Resume: `/gsd-execute-phase 14.5 --auto` after the gate opens, Mac awake + unlocked. Booli has blocked two sequential
+detail-page runs in a row (2026-10-17, 2026-10-18); do NOT restart enrichment again from this Mac without a new decision
+(Apify residential ≈ 80 USD for the 1 557 rows is the alternative).
+
+## ▶️ STATUS 2026-10-17 evening — Phase 14.5 paused after wave 2; Booli gate opens 2026-10-18 13:15 UTC)
 
 Branch `gsd/phase-14.5-enrichment-layout-accuracy-ceiling` (main ff'd + pushed). Plans 01–05 DONE (5/13): takhöjd parser +
 fact + Takhöjd column/mail + taste term (+1 % ≥ 3,0 m, +2 % ≥ 3,5 m); layout-accuracy module (precision of money-moving
