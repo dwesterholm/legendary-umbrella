@@ -237,12 +237,12 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 12 plans
+**Plans:** 1/12 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 14.6-01-PLAN.md — separation specifiers first; city page parsers and keyword tag set from the saved pages (CASE-02)
+- [x] 14.6-01-PLAN.md — separation specifiers first; city page parsers and keyword tag set from the saved pages (CASE-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
