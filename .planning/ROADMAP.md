@@ -237,7 +237,7 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 8/12 plans executed
+**Plans:** 9/12 plans executed
 
 Plans:
 **Wave 1**
@@ -274,7 +274,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 14.6-09-PLAN.md — new CandidateFacts, enrichment wiring, city stage live/cache-only (STAM-03, FLAG-01, FLAG-02, CASE-01)
+- [x] 14.6-09-PLAN.md — new CandidateFacts, enrichment wiring, city stage live/cache-only (STAM-03, FLAG-01, FLAG-02, CASE-01)
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
