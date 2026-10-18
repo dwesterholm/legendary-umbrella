@@ -233,7 +233,7 @@ Plans:
 2. **Stambyte into the valuation (STAM-).** Join the dated history to the sold rows by address → `yearsSinceStambyte` / `stambyteWithin3y` features; fit with the honesty rule; keep only if CV improves; report the measured effect vs the folklore; either way an "stambyte planerat/pågående" reason line and a table/mail column with the year(s).
 3. **Balcony-permit and uppmätning flags (FLAG-).** "Balkong beviljad, ej byggd" flag + mail column; area-source parsing from broker text (`uppmätt YYYY`, `ej uppmätt`, `enligt säljaren/ritning`) → `areaSourceKind`, `measuredYear`, a soft "troligen ej uppmätt" flag with the kr upside shown separately (≈ 100–115 kkr per kvm at this price level), never in the score; coverage measured on the first live run.
 4. **Floor-plan under-measurement signals** — deferred until the layout read passes its 75 % gate (Phase 14.5).
-**Requirements**: TBD (prefix CASE-, STAM-, FLAG-)
+**Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
 **Plans:** 0 plans
 
