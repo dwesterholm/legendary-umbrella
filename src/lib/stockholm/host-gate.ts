@@ -39,7 +39,6 @@ const entrySchema = z.object({
   reason: z.string().regex(LABEL),
   disabled: z.boolean().optional(),
 });
-const gatesSchema = z.record(z.string().regex(HOST), entrySchema);
 
 export interface HostGateEntry {
   blockedUntil: string;
