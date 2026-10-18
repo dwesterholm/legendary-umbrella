@@ -28,6 +28,7 @@ import {
 } from "@/lib/stockholm/bygglov-cache";
 import type { CaseListAnswer, CityClient } from "@/lib/stockholm/bygglov-client";
 import type { AddressOption } from "@/lib/stockholm/bygglov-parse";
+import type { MinKartaResult } from "@/lib/stockholm/minkarta";
 import {
   beteckningFromText,
   beteckningGuessFromBrfName,
@@ -62,8 +63,13 @@ export interface BeteckningResult {
   list?: CaseListAnswer;
 }
 
+/** Rung (c): `makeMinKartaResolver(...)` from minkarta.ts. */
+export type MinKartaResolver = (address: string) => Promise<Pick<MinKartaResult, "status" | "beteckning" | "reason">>;
+
 export interface BeteckningDeps {
   client: Pick<CityClient, "addressSearch" | "caseList">;
+  /** Rung (c). Null or missing: the ladder ends at rung (b). */
+  minkarta?: MinKartaResolver | null;
   /** Directory of the address map; tests pass a temp directory. */
   cacheDir?: string;
   now: () => Date;
@@ -199,6 +205,22 @@ export async function resolveBeteckning(input: BeteckningInput, deps: Beteckning
   } else if (match.ambiguous) {
     ambiguous = true;
     notes.push("stadens adresssökning gav flera fastighetsbeteckningar (tvetydig)");
+  }
+
+  // (c) Min Karta, the expensive last resort
+  if (deps.minkarta) {
+    const lookup = await deps.minkarta(address);
+    if (lookup.status === "resolved" && lookup.beteckning !== null) {
+      const hit = accept(lookup.beteckning, "c");
+      if (hit !== null) return hit;
+    } else if (lookup.status === "ambiguous") {
+      ambiguous = true;
+      notes.push("Min Karta kunde inte peka ut en enskild fastighet (tvetydig)");
+    } else if (lookup.status === "fetch_failed") {
+      // Rung (c) did not answer, so the other rungs' "nothing" is not the whole truth: unknown, and nothing stored.
+      notes.push(`Min Karta var inte tillgänglig (${lookup.reason})`);
+      return unknown("fetch_failed", notes);
+    }
   }
 
   const status = ambiguous ? "ambiguous" : "no_candidates";
