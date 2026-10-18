@@ -549,14 +549,28 @@ describe("runSweep: a capped or oversized answer is split and never hidden", () 
     expect(result.total).toBe(2);
   });
 
-  it("keeps a single year of 500 consistent rows (nothing smaller exists to ask for)", async () => {
+  it("WR-14: a single year of 500 or more rows is reported as unsplittable and not saved as complete", async () => {
     const rig = sweepRig({ answer: () => html(listPage(500)) });
-    const result = await rig.run([query("Södermalm", "vatten", "2005-01-01", "2005-12-31")]);
+    const target = query("Södermalm", "vatten", "2005-01-01", "2005-12-31");
+    const result = await rig.run([target]);
     expect(rig.fetchImpl.asked).toHaveLength(1);
+    expect(rig.store.files.size).toBe(0);
+    expect(result.unsplittable).toEqual([target]);
+    expect(rig.store.unsplittable).toHaveLength(1);
+    expect(result.saved).toBe(0);
+    expect(result.total).toBe(1);
+    expect(rig.logs.some((l) => l.includes("kan inte delas mer"))).toBe(true);
+  });
+
+  it("a single year just under the cap (499 rows) is saved as complete", async () => {
+    const rig = sweepRig({ answer: () => html(listPage(499)) });
+    const target = query("Södermalm", "vatten", "2005-01-01", "2005-12-31");
+    const result = await rig.run([target]);
     expect(rig.store.files.size).toBe(1);
     expect(result.unsplittable).toEqual([]);
     expect(result.saved).toBe(1);
   });
+
 
   it("does not ask a recorded split again on a second run, and never asks a cached query", async () => {
     const answer = (p: URLSearchParams) =>

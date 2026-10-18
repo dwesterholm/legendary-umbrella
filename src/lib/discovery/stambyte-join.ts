@@ -203,7 +203,7 @@ class SweepHalt extends Error {
  * Runs the plan: each query that is not in the cache is asked once, in order. An answer that is too big (storlek),
  * whose count differs from its rows or that holds 500 rows or more is NOT saved; its window is split into 5-year spans
  * (by year when already short), the split is recorded and the spans are asked instead. A single year that is still capped
- * is reported (`unsplittable`), the run goes on. A refusal, a pause, the request budget or the Monday window ends the run
+ * (or whose count cannot be trusted) is reported (`unsplittable`) and not saved, so it counts as missing; the run goes on. A refusal, a pause, the request budget or the Monday window ends the run
  * at once; everything saved stays, and the next run resumes (cached queries and recorded splits are never asked again).
  */
 export async function runSweep(plan: readonly SweepQuery[], deps: RunSweepDeps): Promise<SweepRunResult> {
@@ -265,7 +265,9 @@ export async function runSweep(plan: readonly SweepQuery[], deps: RunSweepDeps):
     const rows = answer.cases.length;
     const stated = answer.headingCount;
     if (stated !== null && stated !== rows) return split(q, "antal");
-    if ((rows >= SPLIT_ROWS || (stated ?? 0) >= SPLIT_ROWS) && childrenOf(q).length > 0) return split(q, "antal");
+    // 500 rows or more may be a capped answer. A window that can be split is split; a single year cannot be, so it is
+    // reported (unsplittable) and NOT saved: the sweep then counts it as missing, never as complete (WR-14).
+    if (rows >= SPLIT_ROWS || (stated ?? 0) >= SPLIT_ROWS) return split(q, "antal");
     deps.save(q, { cases: answer.cases, headingCount: stated });
     deps.log(`[svep] ${label(q)}: ${rows} ärenden`);
   }

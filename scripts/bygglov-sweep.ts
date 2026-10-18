@@ -434,7 +434,7 @@ async function main(): Promise<number> {
       console.log(`Rapport: ${args.evidence} och ${args.evidence.replace(/\.json$/, ".md")}`);
     }
     for (const q of result.unsplittable) {
-      console.error(`Saknas: ${q.district} ${q.description} ${q.from}..${q.to ?? "idag"} (ett enda år vars antal inte går att lita på)`);
+      console.error(`Saknas: ${q.district} ${q.description} ${q.from}..${q.to ?? "idag"} (ett enda år med 500 ärenden eller fler, eller vars antal inte går att lita på)`);
     }
     if (unrouted.length > 0) {
       console.error(`Torrkörningen bad om sidor som inte finns sparade (${[...new Set(unrouted)].join(", ")}): ett skarpt anrop hade gjorts.`);
