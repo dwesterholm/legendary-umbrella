@@ -286,6 +286,44 @@ describe("resolveViaMinKarta: Bondegatan 59 from saved answers", () => {
     expect(result).toMatchObject({ status: "resolved", beteckning: "Ormen Mindre 2", calls: 2 });
   });
 
+  describe("WR-09: a single candidate from a widened buffer still has to contain the address point", () => {
+    const oneAt10 = (id: string, text: string) =>
+      bufferRoute(10, { body: JSON.stringify({ registerenheter: [{ objectText: text, objectId: id }] }) });
+
+    it("resolves when the boundary contains the point (five calls: search, three buffers, one boundary)", async () => {
+      const s = setup([
+        searchRoute,
+        bufferRoute(0, { body: NOTHING }),
+        bufferRoute(5, { body: NOTHING }),
+        oneAt10(ID_OLJAN_29, "STOCKHOLM OLJAN 29"),
+        infoRoute(ID_OLJAN_29, { file: "minkarta-fastighetsinfo-oljan-29.fixture.json" }),
+      ]);
+      expect(await s.resolver("Bondegatan 59")).toMatchObject({ status: "resolved", beteckning: "Oljan 29", calls: 5 });
+    });
+
+    it("is ambiguous when the one candidate is a neighbour whose boundary does not contain the point", async () => {
+      const s = setup([
+        searchRoute,
+        bufferRoute(0, { body: NOTHING }),
+        bufferRoute(5, { body: NOTHING }),
+        oneAt10(ID_OLJAN_17, "STOCKHOLM OLJAN 17"),
+        infoRoute(ID_OLJAN_17, { body: '{"beteckningtext":"Stockholm Oljan 17","enhetsutbredning":[]}' }),
+      ]);
+      expect(await s.resolver("Bondegatan 59")).toMatchObject({ status: "ambiguous", beteckning: null });
+    });
+
+    it("is ambiguous when the one candidate has no usable object id (nothing to test it with)", async () => {
+      const s = setup([
+        searchRoute,
+        bufferRoute(0, { body: NOTHING }),
+        bufferRoute(5, { body: JSON.stringify({ registerenheter: [{ objectText: "STOCKHOLM OLJAN 17" }] }) }),
+      ]);
+      const result = await s.resolver("Bondegatan 59");
+      expect(result).toMatchObject({ status: "ambiguous", beteckning: null });
+      expect(result.calls).toBe(3);
+    });
+  });
+
   it("a plot in another kommun is never mapped to a Stockholm designation", async () => {
     const s = setup([
       searchRoute,

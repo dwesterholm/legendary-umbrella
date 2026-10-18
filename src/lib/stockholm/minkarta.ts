@@ -8,7 +8,8 @@
  *   2. candidates  GET .../registerenhetermedbuffer/v1?east&north&buffer&transactionId, buffer 0, then 5, then 10:
  *                  the first buffer that returns anything wins. Neighbouring plots and the street land itself are
  *                  swept into a 10 m buffer (Bondegatan 59 returns Oljan 29, Oljan 17, Södermalm 8:57, Södermalm
- *                  10:35), so one candidate is trusted as it is, several are tested by point-in-polygon.
+ *                  10:35), so one candidate at buffer 0 is trusted as it is; several, or one found only in a widened buffer, are
+ *                  tested by point-in-polygon.
  *   3. geometry    GET /api/searchservice/fastighetsinfo/v1?objektidentitet=<id> -> the boundary polygons. Outer ring
  *                  in, holes out, any polygon of a multi-part parcel counts. Street land ("Södermalm 8:57") is one
  *                  outer ring with a hole per building, so it never contains a building's point.
@@ -394,6 +395,7 @@ export async function resolveViaMinKarta(address: string, deps: MinKartaDeps): P
 
   // 2. the buffer ladder: the first width that returns anything
   let candidates: MinKartaCandidate[] = [];
+  let foundAtBuffer = 0;
   for (const buffer of BUFFER_LADDER) {
     const answer = await get(REGISTERENHETER_PATH, [
       ["east", String(hit.east)],
@@ -404,16 +406,20 @@ export async function resolveViaMinKarta(address: string, deps: MinKartaDeps): P
     if (!answer.ok) return failed(answer.reason);
     // Only designations in Stockholm kommun are of use; a neighbour kommun's plot is dropped, never mapped.
     candidates = parseCandidates(answer.json).filter((c) => stockholmBeteckning(c.text) !== null);
-    if (candidates.length > 0) break;
+    if (candidates.length > 0) {
+      foundAtBuffer = buffer;
+      break;
+    }
   }
   if (candidates.length === 0) return done("no_candidates", null, "inga registerenheter i närheten");
 
-  // 3. exactly one candidate is the answer
-  if (candidates.length === 1) {
+  // 3. exactly one candidate at the point itself (buffer 0) is the answer. One found only in a widened 5 or 10 m
+  // buffer may be a neighbour (the address point can sit on street land), so it must pass the same boundary test.
+  if (candidates.length === 1 && foundAtBuffer === 0) {
     return done("resolved", stockholmBeteckning(candidates[0].text), "en enda registerenhet");
   }
 
-  // 4. several: the boundary of each, building plots before district-named street land (which is never accepted
+  // 4. several (or one from a widened buffer): the boundary of each, building plots before district-named street land (which is never accepted
   // anyway), and the first parcel that contains the point wins. Stops when the call budget is spent.
   const ordered = [...candidates].sort(
     (a, b) => Number(isStreetLandBeteckning(stockholmBeteckning(a.text) ?? "")) - Number(isStreetLandBeteckning(stockholmBeteckning(b.text) ?? "")),
