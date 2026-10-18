@@ -6,7 +6,18 @@
  *
  *   npx tsx scripts/fit-hedonic.ts [--cache .planning/calibration/data/slutpriser-cache.json] \
  *       [--out data/hedonic-model.json] [--as-of <YYYY-MM-DD, default: the cache's asOf>] \
- *       [--before-record <fil.json>] [--without-new-features --out <fil>] [--stage2-cap 0.08|0.12] [--report-json <fil.json>]
+ *       [--before-record <fil.json>] [--without-new-features --out <fil>] [--stage2-cap 0.08|0.12] [--report-json <fil.json>] \
+ *       [--stambyte-join .planning/calibration/data/bygglov/sold-join.json]
+ *   npx tsx scripts/fit-hedonic.ts --graft-stambyte <donor.json> --out <fil.json> [--base data/hedonic-model.json]
+ *
+ * 14.6 (STAM-02, R-03): --stambyte-join <fil> attaches the city's building history to each sold row (what the record said on
+ * the SALE date, from `stambyteAtSale`) and fits the stambyte post-stage: an optional `stambyteTerm` kept only when 5-fold
+ * cross-validation improves, printed in a Stambyte block beside the circulating figures and the correlation with debt and
+ * avgift. The file must sit under .planning/calibration/data/ and pass its schema, or the script stops BEFORE the sold
+ * cache is read. Without the flag the model has no stambyteTerm key and is byte-compatible with a pre-14.6 fit.
+ * --graft-stambyte <donor> moves ONLY the donor's stambyteTerm onto --base (default data/hedonic-model.json) after checking
+ * that every other number except fittedAt and note is equal; it reads no sold cache, needs an explicit --out and writes
+ * atomically. Plan 14.6-12 does the swap; plan 14.6-07 only fits to scratch files.
  *
  * 14.5 (R-01, D-03): --stage2-cap sets the limit on the balcony and build-year effects. Only 0.08 (default) and 0.12
  * are allowed; anything else stops the script before the cache is read. The fitted model records it as stage2.capPct.
@@ -40,6 +51,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { z } from "zod/v4";
 import {
   HEDONIC_FEATURES,
   HEDONIC_MIN_LAMBDA,
@@ -48,8 +60,11 @@ import {
   describeModel,
   fitHedonicModel,
   fitRidge,
+  formatStambyteBlock,
+  graftStambyteTerm,
   hedonicModelSchema,
   monthsBetweenIso,
+  parseHedonicModel,
   trainingFeatureMatrix,
   type HedonicFitReport,
   type HedonicModel,
@@ -58,8 +73,10 @@ import {
   STAGE2_ALLOWED_CAPS,
   STAGE2_CAP_PCT,
   type InnerstanDistrict,
+  type StambyteTrainingState,
   type TrainingPoint,
 } from "@/lib/discovery/hedonic-model";
+import { stambyteAtSale } from "@/lib/discovery/stambyte-join";
 import {
   slutprisCacheSchema,
   subtractMonthsIso,
@@ -169,6 +186,100 @@ function resolveOutPath(): string {
   }
   if (!resolved.endsWith(".json")) throw new Error("--out måste vara en .json-fil");
   return resolved;
+}
+
+/** A file path inside one of the directories, as a resolved absolute path; null when outside. */
+function resolveInside(raw: string, dirs: readonly string[]): string | null {
+  const resolved = resolve(raw);
+  const inside = dirs.some((dir) => {
+    const rel = relative(dir, resolved);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  });
+  return inside ? resolved : null;
+}
+
+// ---------------------------------------------------------------------------
+// The stambyte join file (14.6, STAM-02)
+// ---------------------------------------------------------------------------
+
+/** What this script reads of `sold-join.json` (plan 06 writes it); extra keys are ignored. */
+const stambyteJoinFileSchema = z.looseObject({
+  schemaVersion: z.literal(1),
+  soldAsOf: z.string(),
+  rows: z.record(
+    z.string(),
+    z.looseObject({
+      beteckning: z.string().nullable(),
+      cases: z.array(
+        z.looseObject({
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          kinds: z.array(z.string()),
+          slutbeskedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          latest: z.looseObject({ type: z.string(), code: z.string().nullable() }).nullable().optional(),
+        }),
+      ),
+    }),
+  ),
+});
+type StambyteJoinFile = z.infer<typeof stambyteJoinFileSchema>;
+
+/**
+ * --stambyte-join: the path must sit under .planning/calibration/data/ (gitignored scratch data), end in .json and
+ * parse with the schema above. Read BEFORE the sold cache so a bad file stops the script early (T-14.6-63).
+ */
+function loadStambyteJoin(raw: string): StambyteJoinFile {
+  const path = resolveInside(raw, [CALIBRATION_DATA_DIR]);
+  if (path === null) throw new Error(`--stambyte-join måste ligga under .planning/calibration/data/ (fick ${raw})`);
+  if (!path.endsWith(".json")) throw new Error("--stambyte-join måste vara en .json-fil");
+  if (!existsSync(path)) throw new Error(`--stambyte-join: hittar ingen kopplingsfil på ${path} (kör scripts/stambyte-join.ts först)`);
+  let json: unknown;
+  try {
+    json = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    throw new Error(`--stambyte-join: ${relative(CWD, path)} är inte giltig JSON`);
+  }
+  const parsed = stambyteJoinFileSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error(`--stambyte-join: kopplingsfilen klarar inte schemat: ${parsed.error.issues[0]?.message ?? "okänt fel"} (${parsed.error.issues[0]?.path.join(".") ?? ""})`);
+  }
+  return parsed.data;
+}
+
+/**
+ * What the city's record said about a sold flat's building ON THE SALE DATE, or null when the building was not
+ * identified (or the row is not in the join file): such a row stays out of the stambyte regression.
+ */
+function stambyteOfSoldRow(join: StambyteJoinFile, row: SoldRow): StambyteTrainingState | null {
+  const entry = join.rows[row.booliId];
+  if (entry === undefined || entry.beteckning === null) return null;
+  const at = stambyteAtSale(entry.cases, row.soldDate);
+  return { identified: true, recorded: at.recorded, yearsBefore: at.yearsBefore, ongoingAtSale: at.ongoingAtSale };
+}
+
+/** The model file as written: 2-space indent, each kernel point on one line [lat, lng, ln kr/m2]. */
+function serialiseModel(model: HedonicModel): string {
+  return JSON.stringify(model, null, 2).replace(/\[\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+)\s+\]/g, "[$1, $2, $3]");
+}
+
+/** --graft-stambyte <donor> [--base <fil>] --out <fil>: only the term moves; no sold cache is read. */
+function graftMode(donorRaw: string): void {
+  const outRaw = argValue("--out");
+  if (outRaw === null) throw new Error("--graft-stambyte kräver en uttrycklig --out (basmodellen skrivs aldrig över av misstag)");
+  const outPath = resolveOutPath();
+  const read = (flag: string, raw: string): HedonicModel => {
+    const path = resolveInside(raw, ALLOWED_OUT_DIRS);
+    if (path === null) throw new Error(`${flag} måste ligga under data/ eller .planning/calibration/data/ (fick ${raw})`);
+    if (!path.endsWith(".json") || !existsSync(path)) throw new Error(`${flag}: hittar ingen .json-modell på ${path}`);
+    return parseHedonicModel(JSON.parse(readFileSync(path, "utf8")));
+  };
+  const base = read("--base", argValue("--base") ?? DEFAULT_OUT);
+  const donor = read("--graft-stambyte", donorRaw);
+  const grafted = graftStambyteTerm(base, donor);
+  writeTextAtomic(outPath, `${serialiseModel(grafted)}\n`);
+  const term = grafted.stambyteTerm;
+  console.log(
+    `Stambyteterm flyttad från ${relative(CWD, resolve(donorRaw))} till ${relative(CWD, outPath)}: ${term?.kept ? "behållen" : "ej behållen"} (${term?.note ?? ""}). Inget annat tal i basmodellen ändrades.`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -606,10 +717,18 @@ function printStage2(s2: Stage2Report | null, stage1Cv: number): void {
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
+  const graftDonor = argValue("--graft-stambyte");
+  if (graftDonor !== null) {
+    graftMode(graftDonor);
+    return;
+  }
   const stage2Cap = resolveStage2Cap();
   const reportJsonPath = resolveReportJsonPath();
   const cachePath = resolve(argValue("--cache") ?? DEFAULT_CACHE);
   const outPath = resolveOutPath();
+  // 14.6: the join file is checked before anything is read (T-14.6-63).
+  const stambyteJoinRaw = argValue("--stambyte-join");
+  const stambyteJoin = stambyteJoinRaw === null ? null : loadStambyteJoin(stambyteJoinRaw);
   // R-05: the intermediate model (old feature set) must never replace the committed one.
   const intermediate = hasFlag("--without-new-features");
   // IN-10: the check matches its message - the path must really sit under .planning/calibration/data/, not merely
@@ -647,7 +766,10 @@ function main(): void {
   const conditionCacheLoaded = loadSoldConditionCache(join(CWD, SOLD_CONDITION_CACHE_PATH));
   if (conditionCacheLoaded.warning !== null) console.warn(conditionCacheLoaded.warning);
   const conditionCache = conditionCacheLoaded.cache;
-  const withNew = trainingSource.map((r) => toTrainingRow(r, brfTable, conditionLookup(conditionCache)));
+  const withNew = trainingSource.map((r) => {
+    const row = toTrainingRow(r, brfTable, conditionLookup(conditionCache));
+    return stambyteJoin === null ? row : { ...row, stambyte: stambyteOfSoldRow(stambyteJoin, r) };
+  });
   // The intermediate model sees the same rows with the three new columns blanked, so they come out "absent".
   // It also sees no condition labels: the bid-premium condition term belongs to neither "refit" nor "new
   // features", and a term kept there by a hair would leak into the before/after split of the VAL-05 report (T-14.4-40).
@@ -662,7 +784,11 @@ function main(): void {
   console.log(`Rader med detaljuppgifter (byggår/balkong från försäljningssidan): ${fmt(enrichedRows.length)}`);
 
   console.log(`Steg-2-tak: ±${sv(stage2Cap * 100, 0)} % (balkong och byggår begränsas till detta)`);
-  let { model: fitted, report } = fitHedonicModel(training, { asOf, fittedAt, stage2CapPct: stage2Cap });
+  const stambyteStage = stambyteJoin !== null;
+  if (stambyteJoin !== null && stambyteJoin.soldAsOf !== cache.asOf) {
+    console.warn(`VARNING: kopplingsfilen bygger på försäljningar per ${stambyteJoin.soldAsOf}, cachen per ${cache.asOf}; rader som saknas i kopplingsfilen räknas som okända.`);
+  }
+  let { model: fitted, report } = fitHedonicModel(training, { asOf, fittedAt, stage2CapPct: stage2Cap, stambyteStage });
 
   // What stage 2 measured on the full detail sample, kept even when the thin-bucket gate below drops it from the model.
   const measuredStage2 = report.stage2;
@@ -687,7 +813,7 @@ function main(): void {
     console.log("  Detaljurvalet lämnas därför utanför modellen: balkong = studiens värde, ingen byggårsjustering (D-18/R-05 reservväg).");
     ({ model: fitted, report } = fitHedonicModel(
       training.map((r) => ({ ...r, balcony: null, buildYear: null, enriched: false })),
-      { asOf, fittedAt, stage2CapPct: stage2Cap },
+      { asOf, fittedAt, stage2CapPct: stage2Cap, stambyteStage },
     ));
     detailDropped = true;
   }
@@ -818,6 +944,10 @@ function main(): void {
   for (const l of lines) console.log(`  - ${l}`);
 
   printStage2(measuredStage2, model.cvRmseLog);
+  if (report.stambyte !== undefined) {
+    console.log("");
+    for (const l of formatStambyteBlock(report.stambyte)) console.log(l);
+  }
 
   if (intermediate) {
     console.log("\nNya egenskaper (14.4): utelämnade i den här körningen (mellanmodell, R-05).");
@@ -874,10 +1004,7 @@ function main(): void {
 
   // ---- write ----
   // 2-space indent, but each kernel point on one line: [lat, lng, ln kr/m2].
-  const json = JSON.stringify(model, null, 2).replace(
-    /\[\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+)\s+\]/g,
-    "[$1, $2, $3]",
-  );
+  const json = serialiseModel(model);
   // Temp file + rename (IN-10): a crash mid-write must not leave a truncated committed model that every consumer refuses.
   writeTextAtomic(outPath, `${json}\n`);
   console.log(`\nModell skriven: ${relative(CWD, outPath)} (${fmt(Math.round(json.length / 1024))} kB, ${fmt(model.kernel.points.length)} punkter)`);
@@ -895,6 +1022,8 @@ function main(): void {
       stage2: measuredStage2,
       correlation: { avgiftDebt: diagnostics.correlation, rows: diagnostics.correlationRows },
       ceiling: { soldRowsWithHeight: CEILING_SOLD_ROWS_WITH_HEIGHT, fitted: false, reason: CEILING_REASON },
+      // 14.6: only when the stambyte stage ran; the report schema is loose, so older readers ignore it.
+      ...(report.stambyte !== undefined ? { stambyte: report.stambyte } : {}),
     };
     // Validated against the shape plan 03 defined before anything is written.
     fitReportJsonSchema.parse(payload);

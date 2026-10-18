@@ -2195,6 +2195,12 @@ export interface StambyteReport {
   /** Of those, rows with a stambyte under way at the sale. */
   ongoingRows: number;
   term: StambyteTerm;
+  /**
+   * How big the cross-validation gain is, row by row (the kept/not-kept rule is the strict comparison in the term; this is
+   * only there so a gain of a hair is not mistaken for a finding). `relativeRmseGain` = 1 - with/without. `t` is the mean
+   * of the per-row drop in squared error over its own standard error. Absent when the term was not tried.
+   */
+  cvGain?: { relativeRmseGain: number; meanSqErrorDrop: number; t: number | null };
   /** Pearson r of "stambyte recorded" (1/0) with debt per m2 and with avgift per m2 and month, over the regression rows. */
   correlation: {
     debt: { r: number | null; n: number };
@@ -2343,6 +2349,7 @@ export function fitStambyteTerm(
   // 5-fold cross-validation over the regression rows.
   let sqWithout = 0;
   let sqWith = 0;
+  const drops: number[] = [];
   for (let f = 0; f < CV_FOLDS; f++) {
     const train = idx.filter((_, p) => p % CV_FOLDS !== f);
     const trainMean = meanOfValues(train.map((i) => residuals[i]));
@@ -2352,8 +2359,11 @@ export function fitStambyteTerm(
     }
     idx.forEach((i, p) => {
       if (p % CV_FOLDS !== f) return;
-      sqWithout += (residuals[i] - trainMean) ** 2;
-      sqWith += (residuals[i] - (groupMeans.get(groupOf(i)) ?? trainMean)) ** 2;
+      const errWithout = (residuals[i] - trainMean) ** 2;
+      const errWith = (residuals[i] - (groupMeans.get(groupOf(i)) ?? trainMean)) ** 2;
+      sqWithout += errWithout;
+      sqWith += errWith;
+      drops.push(errWithout - errWith);
     });
   }
   const cvWithout = Math.sqrt(sqWithout / idx.length);
@@ -2370,7 +2380,14 @@ export function fitStambyteTerm(
     cvRmse: { without: cvWithout, with: cvWith },
     note: keep ? `med: korsvalidering ${sv(cvWithout, 4)} -> ${sv(cvWith, 4)}` : "prövad, förkastad: korsvalidering",
   };
-  return { term, report: { ...counts, term, correlation: corr } };
+  const meanDrop = meanOfValues(drops);
+  const dropSe = sampleSd(drops) / Math.sqrt(drops.length);
+  const cvGain = {
+    relativeRmseGain: 1 - cvWith / cvWithout,
+    meanSqErrorDrop: meanDrop,
+    t: dropSe > 0 ? meanDrop / dropSe : null,
+  };
+  return { term, report: { ...counts, term, cvGain, correlation: corr } };
 }
 
 /** The effect (a fraction) a kept term gives a building whose history is known. Ongoing first, then the age bucket, else the reference. */
@@ -2444,6 +2461,13 @@ export function formatStambyteBlock(report: StambyteReport): string[] {
     out.push(
       `  Korsvalidering: utan ${sv(term.cvRmse.without, 4)}, med ${sv(term.cvRmse.with, 4)} -> ${term.kept ? "behålls" : "förkastas"}`,
     );
+    if (report.cvGain !== undefined) {
+      const g = report.cvGain;
+      out.push(
+        `  Korsvalideringens vinst: felet ${g.relativeRmseGain >= 0 ? "sjunker" : "stiger"} med ${sv(Math.abs(g.relativeRmseGain) * 100, 2)} %` +
+          `${g.t === null ? "" : `; parad jämförelse rad för rad: t = ${sv(g.t, 1)} (omkring 2 eller mer skiljer sig från noll)`}.`,
+      );
+    }
   }
   const r = (c: { r: number | null }): string => (c.r === null ? "ej beräkningsbar" : sv(c.r, 2));
   out.push(

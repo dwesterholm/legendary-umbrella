@@ -2698,6 +2698,9 @@ describe("fitStambyteTerm: thin data and the report block", () => {
     expect(text).toMatch(/mot avgift\/kvm r=-?\d,\d{2} \(n=\d+\)/);
     expect(STAMBYTE_FOLKLORE).toBe("Spridda uppgifter: -8 till -15 % före, +5 till +12 % efter (ett blogginlägg utan källa, Boio)");
     expect(report.stambyte!.correlation.debt.n).toBeGreaterThan(100);
+    // The planted effect is a real gain: the per-row comparison is well away from zero, and the block says so.
+    expect(report.stambyte!.cvGain!.t!).toBeGreaterThan(3);
+    expect(text).toMatch(/Korsvalideringens vinst: felet sjunker med \d+,\d{2} %; parad jämförelse rad för rad: t = \d+,\d/);
   });
 
   it("a group of at least 30 rows under way at the sale is fitted as its own group; under that it is 'ej anpassad'", () => {
