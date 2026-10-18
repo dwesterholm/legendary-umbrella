@@ -29,7 +29,7 @@
  * ranking path. `niche-score.ts` and `report/flags.ts` must NEVER import it; the "stockholm/"
  * prefix is registered in `niche-score.test.ts` (in an earlier commit than this file).
  */
-import type { CaseListRow } from "@/lib/stockholm/bygglov-parse";
+import type { CaseDetail, CaseListRow } from "@/lib/stockholm/bygglov-parse";
 
 /** The kinds a case can carry, in the order D-03 / R-05 list them. */
 export const CASE_KINDS = [
@@ -76,10 +76,10 @@ export const BYGGLOV_TEXT_MAX_CHARS = 2_000;
 
 const W = String.raw`[\p{L}\d-]{1,25}`;
 const SEP = String.raw`\s{1,3}`;
-/** "balkong", "balkonger", "balkongen", "balkongerna", "påhängsbalkong" - the noun itself, not balkongräcke or balkongdörr. */
-const BALKONG = String.raw`(?:påhängs)?balkong(?:er|en|erna)?(?![\p{L}])`;
+/** "balkong", "balkonger", "balkongen", "balkongerna", "balkongrader", "påhängsbalkong" - the noun itself, not balkongräcke or balkongdörr. */
+const BALKONG = String.raw`(?:påhängs)?balkong(?:er|en|erna|rader|raderna)?(?![\p{L}])`;
 /** The attic as a place: not vindfång, not vindskydd. */
-const VIND = String.raw`(?:vinden|vindar(?:na)?|vind|vindsutrymme[\p{L}]{0,4}|vindsvåning[\p{L}]{0,4}|vindslägenhet[\p{L}]{0,4}|vindsbostad[\p{L}]{0,4}|vindsplan[\p{L}]{0,4})(?![\p{L}])`;
+const VIND = String.raw`(?:råvind(?:en)?|vinden|vindar(?:na)?|vind|vindsutrymme[\p{L}]{0,4}|vindsvåning[\p{L}]{0,4}|vindslägenhet[\p{L}]{0,4}|vindsbostad[\p{L}]{0,4}|vindsplan[\p{L}]{0,4})(?![\p{L}])`;
 
 interface Rule {
   readonly kind: CaseKind;
@@ -100,6 +100,22 @@ export const BYGGLOV_RULES: readonly Rule[] = [
   },
   { kind: "stambyte", pattern: rx(String.raw`(?<![\p{L}])stamläge(?:n|t)?(?![\p{L}])`) },
 
+  // relining: lining the old pipes from inside. A separate tag, never a stambyte (D-06).
+  { kind: "relining", pattern: rx(String.raw`(?<![\p{L}])relin(?:ing|ad|ade|ats|a)[\p{L}]{0,10}`) },
+
+  // balkong_inglasning: glazing in an existing balcony (also "loftgångsbalkonger").
+  {
+    kind: "balkong_inglasning",
+    pattern: rx(
+      String.raw`(?<![\p{L}])inglasning[\p{L}]{0,6}${SEP}(?:av${SEP})?(?:${W}${SEP}){0,2}[\p{L}]{0,12}balkong(?:er|en|erna)?(?![\p{L}])`,
+    ),
+  },
+  {
+    kind: "balkong_inglasning",
+    pattern: rx(String.raw`(?<![\p{L}])balkong(?:er|en|erna)?${SEP}(?:med${SEP})?inglasning`),
+  },
+  { kind: "balkong_inglasning", pattern: rx(String.raw`(?<![\p{L}])inglasad[\p{L}]{0,4}${SEP}(?:${W}${SEP}){0,1}balkong`) },
+
   // balkong_ny: a verb of building, then the balcony noun; "balkong med fönsterdörr"; påhängsbalkong.
   {
     kind: "balkong_ny",
@@ -114,6 +130,9 @@ export const BYGGLOV_RULES: readonly Rule[] = [
     ),
   },
   { kind: "balkong_ny", pattern: rx(String.raw`(?<![\p{L}])påhängsbalkong[\p{L}]{0,6}`) },
+
+  // balkongdorr: the door alone. Changing doors is not a new balcony.
+  { kind: "balkongdorr", pattern: rx(String.raw`(?<![\p{L}])(?:balkong|fönster)dörr[\p{L}]{0,10}`) },
 
   // balkong_renovering: repair, change or a complaint about an existing balcony. The comma and the
   // semicolon end the window, so "Yttre ändring, nya balkonger" does not read as a renovation.
@@ -136,6 +155,26 @@ export const BYGGLOV_RULES: readonly Rule[] = [
 
   // hiss: a lift, also in a compound ("stoltrapphiss", "personhiss").
   { kind: "hiss", pattern: rx(String.raw`(?<![\p{L}])[\p{L}]{0,14}hiss[\p{L}]{0,12}(?![\p{L}])`) },
+
+  // fasad: facade work or a window change. A sign on a facade ("fasadskylt") is not facade work.
+  {
+    kind: "fasad",
+    pattern: rx(String.raw`(?<![\p{L}])(?:[\p{L}]{1,10})?fasad(?!skylt|reklam|belysning|ljusbox)[\p{L}]{0,12}`),
+  },
+  {
+    kind: "fasad",
+    pattern: rx(
+      String.raw`(?<![\p{L}])(?:omfärgning|fönsterbyte|fönsterrenovering|byte${SEP}av${SEP}(?:${W}${SEP}){0,1}fönster)(?![\p{L}])`,
+    ),
+  },
+
+  // tak: re-roofing and roof work.
+  {
+    kind: "tak",
+    pattern: rx(
+      String.raw`(?<![\p{L}])(?:takomläggning|takbyte|takrenovering|yttertak|nytt${SEP}tak|omläggning${SEP}av${SEP}(?:${W}${SEP}){0,1}tak)[\p{L}]{0,8}`,
+    ),
+  },
 
   // vind_inredning: building work "on the attic", a roof dormer, or a new roof terrace.
   {
@@ -260,6 +299,48 @@ export function toStoredCase(row: CaseListRow, classification: Classification): 
     slutbeskedDate: null,
     closedDate: null,
   };
+}
+
+/** The city's own words for a decision type or code, cut and cleaned so only plain text can reach a cache or a mail. */
+const cleanWords = (raw: string | null): string | null => {
+  if (raw === null) return null;
+  const cleaned = raw.replace(/[^\p{L}\p{N} /.,()-]/gu, "").trim().slice(0, 60);
+  return cleaned.length > 0 ? cleaned : null;
+};
+
+/**
+ * Fills a stored case from its parsed detail page: the latest decision, the earliest granted
+ * Startbesked or Lov, the latest Slutbesked, the closing date, and `detailRead: true`. The detail
+ * carries no name and no free text, so the stored case still has none.
+ */
+export function applyDetail(stored: StoredCase, detail: CaseDetail): StoredCase {
+  if (detail.rec !== null && detail.rec !== stored.rec) throw new Error("detail does not belong to this case");
+  const decisions = detail.decisions
+    .map((d) => ({ ...d, kind: decisionKind(d.type, d.code) }))
+    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+  const last = decisions.length > 0 ? decisions[decisions.length - 1] : null;
+  const dates = (kinds: readonly DecisionKind[]) =>
+    decisions.filter((d) => kinds.includes(d.kind) && d.date !== null).map((d) => d.date as string);
+  const granted = dates(["startbesked", "lov"]);
+  const finished = dates(["slutbesked"]);
+  return {
+    ...stored,
+    detailRead: true,
+    latest: last === null ? null : { type: cleanWords(last.type) ?? "", code: cleanWords(last.code), date: last.date },
+    startbeskedDate: granted.length > 0 ? granted[0] : null,
+    slutbeskedDate: finished.length > 0 ? finished[finished.length - 1] : null,
+    closedDate: detail.closedDate,
+  };
+}
+
+/**
+ * Whether the detail page of this case is worth a request: an interesting kind, started within the
+ * last five years, not read yet. Enforcement cases never feed a fact, so they are not fetched.
+ */
+export function needsDetail(stored: StoredCase, asOf: string): boolean {
+  if (stored.detailRead || stored.tillsyn) return false;
+  if (stored.startDate > asOf || stored.startDate < yearsBefore(asOf, RECENT_YEARS)) return false;
+  return stored.kinds.some((kind) => INTERESTING_KINDS.includes(kind));
 }
 
 // --- building facts --------------------------------------------------------------------------------
