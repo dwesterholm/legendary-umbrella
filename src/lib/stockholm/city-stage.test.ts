@@ -41,7 +41,7 @@ const base = parseFitSnapshot(snapshotJson).rows[0].candidate;
 
 const candidate = (patch: Partial<DiscoveryCandidate> = {}): DiscoveryCandidate => ({
   ...base,
-  sourceListingUrl: "https://www.booli.se/bostad/150148",
+  sourceListingUrl: "https://example.invalid/bostad/150148",
   address: "Folkungagatan 61",
   imageUrls: null,
   floor: null,
