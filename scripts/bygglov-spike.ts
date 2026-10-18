@@ -43,6 +43,7 @@ import { resolveBeteckning, type BeteckningResult, type MinKartaResolver } from 
 import { beteckningGuessFromBrfName } from "@/lib/stockholm/beteckning-text";
 import type { CityClient, CityFetch } from "@/lib/stockholm/bygglov-client";
 import { makeFixtureFetch, type FixtureRoute } from "@/lib/stockholm/fixture-fetch";
+import { looksLikeRedirect } from "@/lib/stockholm/http-guards";
 import {
   CITY_DATA_DIR,
   CITY_LOCK_PATH,
@@ -155,14 +156,6 @@ function parseArgs(argv: readonly string[]): Args {
 
 const isoDay = (d: Date): string => d.toISOString().slice(0, 10);
 const norm = (s: string | null): string | null => (s === null ? null : s.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv"));
-
-/** A fetch error that is a refused redirect (we send `redirect: "error"`): undici says "unexpected redirect". */
-function looksLikeRedirect(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const cause = (error as Error & { cause?: unknown }).cause;
-  const causeText = cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "";
-  return /redirect/i.test(`${error.message} ${causeText}`);
-}
 
 /** Seconds from the client log lines of one host ("<host>/<path> HTTP 200, 263 kB, 3,3 s" or "... HTTP 403 (0,4 s)"). */
 function secondsIn(lines: readonly string[], host: string): number[] {

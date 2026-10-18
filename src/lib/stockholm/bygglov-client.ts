@@ -14,8 +14,8 @@
  *  - An honest User-Agent that names the project. No cookie is sent and Set-Cookie is never read.
  *  - ONE attempt per request. No retry, ever.
  *  - Answers are untrusted: HTTP 200, an HTML content-type, at most 5 MiB (declared and streamed).
- *  - A refusal ends the run AND keeps us away for 24 hours (host-gate.ts): HTTP 403 or 429, a login wall, a terms
- *    page, a changed page shape, an answer that is not HTML. Every public call checks that block first, then the
+ *  - A refusal ends the run AND keeps us away for 24 hours (host-gate.ts): HTTP 403 or 429, a login wall, a redirect
+ *    (to a login or terms page), a terms page, a changed page shape, an answer that is not HTML. Every public call checks that block first, then the
  *    request budget, then waits for the gate, then makes its one fetch.
  *  - The client takes NO Monday-window rule (R-02): manual tools check `assertManualRunAllowed` themselves, the weekly
  *    job's own lookups are not subject to it.
@@ -34,6 +34,7 @@ import {
   type CaseDetail,
   type ParseFailure,
 } from "@/lib/stockholm/bygglov-parse";
+import { looksLikeRedirect } from "@/lib/stockholm/http-guards";
 import { CITY_DATA_DIR, HOST_GATES_PATH, blockHost, hostBlockedUntil, makeHostPacer, readHostGates } from "@/lib/stockholm/host-gate";
 
 /** The only host this client may call. */
@@ -224,6 +225,11 @@ export function makeCityClient(deps: CityDeps) {
           signal: controller.signal,
         });
       } catch (error) {
+        // `redirect: "error"` turns a redirect (to a login or terms page) into a thrown fetch error: a refusal.
+        if (looksLikeRedirect(error)) {
+          line(`${CITY_HOST}${path} omdirigering (${took()} s)`);
+          return refuse("omdirigering");
+        }
         line(`${CITY_HOST}${path} ${error instanceof Error ? error.name : "okänt fel"} (${took()} s)`);
         throw new CityStop("natverksfel");
       }

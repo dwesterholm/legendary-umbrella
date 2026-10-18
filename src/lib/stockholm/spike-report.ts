@@ -139,7 +139,7 @@ export function readRobots(text: string): RobotsReading {
 // ---------------------------------------------------------------------------
 
 /** What a city refusal is called when it ends the run. */
-export const SPIKE_STOP_LABELS = ["http-403", "http-429", "inloggning", "villkor", "andrad-sida", "fel-innehallstyp", "pausad"] as const;
+export const SPIKE_STOP_LABELS = ["http-403", "http-429", "inloggning", "villkor", "andrad-sida", "fel-innehallstyp", "omdirigering", "pausad"] as const;
 
 export type MinKartaStatus = "accepted" | "nekad" | "fel" | "ej prövad";
 

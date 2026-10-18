@@ -23,7 +23,7 @@
  * many candidates as the rest of the budget allows). The User-Agent is honest and names this project. The rental
  * repo's file forbids, and so does this one, anything that rotates, randomises or disguises the client, anything that
  * routes a request through another host so that it looks like a different caller, and anything that defeats a
- * challenge. If Min Karta refuses (HTTP 403 or 429, or an answer that is not JSON), the host goes on the 24 hour
+ * challenge. If Min Karta refuses (HTTP 403 or 429, a redirect, or an answer that is not JSON), the host goes on the 24 hour
  * list in host-gate.ts, the lookup ends as fetch_failed, and nothing else is tried. A host entry marked `disabled`
  * (plan 04's spike writes it if the honest User-Agent is refused) means no request at all.
  *
@@ -33,6 +33,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod/v4";
 import { cleanAddressForSearch, isStreetLandBeteckning, normaliseBeteckning } from "@/lib/stockholm/beteckning-text";
+import { looksLikeRedirect } from "@/lib/stockholm/http-guards";
 import { HOST_GATES_PATH, CITY_DATA_DIR, blockHost, hostBlockedUntil, makeHostPacer, readHostGates } from "@/lib/stockholm/host-gate";
 
 export const MINKARTA_HOST = "minkarta.lantmateriet.se";
@@ -327,6 +328,11 @@ export async function resolveViaMinKarta(address: string, deps: MinKartaDeps): P
           signal: controller.signal,
         });
       } catch (error) {
+        // `redirect: "error"` turns a redirect (to a login or terms page) into a thrown fetch error: a refusal.
+        if (looksLikeRedirect(error)) {
+          line(`${MINKARTA_HOST}${path} omdirigering (${took()} s)`);
+          return refuse("omdirigering");
+        }
         line(`${MINKARTA_HOST}${path} ${error instanceof Error ? error.name : "okänt fel"} (${took()} s)`);
         return { ok: false, reason: "natverksfel" };
       }

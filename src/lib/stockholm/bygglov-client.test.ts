@@ -194,6 +194,18 @@ describe("a refusal ends the run and keeps us away for 24 hours", () => {
     expect(s.gates()[CITY_HOST].reason).toBe("andrad-sida");
   });
 
+  it("WR-01: a refused redirect (fetch failed, cause unexpected redirect) is a login wall: 24 h block, no retry", async () => {
+    const redirected = Object.assign(new TypeError("fetch failed"), { cause: new Error("unexpected redirect") });
+    const s = setup([{ path: SEARCH_PATH, rejectWith: redirected }]);
+    const stop = await stopOf(s.client.caseList("Droskhästen 8"));
+    expect(stop.label).toBe("omdirigering");
+    expect(stop.blocked).toBe(true);
+    expect(s.fetchImpl.requests).toHaveLength(1);
+    expect(s.gates()[CITY_HOST].reason).toBe("omdirigering");
+    expect((await stopOf(s.client.caseList("Droskhästen 8"))).label).toBe("pausad");
+    expect(s.fetchImpl.requests).toHaveLength(1);
+  });
+
   it("a 200 answer that is not HTML blocks with 'fel-innehallstyp'", async () => {
     const s = setup([{ path: SEARCH_PATH, contentType: "application/json", body: "{}" }]);
     const stop = await stopOf(s.client.caseList("Droskhästen 8"));

@@ -356,6 +356,16 @@ describe("refusals and failures", () => {
     expect(readHostGates(s.gatesPath)[MINKARTA_HOST]?.reason).toBe("fel-innehallstyp");
   });
 
+  it("WR-01: a refused redirect blocks minkarta.lantmateriet.se for 24 h and ends the lookup as fetch_failed", async () => {
+    const redirected = Object.assign(new TypeError("fetch failed"), { cause: new Error("unexpected redirect") });
+    const s = setup([{ path: SEARCH_PATH, rejectWith: redirected }]);
+    expect(await s.resolver("Bondegatan 59")).toMatchObject({ status: "fetch_failed", reason: "omdirigering" });
+    expect(readHostGates(s.gatesPath)[MINKARTA_HOST]?.reason).toBe("omdirigering");
+    expect(s.fetchImpl.requests).toHaveLength(1);
+    expect(await s.resolver("Bondegatan 59")).toMatchObject({ status: "fetch_failed", reason: "pausad" });
+    expect(s.fetchImpl.requests).toHaveLength(1);
+  });
+
   it("a server error or a network failure is fetch_failed after ONE attempt and does not block", async () => {
     const server = setup([{ path: SEARCH_PATH, status: 500, contentType: JSON_TYPE, body: "{}" }]);
     expect(await server.resolver("Bondegatan 59")).toMatchObject({ status: "fetch_failed", reason: "http-500" });
