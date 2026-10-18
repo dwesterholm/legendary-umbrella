@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadSweep, normaliseAddressKey, saveSweep } from "@/lib/stockholm/bygglov-cache";
-import { makeCityClient } from "@/lib/stockholm/bygglov-client";
+import { loadSweep, normaliseAddressKey, saveSweep, type SweepQuery } from "@/lib/stockholm/bygglov-cache";
+import { CityStop, makeCityClient } from "@/lib/stockholm/bygglov-client";
+import { assertManualRunAllowed } from "@/lib/stockholm/host-gate";
 import { makeFixtureFetch } from "@/lib/stockholm/fixture-fetch";
 import {
   SWEEP_DISTRICTS,
@@ -13,7 +14,10 @@ import {
   joinCounts,
   normaliseAddress,
   parseAddresses,
+  planSweep,
+  runSweep,
   shiftYears,
+  splitWindow,
   stambyteAtSale,
   summariseCases,
   sweepKeywords,
@@ -274,5 +278,363 @@ describe("stambyteAtSale counts from the sale date", () => {
     expect(shiftYears("2024-02-29", -3)).toBe("2021-02-28");
     expect(shiftYears("2024-02-29", -4)).toBe("2020-02-29");
     expect(shiftYears("2022-06-01", -5)).toBe("2017-06-01");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: window splitting, resuming and stopping
+// ---------------------------------------------------------------------------
+
+/** One Byggärende row of the city's embedded list, as the real pages carry it. */
+function pageRow(rec: number, over: Record<string, unknown> = {}) {
+  return {
+    RecNo: String(rec),
+    CaseTypeCode: "Byggärende",
+    ObjectType: null,
+    Description: "Stambyte i flerbostadshus",
+    StartDate: "2001-03-12T00:00:00",
+    RealEstateName: `Testen ${rec}`,
+    RealEstateAddress: `Testgatan ${rec}`,
+    Name: `2001-${rec}`,
+    IsEarchive: true,
+    ...over,
+  };
+}
+
+/** A list page with `rows` rows whose own heading says `heading` (a number that differs from the rows is a hidden cap). */
+function listPage(rows: number, heading: number = rows, firstRec = 1): string {
+  const list = Array.from({ length: rows }, (_, i) => pageRow(firstRec + i));
+  const model = {
+    BuildCases: { CaseSearchDetails: list },
+    OtherCases: { CaseSearchDetails: [] },
+    RealEstateCases: { CaseSearchDetails: [] },
+    HasSearched: true,
+  };
+  return `<html><body><button>Byggärenden (${heading} träffar)</button><script>var CaseSearchResultsViewModel = ${JSON.stringify(model)};</script></body></html>`;
+}
+
+const html = (body: string, status = 200, headers: Record<string, string> = {}) =>
+  new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
+
+/** A fetch that answers by what the request asks for, and remembers what it was asked. */
+function scriptedFetch(answer: (params: URLSearchParams, n: number) => Response) {
+  const asked: Array<{ district: string; word: string; from: string; to: string | null }> = [];
+  const fetchImpl = async (url: string) => {
+    const params = new URL(url).searchParams;
+    asked.push({
+      district: params.get("District") ?? "",
+      word: params.get("Description") ?? "",
+      from: params.get("CaseStartDateFrom") ?? "",
+      to: params.get("CaseStartDateTo"),
+    });
+    return answer(params, asked.length);
+  };
+  return Object.assign(fetchImpl, { asked });
+}
+
+function fakeClock(start: Date) {
+  let t = start.getTime();
+  return {
+    now: () => new Date(t),
+    sleep: async (ms: number) => {
+      t += ms;
+    },
+  };
+}
+
+/** An in-memory stand-in for the sweep cache and the split list. */
+function memoryStore() {
+  const files = new Map<string, number>();
+  const splits: Array<{ key: string; reason: string }> = [];
+  const unsplittable: string[] = [];
+  const key = (q: SweepQuery) => `${q.district}|${q.description}|${q.from}|${q.to ?? "open"}`;
+  return {
+    files,
+    splits,
+    unsplittable,
+    key,
+    isFresh: (q: SweepQuery) => files.has(key(q)),
+    save: (q: SweepQuery, r: { cases: readonly unknown[] }) => {
+      files.set(key(q), r.cases.length);
+    },
+    splitRecorded: (q: SweepQuery) => splits.some((s) => s.key === key(q)),
+    recordSplit: (q: SweepQuery, reason: string) => {
+      if (!splits.some((s) => s.key === key(q))) splits.push({ key: key(q), reason });
+    },
+    recordUnsplittable: (q: SweepQuery) => {
+      unsplittable.push(key(q));
+    },
+  };
+}
+
+type Store = ReturnType<typeof memoryStore>;
+
+/** A runSweep wired to the real city client over a scripted fetch, a fake clock and an in-memory cache. */
+function sweepRig(opts: { start?: Date; answer: (params: URLSearchParams, n: number) => Response; store?: Store; budget?: number }) {
+  const clock = fakeClock(opts.start ?? new Date(2026, 9, 18, 20, 0, 0));
+  const fetchImpl = scriptedFetch(opts.answer);
+  const store = opts.store ?? memoryStore();
+  const client = makeCityClient({
+    fetchImpl,
+    sleep: clock.sleep,
+    now: clock.now,
+    log: () => undefined,
+    gatesPath: join(dir, "host-gates.json"),
+    dataDir: dir,
+    budget: opts.budget,
+  });
+  const logs: string[] = [];
+  const run = (plan: SweepQuery[]) =>
+    runSweep(plan, {
+      search: (q) => client.extendedSearch({ district: q.district, description: q.description, from: q.from, to: q.to ?? undefined }),
+      isFresh: store.isFresh,
+      save: store.save,
+      splitRecorded: store.splitRecorded,
+      recordSplit: store.recordSplit,
+      recordUnsplittable: store.recordUnsplittable,
+      now: clock.now,
+      allowed: assertManualRunAllowed,
+      stopOf: (error) => (error instanceof CityStop ? error.label : null),
+      log: (line) => logs.push(line),
+      today: "2026-10-18",
+    });
+  return { run, fetchImpl, store, logs, clock };
+}
+
+const query = (district: string, description: string, from: string, to: string | null): SweepQuery => ({ district, description, from, to });
+
+describe("splitWindow", () => {
+  it("splits 1985 to 2009 into five 5-year spans with inclusive dates", () => {
+    expect(splitWindow({ from: "1985-01-01", to: "2009-12-31" })).toEqual([
+      { from: "1985-01-01", to: "1989-12-31" },
+      { from: "1990-01-01", to: "1994-12-31" },
+      { from: "1995-01-01", to: "1999-12-31" },
+      { from: "2000-01-01", to: "2004-12-31" },
+      { from: "2005-01-01", to: "2009-12-31" },
+    ]);
+  });
+
+  it("splits a window that is 5 years long or shorter by year", () => {
+    expect(splitWindow({ from: "2005-01-01", to: "2009-12-31" })).toEqual([
+      { from: "2005-01-01", to: "2005-12-31" },
+      { from: "2006-01-01", to: "2006-12-31" },
+      { from: "2007-01-01", to: "2007-12-31" },
+      { from: "2008-01-01", to: "2008-12-31" },
+      { from: "2009-01-01", to: "2009-12-31" },
+    ]);
+    expect(splitWindow({ from: "2005-01-01", to: "2006-12-31" })).toHaveLength(2);
+  });
+
+  it("cannot split a single year", () => {
+    expect(splitWindow({ from: "2007-01-01", to: "2007-12-31" })).toEqual([]);
+  });
+
+  it("keeps an open end open, so the last span still reaches today", () => {
+    expect(splitWindow({ from: "2010-01-01", to: null }, "2026-10-18")).toEqual([
+      { from: "2010-01-01", to: "2014-12-31" },
+      { from: "2015-01-01", to: "2019-12-31" },
+      { from: "2020-01-01", to: "2024-12-31" },
+      { from: "2025-01-01", to: null },
+    ]);
+    expect(() => splitWindow({ from: "2010-01-01", to: null })).toThrow();
+  });
+
+  it("leaves no gap and no overlap, also for a window that starts and ends inside a year", () => {
+    const windows = [
+      { from: "1985-01-01", to: "2009-12-31" },
+      { from: "1987-06-15", to: "1993-03-02" },
+      { from: "2001-01-01", to: "2003-12-31" },
+    ];
+    for (const w of windows) {
+      const spans = splitWindow(w);
+      expect(spans[0].from).toBe(w.from);
+      expect(spans[spans.length - 1].to).toBe(w.to);
+      for (let i = 1; i < spans.length; i += 1) {
+        const before = new Date(`${spans[i - 1].to}T00:00:00Z`).getTime() + 86_400_000;
+        expect(new Date(`${spans[i].from}T00:00:00Z`).getTime()).toBe(before);
+      }
+    }
+  });
+});
+
+describe("planSweep", () => {
+  it("lists every query of the sweep when nothing is cached, in district, word, window order", () => {
+    const plan = planSweep(SWEEP_DISTRICTS, sweepKeywords(true), sweepWindows(), () => false);
+    expect(plan).toHaveLength(88);
+    expect(plan[0]).toEqual(query("Södermalm", "stam", "1985-01-01", "2009-12-31"));
+    expect(plan[1]).toEqual(query("Södermalm", "stam", "2010-01-01", null));
+    expect(plan[2]).toEqual(query("Södermalm", "avlopp", "1985-01-01", "2009-12-31"));
+  });
+
+  it("lists only the queries whose file is missing or stale, and none when all are cached", () => {
+    const cached = new Set(["Södermalm|stam|1985-01-01|2009-12-31"]);
+    const isCached = (q: SweepQuery) => cached.has(`${q.district}|${q.description}|${q.from}|${q.to ?? "open"}`);
+    expect(planSweep(["Södermalm"], ["stam", "avlopp"], sweepWindows(), isCached)).toHaveLength(3);
+    expect(planSweep(["Södermalm"], ["stam"], sweepWindows(), () => true)).toEqual([]);
+  });
+});
+
+describe("runSweep: a capped or oversized answer is split and never hidden", () => {
+  const parent = query("Södermalm", "stam", "1985-01-01", "2009-12-31");
+
+  it("asks the five spans instead of a window that answered 500 rows with a heading of 500", async () => {
+    const rig = sweepRig({
+      answer: (p) => (p.get("CaseStartDateTo") === "2009-12-31" && p.get("CaseStartDateFrom") === "1985-01-01" ? html(listPage(500)) : html(listPage(3))),
+    });
+    const result = await rig.run([parent]);
+
+    expect(result.status).toBe("klar");
+    expect(rig.fetchImpl.asked).toHaveLength(6);
+    expect(rig.fetchImpl.asked.slice(1).map((a) => `${a.from}..${a.to}`)).toEqual([
+      "1985-01-01..1989-12-31",
+      "1990-01-01..1994-12-31",
+      "1995-01-01..1999-12-31",
+      "2000-01-01..2004-12-31",
+      "2005-01-01..2009-12-31",
+    ]);
+    expect(rig.store.isFresh(parent)).toBe(false);
+    expect(rig.store.splits).toEqual([{ key: rig.store.key(parent), reason: "antal" }]);
+    expect(rig.store.files.size).toBe(5);
+    expect(result.splits).toHaveLength(1);
+    expect(result.saved).toBe(1);
+  });
+
+  it("splits a query the city answers with a page over the size cap (storlek)", async () => {
+    const rig = sweepRig({
+      answer: (p) =>
+        p.get("CaseStartDateTo") === "2009-12-31" && p.get("CaseStartDateFrom") === "1985-01-01"
+          ? html(listPage(2), 200, { "content-length": String(6 * 1024 * 1024) })
+          : html(listPage(2)),
+    });
+    const result = await rig.run([parent]);
+    expect(rig.fetchImpl.asked).toHaveLength(6);
+    expect(rig.store.splits[0].reason).toBe("storlek");
+    expect(result.status).toBe("klar");
+  });
+
+  it("splits a query whose own heading count differs from its rows", async () => {
+    const rig = sweepRig({
+      answer: (p) => (p.get("CaseStartDateTo") === "2009-12-31" && p.get("CaseStartDateFrom") === "1985-01-01" ? html(listPage(50, 97)) : html(listPage(2))),
+    });
+    await rig.run([parent]);
+    expect(rig.fetchImpl.asked).toHaveLength(6);
+    expect(rig.store.splits[0].reason).toBe("antal");
+  });
+
+  it("splits a span again by year when a span is capped too, and gives up on a single year without stopping", async () => {
+    const rig = sweepRig({
+      // Every window answers 500 rows until it is one year long.
+      answer: (p) => {
+        const from = p.get("CaseStartDateFrom") as string;
+        const to = p.get("CaseStartDateTo");
+        const oneYear = to !== null && from.slice(0, 4) === to.slice(0, 4);
+        return oneYear ? html(listPage(40)) : html(listPage(500));
+      },
+    });
+    const result = await rig.run([query("Södermalm", "stam", "2005-01-01", "2009-12-31"), query("Kungsholmen", "stam", "2005-01-01", "2005-12-31")]);
+    // 1 + 5 year spans for the first query; the second is one year long and cannot be split.
+    expect(rig.fetchImpl.asked).toHaveLength(1 + 5 + 1);
+    expect(result.status).toBe("klar");
+    expect(result.unsplittable).toEqual([query("Kungsholmen", "stam", "2005-01-01", "2005-12-31")]);
+  });
+
+  it("does not ask a recorded split again on a second run, and never asks a cached query", async () => {
+    const answer = (p: URLSearchParams) =>
+      p.get("CaseStartDateTo") === "2009-12-31" && p.get("CaseStartDateFrom") === "1985-01-01" ? html(listPage(500)) : html(listPage(3));
+    const rig = sweepRig({ answer });
+    await rig.run([parent]);
+    const before = rig.fetchImpl.asked.length;
+    const again = await rig.run([parent]);
+    expect(rig.fetchImpl.asked.length).toBe(before);
+    expect(again.status).toBe("klar");
+    expect(again.searches).toBe(0);
+    expect(again.saved).toBe(1);
+  });
+});
+
+describe("runSweep: a refusal leaves a usable partial cache", () => {
+  const plan = ["Södermalm", "Kungsholmen"].flatMap((d) =>
+    ["stam", "avlopp"].flatMap((w) => [query(d, w, "1985-01-01", "2009-12-31"), query(d, w, "2010-01-01", null)]),
+  );
+
+  it("stops on HTTP 429 at the 4th query with three files written, says so, and puts the host on the 24 hour list", async () => {
+    const rig = sweepRig({ answer: (_p, n) => (n < 4 ? html(listPage(2)) : html("", 429)) });
+    const result = await rig.run(plan);
+
+    expect(result.status).toBe("stoppad");
+    expect(result.stop).toMatchObject({ kind: "stad", label: "http-429" });
+    expect(result.message).toBe("Svepet stoppat (http-429): 3 av 8 sökningar sparade");
+    expect(rig.store.files.size).toBe(3);
+    expect(rig.fetchImpl.asked).toHaveLength(4);
+    expect(readFileSync(join(dir, "host-gates.json"), "utf8")).toContain("http-429");
+  });
+
+  it("makes no request at all the next time while the host is blocked", async () => {
+    const store = memoryStore();
+    const first = sweepRig({ answer: (_p, n) => (n < 2 ? html(listPage(2)) : html("", 429)), store });
+    await first.run(plan);
+    const second = sweepRig({ answer: () => html(listPage(2)), store });
+    const result = await second.run(plan);
+    expect(second.fetchImpl.asked).toHaveLength(0);
+    expect(result.stop).toMatchObject({ kind: "stad", label: "pausad" });
+    expect(store.files.size).toBe(1);
+  });
+
+  it("resumes where it stopped: the saved queries are skipped and the rest is asked", async () => {
+    const store = memoryStore();
+    const first = sweepRig({ answer: (_p, n) => (n < 4 ? html(listPage(2)) : html("", 500)), store });
+    const stopped = await first.run(plan);
+    expect(stopped.status).toBe("stoppad");
+    expect(store.files.size).toBe(3);
+
+    const resumed = sweepRig({ answer: () => html(listPage(2)), store });
+    const done = await resumed.run(plan);
+    expect(done.status).toBe("klar");
+    expect(resumed.fetchImpl.asked).toHaveLength(5);
+    expect(store.files.size).toBe(8);
+    expect(done.message).toBeNull();
+  });
+
+  it("stops on the request budget without a block and says so", async () => {
+    const rig = sweepRig({ answer: () => html(listPage(2)), budget: 2 });
+    const result = await rig.run(plan);
+    expect(result.stop).toMatchObject({ kind: "stad", label: "budget" });
+    expect(result.message).toBe("Svepet stoppat (budget): 2 av 8 sökningar sparade");
+    expect(existsSync(join(dir, "host-gates.json"))).toBe(false);
+  });
+});
+
+describe("runSweep: the Monday window is checked before every request", () => {
+  const plan = Array.from({ length: 8 }, (_, i) => query("Södermalm", `ord${i}`, "1985-01-01", "2009-12-31"));
+
+  it("refuses a run that starts at Monday 06:31 before any request", async () => {
+    // 2026-10-19 is a Monday.
+    const rig = sweepRig({ start: new Date(2026, 9, 19, 6, 31, 0), answer: () => html(listPage(2)) });
+    const result = await rig.run(plan);
+    expect(rig.fetchImpl.asked).toHaveLength(0);
+    expect(result.status).toBe("stoppad");
+    expect(result.stop?.kind).toBe("fonster");
+    expect(result.message).toContain("måndagar mellan 06:30 och 09:30");
+  });
+
+  it("stops before the next request when the clock reaches Monday 06:30 mid-run, and keeps what it has", async () => {
+    const rig = sweepRig({ start: new Date(2026, 9, 19, 6, 29, 50), answer: () => html(listPage(2)) });
+    const result = await rig.run(plan);
+    expect(result.status).toBe("stoppad");
+    expect(result.stop?.kind).toBe("fonster");
+    expect(rig.fetchImpl.asked.length).toBeGreaterThan(0);
+    expect(rig.fetchImpl.asked.length).toBeLessThan(8);
+    expect(rig.store.files.size).toBe(rig.fetchImpl.asked.length);
+    // No request started inside the window: the 3 s gate is counted in.
+    const last = rig.clock.now();
+    expect(last.getHours() * 60 + last.getMinutes()).toBeLessThan(6 * 60 + 31);
+  });
+
+  it("runs on a Monday at 09:30 and on a Sunday evening", async () => {
+    for (const start of [new Date(2026, 9, 19, 9, 30, 0), new Date(2026, 9, 18, 20, 0, 0)]) {
+      const rig = sweepRig({ start, answer: () => html(listPage(2)) });
+      const result = await rig.run(plan.slice(0, 2));
+      expect(result.status).toBe("klar");
+    }
   });
 });
