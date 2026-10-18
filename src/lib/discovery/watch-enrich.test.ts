@@ -293,6 +293,55 @@ describe("facts from the description", () => {
     expect(facts?.tallCeilingPhrase).toBe(false);
   });
 
+  it("Phase 14.6: stambyte, area source and fastighetsbeteckning are read from the text and the sentence is dropped", async () => {
+    const f = brokerFakes(
+      "Stambyte planeras 2027. Areauppgift enligt föreningen. Fastighetsbeteckning: Stockholm Droskhästen 8. Ring Anna Svensson 070-123 45 67.",
+    );
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));
+    const facts = result.facts.get(0);
+    expect(facts?.textStambyte).toEqual({ lastYear: null, plannedYear: 2027, ongoing: false, relining: false });
+    expect(facts?.plannedStambyteYear).toBe(2027);
+    expect(facts?.stambyteStatus).toBe("planerat");
+    expect(facts?.stambyteSource).toBe("maklartext");
+    expect(facts?.areaSource).toBe("forening");
+    expect(facts?.fastighetsbeteckning).toBe("Droskhästen 8");
+    expect(facts?.beteckningRung).toBe("a");
+    const stored = JSON.stringify([...result.facts.values()]);
+    for (const piece of ["Svensson", "070-123", "Stambyte planeras", "Areauppgift"]) expect(stored).not.toContain(piece);
+    expect(candidateFactsSchema.parse(facts)).toEqual(facts);
+  });
+
+  it("Phase 14.6: a description that says nothing about the building is read (false), not 'not read' (null)", async () => {
+    const f = brokerFakes("Ljus etta med balkong.");
+    const facts = (await enrichAllCandidates([candidate(1)], 1, opts(f.deps))).facts.get(0);
+    expect(facts?.textStambyte).toEqual({ lastYear: null, plannedYear: null, ongoing: false, relining: false });
+    expect(facts?.stambyteStatus).toBeNull();
+    expect(facts?.stambyteSource).toBeNull();
+    expect(facts?.areaSource).toBeNull();
+    expect(facts?.fastighetsbeteckning).toBeNull();
+    expect(facts?.beteckningRung).toBeNull();
+  });
+
+  it("Phase 14.6: with no description at all every stambyte, area and beteckning fact is null", async () => {
+    const facts = (await enrichAllCandidates([candidate(1)], 1, opts(fakes().deps))).facts.get(0);
+    for (const key of [
+      "textStambyte",
+      "lastStambyteYear",
+      "plannedStambyteYear",
+      "stambyteOngoing",
+      "stambyteSource",
+      "stambyteStatus",
+      "reliningMentioned",
+      "areaSource",
+      "areaMeasuredYear",
+      "areaMeasuredFirm",
+      "fastighetsbeteckning",
+      "beteckningRung",
+    ] as const) {
+      expect(facts?.[key], key).toBeNull();
+    }
+  });
+
   it("no broker URL and no Booli description: the three ceiling facts are null (not read)", async () => {
     const f = fakes();
     const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps));

@@ -53,11 +53,27 @@
  * `brf` come from the enrichment steps (plans 05 and 07: broker page text and the
  * public BRF page). They stay `null` here.
  *
+ * Phase 14.6 (plan 09) adds sixteen more, all `null` here and filled by two later steps:
+ *  - from the broker text, inside `watch-enrich.ts` before the description is dropped:
+ *    `textStambyte`, `areaSource`, `areaMeasuredYear`, `areaMeasuredFirm`,
+ *    `fastighetsbeteckning` and `beteckningRung` "a" (when the text states it), plus
+ *    `lastStambyteYear`, `plannedStambyteYear`, `stambyteOngoing`, `stambyteSource`,
+ *    `stambyteStatus` and `reliningMentioned` as merged from the text alone;
+ *  - from the city's case list, in `stockholm/city-stage.ts` (a separate step the script
+ *    runs, live or from the cache): `cityStambyte`, `balkongBeviljadEjByggd`,
+ *    `balkongInglasningAnsokt`, `byggarenden`, the beteckning and its rung when the text
+ *    gave none, and the six merged stambyte fields again with the city's reading added.
+ * `textStambyte` and `cityStambyte` are kept next to the merged values so a later re-merge
+ * (a new annual-report source, a changed rule) never loses what one source said.
+ *
  * Every number lives in {@link FACTS_CONSTANTS}; the functions own no constants (same
  * discipline as TASTE_WEIGHTS in taste.ts).
  */
 
 import { z } from "zod";
+import { AREA_SOURCES } from "@/lib/discovery/area-source";
+import { STAMBYTE_SOURCES, STAMBYTE_STATUSES } from "@/lib/discovery/stambyte-facts";
+import { CASE_KINDS } from "@/lib/stockholm/bygglov-classify";
 
 /** The one table of numbers this module uses. */
 export const FACTS_CONSTANTS: { readonly DAYS_PER_MONTH: 30; readonly DAYS_PER_YEAR: 365; readonly MS_PER_DAY: 86_400_000 } = {
@@ -118,6 +134,72 @@ export const candidateFactsSchema = z.object({
    * such phrase. A flag only; it never becomes a number (D-05).
    */
   tallCeilingPhrase: z.boolean().nullable().default(null),
+  /**
+   * Phase 14.6 (CASE-01): the building's fastighetsbeteckning as the city writes it ("Droskhästen 8"), from the broker
+   * text (rung a) or the city stage. A designation only; never a sentence.
+   */
+  fastighetsbeteckning: z.string().max(80).nullable().default(null),
+  /** Which rung found `fastighetsbeteckning`: a text, a2 BRF name, b the city's address search, c Min Karta. */
+  beteckningRung: z.enum(["a", "a2", "b", "c"]).nullable().default(null),
+  /** Phase 14.6 (STAM-03, D-07): the latest completed stambyte year, the city's before the text's. */
+  lastStambyteYear: z.number().nullable().default(null),
+  /** The planned stambyte year; only the broker text gives one. */
+  plannedStambyteYear: z.number().nullable().default(null),
+  /** True: under way. False: a source was read and says no. Null: nothing read. */
+  stambyteOngoing: z.boolean().nullable().default(null),
+  /** The source the status came from, strongest first (D-07). */
+  stambyteSource: z.enum(STAMBYTE_SOURCES).nullable().default(null),
+  /** genomfort | pagar | planerat. */
+  stambyteStatus: z.enum(STAMBYTE_STATUSES).nullable().default(null),
+  /** Relining mentioned (city case or text). Relining is never a stambyte. */
+  reliningMentioned: z.boolean().nullable().default(null),
+  /** What the broker text alone said about stambyte (null = the text was not read). Kept for a later re-merge. */
+  textStambyte: z
+    .object({
+      lastYear: z.number().nullable().default(null),
+      plannedYear: z.number().nullable().default(null),
+      ongoing: z.boolean().nullable().default(null),
+      relining: z.boolean().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
+  /** What the city's case list alone said (null = the list was not read). Kept for a later re-merge. */
+  cityStambyte: z
+    .object({
+      lastYear: z.number().nullable().default(null),
+      basis: z.enum(["slutbesked", "start"]).nullable().default(null),
+      ongoing: z.boolean().nullable().default(null),
+      relining: z.boolean().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
+  /** Phase 14.6 (FLAG-01, D-08): a new or glazed balcony is granted and not signed off. Null: not read or not certain. */
+  balkongBeviljadEjByggd: z.boolean().nullable().default(null),
+  /** A glazing application is on file without an outcome. Null: not read or not certain. */
+  balkongInglasningAnsokt: z.boolean().nullable().default(null),
+  /**
+   * The building's recent cases of interest, newest first, at most 6 (tags, months and the case number only). `null` =
+   * the city list was not read for this building; `[]` = read and nothing of interest.
+   */
+  byggarenden: z
+    .array(
+      z.object({
+        kind: z.enum(CASE_KINDS),
+        month: z.string().regex(/^\d{4}-\d{2}$/),
+        decision: z.enum(["beviljad", "startbesked", "slutbesked", "avskrivet", "avslag", "ansokt", "okant"]),
+        slutbeskedMonth: z.string().regex(/^\d{4}-\d{2}$/).nullable().default(null),
+        diarie: z.string().regex(/^[0-9A-Za-z/ -]{1,20}$/).nullable().default(null),
+      }),
+    )
+    .max(6)
+    .nullable()
+    .default(null),
+  /** Phase 14.6 (FLAG-02, D-09): where the area figure comes from, as the broker text states it. */
+  areaSource: z.enum(AREA_SOURCES).nullable().default(null),
+  /** The year the area was measured (only when the source is "uppmatt"). */
+  areaMeasuredYear: z.number().nullable().default(null),
+  /** Whether a measuring firm is named (yes/no only, never the name). */
+  areaMeasuredFirm: z.boolean().nullable().default(null),
   /** Filled by the BRF step: loans and area from the association's page. */
   brf: z
     .object({

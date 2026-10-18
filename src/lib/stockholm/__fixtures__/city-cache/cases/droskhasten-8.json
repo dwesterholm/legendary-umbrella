@@ -1,0 +1,1292 @@
+{
+  "schemaVersion": 1,
+  "rulesVersion": 1,
+  "beteckning": "Droskhästen 8",
+  "fetchedAt": "2026-10-18T17:30:03.000Z",
+  "cases": [
+    {
+      "rec": "1266358",
+      "diarie": "2023-15008",
+      "startDate": "2023-10-05",
+      "kinds": [
+        "vind_inredning"
+      ],
+      "primary": "vind_inredning",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1264412",
+      "diarie": "2023-13066",
+      "startDate": "2023-08-31",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1238076",
+      "diarie": "2022-07202",
+      "startDate": "2022-05-04",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1233526",
+      "diarie": "2022-02652",
+      "startDate": "2022-02-18",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1230634",
+      "diarie": "2021-18339",
+      "startDate": "2021-12-27",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1210878",
+      "diarie": "2020-16710",
+      "startDate": "2020-12-02",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1210116",
+      "diarie": "2020-15948",
+      "startDate": "2020-11-18",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1209240",
+      "diarie": "2020-15072",
+      "startDate": "2020-11-03",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1205371",
+      "diarie": "2020-11203",
+      "startDate": "2020-08-18",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1200940",
+      "diarie": "2020-06772",
+      "startDate": "2020-05-07",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1170756",
+      "diarie": "2018-13291",
+      "startDate": "2018-09-13",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1165744",
+      "diarie": "2018-08279",
+      "startDate": "2018-05-28",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1158618",
+      "diarie": "2018-01155",
+      "startDate": "2018-01-24",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1155241",
+      "diarie": "2017-18070",
+      "startDate": "2017-11-21",
+      "kinds": [
+        "balkong_renovering"
+      ],
+      "primary": "balkong_renovering",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1152392",
+      "diarie": "2017-15222",
+      "startDate": "2017-10-05",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1150817",
+      "diarie": "2017-13652",
+      "startDate": "2017-09-08",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1150705",
+      "diarie": "2017-13540",
+      "startDate": "2017-09-07",
+      "kinds": [
+        "balkong_renovering"
+      ],
+      "primary": "balkong_renovering",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1121067",
+      "diarie": "2016-05524",
+      "startDate": "2016-03-31",
+      "kinds": [
+        "balkong_ny",
+        "balkongdorr"
+      ],
+      "primary": "balkong_ny",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1067612",
+      "diarie": "2013-17715",
+      "startDate": "2013-10-23",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1064665",
+      "diarie": "2013-14783",
+      "startDate": "2013-09-10",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1063882",
+      "diarie": "2013-14006",
+      "startDate": "2013-08-28",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "18977732",
+      "diarie": "2012-13193",
+      "startDate": "2012-08-24",
+      "kinds": [
+        "balkong_renovering"
+      ],
+      "primary": "balkong_renovering",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "18978833",
+      "diarie": "2012-08821",
+      "startDate": "2012-05-28",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1003740",
+      "diarie": "2010-20592",
+      "startDate": "2010-11-25",
+      "kinds": [
+        "balkong_renovering"
+      ],
+      "primary": "balkong_renovering",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "16850309",
+      "diarie": "2007-09359",
+      "startDate": "2007-05-09",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "16849417",
+      "diarie": "2007-08117",
+      "startDate": "2007-04-20",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "15347864",
+      "diarie": "2006-07800",
+      "startDate": "2006-04-24",
+      "kinds": [
+        "stambyte"
+      ],
+      "primary": "stambyte",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "15346664",
+      "diarie": "2005-07605",
+      "startDate": "2005-04-29",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "15347745",
+      "diarie": "2004-15970",
+      "startDate": "2004-09-27",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "21442851",
+      "diarie": "2002-17258",
+      "startDate": "2002-11-21",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "15347811",
+      "diarie": "2002-02668",
+      "startDate": "2002-02-19",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "15346726",
+      "diarie": "2002-02369",
+      "startDate": "2002-02-13",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "14483869",
+      "diarie": "2000-06891",
+      "startDate": "2000-08-07",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "12654215",
+      "diarie": "1996-3300-20",
+      "startDate": "1996-10-30",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "14483102",
+      "diarie": "1996-901-20",
+      "startDate": "1996-03-29",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "9080771",
+      "diarie": "1995-1106-20",
+      "startDate": "1995-01-01",
+      "kinds": [
+        "vind_inredning"
+      ],
+      "primary": "vind_inredning",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "9080892",
+      "diarie": "1995-1990-20",
+      "startDate": "1995-01-01",
+      "kinds": [
+        "hiss",
+        "vind_inredning"
+      ],
+      "primary": "hiss",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "8736653",
+      "diarie": "1994-2003-20",
+      "startDate": "1994-10-12",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "939678",
+      "diarie": "1988-802-30",
+      "startDate": "1988-11-22",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "12971035",
+      "diarie": "1987-364-30",
+      "startDate": "1987-07-16",
+      "kinds": [
+        "vind_inredning"
+      ],
+      "primary": "vind_inredning",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "7084973",
+      "diarie": "1987-331-30",
+      "startDate": "1987-06-23",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "9205798",
+      "diarie": "1987-116-30",
+      "startDate": "1987-02-17",
+      "kinds": [
+        "vind_inredning"
+      ],
+      "primary": "vind_inredning",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "9206913",
+      "diarie": "844-3-23-86",
+      "startDate": "1986-03-05",
+      "kinds": [
+        "tak"
+      ],
+      "primary": "tak",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "5909425",
+      "diarie": "IV2170/69",
+      "startDate": "1969-01-01",
+      "kinds": [
+        "fasad"
+      ],
+      "primary": "fasad",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "737326",
+      "diarie": "257D/62",
+      "startDate": "1962-01-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "737920",
+      "diarie": "570D/58",
+      "startDate": "1958-01-01",
+      "kinds": [
+        "vind_inredning"
+      ],
+      "primary": "vind_inredning",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "736950",
+      "diarie": "171D2/48",
+      "startDate": "1948-01-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "737577",
+      "diarie": "543D2/42",
+      "startDate": "1942-01-01",
+      "kinds": [
+        "fasad"
+      ],
+      "primary": "fasad",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "738118",
+      "diarie": "76D2/36",
+      "startDate": "1936-01-01",
+      "kinds": [
+        "fasad"
+      ],
+      "primary": "fasad",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "736964",
+      "diarie": "237D2/34",
+      "startDate": "1934-01-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "737112",
+      "diarie": "197D2/33",
+      "startDate": "1933-01-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "737480",
+      "diarie": "46/1911",
+      "startDate": "1911-01-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "9185765",
+      "diarie": "VA 310/11",
+      "startDate": "1911-01-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": true,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    }
+  ],
+  "otherCases": [
+    {
+      "rec": "1289356",
+      "diarie": "2024-18209",
+      "startDate": "2024-11-29",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1247490",
+      "diarie": "2022-16615",
+      "startDate": "2022-10-24",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1187733",
+      "diarie": "2019-11465",
+      "startDate": "2019-08-15",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1103330",
+      "diarie": "2015-10373",
+      "startDate": "2015-06-12",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1103056",
+      "diarie": "2015-10101",
+      "startDate": "2015-06-10",
+      "kinds": [
+        "hiss"
+      ],
+      "primary": "hiss",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "1028943",
+      "diarie": "2011-22468",
+      "startDate": "2011-12-27",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "930549",
+      "diarie": "2010-05986",
+      "startDate": "2010-04-08",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "216397",
+      "diarie": "2008-11743",
+      "startDate": "2008-04-17",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "829647",
+      "diarie": "2005-11391",
+      "startDate": "2005-01-17",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "814022",
+      "diarie": "2004-20564",
+      "startDate": "2004-12-08",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "759729",
+      "diarie": "2003-09006",
+      "startDate": "2003-06-17",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "759310",
+      "diarie": "2003-08833",
+      "startDate": "2003-06-13",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434741",
+      "diarie": "1997-12804-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434742",
+      "diarie": "1997-12805-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434743",
+      "diarie": "1997-12807-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434744",
+      "diarie": "1997-12808-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434745",
+      "diarie": "1997-12813-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434746",
+      "diarie": "1997-12814-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434747",
+      "diarie": "1997-12817-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434748",
+      "diarie": "1997-12819-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434749",
+      "diarie": "1997-12821-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434750",
+      "diarie": "1997-12822-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434751",
+      "diarie": "1997-12823-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434752",
+      "diarie": "1997-12824-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434753",
+      "diarie": "1997-12825-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "434754",
+      "diarie": "1997-12826-20",
+      "startDate": "1997-09-01",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": false,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    },
+    {
+      "rec": "464014",
+      "diarie": "1997-06472-20",
+      "startDate": "1997-06-03",
+      "kinds": [
+        "annat"
+      ],
+      "primary": "annat",
+      "tillsyn": true,
+      "archived": false,
+      "detailRead": false,
+      "latest": null,
+      "startbeskedDate": null,
+      "slutbeskedDate": null,
+      "closedDate": null
+    }
+  ]
+}

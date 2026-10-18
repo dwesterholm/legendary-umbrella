@@ -56,31 +56,47 @@ describe("candidateFactsSchema", () => {
     }
     expect(Object.keys(rest).sort()).toEqual(
       [
+        "areaMeasuredFirm",
+        "areaMeasuredYear",
+        "areaSource",
         "avgiftMonthlySek",
         "balcony",
+        "balkongBeviljadEjByggd",
+        "balkongInglasningAnsokt",
+        "beteckningRung",
         "biddingOpen",
         "brf",
         "brfId",
         "brfName",
+        "byggarenden",
         "ceilingHeightM",
         "ceilingSource",
+        "cityStambyte",
         "constructionYear",
         "daysOnMarket",
         "daysOnMarketSource",
         "descriptionRead",
         "elevatorListed",
+        "fastighetsbeteckning",
         "floor",
         "isNewConstruction",
         "landLease",
+        "lastStambyteYear",
         "listPricePercentageDiff",
         "operatingCostMonthlySek",
         "orientationFacades",
+        "plannedStambyteYear",
         "priceCutSek",
         "publishedAt",
+        "reliningMentioned",
+        "stambyteOngoing",
+        "stambyteSource",
+        "stambyteStatus",
         "statusKey",
         "sunPhrases",
         "tallCeilingPhrase",
         "tenureForm",
+        "textStambyte",
       ].sort(),
     );
   });
@@ -89,6 +105,59 @@ describe("candidateFactsSchema", () => {
     const parsed = candidateFactsSchema.parse({ tenureForm: "Bostadsrätt", description: "Ring Anna 070-123 45 67", agentName: "Anna" });
     expect(parsed.tenureForm).toBe("Bostadsrätt");
     expect(JSON.stringify(parsed)).not.toMatch(/Anna|070/);
+  });
+
+  it("Phase 14.6: each of the 16 new keys is part of the schema and is null on an empty record", () => {
+    const newKeys = [
+      "fastighetsbeteckning",
+      "beteckningRung",
+      "lastStambyteYear",
+      "plannedStambyteYear",
+      "stambyteOngoing",
+      "stambyteSource",
+      "stambyteStatus",
+      "reliningMentioned",
+      "textStambyte",
+      "cityStambyte",
+      "balkongBeviljadEjByggd",
+      "balkongInglasningAnsokt",
+      "byggarenden",
+      "areaSource",
+      "areaMeasuredYear",
+      "areaMeasuredFirm",
+    ] as const;
+    expect(newKeys).toHaveLength(16);
+    const empty = emptyFacts();
+    for (const key of newKeys) {
+      expect(Object.keys(candidateFactsSchema.shape), key).toContain(key);
+      expect(empty[key], key).toBeNull();
+    }
+  });
+
+  it("Phase 14.6: a record with every new key set survives JSON and the schema, and a bad month or case number is refused", () => {
+    const full = candidateFactsSchema.parse({
+      fastighetsbeteckning: "Droskhästen 8",
+      beteckningRung: "b",
+      lastStambyteYear: 2006,
+      plannedStambyteYear: 2027,
+      stambyteOngoing: false,
+      stambyteSource: "bygglov_stockholm",
+      stambyteStatus: "planerat",
+      reliningMentioned: false,
+      textStambyte: { lastYear: null, plannedYear: 2027, ongoing: false, relining: false },
+      cityStambyte: { lastYear: 2006, basis: "start", ongoing: false, relining: false },
+      balkongBeviljadEjByggd: true,
+      balkongInglasningAnsokt: false,
+      byggarenden: [{ kind: "hiss", month: "2021-12", decision: "slutbesked", slutbeskedMonth: "2022-03", diarie: "2021-19876" }],
+      areaSource: "uppmatt",
+      areaMeasuredYear: 2019,
+      areaMeasuredFirm: true,
+    });
+    expect(candidateFactsSchema.parse(JSON.parse(JSON.stringify(full)))).toEqual(full);
+    expect(full.byggarenden?.[0].diarie).toBe("2021-19876");
+    expect(() => candidateFactsSchema.parse({ byggarenden: [{ kind: "hiss", month: "dec 2021", decision: "okant" }] })).toThrow();
+    expect(() => candidateFactsSchema.parse({ byggarenden: [{ kind: "hiss", month: "2021-12", decision: "okant", diarie: "Anna, 070.123 45 67 mail@x" }] })).toThrow();
+    expect(() => candidateFactsSchema.parse({ byggarenden: Array.from({ length: 7 }, () => ({ kind: "hiss", month: "2021-12", decision: "okant" })) })).toThrow();
   });
 
   it("emptyFacts() equals the parse of {}", () => {

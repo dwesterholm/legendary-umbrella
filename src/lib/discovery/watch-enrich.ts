@@ -41,6 +41,7 @@ import { runPool } from "@/lib/booli/slutpriser";
 import { fetchBrfFacts, type BrfFacts } from "@/lib/booli/brf-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
+import { areaFactsFromText } from "@/lib/discovery/area-source";
 import { toCandidate, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { ceilingFactsFromText } from "@/lib/discovery/ceiling-height";
 import {
@@ -49,12 +50,15 @@ import {
   landLeaseFromText,
   type CandidateFacts,
 } from "@/lib/discovery/listing-facts";
+import { mergeStambyte } from "@/lib/discovery/stambyte-facts";
+import { stambyteFromText } from "@/lib/discovery/stambyte-text";
 import {
   extractOrientationFromDescription,
   extractSunPhrases,
   statedSunPhrases,
   type SunPhrases,
 } from "@/lib/discovery/sun-path";
+import { beteckningFromText } from "@/lib/stockholm/beteckning-text";
 
 /**
  * The broker-leg bounds, redeclared from `job.ts` (where they are module-private
@@ -129,6 +133,30 @@ export interface WatchEnrichOptions {
 
 const nonEmpty = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
+/** The year of the run date ("YYYY-MM-DD"); the clock's year when the date is not a date. */
+function runYearOf(asOf: string, nowMs: number): number {
+  const year = Number(asOf.slice(0, 4));
+  return Number.isInteger(year) && year >= 1900 && year <= 2200 ? year : new Date(nowMs).getUTCFullYear();
+}
+
+/**
+ * Phase 14.6 (STAM-03, FLAG-02, CASE-01): the building facts the broker text states, as derived values only.
+ * `text` is null or empty when no description was read: then every key is null ("not read"), never false.
+ * The sentence itself never leaves this function.
+ */
+function buildingFactsFromText(text: string | null, runYear: number) {
+  const reading = stambyteFromText(text, { runYear });
+  const wasRead = reading.ongoing !== null;
+  const beteckning = beteckningFromText(text);
+  return {
+    textStambyte: wasRead ? reading : null,
+    ...(wasRead ? mergeStambyte({ city: null, report: null, text: reading }) : {}),
+    ...areaFactsFromText(text, { runYear }),
+    fastighetsbeteckning: beteckning,
+    beteckningRung: beteckning === null ? null : ("a" as const),
+  };
+}
+
 /**
  * Reads up to `limit` candidates that carry a listing URL, in input order, with
  * at most `opts.concurrency` in flight. See the module comment for the contract.
@@ -147,6 +175,7 @@ export async function enrichAllCandidates(
   const sunPhrases = new Map<number, SunPhrases>();
   const facts = new Map<number, CandidateFacts>();
   const startedAt = now();
+  const runYear = runYearOf(opts.asOf, now());
   let skipped = 0;
 
   const eligible: number[] = [];
@@ -214,6 +243,7 @@ export async function enrichAllCandidates(
         sunPhrases: statedSunPhrases(text),
         landLease: landLeaseFromText(text),
         ...ceilingFactsFromText(text),
+        ...buildingFactsFromText(text, runYear),
         descriptionRead: text !== null,
       });
       const phrases = extractSunPhrases(text);
