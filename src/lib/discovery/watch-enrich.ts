@@ -41,7 +41,7 @@ import { runPool } from "@/lib/booli/slutpriser";
 import { fetchBrfFacts, type BrfFacts } from "@/lib/booli/brf-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
-import { areaFactsFromText } from "@/lib/discovery/area-source";
+import { areaAuditLines, areaFactsFromText, type AreaFacts } from "@/lib/discovery/area-source";
 import { toCandidate, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { ceilingFactsFromText } from "@/lib/discovery/ceiling-height";
 import {
@@ -129,6 +129,13 @@ export interface WatchEnrichOptions {
   deps?: WatchEnrichDeps;
   /** Fetch broker photos as bytes (default true). A run that reads no pictures passes false. */
   fetchBrokerImages?: boolean;
+  /**
+   * Phase 14.6 (FLAG-02): an opt-in hook for the TERMINAL only. Called once per read description, before the text is
+   * dropped, with the clauses that mention an area keyword (each at most 160 characters, every capitalised word outside a
+   * short allowlist, e-mail address and phone number masked) and the area facts parsed from them, so a person can judge the
+   * reader against real texts. Off by default; the lines are never stored or returned. A hook that throws is ignored.
+   */
+  areaAudit?: (lines: string[], facts: AreaFacts) => void;
 }
 
 const nonEmpty = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
@@ -237,15 +244,27 @@ export async function enrichAllCandidates(
       }
 
       const facades = merged.orientation?.facades ?? [];
+      const textFacts = buildingFactsFromText(text, runYear);
       const detailFacts = candidateFactsSchema.parse({
         ...factsFromDetail(raw, { asOf: opts.asOf }),
         orientationFacades: facades.length > 0 ? facades : null,
         sunPhrases: statedSunPhrases(text),
         landLease: landLeaseFromText(text),
         ...ceilingFactsFromText(text),
-        ...buildingFactsFromText(text, runYear),
+        ...textFacts,
         descriptionRead: text !== null,
       });
+      if (opts.areaAudit && text !== null) {
+        try {
+          opts.areaAudit(areaAuditLines(text), {
+            areaSource: textFacts.areaSource,
+            areaMeasuredYear: textFacts.areaMeasuredYear,
+            areaMeasuredFirm: textFacts.areaMeasuredFirm,
+          });
+        } catch {
+          // The audit print is a convenience for a person at the terminal; it never costs a candidate.
+        }
+      }
       const phrases = extractSunPhrases(text);
       text = null; // the description is dropped here (PII rule)
 
