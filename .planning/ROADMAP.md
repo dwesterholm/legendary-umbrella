@@ -235,11 +235,22 @@ Plans:
 4. **Floor-plan under-measurement signals** — deferred until the layout read passes its 75 % gate (Phase 14.5).
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 0 plans
+**Plans:** 12 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 14.6 to break down)
+- [ ] 14.6-01-PLAN.md — separation specifiers first; city page parsers and keyword tag set from the saved pages (CASE-02)
+- [ ] 14.6-02-PLAN.md — host gate, gated city client, caches (CASE-02)
+- [ ] 14.6-03-PLAN.md — address to fastighetsbeteckning: text, BRF-name guess, city search, Min Karta (CASE-01)
+- [ ] 14.6-04-PLAN.md — live 10-building spike + robots/substring/Min Karta probes; GO or STOP for the phase (CASE-03)
+- [ ] 14.6-05-PLAN.md — one-off stambyte sweep per innerstan stadsdel since 1985 (STAM-01)
+- [ ] 14.6-06-PLAN.md — sweep joined to the sold rows, join rate printed (STAM-01)
+- [ ] 14.6-07-PLAN.md — optional stambyteTerm, CV keep rule, fits to scratch, verdict beside the folklore (STAM-02)
+- [ ] 14.6-08-PLAN.md — broker-text readers: stambyte and area source; source precedence (STAM-03, FLAG-02)
+- [ ] 14.6-09-PLAN.md — new CandidateFacts, enrichment wiring, city stage live/cache-only (STAM-03, FLAG-01, FLAG-02, CASE-01)
+- [ ] 14.6-10-PLAN.md — Stambyte / Byggärenden / Area columns in table and mail, coverage lines, live wiring (STAM-03, FLAG-01, FLAG-02)
+- [ ] 14.6-11-PLAN.md — "stambyte pågår/planerat" reason and confounder entries (STAM-03)
+- [ ] 14.6-12-PLAN.md — today's candidates at the city, with/without comparison, model swap last, area audit deferred to next live run (STAM-02, STAM-03, FLAG-01, FLAG-02)
 
 ### Phase 15: ROI-Aware Opportunity Brief
 
