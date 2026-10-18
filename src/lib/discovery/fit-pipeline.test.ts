@@ -703,7 +703,7 @@ describe("table rows and rendering (FIT-03)", () => {
     const high = (211_143).toLocaleString("sv-SE");
     expect(areaFlagLines({ ...base, areaSource: "forening" })).toEqual([
       "Arean bygger på föreningens uppgift, inte en uppmätning.",
-      `Kan vara större vid uppmätning (ofta 1–3 kvm, ej säkert). Möjlig uppsida +${low}–${high} kr (antagande, ej i värderingen).`,
+      `Kan vara större vid uppmätning (ofta 1–2 kvm, ej säkert). Möjlig uppsida +${low}–${high} kr (antagande, ej i värderingen).`,
     ]);
     expect(areaFlagLines({ ...base, constructionYear: 1990, areaSource: "forening" })).toEqual(["Arean bygger på föreningens uppgift, inte en uppmätning."]);
     expect(areaFlagLines({ ...base, constructionYear: null, areaSource: "saljare" })).toEqual(["Arean bygger på säljarens uppgift, inte en uppmätning."]);

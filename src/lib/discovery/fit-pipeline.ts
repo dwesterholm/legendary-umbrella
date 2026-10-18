@@ -724,7 +724,7 @@ export function areaFlagLines(r: Pick<FitScoreResult, "areaSource" | "constructi
   });
   if (upside !== null) {
     lines.push(
-      `Kan vara större vid uppmätning (ofta 1–3 kvm, ej säkert). Möjlig uppsida +${kr(upside.lowSek)}–${kr(upside.highSek)} kr (antagande, ej i värderingen).`,
+      `Kan vara större vid uppmätning (ofta 1–2 kvm, ej säkert). Möjlig uppsida +${kr(upside.lowSek)}–${kr(upside.highSek)} kr (antagande, ej i värderingen).`,
     );
   }
   return lines;
