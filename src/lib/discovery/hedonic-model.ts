@@ -148,6 +148,41 @@ const conditionTermSchema = z.object({
 });
 
 /**
+ * The stambyte (pipe replacement) term of the city's building history (Phase 14.6, STAM-02, R-03). An OPTIONAL post-stage
+ * object beside `stage2`: a file without it parses and predicts exactly as before, and no name is added to the nine
+ * features. Each effect is the group's mean stage-1 out-of-fold residual (net of the stage-2 effect) minus the mean over
+ * ALL rows whose building was identified, as a fraction, so a candidate whose building is unknown gets 0 (the average
+ * the intercept already holds) and one whose building is known gets its group's value. `kept` is the cross-validation
+ * verdict: a term that is not kept stays in the file for the record and never moves a price.
+ */
+const stambyteGroupSchema = z.object({
+  /** exp(group mean - mean of all identified rows) - 1; bounded so a broken fit cannot move a price by half. */
+  pct: num.min(-0.5).max(0.5),
+  /** Standard error of the group mean on the log scale (the same number as a percentage for small effects). */
+  se: num.min(0),
+  n: num.min(0),
+});
+
+const stambyteTermSchema = z.object({
+  kept: z.boolean(),
+  /** Upper edges in years from the latest recorded stambyte to the sale, ascending; the last is 40. Empty when not tried. */
+  edges: z.array(num.min(0)),
+  /** D-06's nominal edges, printed beside the data-driven ones. */
+  nominalEdges: z.array(num.min(0)),
+  /** One per edge: from (inclusive) to (inclusive) years. */
+  buckets: z.array(stambyteGroupSchema.extend({ fromYears: num.min(0), toYears: num.min(0) })),
+  /** More than 40 years ago, or none recorded (which also holds buildings whose stambyte the record never saw). */
+  reference: stambyteGroupSchema,
+  /** A stambyte under way at the sale (between startbesked and slutbesked); null when fewer than 30 rows. */
+  ongoing: stambyteGroupSchema.nullable(),
+  /** Rows per D-06 nominal bucket (0-5, 5-15, 15-40 years). */
+  nominalCounts: z.array(num.min(0)),
+  /** Null when the term was not tried (too few rows). */
+  cvRmse: z.object({ without: num, with: num }).nullable(),
+  note: z.string(),
+});
+
+/**
  * The persisted model. `lnKrPerSqm = intercept + sum(beta_j * (x_j - mean_j))`,
  * for a sale at `asOf` (monthsAgo = 0). Every number must be finite; the
  * refinements below reject a file that would produce nonsense downstream.
@@ -228,6 +263,8 @@ export const hedonicModelSchema = z
         detail: z.string(),
       }),
     ),
+    /** The stambyte term (14.6, STAM-02): optional, absent in every file written before it. */
+    stambyteTerm: stambyteTermSchema.optional(),
     /** Free-text provenance, e.g. "synthetic test model, not fitted on real sales". */
     note: z.string().optional(),
   })
@@ -258,6 +295,13 @@ export const hedonicModelSchema = z
     const dom = m.bidPremium.terms.dom;
     if (dom !== null && !(dom.lnLo < dom.lnHi)) {
       ctx.addIssue({ code: "custom", message: "days-on-market clamp bound lnLo must be below lnHi", path: ["bidPremium", "terms", "dom"] });
+    }
+    const sb = m.stambyteTerm;
+    if (sb !== undefined && sb.kept) {
+      const ascending = sb.edges.every((e, i) => i === 0 || e > sb.edges[i - 1]);
+      if (sb.edges.length === 0 || !ascending || sb.buckets.length !== sb.edges.length) {
+        ctx.addIssue({ code: "custom", message: "stambyteTerm: a kept term needs ascending edges and one bucket per edge", path: ["stambyteTerm"] });
+      }
     }
   });
 
@@ -365,6 +409,18 @@ export interface HedonicInput {
   readonly brfDebtPerSqm: number | null;
   /** true = tomträtt (leasehold land), false = ruled out, null = unknown. */
   readonly tomtratt: boolean | null;
+  /**
+   * What the city's building history says about this flat's building (14.6, STAM-02). Absent or null, or `identified`
+   * false, means the building is unknown: the stambyte term (when the model keeps one) then leaves the price alone and
+   * lists "stambyte" as imputed. `identified` true with `yearsSince` null is a building with no stambyte on record.
+   */
+  readonly stambyte?: {
+    readonly identified: boolean;
+    /** Years from the latest recorded stambyte to today, or null when none is on record. */
+    readonly yearsSince: number | null;
+    /** A stambyte is under way (between startbesked and slutbesked), or null when not known. */
+    readonly ongoing: boolean | null;
+  } | null;
 }
 
 export interface FeatureRow {
@@ -574,6 +630,14 @@ export function predictKrPerSqm(
   if (by !== null) {
     if (input.constructionYear === null) notes.push("buildYear");
     else price *= 1 + by.pctByBucket[buildYearBucket(input.constructionYear)];
+  }
+
+  // The stambyte term (14.6, STAM-02): only a KEPT term moves a price. An unknown building gets no change.
+  const stambyteTerm = model.stambyteTerm;
+  if (stambyteTerm !== undefined && stambyteTerm.kept) {
+    const state = input.stambyte;
+    if (state === undefined || state === null || !state.identified) notes.push("stambyte");
+    else price *= 1 + stambytePct(stambyteTerm, state);
   }
   return { krPerSqm: price, imputed: notes };
 }
@@ -1084,6 +1148,23 @@ export interface HedonicTrainingRow {
    * confidence bar (left out of the condition stage, never 0). Feeds the bid premium only, never the resale price.
    */
   condition?: -1 | 0 | 1 | null;
+  /**
+   * The city's building history ON THE SALE DATE (14.6, STAM-02), from `stambyteAtSale`. Null/absent = the sold flat's
+   * building was not identified: the row stays out of the stambyte regression (the honesty rule). Feeds the stambyte
+   * post-stage only, never stage 1.
+   */
+  stambyte?: StambyteTrainingState | null;
+}
+
+/** A sold flat whose building was identified, with what the record said on the sale date. */
+export interface StambyteTrainingState {
+  readonly identified: true;
+  /** A stambyte was finished (or old enough to count as done) before the sale. */
+  readonly recorded: boolean;
+  /** Sale year minus the year of the latest such stambyte; null when none. */
+  readonly yearsBefore: number | null;
+  /** A stambyte had started within 5 years before the sale and was not finished by it. */
+  readonly ongoingAtSale: boolean;
 }
 
 /** A row reduced to the numbers the stage-1 regression uses. lat/lng are already rounded. */
@@ -1706,7 +1787,7 @@ function fitBidPremiumBaseAndDays(
 }
 
 /** Pearson correlation of two equally long series; null with fewer than 3 points or no spread in either. */
-function pearson(xs: readonly number[], ys: readonly number[]): number | null {
+export function pearson(xs: readonly number[], ys: readonly number[]): number | null {
   if (xs.length < 3 || xs.length !== ys.length) return null;
   const mx = meanOfValues(xs);
   const my = meanOfValues(ys);
@@ -2085,6 +2166,323 @@ export function stage2CvRmse(
 }
 
 // ---------------------------------------------------------------------------
+// The stambyte term (14.6, STAM-02, D-06, R-03, R-04)
+// ---------------------------------------------------------------------------
+
+/** The upper edges (years from the latest recorded stambyte to the sale) the data may pick from; 40 is always the last. */
+export const STAMBYTE_EDGE_CHOICES = [5, 10, 15, 25, 40] as const;
+
+/** D-06's nominal groups 0-5, 5-15 and 15-40 years; printed beside the data-driven ones, never fitted. */
+export const STAMBYTE_NOMINAL_EDGES = [5, 15, 40] as const;
+
+/** Fewest rows a stambyte group may have: the same bar as a district (R-04). */
+export const STAMBYTE_MIN_BUCKET_N = MIN_DISTRICT_N;
+
+/** Older than this, a recorded stambyte is read as no stambyte (the reference group). */
+const STAMBYTE_LAST_EDGE = 40;
+
+/** The circulating figures, printed beside the measurement and never used by the model (D-06). */
+export const STAMBYTE_FOLKLORE = "Spridda uppgifter: -8 till -15 % före, +5 till +12 % efter (ett blogginlägg utan källa, Boio)";
+
+export type StambyteTerm = NonNullable<HedonicModel["stambyteTerm"]>;
+
+/** What the stambyte stage measured; `fitHedonicModel` returns it as `report.stambyte`. */
+export interface StambyteReport {
+  /** Kept rows whose building was identified: the regression rows. */
+  identifiedRows: number;
+  /** Of those, rows with a stambyte recorded before the sale. */
+  recordedRows: number;
+  /** Of those, rows with a stambyte under way at the sale. */
+  ongoingRows: number;
+  term: StambyteTerm;
+  /** Pearson r of "stambyte recorded" (1/0) with debt per m2 and with avgift per m2 and month, over the regression rows. */
+  correlation: {
+    debt: { r: number | null; n: number };
+    avgift: { r: number | null; n: number };
+  };
+}
+
+/** Index of the bucket a number of years falls in (edges are inclusive upper limits), or -1 beyond the last edge. */
+function stambyteBucketIndex(edges: readonly number[], years: number): number {
+  for (let k = 0; k < edges.length; k++) if (years <= edges[k]) return k;
+  return -1;
+}
+
+/**
+ * The layout of age buckets with the most buckets in which every bucket holds at least {@link STAMBYTE_MIN_BUCKET_N}
+ * rows (R-04). Every subset of 5, 10, 15 and 25 is tried, always closed by 40; a thin bucket is thereby merged with its
+ * neighbour. Ties go to the layout whose smallest bucket is biggest, then to the first tried. `yearsBefore` are the
+ * years of the rows that sit in a bucket; those outside 0 to 40 are ignored. Null when even one 0-40 bucket has fewer
+ * rows than the bar.
+ */
+export function chooseStambyteEdges(yearsBefore: readonly number[]): number[] | null {
+  const inRange = yearsBefore.filter((y) => Number.isFinite(y) && y >= 0 && y <= STAMBYTE_LAST_EDGE);
+  const optional = STAMBYTE_EDGE_CHOICES.filter((e) => e < STAMBYTE_LAST_EDGE);
+  let best: { edges: number[]; floor: number } | null = null;
+  for (let mask = 0; mask < 1 << optional.length; mask++) {
+    const edges: number[] = optional.filter((_, k) => ((mask >> k) & 1) === 1);
+    edges.push(STAMBYTE_LAST_EDGE);
+    const counts = new Array<number>(edges.length).fill(0);
+    for (const y of inRange) counts[stambyteBucketIndex(edges, y)] += 1;
+    const floor = Math.min(...counts);
+    if (floor < STAMBYTE_MIN_BUCKET_N) continue;
+    if (best === null || edges.length > best.edges.length || (edges.length === best.edges.length && floor > best.floor)) {
+      best = { edges, floor };
+    }
+  }
+  return best === null ? null : best.edges;
+}
+
+function sampleSd(values: readonly number[]): number {
+  if (values.length < 2) return 0;
+  const mean = meanOfValues(values);
+  return Math.sqrt(values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1));
+}
+
+const clampStambytePct = (x: number): number => Math.max(-0.5, Math.min(0.5, x));
+
+/**
+ * Fits the stambyte term on the sold rows whose building was identified (14.6, STAM-02). `residuals[i]` belongs to
+ * `rows[i]`: the stage-1 out-of-fold residual minus the stage-2 log effect of the row, so build year and balcony are
+ * not measured twice. Rows with no `stambyte` are not in the regression at all; at prediction they get 0 (the honesty
+ * rule, as for every unknown input).
+ *
+ * Groups, in this order: ongoing at the sale (its own group, only with at least {@link STAMBYTE_MIN_BUCKET_N} rows;
+ * under that, such a row falls through to the groups below), a recorded stambyte 0 to 40 years before the sale in the
+ * buckets {@link chooseStambyteEdges} picks, and the reference (older than 40 years, or none on record - which also
+ * holds buildings whose stambyte the thin record after 2011 never saw). Each effect is exp(group mean - mean of all
+ * regression rows) - 1.
+ *
+ * Kept ONLY if 5-fold cross-validation improves strictly (folds by index among the regression rows modulo
+ * {@link CV_FOLDS}, the days-term rule): `without` predicts every held-out residual with the training-fold mean, `with`
+ * with the training-fold mean of its group. "Not kept" is a valid result and the fitted numbers are kept in the file.
+ * Too few recorded rows is not a failure either: the term is then recorded as not tried.
+ */
+export function fitStambyteTerm(
+  rows: readonly HedonicTrainingRow[],
+  residuals: readonly number[],
+): { term: StambyteTerm; report: StambyteReport } {
+  if (rows.length !== residuals.length) throw new RangeError("fitStambyteTerm: rows and residuals differ in length");
+  const idx: number[] = [];
+  rows.forEach((r, i) => {
+    if (r.stambyte != null && Number.isFinite(residuals[i])) idx.push(i);
+  });
+  const state = (i: number): StambyteTrainingState => rows[i].stambyte as StambyteTrainingState;
+  const recordedIdx = idx.filter((i) => state(i).recorded);
+  const ongoingN = idx.filter((i) => state(i).ongoingAtSale).length;
+  const fitOngoing = ongoingN >= STAMBYTE_MIN_BUCKET_N;
+  const inBucketRange = (i: number): boolean => {
+    const s = state(i);
+    return s.recorded && s.yearsBefore !== null && s.yearsBefore >= 0 && s.yearsBefore <= STAMBYTE_LAST_EDGE;
+  };
+  const bucketRows = idx.filter((i) => inBucketRange(i) && !(fitOngoing && state(i).ongoingAtSale));
+  const nominalCounts = [0, 0, 0];
+  for (const i of bucketRows) nominalCounts[stambyteBucketIndex(STAMBYTE_NOMINAL_EDGES, state(i).yearsBefore as number)] += 1;
+
+  const correlation = (pick: (r: HedonicTrainingRow) => number | null): { r: number | null; n: number } => {
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (const i of idx) {
+      const v = pick(rows[i]);
+      if (v === null || !Number.isFinite(v)) continue;
+      xs.push(state(i).recorded ? 1 : 0);
+      ys.push(v);
+    }
+    return { r: pearson(xs, ys), n: xs.length };
+  };
+  const corr = {
+    debt: correlation((r) => r.brfDebtPerSqm),
+    avgift: correlation((r) => r.avgiftPerSqmMonth),
+  };
+  const counts = { identifiedRows: idx.length, recordedRows: recordedIdx.length, ongoingRows: ongoingN };
+
+  const edges = recordedIdx.length < STAMBYTE_MIN_BUCKET_N ? null : chooseStambyteEdges(bucketRows.map((i) => state(i).yearsBefore as number));
+  const notTried = (note: string): { term: StambyteTerm; report: StambyteReport } => {
+    const term: StambyteTerm = {
+      kept: false,
+      edges: [],
+      nominalEdges: [...STAMBYTE_NOMINAL_EDGES],
+      buckets: [],
+      reference: { pct: 0, se: 0, n: idx.length },
+      ongoing: null,
+      nominalCounts,
+      cvRmse: null,
+      note,
+    };
+    return { term, report: { ...counts, term, correlation: corr } };
+  };
+  if (edges === null) {
+    return notTried(
+      recordedIdx.length < STAMBYTE_MIN_BUCKET_N
+        ? `ej prövad: för få sålda rader med registrerat stambyte (n=${recordedIdx.length})`
+        : `ej prövad: för få sålda rader med registrerat stambyte i varje åldersgrupp (n=${bucketRows.length})`,
+    );
+  }
+
+  // Group ids: 0..edges.length-1 the buckets, -1 the reference, -2 ongoing at the sale.
+  const groupOf = (i: number): number => {
+    const s = state(i);
+    if (fitOngoing && s.ongoingAtSale) return -2;
+    if (inBucketRange(i)) return stambyteBucketIndex(edges, s.yearsBefore as number);
+    return -1;
+  };
+  const meanAll = meanOfValues(idx.map((i) => residuals[i]));
+  const summarise = (group: number): { pct: number; se: number; n: number } => {
+    const values = idx.filter((i) => groupOf(i) === group).map((i) => residuals[i]);
+    if (values.length === 0) return { pct: 0, se: 0, n: 0 };
+    return {
+      pct: clampStambytePct(Math.exp(meanOfValues(values) - meanAll) - 1),
+      se: sampleSd(values) / Math.sqrt(values.length),
+      n: values.length,
+    };
+  };
+  const buckets = edges.map((to, k) => ({ fromYears: k === 0 ? 0 : edges[k - 1] + 1, toYears: to, ...summarise(k) }));
+  const reference = summarise(-1);
+  const ongoing = fitOngoing ? summarise(-2) : null;
+
+  // 5-fold cross-validation over the regression rows.
+  let sqWithout = 0;
+  let sqWith = 0;
+  for (let f = 0; f < CV_FOLDS; f++) {
+    const train = idx.filter((_, p) => p % CV_FOLDS !== f);
+    const trainMean = meanOfValues(train.map((i) => residuals[i]));
+    const groupMeans = new Map<number, number>();
+    for (const g of new Set(train.map(groupOf))) {
+      groupMeans.set(g, meanOfValues(train.filter((i) => groupOf(i) === g).map((i) => residuals[i])));
+    }
+    idx.forEach((i, p) => {
+      if (p % CV_FOLDS !== f) return;
+      sqWithout += (residuals[i] - trainMean) ** 2;
+      sqWith += (residuals[i] - (groupMeans.get(groupOf(i)) ?? trainMean)) ** 2;
+    });
+  }
+  const cvWithout = Math.sqrt(sqWithout / idx.length);
+  const cvWith = Math.sqrt(sqWith / idx.length);
+  const keep = cvWith < cvWithout;
+  const term: StambyteTerm = {
+    kept: keep,
+    edges,
+    nominalEdges: [...STAMBYTE_NOMINAL_EDGES],
+    buckets,
+    reference,
+    ongoing,
+    nominalCounts,
+    cvRmse: { without: cvWithout, with: cvWith },
+    note: keep ? `med: korsvalidering ${sv(cvWithout, 4)} -> ${sv(cvWith, 4)}` : "prövad, förkastad: korsvalidering",
+  };
+  return { term, report: { ...counts, term, correlation: corr } };
+}
+
+/** The effect (a fraction) a kept term gives a building whose history is known. Ongoing first, then the age bucket, else the reference. */
+function stambytePct(term: StambyteTerm, state: NonNullable<HedonicInput["stambyte"]>): number {
+  if (state.ongoing === true && term.ongoing !== null) return term.ongoing.pct;
+  if (state.yearsSince !== null && state.yearsSince >= 0) {
+    const k = stambyteBucketIndex(term.edges, state.yearsSince);
+    if (k >= 0 && k < term.buckets.length) return term.buckets[k].pct;
+  }
+  return term.reference.pct;
+}
+
+/** The effect of a group against buildings with no stambyte on record, and its standard error (the two groups are independent). */
+function stambyteVersusReference(
+  group: { pct: number; se: number },
+  reference: { pct: number; se: number },
+): { pct: number; se: number } {
+  return { pct: (1 + group.pct) / (1 + reference.pct) - 1, se: Math.sqrt(group.se ** 2 + reference.se ** 2) };
+}
+
+/** One line for `describeModel`, only when the model carries the term. */
+function describeStambyteTerm(term: StambyteTerm): string {
+  if (term.cvRmse === null) return `Stambyte: ${term.note}; ingen justering görs i värderingen.`;
+  const cv = `utan ${sv(term.cvRmse.without, 4)}, med ${sv(term.cvRmse.with, 4)}`;
+  if (!term.kept) return `Stambyte: ${term.note} (${cv}); ingen justering görs i värderingen.`;
+  const parts = term.buckets.map((b) => `${b.fromYears}-${b.toYears} år före försäljningen ${svPct(b.pct)}`);
+  if (term.ongoing !== null) parts.push(`pågående stambyte ${svPct(term.ongoing.pct)}`);
+  parts.push(`över 40 år eller inget registrerat ${svPct(term.reference.pct)}`);
+  return (
+    `Stambyte: behållen (${term.note}): ${parts.join(", ")}. Effekterna är mätta mot genomsnittet av alla byggnader med känd historik; ` +
+    "en byggnad vars historik är okänd får ingen justering. Inget registrerat stambyte betyder också obekant: stadens register är tunt efter 2011."
+  );
+}
+
+/**
+ * The stambyte block of the fit report, line by line (Swedish, decimal comma). Every number comes from the report; the
+ * circulating figures stand beside the measurement and are labelled as unsourced (D-06).
+ */
+export function formatStambyteBlock(report: StambyteReport): string[] {
+  const { term } = report;
+  const out: string[] = ["Stambyte (14.6, stadens ärendelista):"];
+  const share = report.identifiedRows === 0 ? 0 : (report.recordedRows / report.identifiedRows) * 100;
+  out.push(
+    `  Sålda rader med känd byggnad: ${report.identifiedRows}, av dem med registrerat stambyte före försäljningen: ${report.recordedRows} (${sv(share, 1)} %); pågående vid försäljningen: ${report.ongoingRows}.`,
+  );
+  if (term.cvRmse === null) {
+    out.push(`  ${term.note}`);
+  } else {
+    const [n1, n2, n3] = term.nominalCounts;
+    out.push(
+      `  Klassgränser: använda ${term.edges.join(", ")} år (D-06 nominella 0-5, 5-15, 15-40: ${n1}, ${n2}, ${n3} rader)`,
+    );
+    out.push("  Effekt mot genomsnittet av alla rader med känd byggnad (mot byggnader utan registrerat stambyte inom parentes):");
+    for (const b of term.buckets) {
+      const vs = stambyteVersusReference(b, term.reference);
+      out.push(
+        `  ${b.fromYears}-${b.toYears} år före försäljningen: ${svPct(b.pct)} (SE ${sv(b.se * 100, 1)}, n ${b.n}); mot inget registrerat ${svPct(vs.pct)} (SE ${sv(vs.se * 100, 1)})`,
+      );
+    }
+    out.push(
+      `  Över 40 år eller inget registrerat (referens): ${svPct(term.reference.pct)} (SE ${sv(term.reference.se * 100, 1)}, n ${term.reference.n})`,
+    );
+    if (term.ongoing === null) {
+      out.push(`  Pågående vid försäljningen: ej anpassad (n=${report.ongoingRows})`);
+    } else {
+      const vs = stambyteVersusReference(term.ongoing, term.reference);
+      out.push(
+        `  Pågående vid försäljningen: ${svPct(term.ongoing.pct)} (SE ${sv(term.ongoing.se * 100, 1)}, n ${term.ongoing.n}); mot inget registrerat ${svPct(vs.pct)}`,
+      );
+    }
+    out.push(
+      `  Korsvalidering: utan ${sv(term.cvRmse.without, 4)}, med ${sv(term.cvRmse.with, 4)} -> ${term.kept ? "behålls" : "förkastas"}`,
+    );
+  }
+  const r = (c: { r: number | null }): string => (c.r === null ? "ej beräkningsbar" : sv(c.r, 2));
+  out.push(
+    `  Samvariation: registrerat stambyte mot skuld/kvm r=${r(report.correlation.debt)} (n=${report.correlation.debt.n}), mot avgift/kvm r=${r(report.correlation.avgift)} (n=${report.correlation.avgift.n})`,
+  );
+  out.push(`  ${STAMBYTE_FOLKLORE}`);
+  out.push("  Inget registrerat stambyte betyder inte att inget gjorts: stadens register är tunt efter 2011.");
+  return out;
+}
+
+/** Deep equality of two JSON values, key order ignored. */
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => k in b && sameJson((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/**
+ * Moves ONLY the stambyte term from a scratch model onto a base model (plan 12's swap). Refuses unless every other
+ * field except `fittedAt`, `note` and `stambyteTerm` is equal in both, so no other number of the base can change.
+ */
+export function graftStambyteTerm(base: HedonicModel, donor: HedonicModel): HedonicModel {
+  if (donor.stambyteTerm === undefined) throw new Error("graftStambyteTerm: donatormodellen har ingen stambyteTerm att flytta");
+  const skip = new Set(["fittedAt", "note", "stambyteTerm"]);
+  const keys = [...new Set([...Object.keys(base), ...Object.keys(donor)])].filter((k) => !skip.has(k));
+  for (const key of keys) {
+    if (!sameJson((base as Record<string, unknown>)[key], (donor as Record<string, unknown>)[key])) {
+      throw new Error(`graftStambyteTerm: basmodellen och donatormodellen skiljer sig i "${key}"; bara stambyteTerm får flyttas, så ingenting flyttas`);
+    }
+  }
+  return hedonicModelSchema.parse({ ...base, stambyteTerm: donor.stambyteTerm });
+}
+
+// ---------------------------------------------------------------------------
 // Fitting: the whole model
 // ---------------------------------------------------------------------------
 
@@ -2106,6 +2504,8 @@ export interface HedonicFitReport {
   rawEstimates: Partial<Record<HedonicFeature, { beta: number; se: number | null; t: number | null }>>;
   /** Rows (after outlier removal) with a known value, per 14.4 feature. */
   knownCounts: Partial<Record<HedonicFeature, number>>;
+  /** The stambyte stage (14.6); present only when the fit was asked for it (`stambyteStage`). */
+  stambyte?: StambyteReport;
 }
 
 /**
@@ -2130,7 +2530,7 @@ export interface HedonicFitReport {
  */
 export function fitHedonicModel(
   rows: readonly HedonicTrainingRow[],
-  opts: { asOf: string; fittedAt: string; lambda?: number; stage2CapPct?: number },
+  opts: { asOf: string; fittedAt: string; lambda?: number; stage2CapPct?: number; stambyteStage?: boolean },
 ): { model: HedonicModel; report: HedonicFitReport } {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.asOf)) {
     throw new RangeError(`fitHedonicModel: asOf måste vara YYYY-MM-DD (fick "${opts.asOf}")`);
@@ -2296,6 +2696,25 @@ export function fitHedonicModel(
     bidPremium,
     fallbacks,
   };
+  // The stambyte post-stage (14.6): the stage-1 out-of-fold residual net of what stage 2 explains, per kept row.
+  let stambyteResult: { term: StambyteTerm; report: StambyteReport } | null = null;
+  if (opts.stambyteStage === true) {
+    const s2 = stage2Result.stage2;
+    const stage2Ln = (r: HedonicTrainingRow): number => {
+      let ln = 0;
+      if (r.balcony !== null) {
+        const { pct, share } = s2.balcony;
+        ln += share === undefined ? (r.balcony ? Math.log(1 + pct) : 0) : Math.log(1 + pct) * ((r.balcony ? 1 : 0) - share);
+      }
+      if (s2.buildYear !== null && r.buildYear !== null) ln += Math.log(1 + s2.buildYear.pctByBucket[buildYearBucket(r.buildYear)]);
+      return ln;
+    };
+    stambyteResult = fitStambyteTerm(
+      keptRows,
+      keptRows.map((r, i) => kept[i].y - oofLn[i] - stage2Ln(r)),
+    );
+    model.stambyteTerm = stambyteResult.term;
+  }
   const rawEstimates: HedonicFitReport["rawEstimates"] = {};
   const knownCounts: HedonicFitReport["knownCounts"] = {};
   for (const name of OPTIONAL_14_4_FEATURES) {
@@ -2318,7 +2737,15 @@ export function fitHedonicModel(
   }
   return {
     model,
-    report: { droppedOutliers, enrichedN: stage2Result.usedN, stage2: stage2Report, cvByFold, rawEstimates, knownCounts },
+    report: {
+      droppedOutliers,
+      enrichedN: stage2Result.usedN,
+      stage2: stage2Report,
+      cvByFold,
+      rawEstimates,
+      knownCounts,
+      ...(stambyteResult !== null ? { stambyte: stambyteResult.report } : {}),
+    },
   };
 }
 
@@ -2437,6 +2864,7 @@ export function describeModel(model: HedonicModel): string[] {
       `Dagar på marknaden i budpremien: ${dom.kept ? "används" : "används inte"} (${dom.note}; koefficient ${sv(dom.beta, 4)} per ln-dag, ${dom.n} försäljningar med dagar och utgångspris). Gäller förväntat slutpris, inte lägenhetens värde.`,
     );
   }
+  if (model.stambyteTerm !== undefined) lines.push(describeStambyteTerm(model.stambyteTerm));
   lines.push(
     `${sv(bid.nullLabelShare * 100, 1)} % av försäljningarna saknar uppgift om slutpris mot utgångspris och är utelämnade ur budpremien; de räknas inte som noll.`,
   );

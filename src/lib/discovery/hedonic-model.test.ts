@@ -15,9 +15,16 @@ import {
   STAGE2_ALLOWED_CAPS,
   STAGE2_CAP_PCT,
   STAGE2_CAP_WIDENED_PCT,
+  STAMBYTE_EDGE_CHOICES,
+  STAMBYTE_FOLKLORE,
+  STAMBYTE_MIN_BUCKET_N,
   buildFeatureRow,
+  chooseStambyteEdges,
   choleskySolve,
   describeModel,
+  fitStambyteTerm,
+  formatStambyteBlock,
+  graftStambyteTerm,
   expectedOverbidDetail,
   fitBidPremium,
   fitHedonicModel,
@@ -2454,5 +2461,305 @@ describe("fitHedonicModel report: raw estimates before the guard (VAL-02)", () =
     expect(featureOf(model, "avgiftPerSqmMonth").beta).toBe(0);
     expect(featureOf(model, "avgiftPerSqmMonth").source).toBe("zeroed");
     expect(model.fallbacks.find((f) => f.item === "avgiftPerSqmMonth")!.reason).toBe("wrong-sign");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14.6-07: the stambyte term (STAM-02, D-06, R-03, R-04)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gives every row a building history from a seeded draw: 15 % unknown (no `stambyte`), half of the rest with a recorded
+ * stambyte 1 to 60 years before the sale, `ongoingShare` of the others with one under way. A price `plant` (ln) is applied to the rows whose
+ * latest recorded stambyte is 16 to 40 years old. The draw does not depend on `plant`, so the planted and the plain set
+ * share every building state.
+ */
+function withStambyte(rows: readonly HedonicTrainingRow[], seed: number, plant: number, ongoingShare = 0.05): HedonicTrainingRow[] {
+  const g = lcg(seed);
+  return rows.map((r) => {
+    const known = g.uniform() < 0.85;
+    const recorded = g.uniform() < 0.5;
+    const years = 1 + Math.floor(g.uniform() * 60);
+    const ongoing = g.uniform() < ongoingShare;
+    if (!known) return r;
+    const yearsBefore = recorded ? years : null;
+    const factor = yearsBefore !== null && yearsBefore >= 16 && yearsBefore <= 40 ? Math.exp(plant) : 1;
+    return {
+      ...r,
+      soldPrice: Math.round(r.soldPrice * factor),
+      stambyte: { identified: true as const, recorded, yearsBefore, ongoingAtSale: !recorded && ongoing },
+    };
+  });
+}
+
+describe("the stambyte term: a planted -6 % effect is found, kept, written, read back and priced (STAM-02)", () => {
+  const base = generateRows({ seed: 1460, perDistrict: { Södermalm: 300, Kungsholmen: 300, Vasastan: 300, Östermalm: 300 } });
+  const PLANT = Math.log(0.94);
+  const planted = withStambyte(base, 7, PLANT);
+  const plain = withStambyte(base, 7, 0);
+  const fittedPlanted = fitHedonicModel(planted, { ...OPTS, stambyteStage: true });
+  const fittedPlain = fitHedonicModel(plain, { ...OPTS, stambyteStage: true });
+  const term = fittedPlanted.model.stambyteTerm!;
+  const vs = (b: { pct: number }): number => (1 + b.pct) / (1 + term.reference.pct) - 1;
+  const flat: HedonicInput = { ...FOLKUNGAGATAN, constructionYear: 1900 };
+
+  it("finds the planted effect in the buckets covering 16 to 40 years and keeps the term by cross-validation", () => {
+    expect(term.kept).toBe(true);
+    expect(term.cvRmse!.with).toBeLessThan(term.cvRmse!.without);
+    expect(term.note).toMatch(/^med: korsvalidering/);
+    const inside = term.buckets.filter((b) => b.fromYears >= 16 && b.toYears <= 40);
+    expect(inside.length).toBeGreaterThanOrEqual(1);
+    for (const b of inside) {
+      // The stored value is centred on the mean of all identified rows; against buildings with no stambyte on record it is the planted -6 %.
+      expect(vs(b)).toBeGreaterThan(-0.07);
+      expect(vs(b)).toBeLessThan(-0.05);
+      expect(b.pct).toBeLessThan(0);
+    }
+    const outside = term.buckets.filter((b) => b.toYears <= 15);
+    for (const b of outside) expect(Math.abs(vs(b))).toBeLessThan(0.03);
+  });
+
+  it("the buckets all hold at least 30 rows and together with the reference and ongoing group make up the regression rows", () => {
+    const rep = fittedPlanted.report.stambyte!;
+    for (const b of term.buckets) expect(b.n).toBeGreaterThanOrEqual(STAMBYTE_MIN_BUCKET_N);
+    const total = term.buckets.reduce((sum, b) => sum + b.n, 0) + term.reference.n + (term.ongoing?.n ?? 0);
+    expect(total).toBe(rep.identifiedRows);
+    expect(term.edges[term.edges.length - 1]).toBe(40);
+    expect(term.nominalEdges).toEqual([5, 15, 40]);
+    expect(term.nominalCounts).toHaveLength(3);
+  });
+
+  it("rows whose building is unknown are not in the term's n", () => {
+    const withInfo = planted.filter((r) => r.stambyte != null).length;
+    const identified = fittedPlanted.report.stambyte!.identifiedRows;
+    expect(identified).toBeLessThanOrEqual(withInfo);
+    expect(withInfo - identified).toBeLessThanOrEqual(10); // only outlier removal separates the two
+    expect(planted.length - withInfo).toBeGreaterThan(100);
+  });
+
+  it("the same set with no planted effect is not kept, and the fitted numbers are still in the file", () => {
+    const t = fittedPlain.model.stambyteTerm!;
+    expect(t.kept).toBe(false);
+    expect(t.note).toBe("prövad, förkastad: korsvalidering");
+    expect(t.buckets.length).toBeGreaterThan(0);
+    expect(t.cvRmse!.with).toBeGreaterThanOrEqual(t.cvRmse!.without);
+  });
+
+  it("round-trips through parseHedonicModel", () => {
+    const back = parseHedonicModel(JSON.parse(JSON.stringify(fittedPlanted.model)));
+    expect(back.stambyteTerm).toEqual(JSON.parse(JSON.stringify(term)));
+  });
+
+  it("prices a recorded stambyte 25 years ago about 6 % below a building with none on record", () => {
+    const m = fittedPlanted.model;
+    const old = predictKrPerSqm(m, { ...flat, stambyte: { identified: true, yearsSince: 25, ongoing: false } }).krPerSqm;
+    const none = predictKrPerSqm(m, { ...flat, stambyte: { identified: true, yearsSince: null, ongoing: false } }).krPerSqm;
+    expect(old / none - 1).toBeGreaterThan(-0.07);
+    expect(old / none - 1).toBeLessThan(-0.05);
+    const tooOld = predictKrPerSqm(m, { ...flat, stambyte: { identified: true, yearsSince: 55, ongoing: false } }).krPerSqm;
+    expect(tooOld).toBeCloseTo(none, 9);
+  });
+
+  it("an unknown building gets no change, and 'stambyte' is listed as imputed because the term is kept", () => {
+    const m = fittedPlanted.model;
+    const without = structuredClone(m);
+    delete without.stambyteTerm;
+    const a = predictKrPerSqm(m, { ...flat, stambyte: null });
+    const b = predictKrPerSqm(m, flat);
+    const c = predictKrPerSqm(m, { ...flat, stambyte: { identified: false, yearsSince: null, ongoing: null } });
+    const plainPrice = predictKrPerSqm(without, flat);
+    expect(a.krPerSqm).toBe(plainPrice.krPerSqm);
+    expect(b.krPerSqm).toBe(plainPrice.krPerSqm);
+    expect(c.krPerSqm).toBe(plainPrice.krPerSqm);
+    expect(a.imputed).toContain("stambyte");
+    expect(c.imputed).toContain("stambyte");
+    expect(plainPrice.imputed).not.toContain("stambyte");
+    expect(predictKrPerSqm(m, { ...flat, stambyte: { identified: true, yearsSince: 25, ongoing: false } }).imputed).not.toContain("stambyte");
+  });
+
+  it("a term that is not kept never moves a price and never lists 'stambyte' as imputed", () => {
+    const m = fittedPlain.model;
+    const without = structuredClone(m);
+    delete without.stambyteTerm;
+    for (const s of [null, { identified: true, yearsSince: 25, ongoing: false }, { identified: true, yearsSince: null, ongoing: null }]) {
+      const got = predictKrPerSqm(m, { ...flat, stambyte: s });
+      expect(got.krPerSqm).toBe(predictKrPerSqm(without, flat).krPerSqm);
+      expect(got.imputed).not.toContain("stambyte");
+    }
+  });
+
+  it("without stambyteStage the model has no stambyteTerm key, whatever the rows carry, and stage 1 is unchanged by the stage", () => {
+    const off = fitHedonicModel(planted, OPTS);
+    expect("stambyteTerm" in off.model).toBe(false);
+    expect(off.report.stambyte).toBeUndefined();
+    const noInfo = fitHedonicModel(planted.map((r) => ({ ...r, stambyte: null })), OPTS);
+    expect(JSON.stringify(off.model)).toBe(JSON.stringify(noInfo.model));
+    const on = structuredClone(fittedPlanted.model);
+    delete on.stambyteTerm;
+    expect(JSON.stringify(on)).toBe(JSON.stringify(off.model));
+  });
+
+  it("a stored file without the key parses and predicts as before (the committed-model shape)", () => {
+    expect(model.stambyteTerm).toBeUndefined();
+    const withInput = predictKrPerSqm(model, { ...FOLKUNGAGATAN, stambyte: { identified: true, yearsSince: 20, ongoing: false } });
+    const plainInput = predictKrPerSqm(model, FOLKUNGAGATAN);
+    expect(withInput.krPerSqm).toBe(plainInput.krPerSqm);
+    expect(withInput.imputed).toEqual(plainInput.imputed);
+  });
+
+  it("a kept term whose buckets do not match its edges is refused", () => {
+    const bad = JSON.parse(JSON.stringify(fittedPlanted.model)) as { stambyteTerm: { buckets: unknown[] } };
+    bad.stambyteTerm.buckets.pop();
+    expect(() => parseHedonicModel(bad)).toThrow();
+    const wild = JSON.parse(JSON.stringify(fittedPlanted.model)) as { stambyteTerm: { reference: { pct: number } } };
+    wild.stambyteTerm.reference.pct = 0.9;
+    expect(() => parseHedonicModel(wild)).toThrow();
+  });
+
+  it("describeModel has a Stambyte line only when the model carries the term", () => {
+    expect(describeModel(fittedPlanted.model).filter((l) => l.startsWith("Stambyte: behållen"))).toHaveLength(1);
+    expect(describeModel(fittedPlain.model).filter((l) => l.startsWith("Stambyte: prövad, förkastad"))).toHaveLength(1);
+    expect(describeModel(model).some((l) => l.startsWith("Stambyte"))).toBe(false);
+  });
+});
+
+describe("chooseStambyteEdges (R-04)", () => {
+  const rep = (years: number, n: number): number[] => new Array<number>(n).fill(years);
+
+  it("uses all five buckets when each has 30 rows", () => {
+    const years = [...rep(3, 30), ...rep(8, 30), ...rep(12, 30), ...rep(20, 30), ...rep(30, 30)];
+    expect(chooseStambyteEdges(years)).toEqual([5, 10, 15, 25, 40]);
+  });
+
+  it("merges a thin bucket with its neighbour (the real join's shape: 5 rows within 5 years)", () => {
+    const years = [...rep(3, 5), ...rep(8, 78), ...rep(12, 148), ...rep(20, 858), ...rep(30, 1323)];
+    expect(chooseStambyteEdges(years)).toEqual([10, 15, 25, 40]);
+  });
+
+  it("returns null when even one 0-40 bucket has too few rows, and ignores rows outside 0 to 40", () => {
+    expect(chooseStambyteEdges(rep(20, 29))).toBeNull();
+    expect(chooseStambyteEdges([...rep(20, 29), ...rep(50, 500)])).toBeNull();
+    expect(chooseStambyteEdges(rep(20, 30))).toEqual([40]);
+  });
+
+  it("only offers the documented edges", () => {
+    expect(STAMBYTE_EDGE_CHOICES).toEqual([5, 10, 15, 25, 40]);
+  });
+});
+
+describe("fitStambyteTerm: thin data and the report block", () => {
+  const baseRows = generateRows({ seed: 1461 });
+  const zero = baseRows.map(() => 0);
+
+  it("fewer than 30 recorded rows is 'ej prövad', not kept, with the reason in the note", () => {
+    const rows = baseRows.map((r, i) => ({
+      ...r,
+      stambyte: { identified: true as const, recorded: i < 10, yearsBefore: i < 10 ? 20 : null, ongoingAtSale: false },
+    }));
+    const { term, report } = fitStambyteTerm(rows, zero);
+    expect(term.kept).toBe(false);
+    expect(term.cvRmse).toBeNull();
+    expect(term.note).toBe("ej prövad: för få sålda rader med registrerat stambyte (n=10)");
+    const block = formatStambyteBlock(report);
+    expect(block.join("\n")).toContain("ej prövad: för få sålda rader med registrerat stambyte (n=10)");
+    expect(describeModel({ ...structuredClone(model), stambyteTerm: term }).some((l) => l.startsWith("Stambyte: ej prövad"))).toBe(true);
+  });
+
+  it("no identified rows at all is also 'ej prövad' (n=0)", () => {
+    const { term } = fitStambyteTerm(baseRows, zero);
+    expect(term.kept).toBe(false);
+    expect(term.note).toContain("ej prövad");
+    expect(term.note).toContain("n=0");
+  });
+
+  it("the block prints the lines in order, with the data-driven edges beside D-06's, the correlations and the unsourced figures", () => {
+    const rows = withStambyte(generateRows({ seed: 1462, perDistrict: { Södermalm: 300, Kungsholmen: 300, Vasastan: 300, Östermalm: 300, } , newFeatures: { knownShare: 0.8 } }), 11, Math.log(0.94));
+    const { report } = fitHedonicModel(rows, { ...OPTS, stambyteStage: true });
+    const block = formatStambyteBlock(report.stambyte!);
+    const text = block.join("\n");
+    const order = [
+      "Stambyte (14.6, stadens ärendelista):",
+      "Klassgränser: använda ",
+      "D-06 nominella 0-5, 5-15, 15-40: ",
+      " år före försäljningen: ",
+      "Pågående vid försäljningen: ",
+      "Korsvalidering: utan ",
+      "Samvariation: registrerat stambyte mot skuld/kvm r=",
+      STAMBYTE_FOLKLORE,
+    ];
+    let at = -1;
+    for (const piece of order) {
+      const next = text.indexOf(piece, at + 1);
+      expect(next, piece).toBeGreaterThan(at);
+      at = next;
+    }
+    expect(text).toMatch(/\(SE \d+,\d, n \d+\)/);
+    expect(text).toMatch(/Korsvalidering: utan \d+,\d{4}, med \d+,\d{4} -> behålls/);
+    expect(text).toMatch(/mot avgift\/kvm r=-?\d,\d{2} \(n=\d+\)/);
+    expect(STAMBYTE_FOLKLORE).toBe("Spridda uppgifter: -8 till -15 % före, +5 till +12 % efter (ett blogginlägg utan källa, Boio)");
+    expect(report.stambyte!.correlation.debt.n).toBeGreaterThan(100);
+  });
+
+  it("a group of at least 30 rows under way at the sale is fitted as its own group; under that it is 'ej anpassad'", () => {
+    const rows = withStambyte(generateRows({ seed: 1463, perDistrict: { Södermalm: 300, Kungsholmen: 300, Vasastan: 300, Östermalm: 300 } }), 13, 0, 0.15);
+    const few = fitStambyteTerm(rows, rows.map(() => 0)).term;
+    expect(few.ongoing).not.toBeNull(); // 15 % of the unrecorded known rows: about 75
+    expect(few.ongoing!.n).toBeGreaterThanOrEqual(STAMBYTE_MIN_BUCKET_N);
+    const fewer = fitStambyteTerm(
+      rows.map((r) => (r.stambyte?.ongoingAtSale ? { ...r, stambyte: { ...r.stambyte, ongoingAtSale: false } } : r)),
+      rows.map(() => 0),
+    );
+    expect(fewer.term.ongoing).toBeNull();
+    expect(formatStambyteBlock(fewer.report).join("\n")).toContain("Pågående vid försäljningen: ej anpassad (n=0)");
+  });
+});
+
+describe("graftStambyteTerm (plan 12's swap)", () => {
+  const rows = withStambyte(generateRows({ seed: 1464, perDistrict: { Södermalm: 300, Kungsholmen: 300, Vasastan: 300, Östermalm: 300 } }), 17, Math.log(0.94));
+  const plain = fitHedonicModel(rows, OPTS).model;
+  const donor = fitHedonicModel(rows, { ...OPTS, fittedAt: "2027-01-01T00:00:00Z", stambyteStage: true }).model;
+
+  it("moves only the term; everything else of the base stays, and the file parses", () => {
+    const grafted = graftStambyteTerm(plain, donor);
+    expect(grafted.stambyteTerm).toEqual(donor.stambyteTerm);
+    expect(grafted.fittedAt).toBe(plain.fittedAt);
+    const strip = (m: HedonicModel): string => {
+      const c = structuredClone(m);
+      delete c.stambyteTerm;
+      return JSON.stringify(c);
+    };
+    expect(strip(grafted)).toBe(strip(plain));
+    expect(parseHedonicModel(JSON.parse(JSON.stringify(grafted))).stambyteTerm).toBeDefined();
+  });
+
+  it("refuses a base that differs in any other number, naming the first key", () => {
+    const other = structuredClone(plain);
+    other.intercept += 1e-9;
+    expect(() => graftStambyteTerm(other, donor)).toThrow(/"intercept"/);
+    const moved = structuredClone(plain);
+    moved.bidPremium.overallA += 0.001;
+    expect(() => graftStambyteTerm(moved, donor)).toThrow(/"bidPremium"/);
+    expect(() => graftStambyteTerm(plain, plain)).toThrow(/stambyteTerm/);
+  });
+
+  it("with the term not kept the grafted model prices 50 random inputs exactly like the base", () => {
+    const rejected = structuredClone(donor);
+    rejected.stambyteTerm = { ...rejected.stambyteTerm!, kept: false, note: "prövad, förkastad: korsvalidering" };
+    const grafted = graftStambyteTerm(plain, rejected);
+    const g = lcg(99);
+    for (let i = 0; i < 50; i++) {
+      const input: HedonicInput = {
+        ...FOLKUNGAGATAN,
+        floor: Math.floor(g.uniform() * 7),
+        livingArea: 30 + g.uniform() * 80,
+        balcony: g.uniform() < 0.5 ? null : g.uniform() < 0.5,
+        constructionYear: g.uniform() < 0.3 ? null : 1880 + Math.floor(g.uniform() * 140),
+        stambyte: g.uniform() < 0.3 ? null : { identified: true, yearsSince: g.uniform() < 0.3 ? null : g.uniform() * 60, ongoing: g.uniform() < 0.1 },
+      };
+      const a = predictKrPerSqm(grafted, input);
+      const b = predictKrPerSqm(plain, input);
+      expect(a.krPerSqm).toBe(b.krPerSqm);
+      expect(a.imputed).toEqual(b.imputed);
+    }
   });
 });
