@@ -43,6 +43,10 @@
  * default 10). With --renderer apify everything below is as in 14.1. The local
  * browser serves 2 pages at a time whatever --concurrency says.
  *
+ * --start-gap-secs <1-60> (14.5-10, R-07): at least this many seconds between two page starts, for the enrichment
+ * render and the BRF pass (src/lib/booli/start-gate.ts). The local browser keeps its own 1-2 s pacing on top. Off by
+ * default; the R-07 restart passes 2 together with --concurrency 1.
+ *
  * Secret posture: prints "satt"/"saknas" for the Apify token, never the value.
  */
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
@@ -58,6 +62,7 @@ import {
 import { APOLLO_PAGE_FUNCTION } from "@/lib/booli/page-functions";
 import { isBooliUrl } from "@/lib/booli/client";
 import { fetchBrfFacts } from "@/lib/booli/brf-page";
+import { makeStartGate } from "@/lib/booli/start-gate";
 import { seedResolve } from "@/lib/discovery/area-seed";
 import { INNERSTAN_DISTRICTS, type InnerstanDistrict } from "@/lib/discovery/hedonic-model";
 import { OBSERVED_USD_PER_TIMED_OUT_RENDER, observedApifyUsdEstimate } from "@/lib/discovery/cost";
@@ -225,6 +230,11 @@ function intArg(name: string, fallback: number, min: number, max: number): numbe
   const n = Number(raw);
   if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name} måste vara ett heltal mellan ${min} och ${max}`);
   return n;
+}
+
+/** Header suffix for --start-gap-secs (R-07); empty when the flag is off. */
+function startGapNote(secs: number | null): string {
+  return secs === null ? "" : `, minst ${secs} s mellan sidstarter`;
 }
 
 function resolveCachePath(): string {
@@ -488,6 +498,7 @@ async function runEnrichment(opts: {
   maxRenders: number;
   budgetUsd: number;
   concurrency: number;
+  startGapSecs: number | null;
   dryRun: boolean;
   renderer: RendererContext;
 }): Promise<"ok" | "stopp"> {
@@ -504,7 +515,7 @@ async function runEnrichment(opts: {
   const already = cache.rows.filter((r) => r.enriched?.detailVersion === SOLD_DETAIL_VERSION).length;
   console.log(
     `Berikning: ${sample.length} av ${cache.rows.length} rader väljs (frö "${ENRICH_SEED}"${opts.soldSince ? `, sålda från ${opts.soldSince}` : ""}${opts.reEnrich ? ", äldre poster läses om" : ""}${opts.stratify ? ", stratifierat urval" : ""}, ${already} redan berikade i v${SOLD_DETAIL_VERSION}), ` +
-      `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}${opts.maxMinutes !== null ? `, tidsgräns ${opts.maxMinutes} min` : ""}`,
+      `render-tak ${opts.maxRenders}, budget ${opts.budgetUsd.toFixed(2)} USD, samtidighet ${opts.concurrency}${opts.maxMinutes !== null ? `, tidsgräns ${opts.maxMinutes} min` : ""}${startGapNote(opts.startGapSecs)}`,
   );
   if (opts.dryRun) {
     console.log(
@@ -574,9 +585,11 @@ async function runEnrichment(opts: {
     });
   };
 
+  const startGate = opts.startGapSecs === null ? null : makeStartGate(opts.startGapSecs * 1000);
   const render = async (url: string): Promise<unknown[]> => {
     if (!isBooliUrl(url)) throw new Error("Inte en Booli-url");
     try {
+      if (startGate) await startGate();
       const items = await runPlaywrightRender(url, SOLD_DETAIL_PAGE_FUNCTION, {
         waitSecs: SLUTPRIS_WAIT_SECS,
         maxRequestRetries: SLUTPRIS_MAX_RETRIES,
@@ -687,6 +700,7 @@ async function runBrfPass(opts: {
   brfMax: number;
   maxMinutes: number | null;
   concurrency: number;
+  startGapSecs: number | null;
   dryRun: boolean;
   renderer: RendererContext;
 }): Promise<"ok" | "stopp"> {
@@ -706,7 +720,7 @@ async function runBrfPass(opts: {
     .sort((a, b) => Number(a) - Number(b));
   console.log(
     `Föreningspass: ${all.size} distinkta föreningar bland v${SOLD_DETAIL_VERSION}-raderna, ${Object.keys(known).length} redan lästa, ${ids.length} kvar att läsa, högst ${opts.brfMax} i den här körningen` +
-      `${opts.maxMinutes !== null ? `, tidsgräns ${opts.maxMinutes} min` : ""}, samtidighet ${Math.min(opts.concurrency, 2)}`,
+      `${opts.maxMinutes !== null ? `, tidsgräns ${opts.maxMinutes} min` : ""}, samtidighet ${Math.min(opts.concurrency, 2)}${startGapNote(opts.startGapSecs)}`,
   );
   if (opts.dryRun) {
     console.log("--dry-run: inga sidor lästa.");
@@ -754,10 +768,14 @@ async function runBrfPass(opts: {
   let result: Awaited<ReturnType<typeof enrichBrfs>>;
   try {
     let lastLogged = 0;
+    const brfStartGate = opts.startGapSecs === null ? null : makeStartGate(opts.startGapSecs * 1000);
     const running = enrichBrfs({
       cache,
       ids,
-      fetchBrf: (id) => fetchBrfFacts(id),
+      fetchBrf: async (id) => {
+        if (brfStartGate) await brfStartGate();
+        return fetchBrfFacts(id);
+      },
       challengedCount: () => browser.stats()?.challenged ?? 0,
       persist: () => persist(cache),
       today: todayIso(),
@@ -842,6 +860,8 @@ async function main(): Promise<void> {
   const budgetRaw = argValue("--budget-usd");
   const budgetUsd = budgetRaw === null ? 25 : Number(budgetRaw);
   if (!Number.isFinite(budgetUsd) || budgetUsd <= 0) throw new Error("--budget-usd måste vara ett positivt tal");
+  // R-07: parsed before the cache is read, so a bad value exits 1 without touching anything.
+  const startGapSecs = argValue("--start-gap-secs") === null ? null : intArg("--start-gap-secs", 0, 1, 60);
   const cachePath = resolveCachePath();
 
   if (requestedConcurrency > SLUTPRIS_CONCURRENCY) {
@@ -874,6 +894,7 @@ async function main(): Promise<void> {
       brfMax: intArg("--brf-max", ENRICH_BATCH_MAX, 1, ENRICH_BATCH_MAX),
       maxMinutes,
       concurrency,
+      startGapSecs,
       dryRun: hasFlag("--dry-run"),
       renderer: rctx,
     });
@@ -897,6 +918,7 @@ async function main(): Promise<void> {
       maxRenders: intArg("--enrich-max", enrichSample, 1, ENRICH_BATCH_MAX),
       budgetUsd,
       concurrency,
+      startGapSecs,
       dryRun: hasFlag("--dry-run"),
       renderer: rctx,
     });
