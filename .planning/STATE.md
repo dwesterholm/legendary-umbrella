@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.6"
 current_phase_name: Bygglov & Stambyte, Uppmätning Flags
 status: executing
-stopped_at: Completed 14.6-10-PLAN.md
-last_updated: "2026-10-18T21:15:48.035Z"
+stopped_at: Completed 14.6-11-PLAN.md
+last_updated: "2026-10-18T21:20:37.898Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: f525bc66624a5e08f248ce0ef0bba060d43f8938
+state_head: ff70eb22c20fe9c094c63ea2a253d1814af62a4d
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 77
-  completed_plans: 69
+  completed_plans: 70
   percent: 13
 ---
 
@@ -131,6 +131,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.6 P08 | 25 min | 3 tasks | 6 files |
 | Phase 14.6 P09 | 10 min | 3 tasks | 9 files |
 | Phase 14.6 P10 | 25 min | 3 tasks | 7 files |
+| Phase 14.6 P11 | 9 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -325,6 +326,7 @@ Recent decisions affecting current work:
 - [Phase 14.6]: 14.6-09: a row whose case list was read keeps the list's facts even when its detail pages were cut short (stop, budget, deadline); a row that never got its list keeps its facts as before
 - [Phase 14.6]: 14.6-09: cache-only city stage uses any valid cached entry whatever its age, so an old snapshot replays to the same city facts; detail reads keep the list's original fetch date
 - [Phase 14.6]: 14.6-10: refused or withdrawn building cases show as '(avslag)' / '(avskrivet)' in the Byggärenden cell; the live city stage takes the city lock and reads the cache only when it is taken
+- [Phase 14.6]: 14.6-11: An ongoing stambyte wins over a planned one in the confounder guard (one driver per building); the stambyte reason carries 'redan i värderingen' only when the model's stambyteTerm was kept
 
 ### Pending Todos
 
@@ -357,8 +359,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-18T21:15:47.937Z
-Stopped at: Completed 14.6-10-PLAN.md
+Last session: 2026-10-18T21:20:37.800Z
+Stopped at: Completed 14.6-11-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

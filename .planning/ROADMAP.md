@@ -237,7 +237,7 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 10/12 plans executed
+**Plans:** 11/12 plans executed
 
 Plans:
 **Wave 1**
@@ -279,7 +279,7 @@ Plans:
 **Wave 10** *(blocked on Wave 9 completion)*
 
 - [x] 14.6-10-PLAN.md — Stambyte / Byggärenden / Area columns in table and mail, coverage lines, live wiring (STAM-03, FLAG-01, FLAG-02)
-- [ ] 14.6-11-PLAN.md — "stambyte pågår/planerat" reason and confounder entries (STAM-03)
+- [x] 14.6-11-PLAN.md — "stambyte pågår/planerat" reason and confounder entries (STAM-03)
 
 **Wave 11** *(blocked on Wave 10 completion)*
 
