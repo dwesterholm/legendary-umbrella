@@ -1875,3 +1875,151 @@ describe("building facts reach the result and the stambyte input (14.6 STAM-03, 
     expect(hedonicInputOf({ ...row, facts: null }, 40, 2026).stambyte).toBeNull();
   });
 });
+
+describe("no number changes: the building facts are information only (14.6 D-08, D-09, D-07)", () => {
+  const folkungagatan = parseFitSnapshot(folkungagatanFixtureJson);
+  const row = folkungagatan.rows[0];
+  const committed = parseHedonicModel(JSON.parse(readFileSync(join(process.cwd(), "data/hedonic-model.json"), "utf-8")));
+
+  /** Every new fact set, as a broker text and the city's list would leave it. */
+  const loud = candidateFactsSchema.parse({
+    ...(row.facts ?? {}),
+    stambyteStatus: "planerat",
+    lastStambyteYear: 2006,
+    plannedStambyteYear: 2027,
+    stambyteSource: "bygglov_stockholm",
+    cityStambyte: { lastYear: 2006, basis: "slutbesked", ongoing: false, relining: true },
+    byggarenden: [
+      { kind: "balkong_ny", month: "2026-03", decision: "beviljad", slutbeskedMonth: null, diarie: "2026-001" },
+      { kind: "balkong_inglasning", month: "2026-09", decision: "ansokt", slutbeskedMonth: null, diarie: null },
+    ],
+    balkongBeviljadEjByggd: true,
+    balkongInglasningAnsokt: true,
+    areaSource: "forening",
+    areaMeasuredYear: null,
+    areaMeasuredFirm: null,
+  });
+  /** The same facts with every one of those fields null. */
+  const quiet = candidateFactsSchema.parse({
+    ...(row.facts ?? {}),
+    stambyteStatus: null,
+    lastStambyteYear: null,
+    plannedStambyteYear: null,
+    stambyteSource: null,
+    cityStambyte: null,
+    byggarenden: null,
+    balkongBeviljadEjByggd: null,
+    balkongInglasningAnsokt: null,
+    areaSource: null,
+    areaMeasuredYear: null,
+    areaMeasuredFirm: null,
+  });
+  const numbers = (r: FitScoreResult) => ({
+    predKrPerSqm: r.predKrPerSqm,
+    resaleSek: r.resaleSek,
+    purchaseSek: r.purchaseSek,
+    overbidPct: r.overbidPct,
+    gapSek: r.gapSek,
+    creditSek: r.creditSek,
+    renoSek: r.renoSek,
+    tasteSek: r.tasteSek,
+    tasteSunPct: r.tasteSunPct,
+    tasteHubPct: r.tasteHubPct,
+    tasteCeilingPct: r.tasteCeilingPct,
+    profitSek: r.profitSek,
+    residualPct: r.residualPct,
+    flags: r.flags,
+    featuresImputed: r.featuresImputed,
+  });
+
+  it("no number changes with balcony flags, byggärenden, area source and the upside: profit, taste, resale, purchase, flags and rank are identical", () => {
+    for (const m of [model, committed]) {
+      const a = fitScore({ ...row, facts: loud }, m, { asOfYear: 2026 });
+      const b = fitScore({ ...row, facts: quiet }, m, { asOfYear: 2026 });
+      expect(a.comparable).toBe(true);
+      expect(numbers(a)).toEqual(numbers(b));
+      // The facts themselves do arrive in the result.
+      expect(a.areaSource).toBe("forening");
+      expect(b.areaSource).toBeNull();
+    }
+    // Rank: the same two flats come out in the same order with and without the facts.
+    const other = flat({ id: 777_001, askShareOfModel: 0.8 });
+    const withFacts = rankFit([{ ...row, facts: loud }, other], committed, { asOfYear: 2026 }).ranked.map((r) => r.address);
+    const without = rankFit([{ ...row, facts: quiet }, other], committed, { asOfYear: 2026 }).ranked.map((r) => r.address);
+    expect(withFacts).toEqual(without);
+    // The free pre-rank reads the same numbers.
+    expect(preRank([{ ...row, facts: loud }], committed, { asOfYear: 2026 }).ranked[0].pre.profitSek).toBe(
+      preRank([{ ...row, facts: quiet }], committed, { asOfYear: 2026 }).ranked[0].pre.profitSek,
+    );
+  });
+
+  it("no number changes under the committed model (it has no stambyte term): the stambyte input is read and ignored", () => {
+    expect(committed.stambyteTerm).toBeUndefined();
+    const a = fitScore({ ...row, facts: loud }, committed, { asOfYear: 2026 });
+    const b = fitScore({ ...row, facts: quiet }, committed, { asOfYear: 2026 });
+    expect(a.predKrPerSqm).toBe(b.predKrPerSqm);
+    expect(a.featuresImputed).toEqual(b.featuresImputed);
+    expect(a.featuresImputed).not.toContain("stambyte");
+  });
+
+  describe("with a model whose stambyte term is kept", () => {
+    const buckets = [
+      { fromYears: 0, toYears: 10, pct: 0.024, se: 0.013, n: 83 },
+      { fromYears: 11, toYears: 15, pct: -0.018, se: 0.01, n: 145 },
+      { fromYears: 16, toYears: 25, pct: 0.012, se: 0.004, n: 850 },
+      { fromYears: 26, toYears: 40, pct: 0.01, se: 0.003, n: 1316 },
+    ];
+    const termOf = (kept: boolean) => ({
+      kept,
+      edges: [10, 15, 25, 40],
+      nominalEdges: [5, 15, 40],
+      buckets,
+      reference: { pct: -0.003, se: 0.002, n: 4927 },
+      ongoing: null,
+      nominalCounts: [5, 223, 2166],
+      cvRmse: { without: 0.1078, with: 0.1077 },
+      note: "testmodell",
+    });
+    const keptModel = parseHedonicModel({ ...JSON.parse(JSON.stringify(committed)), stambyteTerm: termOf(true) });
+    const droppedModel = parseHedonicModel({ ...JSON.parse(JSON.stringify(committed)), stambyteTerm: termOf(false) });
+    const plain = fitScore({ ...row, facts: loud }, committed, { asOfYear: 2026 });
+
+    it("a row in a fitted bucket changes predKrPerSqm by that bucket's pct (20 years since 2006: the 16-25 bucket)", () => {
+      const r = fitScore({ ...row, facts: loud }, keptModel, { asOfYear: 2026 });
+      expect((r.predKrPerSqm as number) / (plain.predKrPerSqm as number)).toBeCloseTo(1.012, 12);
+      expect(r.featuresImputed).not.toContain("stambyte");
+      // Another year, another bucket: 4 years since is the first bucket.
+      const young = fitScore({ ...row, facts: loud }, keptModel, { asOfYear: 2010 });
+      expect((young.predKrPerSqm as number) / (plain.predKrPerSqm as number)).toBeCloseTo(1.024, 12);
+    });
+
+    it("a building with no stambyte on record gets the reference group's value; a building whose list was never read gets no change and says so", () => {
+      const none = candidateFactsSchema.parse({ ...(row.facts ?? {}), byggarenden: [], cityStambyte: { lastYear: null, basis: null, ongoing: false, relining: false } });
+      const known = fitScore({ ...row, facts: none }, keptModel, { asOfYear: 2026 });
+      expect((known.predKrPerSqm as number) / (plain.predKrPerSqm as number)).toBeCloseTo(0.997, 12);
+      const unknown = fitScore({ ...row, facts: quiet }, keptModel, { asOfYear: 2026 });
+      expect(unknown.predKrPerSqm).toBe(plain.predKrPerSqm);
+      expect(unknown.featuresImputed).toContain("stambyte");
+    });
+
+    it("a term that is not kept moves nothing", () => {
+      const r = fitScore({ ...row, facts: loud }, droppedModel, { asOfYear: 2026 });
+      expect(r.predKrPerSqm).toBe(plain.predKrPerSqm);
+      expect(r.featuresImputed).toEqual(plain.featuresImputed);
+    });
+
+    it("the balcony flags, byggärenden and area still change no number under the kept term", () => {
+      const a = fitScore({ ...row, facts: loud }, keptModel, { asOfYear: 2026 });
+      // Same stambyte history, none of the flag/area facts.
+      const onlyStambyte = candidateFactsSchema.parse({
+        ...loud,
+        byggarenden: [],
+        balkongBeviljadEjByggd: null,
+        balkongInglasningAnsokt: null,
+        areaSource: null,
+      });
+      const b = fitScore({ ...row, facts: onlyStambyte }, keptModel, { asOfYear: 2026 });
+      expect(numbers(a)).toEqual(numbers(b));
+    });
+  });
+});

@@ -50,7 +50,7 @@ import {
 } from "@/lib/discovery/fit-score";
 import { readConditionTerm, type HedonicModel, type InnerstanDistrict, type OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
-import type { AreaSource } from "@/lib/discovery/area-source";
+import { areaUpsideSek, type AreaSource } from "@/lib/discovery/area-source";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
   formatKorsdragCell,
@@ -523,20 +523,66 @@ const BYGGARENDE_MAX_ITEMS = 3;
 
 type ByggarendeItem = NonNullable<CandidateFacts["byggarenden"]>[number];
 
+/** The newest item (by month) among those that pass `keep`, or undefined. */
+function newestItem(items: readonly ByggarendeItem[], keep: (item: ByggarendeItem) => boolean): ByggarendeItem | undefined {
+  return items.filter(keep).sort((a, b) => b.month.localeCompare(a.month))[0];
+}
+
 /**
- * The "Byggärenden" cell (FLAG-01, D-08): the building's recent cases of interest from the city's list as
- * "<kind> YYYY-MM", newest first, at most three, joined with ", ". "-" when the list was read and showed nothing, "okänd"
- * when the building (or its list) is unknown. Stambyte and relining live in the Stambyte column and are left out here.
+ * The "Byggärenden" cell (FLAG-01, D-08): the building's recent cases of interest from the city's list, newest first, at
+ * most three, joined with ", ". The balcony flags lead: "Balkonger beviljade 2026-03, ej slutbesked" (a new or glazed
+ * balcony is granted and not signed off) and "Inglasning ansökt 2026-09" (a glazing application with no outcome). Every
+ * other case reads "<kind> YYYY-MM"; a balcony case whose decision was never read says "(beslut okänt)", a refused or
+ * withdrawn case says so. Stambyte and relining live in the Stambyte column and are left out. "-" when the list was read
+ * and showed nothing, "okänd" when the building (or its list) is unknown. Information only: it changes no number.
  */
 export function formatByggarendenCell(facts: {
   readonly byggarenden: CandidateFacts["byggarenden"];
+  readonly balkongBeviljadEjByggd?: boolean | null;
+  readonly balkongInglasningAnsokt?: boolean | null;
 }): string {
   if (facts.byggarenden === null) return "okänd";
-  const items = facts.byggarenden.flatMap((item: ByggarendeItem) => {
+  const items = facts.byggarenden;
+  const granted = facts.balkongBeviljadEjByggd ?? null;
+  const applied = facts.balkongInglasningAnsokt ?? null;
+  const used = new Set<ByggarendeItem>();
+  const lead: string[] = [];
+
+  if (granted === true) {
+    const item =
+      newestItem(
+        items,
+        (i) =>
+          (i.kind === "balkong_ny" || i.kind === "balkong_inglasning") &&
+          (i.decision === "beviljad" || i.decision === "startbesked") &&
+          i.slutbeskedMonth === null,
+      ) ?? newestItem(items, (i) => i.kind === "balkong_ny");
+    if (item !== undefined) used.add(item);
+    lead.push(item === undefined ? "Balkonger beviljade, ej slutbesked" : `Balkonger beviljade ${item.month}, ej slutbesked`);
+  }
+  if (applied === true) {
+    const item =
+      newestItem(items, (i) => i.kind === "balkong_inglasning" && !used.has(i) && (i.decision === "ansokt" || i.decision === "okant")) ??
+      newestItem(items, (i) => i.kind === "balkong_inglasning" && !used.has(i));
+    if (item !== undefined) used.add(item);
+    lead.push(item === undefined ? "Inglasning ansökt" : `Inglasning ansökt ${item.month}`);
+  }
+
+  const rest = items.flatMap((item) => {
     const label = BYGGARENDE_LABELS[item.kind];
-    return label === undefined ? [] : [`${label} ${item.month}`];
+    if (label === undefined || used.has(item)) return [];
+    const decisionUnread =
+      (item.kind === "balkong_ny" && granted === null) || (item.kind === "balkong_inglasning" && applied === null);
+    const note = decisionUnread
+      ? " (beslut okänt)"
+      : item.decision === "avslag"
+        ? " (avslag)"
+        : item.decision === "avskrivet"
+          ? " (avskrivet)"
+          : "";
+    return [`${label} ${item.month}${note}`];
   });
-  return items.slice(0, BYGGARENDE_MAX_ITEMS).join(", ") || "-";
+  return [...lead, ...rest].slice(0, BYGGARENDE_MAX_ITEMS).join(", ") || "-";
 }
 
 /** The words the "Area" cell uses for the source of the area figure. */
@@ -549,17 +595,62 @@ const AREA_SOURCE_LABELS: Record<AreaSource, string> = {
   ej_kontrollmatt: "ej kontrollmätt",
 };
 
+const kr = (n: number): string => n.toLocaleString("sv-SE");
+
 /**
  * The "Area" cell (FLAG-02, D-09): where the broker says the area figure comes from ("uppmätt 2019", "föreningen", ...), or
- * "okänd" when the text said nothing or was never read.
+ * "okänd" when the text said nothing or was never read. For a figure that is not a measurement in a building from before
+ * 1987 the separately computed upside follows: "föreningen (+105 571–211 143 kr, antagande)". The upside is one and two
+ * square metres at the flat's own price per square metre ({@link areaUpsideSek}); it is never part of the score.
  */
 export function formatAreaCell(facts: {
   readonly areaSource: CandidateFacts["areaSource"];
   readonly areaMeasuredYear: number | null;
+  readonly constructionYear?: number | null;
+  readonly askingSek?: number | null;
+  readonly livingArea?: number | null;
 }): string {
   if (facts.areaSource === null) return "okänd";
   const label = AREA_SOURCE_LABELS[facts.areaSource];
-  return facts.areaSource === "uppmatt" && facts.areaMeasuredYear !== null ? `${label} ${facts.areaMeasuredYear}` : label;
+  if (facts.areaSource === "uppmatt") return facts.areaMeasuredYear !== null ? `${label} ${facts.areaMeasuredYear}` : label;
+  const upside = areaUpsideSek({
+    areaSource: facts.areaSource,
+    constructionYear: facts.constructionYear ?? null,
+    askingSek: facts.askingSek ?? null,
+    livingArea: facts.livingArea ?? null,
+  });
+  return upside === null ? label : `${label} (+${kr(upside.lowSek)}–${kr(upside.highSek)} kr, antagande)`;
+}
+
+/** The soft sentence per source whose figure is not a measurement (FLAG-02). */
+const AREA_FLAG_SENTENCES: Record<Exclude<AreaSource, "uppmatt">, string> = {
+  forening: "Arean bygger på föreningens uppgift, inte en uppmätning.",
+  ekonomisk_plan: "Arean bygger på den ekonomiska planen, inte en uppmätning.",
+  lagenhetsregister: "Arean bygger på lägenhetsregistret, inte en uppmätning.",
+  saljare: "Arean bygger på säljarens uppgift, inte en uppmätning.",
+  ej_kontrollmatt: "Arean är angiven som ej kontrollmätt, inte en uppmätning.",
+};
+
+/**
+ * The soft area flag for the tracked-flat block (FLAG-02, D-09): the sentence for a figure that is not a measurement and,
+ * for a building from before 1987, the note and the kr upside labelled "antagande, ej i värderingen". Empty for a measured
+ * figure or an unknown source. Text only: it changes no number and is no FIT flag.
+ */
+export function areaFlagLines(r: Pick<FitScoreResult, "areaSource" | "constructionYear" | "askingSek" | "livingArea">): string[] {
+  if (r.areaSource === null || r.areaSource === "uppmatt") return [];
+  const lines = [AREA_FLAG_SENTENCES[r.areaSource]];
+  const upside = areaUpsideSek({
+    areaSource: r.areaSource,
+    constructionYear: r.constructionYear,
+    askingSek: r.askingSek,
+    livingArea: r.livingArea,
+  });
+  if (upside !== null) {
+    lines.push(
+      `Kan vara större vid uppmätning (ofta 1–3 kvm, ej säkert). Möjlig uppsida +${kr(upside.lowSek)}–${kr(upside.highSek)} kr (antagande, ej i värderingen).`,
+    );
+  }
+  return lines;
 }
 
 const roundKr = (n: number): number => Math.round(n);
@@ -614,7 +705,6 @@ export function toFitTableRows(
 export const FIT_TABLE_HEADER =
   "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor | Varför här | Länk";
 
-const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
 
 /** Prints the table: header, up to `maxRows` rows, then a line for the rest. Empty input prints "0 kandidater". */

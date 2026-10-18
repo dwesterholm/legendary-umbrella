@@ -119,6 +119,7 @@ import {
   estimateFitRunUsd,
   conditionLineOf,
   formatTakhojdCell,
+  areaFlagLines,
   fitRowKey,
   incompleteDistricts,
   renderAreaReport,
@@ -493,6 +494,9 @@ function makeReasonsOf(
   };
 }
 
+/** Where the stambyte status came from, in the words of the tracked block (D-07: the city first, then the annual report, then the broker's text). */
+const STAMBYTE_SOURCE_TEXT = { bygglov_stockholm: "stad", arsredovisning: "årsredovisning", maklartext: "mäklartext" } as const;
+
 /** The model's days-on-market term in one phrase for the tracked block (kept, tried and rejected, or absent). */
 function domTermText(model: ReturnType<typeof parseHedonicModel>): string {
   const dom = model.bidPremium.terms.dom;
@@ -561,6 +565,13 @@ function printTracked(
   console.log(
     `  Takhöjd:            ${formatTakhojdCell(r.ceilingHeightM, r.tallCeilingPhrase)}${r.ceilingHeightM === null ? "" : " (angiven)"}`,
   );
+  // Phase 14.6 (STAM-03, FLAG-01, FLAG-02): the same cells as the table, plus where the stambyte came from and the soft area
+  // note. Information only: nothing here is an input to the profit, the taste or the order.
+  const buildingCells = toFitTableRows({ ranked: [r] }, new Map())[0];
+  console.log(`  Stambyte:           ${buildingCells.stambyte}${r.stambyteSource === null ? "" : ` (${STAMBYTE_SOURCE_TEXT[r.stambyteSource]})`}`);
+  console.log(`  Byggärenden:        ${buildingCells.byggarenden}`);
+  const areaNotes = areaFlagLines(r);
+  console.log(`  Area:               ${areaNotes.length === 0 ? buildingCells.area : areaNotes.join(" ")}`);
   console.log(`  Vinst:              ${orDash(r.profitSek, sek)} kr`);
   console.log(`  Flaggor:            ${r.flags.map((f) => FIT_FLAG_LABELS[f]).join(", ") || "-"}`);
   console.log(`  Varför här:         ${reasonCell(reasonsOf(r), isReasonFlagged(r.flags))}`);

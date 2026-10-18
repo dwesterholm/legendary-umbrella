@@ -27,6 +27,7 @@ import {
   formatStambyteCell,
   formatByggarendenCell,
   formatAreaCell,
+  areaFlagLines,
   checkApifyHeadroom,
   computeCoverage,
   reasonsOnFlaggedOf,
@@ -636,6 +637,73 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(cell(null)).toBe("okänd");
     // A year belongs to a measurement only.
     expect(cell("forening", 2019)).toBe("föreningen");
+  });
+
+  it("formatByggarendenCell with the balcony flags: granted and not signed off, a glazing application, the unread decision, at most three items (FLAG-01, D-08)", () => {
+    type Item = NonNullable<CandidateFacts["byggarenden"]>[number];
+    const item = (kind: Item["kind"], month: string, decision: Item["decision"] = "beviljad", slutbeskedMonth: string | null = null): Item => ({
+      kind,
+      month,
+      decision,
+      slutbeskedMonth,
+      diarie: null,
+    });
+    const cell = (byggarenden: Item[] | null, balkongBeviljadEjByggd: boolean | null, balkongInglasningAnsokt: boolean | null) =>
+      formatByggarendenCell({ byggarenden, balkongBeviljadEjByggd, balkongInglasningAnsokt });
+    expect(cell([item("balkong_ny", "2026-03")], true, false)).toBe("Balkonger beviljade 2026-03, ej slutbesked");
+    expect(cell([item("balkong_inglasning", "2026-09", "ansokt")], false, true)).toBe("Inglasning ansökt 2026-09");
+    // Both flags and a lift: the two balcony texts, then the lift; the balcony items do not appear twice.
+    expect(
+      cell([item("balkong_inglasning", "2026-09", "ansokt"), item("balkong_ny", "2026-03"), item("hiss", "2024-05")], true, true),
+    ).toBe("Balkonger beviljade 2026-03, ej slutbesked, Inglasning ansökt 2026-09, hiss 2024-05");
+    // The decision was never read: say so, in the same words the plan fixed.
+    expect(cell([item("balkong_ny", "2026-03", "okant")], null, false)).toBe("balkong 2026-03 (beslut okänt)");
+    expect(cell([item("balkong_inglasning", "2026-09", "okant")], false, null)).toBe("inglasning 2026-09 (beslut okänt)");
+    // A balcony that is built and signed off is an ordinary item.
+    expect(cell([item("balkong_ny", "2025-04", "slutbesked", "2025-11")], false, false)).toBe("balkong 2025-04");
+    // A refused or withdrawn case says so instead of reading as a built balcony.
+    expect(cell([item("balkong_ny", "2025-04", "avslag")], false, false)).toBe("balkong 2025-04 (avslag)");
+    expect(cell([item("tak", "2025-04", "avskrivet")], false, false)).toBe("tak 2025-04 (avskrivet)");
+    // At most three items, the balcony texts first.
+    expect(
+      cell([item("balkong_ny", "2026-03"), item("hiss", "2025-05"), item("tak", "2024-11"), item("fasad", "2024-02")], true, false),
+    ).toBe("Balkonger beviljade 2026-03, ej slutbesked, hiss 2025-05, tak 2024-11");
+    // Stambyte and relining never appear, and a read list with nothing left reads '-'; no list reads 'okänd'.
+    expect(cell([item("stambyte", "2025-01"), item("relining", "2024-01")], false, false)).toBe("-");
+    expect(cell([], false, false)).toBe("-");
+    expect(cell(null, null, null)).toBe("okänd");
+    // A flag that is true without any item to date it still shows.
+    expect(cell([], true, true)).toBe("Balkonger beviljade, ej slutbesked, Inglasning ansökt");
+  });
+
+  it("formatAreaCell appends the separately computed upside for a figure that is not a measurement in a pre-1987 building (FLAG-02, D-09)", () => {
+    const up = (areaSource: CandidateFacts["areaSource"], constructionYear: number | null, areaMeasuredYear: number | null = null) =>
+      formatAreaCell({ areaSource, areaMeasuredYear, constructionYear, askingSek: 3_695_000, livingArea: 35 });
+    const low = (105_571).toLocaleString("sv-SE");
+    const high = (211_143).toLocaleString("sv-SE");
+    expect(up("forening", 1912)).toBe(`föreningen (+${low}–${high} kr, antagande)`);
+    expect(up("ej_kontrollmatt", 1930)).toBe(`ej kontrollmätt (+${low}–${high} kr, antagande)`);
+    expect(up("saljare", 1986)).toBe(`säljaren (+${low}–${high} kr, antagande)`);
+    // 1987 and later, an unknown year, a measurement and an unknown source add nothing.
+    expect(up("forening", 1990)).toBe("föreningen");
+    expect(up("forening", 1987)).toBe("föreningen");
+    expect(up("forening", null)).toBe("föreningen");
+    expect(up("uppmatt", 1912, 2019)).toBe("uppmätt 2019");
+    expect(up(null, 1912)).toBe("okänd");
+  });
+
+  it("areaFlagLines: the soft sentence for a figure that is not a measurement, the pre-1987 note and the upside labelled antagande; nothing for a measurement or an unknown source", () => {
+    const base = { constructionYear: 1912, askingSek: 3_695_000, livingArea: 35 };
+    const low = (105_571).toLocaleString("sv-SE");
+    const high = (211_143).toLocaleString("sv-SE");
+    expect(areaFlagLines({ ...base, areaSource: "forening" })).toEqual([
+      "Arean bygger på föreningens uppgift, inte en uppmätning.",
+      `Kan vara större vid uppmätning (ofta 1–3 kvm, ej säkert). Möjlig uppsida +${low}–${high} kr (antagande, ej i värderingen).`,
+    ]);
+    expect(areaFlagLines({ ...base, constructionYear: 1990, areaSource: "forening" })).toEqual(["Arean bygger på föreningens uppgift, inte en uppmätning."]);
+    expect(areaFlagLines({ ...base, constructionYear: null, areaSource: "saljare" })).toEqual(["Arean bygger på säljarens uppgift, inte en uppmätning."]);
+    expect(areaFlagLines({ ...base, areaSource: "uppmatt" })).toEqual([]);
+    expect(areaFlagLines({ ...base, areaSource: null })).toEqual([]);
   });
 
   it("the header puts the two hour columns right after 'Sol' and before 'Flaggor'; every printed row has as many cells as the header", () => {

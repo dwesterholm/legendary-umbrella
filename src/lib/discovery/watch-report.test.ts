@@ -207,7 +207,7 @@ describe("renderWatchHtml", () => {
   });
 
   it("has every column of D-15", () => {
-    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Takhöjd", "Flaggor", "Varför här", "Booli"]) {
+    for (const heading of ["Status", "Adress", "Område", "kvm", "vån", "Utgångspris", "Budpremie", "Förv. slutpris", "Värde renoverad", "Skillnad", "Reno (nivå, spann)", "Vinst", "Smak", "Sol", "Soltim. fri (mar/jun/dec)", "Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Takhöjd", "Stambyte", "Byggärenden", "Area", "Flaggor", "Varför här", "Booli"]) {
       expect(html).toMatch(new RegExp(`<th[^>]*>${heading.replace(/[().]/g, "\\$&")}</th>`));
     }
   });
@@ -232,7 +232,16 @@ describe("renderWatchHtml", () => {
     const firstTable = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
     const headings = [...firstTable.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
     const at = headings.indexOf("Soltim. med grannhus (mar/jun/dec)");
-    expect(headings.slice(at, at + 5)).toEqual(["Soltim. med grannhus (mar/jun/dec)", "Korsdrag", "Sovrum", "Takhöjd", "Flaggor"]);
+    expect(headings.slice(at, at + 8)).toEqual([
+      "Soltim. med grannhus (mar/jun/dec)",
+      "Korsdrag",
+      "Sovrum",
+      "Takhöjd",
+      "Stambyte",
+      "Byggärenden",
+      "Area",
+      "Flaggor",
+    ]);
     const firstRow = firstTable.split("<tr>")[2];
     const cells = [...firstRow.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
     expect(cells).toHaveLength(headings.length);
@@ -381,7 +390,56 @@ describe("renderWatchText", () => {
     expect(h.indexOf("Korsdrag")).toBe(h.indexOf("Soltim. med grannhus (mar/jun/dec)") + 1);
     expect(r[h.indexOf("Takhöjd")]).toBe("okänd");
     expect(h.indexOf("Takhöjd")).toBe(h.indexOf("Sovrum") + 1);
-    expect(h.indexOf("Flaggor")).toBe(h.indexOf("Takhöjd") + 1);
+    expect(h.indexOf("Stambyte")).toBe(h.indexOf("Takhöjd") + 1);
+    expect(h.indexOf("Flaggor")).toBe(h.indexOf("Area") + 1);
+  });
+
+  it("'Stambyte', 'Byggärenden' and 'Area' follow 'Takhöjd' in the table and the text mail at the same index as the table; the Booli link stays last (STAM-03, FLAG-01, FLAG-02)", () => {
+    const withFacts = tableRow({
+      stambyte: "2006",
+      byggarenden: "Balkonger beviljade 2026-03, ej slutbesked, hiss 2021-12",
+      area: "föreningen (+105 571–211 143 kr, antagande)",
+    });
+    const mail = input({ sections: { under: [newEntry(withFacts)], over: [] } });
+    const firstTable = renderWatchHtml(mail);
+    const table = firstTable.slice(firstTable.indexOf("<table"), firstTable.indexOf("</table>"));
+    const headings = [...table.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    expect(headings.slice(headings.indexOf("Takhöjd"), headings.indexOf("Takhöjd") + 5)).toEqual(["Takhöjd", "Stambyte", "Byggärenden", "Area", "Flaggor"]);
+    expect(headings[headings.length - 1]).toBe("Booli");
+    const tds = [...table.split("<tr>")[2].matchAll(/<td([^>]*)>(.*?)<\/td>/g)];
+    expect(tds).toHaveLength(headings.length);
+    expect(tds[headings.indexOf("Stambyte")][2]).toBe("2006");
+    expect(tds[headings.indexOf("Byggärenden")][2]).toBe("Balkonger beviljade 2026-03, ej slutbesked, hiss 2021-12");
+    expect(tds[headings.indexOf("Area")][2]).toBe("föreningen (+105 571–211 143 kr, antagande)");
+    for (const name of ["Stambyte", "Byggärenden", "Area"]) expect(tds[headings.indexOf(name)][1]).not.toContain("text-align:right");
+    // The last cell is still the link.
+    expect(tds[tds.length - 1][2]).toBe('<a href="https://www.booli.se/bostad/150148">Booli</a>');
+    // The plain-text mail has the same order.
+    const lines = renderWatchText(mail).split("\n");
+    const h = (lines.find((l) => l.startsWith("Status | Adress")) as string).split(" | ");
+    const r = (lines.find((l) => l.startsWith("nya sedan förra veckan | Götgatan 1")) as string).split(" | ");
+    expect(r).toHaveLength(h.length);
+    expect(r[h.indexOf("Stambyte")]).toBe("2006");
+    expect(r[h.indexOf("Area")]).toBe("föreningen (+105 571–211 143 kr, antagande)");
+    expect(h[h.length - 1]).toBe("Booli");
+    expect(r[r.length - 1]).toBe("https://www.booli.se/bostad/150148");
+  });
+
+  it("a hostile stambyte, byggärenden or area cell is escaped in the HTML (T-14.6-90)", () => {
+    const hostile = renderWatchHtml(
+      input({
+        sections: {
+          under: [newEntry(tableRow({ stambyte: "<script>x</script>", byggarenden: "<b>hiss</b> & tak", area: "<img src=x onerror=y>" }))],
+          over: [],
+        },
+      }),
+    );
+    expect(hostile).toContain("&lt;script&gt;x&lt;/script&gt;");
+    expect(hostile).toContain("&lt;b&gt;hiss&lt;/b&gt; &amp; tak");
+    expect(hostile).toContain("&lt;img src=x onerror=y&gt;");
+    expect(hostile).not.toContain("<script>");
+    expect(hostile).not.toContain("<img");
+    expect(hostile).not.toContain("<b>hiss</b>");
   });
 });
 
