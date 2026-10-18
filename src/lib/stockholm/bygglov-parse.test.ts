@@ -62,7 +62,7 @@ describe("Droskhästen 8 / Folkungagatan 61: the saved list page end to end (tra
     const facts = buildingFactsOf(stored, AS_OF);
 
     expect(facts.lastStambyteYear).toBe(2006);
-    expect(facts.lastStambyteBasis).toBe("start");
+    expect(facts.lastStambyteBasis).toBe("ärendestart"); // the 2006 case was never opened (WR-04)
     expect(facts.stambyteOngoing).toBe(false);
     expect(facts.reliningCase).toBe(false);
     expect(facts.balkongBeviljadEjByggd).toBe(false);

@@ -320,6 +320,11 @@ export interface FitScoreResult {
    */
   readonly stambyteStatus: CandidateFacts["stambyteStatus"];
   readonly lastStambyteYear: number | null;
+  /**
+   * What the city's year rests on ("slutbesked", "start" or "ärendestart"), only when the year shown is the city's own;
+   * null otherwise (WR-04). "ärendestart" means the application was never opened, so the cell says "(ansökt)".
+   */
+  readonly lastStambyteBasis: NonNullable<CandidateFacts["cityStambyte"]>["basis"];
   readonly plannedStambyteYear: number | null;
   readonly stambyteSource: CandidateFacts["stambyteSource"];
   readonly byggarenden: CandidateFacts["byggarenden"];
@@ -509,6 +514,10 @@ export function fitScore(
     tallCeilingPhrase: row.facts?.tallCeilingPhrase ?? null,
     stambyteStatus: row.facts?.stambyteStatus ?? null,
     lastStambyteYear: row.facts?.lastStambyteYear ?? null,
+    lastStambyteBasis:
+      row.facts?.cityStambyte != null && row.facts.cityStambyte.lastYear === (row.facts.lastStambyteYear ?? null)
+        ? row.facts.cityStambyte.basis
+        : null,
     plannedStambyteYear: row.facts?.plannedStambyteYear ?? null,
     stambyteSource: row.facts?.stambyteSource ?? null,
     byggarenden: row.facts?.byggarenden ?? null,

@@ -565,15 +565,19 @@ export function formatTakhojdCell(ceilingHeightM: number | null, tallCeilingPhra
 /**
  * The "Stambyte" cell (STAM-03, D-07) from the merged stambyte facts: the completed year when known ("2019"), "genomfört"
  * when a completed stambyte has no year, "pågår", "planerat 2027" / "planerat", and "okänd" when nothing was read.
+ * A year that only rests on the start of a case nobody opened ("ärendestart") reads "2006 (ansökt)": it may be a refused
+ * or withdrawn application, so a bare year is never printed for it (WR-04).
  */
 export function formatStambyteCell(facts: {
   readonly stambyteStatus: CandidateFacts["stambyteStatus"];
   readonly lastStambyteYear: number | null;
+  readonly lastStambyteBasis?: NonNullable<CandidateFacts["cityStambyte"]>["basis"];
   readonly plannedStambyteYear: number | null;
 }): string {
   switch (facts.stambyteStatus) {
     case "genomfort":
-      return facts.lastStambyteYear !== null ? String(facts.lastStambyteYear) : "genomfört";
+      if (facts.lastStambyteYear === null) return "genomfört";
+      return facts.lastStambyteBasis === "ärendestart" ? `${facts.lastStambyteYear} (ansökt)` : String(facts.lastStambyteYear);
     case "pagar":
       return "pågår";
     case "planerat":

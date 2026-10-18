@@ -571,6 +571,13 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(cell("planerat")).toBe("planerat");
     expect(cell("genomfort")).toBe("genomfört");
     expect(cell(null)).toBe("okänd");
+    // WR-04: a year that rests on an unopened application never reads as a bare year
+    const withBasis = (lastStambyteBasis: NonNullable<CandidateFacts["cityStambyte"]>["basis"]) =>
+      formatStambyteCell({ stambyteStatus: "genomfort", lastStambyteYear: 2006, lastStambyteBasis, plannedStambyteYear: null });
+    expect(withBasis("ärendestart")).toBe("2006 (ansökt)");
+    expect(withBasis("slutbesked")).toBe("2006");
+    expect(withBasis("start")).toBe("2006");
+    expect(withBasis(null)).toBe("2006");
     // A year without a status is not shown: the status decides what the cell says.
     expect(cell(null, 2006, 2027)).toBe("okänd");
   });

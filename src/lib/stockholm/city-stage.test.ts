@@ -106,7 +106,7 @@ describe("tracer: a broker text and Folkungagatan 61's cached city record end up
       cacheDir: CACHE,
     });
     const row = facts[0] as CandidateFacts;
-    expect(row.cityStambyte).toEqual({ lastYear: 2006, basis: "start", ongoing: false, relining: false });
+    expect(row.cityStambyte).toEqual({ lastYear: 2006, basis: "ärendestart", ongoing: false, relining: false });
     expect(row.lastStambyteYear).toBe(2006);
     expect(row.plannedStambyteYear).toBe(2027);
     expect(row.stambyteStatus).toBe("planerat");

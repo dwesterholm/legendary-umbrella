@@ -40,7 +40,7 @@ export type StambyteStatus = (typeof STAMBYTE_STATUSES)[number];
  */
 export interface CityStambyteReading {
   readonly lastStambyteYear: number | null;
-  readonly lastStambyteBasis: "slutbesked" | "start" | null;
+  readonly lastStambyteBasis: "slutbesked" | "start" | "ärendestart" | null;
   readonly stambyteOngoing: boolean | null;
   readonly reliningCase: boolean;
 }

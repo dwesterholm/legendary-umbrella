@@ -167,7 +167,7 @@ export const candidateFactsSchema = z.object({
   cityStambyte: z
     .object({
       lastYear: z.number().nullable().default(null),
-      basis: z.enum(["slutbesked", "start"]).nullable().default(null),
+      basis: z.enum(["slutbesked", "start", "ärendestart"]).nullable().default(null),
       ongoing: z.boolean().nullable().default(null),
       relining: z.boolean().nullable().default(null),
     })

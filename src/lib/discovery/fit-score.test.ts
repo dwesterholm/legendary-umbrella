@@ -1822,11 +1822,20 @@ describe("building facts reach the result and the stambyte input (14.6 STAM-03, 
     areaMeasuredYear: null,
   });
 
+  it("WR-04: the basis travels with the city's year, and is null when the shown year is not the city's", () => {
+    const unopened = candidateFactsSchema.parse({ ...cityFacts, cityStambyte: { lastYear: 2006, basis: "ärendestart", ongoing: false, relining: false } });
+    expect(fitScore({ ...flat({ facades: null }), facts: unopened }, model).lastStambyteBasis).toBe("ärendestart");
+    const textYear = candidateFactsSchema.parse({ ...unopened, lastStambyteYear: 2012 });
+    expect(fitScore({ ...flat({ facades: null }), facts: textYear }, model).lastStambyteBasis).toBeNull();
+    expect(fitScore(flat({ facades: null }), model).lastStambyteBasis).toBeNull();
+  });
+
   it("the result copies the stambyte, byggärenden, balcony and area facts from row.facts, and the construction year from the candidate", () => {
     const row = { ...flat({ facades: null }), facts: cityFacts };
     const r = fitScore(row, model);
     expect(r.stambyteStatus).toBe("genomfort");
     expect(r.lastStambyteYear).toBe(2006);
+    expect(r.lastStambyteBasis).toBe("slutbesked");
     expect(r.plannedStambyteYear).toBe(2027);
     expect(r.stambyteSource).toBe("bygglov_stockholm");
     expect(r.byggarenden).toEqual(cityFacts.byggarenden);

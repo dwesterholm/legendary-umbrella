@@ -503,10 +503,37 @@ describe("buildingFactsOf: stambyte", () => {
 
   it("without a slutbesked the start year counts only when the case started more than three years ago", () => {
     const old = buildingFactsOf([stored({ startDate: "2019-02-02", kinds: ["stambyte"] })], AS_OF);
-    expect(old).toMatchObject({ lastStambyteYear: 2019, lastStambyteBasis: "start" });
+    expect(old).toMatchObject({ lastStambyteYear: 2019, lastStambyteBasis: "ärendestart" });
     const young = buildingFactsOf([stored({ startDate: "2024-02-02", kinds: ["stambyte"], detailRead: true })], AS_OF);
     expect(young.lastStambyteYear).toBeNull();
     expect(young.lastStambyteBasis).toBeNull();
+  });
+
+  it("WR-04: a year from a case nobody opened is ärendestart; an opened one without refusal is start; the opened one wins a tie", () => {
+    const unopened = stored({ rec: "1", startDate: "2012-03-01", kinds: ["stambyte"] });
+    const opened = stored({ rec: "2", startDate: "2012-09-01", kinds: ["stambyte"], detailRead: true });
+    expect(buildingFactsOf([unopened], AS_OF)).toMatchObject({ lastStambyteYear: 2012, lastStambyteBasis: "ärendestart" });
+    expect(buildingFactsOf([opened], AS_OF)).toMatchObject({ lastStambyteYear: 2012, lastStambyteBasis: "start" });
+    expect(buildingFactsOf([unopened, opened], AS_OF)).toMatchObject({ lastStambyteYear: 2012, lastStambyteBasis: "start" });
+    // a later unopened application still wins on the year, and is labelled as unverified
+    const later = stored({ rec: "3", startDate: "2016-01-01", kinds: ["stambyte"] });
+    expect(buildingFactsOf([opened, later], AS_OF)).toMatchObject({ lastStambyteYear: 2016, lastStambyteBasis: "ärendestart" });
+    // a final inspection beats both
+    const done = stored({ rec: "4", startDate: "2008-01-01", kinds: ["stambyte"], detailRead: true, slutbeskedDate: "2009-05-05" });
+    expect(buildingFactsOf([done, later], AS_OF)).toMatchObject({ lastStambyteYear: 2009, lastStambyteBasis: "slutbesked" });
+  });
+
+  it("WR-04: an old case whose stored decision is a refusal or a withdrawal gives no year, opened or not", () => {
+    for (const code of ["Avskrivet", "Avslag"]) {
+      for (const detailRead of [true, false]) {
+        const facts = buildingFactsOf(
+          [stored({ startDate: "2012-03-01", kinds: ["stambyte"], detailRead, latest: { type: "Beslut", code, date: "2012-09-01" } })],
+          AS_OF,
+        );
+        expect(facts.lastStambyteYear, `${code} ${detailRead}`).toBeNull();
+        expect(facts.lastStambyteBasis, `${code} ${detailRead}`).toBeNull();
+      }
+    }
   });
 
   it("a stambyte closed as Avskrivet counts for nothing", () => {

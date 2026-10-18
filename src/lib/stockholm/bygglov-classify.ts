@@ -379,7 +379,12 @@ export interface RecentCase {
 
 export interface BuildingFacts {
   readonly lastStambyteYear: number | null;
-  readonly lastStambyteBasis: "slutbesked" | "start" | null;
+  /**
+   * Where the year comes from: "slutbesked" (the final inspection), "start" (the detail page was read, no refusal and
+   * no slutbesked, started over three years ago: taken as done, RESEARCH A12) or "ärendestart" (the detail page was
+   * NOT read, so a refusal or a withdrawal cannot be ruled out: the year only says an application was started).
+   */
+  readonly lastStambyteBasis: "slutbesked" | "start" | "ärendestart" | null;
   /** True: a stambyte has a startbesked and no slutbesked. Null: a recent stambyte case was not read. */
   readonly stambyteOngoing: boolean | null;
   /** A relining case exists. Never turns into a stambyte year. */
@@ -421,18 +426,22 @@ export function buildingFactsOf(allCases: readonly StoredCase[], asOf: string): 
     .filter((c) => c.slutbeskedDate !== null && !isRefused(c))
     .map((c) => Number((c.slutbeskedDate as string).slice(0, 4)));
   const doneBefore = yearsBefore(asOf, STAMBYTE_DONE_AFTER_YEARS);
-  const startYears = stambyte
+  // A case without a slutbesked that started over three years ago. An opened one is known not to be refused ("start");
+  // an unopened one may be a refusal or a withdrawal that the list does not show ("ärendestart", WR-04).
+  const startCandidates = stambyte
     .filter((c) => c.slutbeskedDate === null && c.startDate < doneBefore && !isRefused(c))
-    .map((c) => Number(c.startDate.slice(0, 4)));
+    .map((c) => ({ year: Number(c.startDate.slice(0, 4)), basis: c.detailRead ? ("start" as const) : ("ärendestart" as const) }));
 
   let lastStambyteYear: number | null = null;
   let lastStambyteBasis: BuildingFacts["lastStambyteBasis"] = null;
   if (slutbeskedYears.length > 0) {
     lastStambyteYear = Math.max(...slutbeskedYears);
     lastStambyteBasis = "slutbesked";
-  } else if (startYears.length > 0) {
-    lastStambyteYear = Math.max(...startYears);
-    lastStambyteBasis = "start";
+  } else if (startCandidates.length > 0) {
+    // The latest year; at the same year the verified basis wins.
+    const best = startCandidates.reduce((a, b) => (b.year > a.year || (b.year === a.year && b.basis === "start") ? b : a));
+    lastStambyteYear = best.year;
+    lastStambyteBasis = best.basis;
   }
 
   const stambyteRecent = stambyte.filter(isRecent);
