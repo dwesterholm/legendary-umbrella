@@ -24,6 +24,7 @@
  * path. `niche-score.ts` and `report/flags.ts` must NEVER import it; the "discovery/stambyte-" prefix is registered in
  * `niche-score.test.ts` (in an earlier commit than this file).
  */
+import { z } from "zod/v4";
 import type { SweepCase, SweepQuery } from "@/lib/stockholm/bygglov-cache";
 import { decisionKind } from "@/lib/stockholm/bygglov-classify";
 
@@ -336,6 +337,280 @@ export function collectSweep(
   };
   for (const q of plan) walk(q);
   return { leaves, splitParents, missing };
+}
+
+// ---------------------------------------------------------------------------
+// The evidence: counts only
+// ---------------------------------------------------------------------------
+
+const queryRef = z.strictObject({
+  district: z.string().min(1).max(60),
+  keyword: z.string().min(1).max(60),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+});
+const countMap = z.record(z.string().regex(/^\d{4}$/), z.number().int().nonnegative());
+const count = z.number().int().nonnegative();
+
+/**
+ * The shape of `evidence/sweep.json`. STRICT: an extra key is a failure, so a name, a case text or a document list can
+ * never reach the committed file (T-14.6-42). Everything in it is a count, a tag, a district, a keyword or a date.
+ */
+export const sweepEvidenceSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  ranAt: z.string(),
+  complete: z.boolean(),
+  stop: z.string().regex(/^[a-z0-9-]{1,40}$/).nullable(),
+  substring: z.boolean().nullable(),
+  keywords: z.array(z.string().min(1).max(60)).max(20),
+  districts: z.array(z.string().min(1).max(60)).max(30),
+  windows: z.array(z.strictObject({ from: z.string(), to: z.string().nullable() })).max(10),
+  requests: count,
+  secondsMedian: z.number().nonnegative().nullable(),
+  secondsMax: z.number().nonnegative().nullable(),
+  queries: z
+    .array(queryRef.extend({ rows: count.nullable(), headingCount: count.nullable(), split: z.boolean() }))
+    .max(2000),
+  splits: z.array(queryRef.extend({ reason: z.enum(["storlek", "antal"]) })).max(2000),
+  missing: z.array(queryRef).max(2000),
+  totals: z.strictObject({
+    searches: count,
+    cases: count,
+    distinctBeteckningar: count,
+    stambyteTagged: count,
+    stambyteBeteckningar: count,
+    reliningTagged: count,
+    active: count,
+    archived: count,
+    casesPerStartYear: countMap,
+    stambytePerStartYear: countMap,
+  }),
+  byDistrict: z
+    .array(
+      z.strictObject({
+        district: z.string(),
+        complete: z.boolean(),
+        searches: count,
+        cases: count,
+        stambyteTagged: count,
+        reliningTagged: count,
+        beteckningar: count,
+        stambyteBeteckningar: count,
+        stambyteByDecade: countMap,
+      }),
+    )
+    .max(30),
+  byKeyword: z
+    .array(z.strictObject({ keyword: z.string(), searches: count, cases: count, stambyteTagged: count }))
+    .max(20),
+});
+
+export type SweepEvidence = z.infer<typeof sweepEvidenceSchema>;
+
+export interface SweepEvidenceInput {
+  readonly ranAt: string;
+  readonly keywords: readonly string[];
+  readonly substring: boolean | null;
+  readonly districts: readonly string[];
+  readonly windows: readonly SweepWindow[];
+  readonly collection: SweepCollection;
+  /** Every split ever recorded for this cache. */
+  readonly splits: readonly SplitRecord[];
+  /** Requests made to the city across all runs on this cache. */
+  readonly requests: number;
+  readonly seconds: readonly number[];
+  /** The label that ended the last run, or null. */
+  readonly stop: string | null;
+}
+
+const decadeOf = (startDate: string): string => `${Math.floor(Number(startDate.slice(0, 4)) / 10) * 10}`;
+const yearOf = (startDate: string): string => startDate.slice(0, 4);
+
+function medianOf(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return Math.round((sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10;
+}
+
+function tally(dates: readonly string[], key: (d: string) => string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const d of dates) out[key(d)] = (out[key(d)] ?? 0) + 1;
+  return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** Distinct cases (by rec) of a set of leaves. */
+function distinctCases(leaves: readonly SweepLeaf[]): SweepCase[] {
+  const seen = new Map<string, SweepCase>();
+  for (const leaf of leaves) for (const c of leaf.cases) if (!seen.has(c.rec)) seen.set(c.rec, c);
+  return [...seen.values()];
+}
+
+function groupTotals(cases: readonly SweepCase[]) {
+  const stambyte = cases.filter(isStambyteCase);
+  return {
+    cases: cases.length,
+    stambyteTagged: stambyte.length,
+    reliningTagged: cases.filter(isReliningCase).length,
+    beteckningar: new Set(cases.map((c) => beteckningKey(c.beteckning)).filter((k) => k !== "")).size,
+    stambyteBeteckningar: new Set(stambyte.map((c) => beteckningKey(c.beteckning)).filter((k) => k !== "")).size,
+    stambyte,
+  };
+}
+
+/**
+ * The counts of a sweep, built from the cache read-back. Counts, tags, districts, keywords and dates only (the strict
+ * schema checks it). `stambyteTagged` counts cases whose kinds contain "stambyte"; relining is counted on its own and
+ * never added to it (R-05).
+ */
+export function buildSweepEvidence(input: SweepEvidenceInput): SweepEvidence {
+  const { collection } = input;
+  const order = (q: SweepQuery) => [input.districts.indexOf(q.district), input.keywords.indexOf(q.description), q.from] as const;
+  const byPlanOrder = (a: SweepQuery, b: SweepQuery) => {
+    const [da, ka, fa] = order(a);
+    const [db, kb, fb] = order(b);
+    return da - db || ka - kb || fa.localeCompare(fb);
+  };
+  const ref = (q: SweepQuery) => ({ district: q.district, keyword: q.description, from: q.from, to: q.to });
+
+  const queries = [
+    ...collection.splitParents.map((q) => ({ query: q, rows: null as number | null, headingCount: null as number | null, split: true })),
+    ...collection.leaves.map((l) => ({ query: l.query, rows: l.cases.length as number | null, headingCount: l.headingCount, split: false })),
+  ]
+    .sort((a, b) => byPlanOrder(a.query, b.query) || Number(b.split) - Number(a.split))
+    .map((x) => ({ ...ref(x.query), rows: x.rows, headingCount: x.headingCount, split: x.split }));
+
+  const all = groupTotals(distinctCases(collection.leaves));
+  const byDistrict = input.districts
+    .filter((d) => collection.leaves.some((l) => l.query.district === d) || collection.missing.some((m) => m.district === d))
+    .map((district) => {
+      const leaves = collection.leaves.filter((l) => l.query.district === district);
+      const g = groupTotals(distinctCases(leaves));
+      return {
+        district,
+        complete: !collection.missing.some((m) => m.district === district),
+        searches: leaves.length,
+        cases: g.cases,
+        stambyteTagged: g.stambyteTagged,
+        reliningTagged: g.reliningTagged,
+        beteckningar: g.beteckningar,
+        stambyteBeteckningar: g.stambyteBeteckningar,
+        stambyteByDecade: tally(g.stambyte.map((c) => c.startDate), decadeOf),
+      };
+    });
+  const byKeyword = input.keywords.map((keyword) => {
+    const leaves = collection.leaves.filter((l) => l.query.description === keyword);
+    const g = groupTotals(distinctCases(leaves));
+    return { keyword, searches: leaves.length, cases: g.cases, stambyteTagged: g.stambyteTagged };
+  });
+
+  const casesAll = distinctCases(collection.leaves);
+  const evidence: SweepEvidence = {
+    schemaVersion: 1,
+    ranAt: input.ranAt,
+    complete: collection.missing.length === 0 && input.stop === null,
+    stop: input.stop,
+    substring: input.substring,
+    keywords: [...input.keywords],
+    districts: [...input.districts],
+    windows: input.windows.map((w) => ({ from: w.from, to: w.to })),
+    requests: input.requests,
+    secondsMedian: medianOf(input.seconds),
+    secondsMax: input.seconds.length === 0 ? null : Math.round(Math.max(...input.seconds) * 10) / 10,
+    queries,
+    splits: input.splits.map((r) => ({ ...ref(r), reason: r.reason })),
+    missing: [...collection.missing].sort(byPlanOrder).map(ref),
+    totals: {
+      searches: collection.leaves.length,
+      cases: all.cases,
+      distinctBeteckningar: all.beteckningar,
+      stambyteTagged: all.stambyteTagged,
+      stambyteBeteckningar: all.stambyteBeteckningar,
+      reliningTagged: all.reliningTagged,
+      active: casesAll.filter((c) => !c.archived).length,
+      archived: casesAll.filter((c) => c.archived).length,
+      casesPerStartYear: tally(casesAll.map((c) => c.startDate), yearOf),
+      stambytePerStartYear: tally(all.stambyte.map((c) => c.startDate), yearOf),
+    },
+    byDistrict,
+    byKeyword,
+  };
+  return sweepEvidenceSchema.parse(evidence);
+}
+
+const sv = (n: number) => n.toLocaleString("sv-SE").replace(/\u00a0/g, " ");
+const dec = (n: number | null) => (n === null ? "-" : n.toFixed(1).replace(".", ","));
+
+const averagePerYear = (perYear: Readonly<Record<string, number>>, from: number, to: number): number => {
+  let total = 0;
+  for (let y = from; y <= to; y += 1) total += perYear[String(y)] ?? 0;
+  return total / (to - from + 1);
+};
+
+/** The sweep in plain Swedish: what was asked, what came back, and what a thin record means. */
+export function renderSweepMarkdown(e: SweepEvidence): string {
+  const t = e.totals;
+  const decades = [...new Set(e.byDistrict.flatMap((d) => Object.keys(d.stambyteByDecade)))].sort();
+  const lines: string[] = [];
+  lines.push("# Svepet över innerstan: stambyten i stadens ärendelista", "");
+  lines.push(
+    e.complete
+      ? "Utfall: KLAR. Alla sökningar finns i cachen."
+      : `Utfall: DELVIS${e.stop === null ? "" : `, stoppat (${e.stop})`}. ${e.missing.length} sökningar saknas.`,
+    "",
+  );
+  lines.push(`Körd ${e.ranAt.slice(0, 10)}. ${e.requests} anrop mot etjanster.stockholm.se, i median ${dec(e.secondsMedian)} sekunder per anrop (längst ${dec(e.secondsMax)}).`);
+  lines.push(
+    `Sökord: ${e.keywords.join(", ")}${e.substring === true ? " (fältet söker inuti ord, så korta ordstammar räcker)" : ""}. Tidsfönster: ${e.windows.map((w) => `${w.from} till ${w.to ?? "idag"}`).join(" och ")}.`,
+    "",
+  );
+  lines.push("## Vad svepet hittade", "");
+  lines.push(
+    `${sv(t.cases)} ärenden i ${sv(t.distinctBeteckningar)} fastigheter, från ${t.searches} sökningar. Av dem är ${sv(t.stambyteTagged)} stambyten (i ${sv(t.stambyteBeteckningar)} fastigheter). Relining är ${sv(t.reliningTagged)} ärenden och räknas för sig, aldrig som stambyte. ${sv(t.active)} ärenden är aktiva och ${sv(t.archived)} arkiverade.`,
+    "",
+  );
+  lines.push("Siffrorna är ärenden i stadens lista, inte genomförda stambyten: ett stambyte som ingen anmält syns inte.", "");
+
+  lines.push("## Per stadsdel", "");
+  lines.push("| Stadsdel | Sökningar | Ärenden | Stambyten | Relining | Fastigheter | Fastigheter med stambyte | Klar |");
+  lines.push("|---|---|---|---|---|---|---|---|");
+  for (const d of e.byDistrict) {
+    lines.push(`| ${d.district} | ${d.searches} | ${sv(d.cases)} | ${sv(d.stambyteTagged)} | ${sv(d.reliningTagged)} | ${sv(d.beteckningar)} | ${sv(d.stambyteBeteckningar)} | ${d.complete ? "ja" : "nej"} |`);
+  }
+  lines.push("");
+
+  lines.push("## Per sökord", "");
+  lines.push("| Sökord | Sökningar | Ärenden | Stambyten |", "|---|---|---|---|");
+  for (const k of e.byKeyword) lines.push(`| ${k.keyword} | ${k.searches} | ${sv(k.cases)} | ${sv(k.stambyteTagged)} |`);
+  lines.push("");
+
+  lines.push("## Stambyten per decennium (startår för ärendet)", "");
+  lines.push(`| Stadsdel | ${decades.map((d) => `${d}-talet`).join(" | ")} |`, `|---|${decades.map(() => "---").join("|")}|`);
+  for (const d of e.byDistrict) lines.push(`| ${d.district} | ${decades.map((dc) => d.stambyteByDecade[dc] ?? 0).join(" | ")} |`);
+  lines.push("");
+
+  lines.push("## Delade tidsfönster", "");
+  if (e.splits.length === 0) {
+    lines.push("Inget svar var så stort eller så osäkert att ett tidsfönster behövde delas.", "");
+  } else {
+    lines.push(`${e.splits.length} sökningar delades i femårsfönster, för att antalet var 500 eller fler, svaret var för stort eller sidans eget antal stämde inte med raderna:`, "");
+    for (const r of e.splits) lines.push(`- ${r.district}, "${r.keyword}", ${r.from} till ${r.to ?? "idag"} (${r.reason})`);
+    lines.push("");
+  }
+  if (e.missing.length > 0) {
+    lines.push("Saknas i cachen:", "");
+    for (const m of e.missing) lines.push(`- ${m.district}, "${m.keyword}", ${m.from} till ${m.to ?? "idag"}`);
+    lines.push("");
+  }
+
+  const early = averagePerYear(t.stambytePerStartYear, 1994, 2006);
+  const late = averagePerYear(t.stambytePerStartYear, 2012, 2019);
+  lines.push("## Vad den tunna posten efter 2011 betyder", "");
+  lines.push(
+    `Mellan 1994 och 2006 startade i snitt ${dec(early)} stambytesärenden per år i de stadsdelar som svepet täcker. Mellan 2012 och 2019 var det ${dec(late)}. Det betyder inte att färre hus fick nya stammar. Staden listar ett stambyte först när någon anmält det, och många föreningar anmälde inte före domen MÖD 2020:19. Svepet kan inte skilja ett hus utan stambyte från ett hus med ett stambyte som aldrig anmäldes. En fastighet utan post är därför okänd, inte utan stambyte.`,
+    "",
+  );
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------

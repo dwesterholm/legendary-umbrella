@@ -2,13 +2,14 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadSweep, normaliseAddressKey, saveSweep, type SweepQuery } from "@/lib/stockholm/bygglov-cache";
+import { loadSweep, normaliseAddressKey, saveSweep, type SweepCase, type SweepQuery } from "@/lib/stockholm/bygglov-cache";
 import { CityStop, makeCityClient } from "@/lib/stockholm/bygglov-client";
 import { assertManualRunAllowed } from "@/lib/stockholm/host-gate";
 import { makeFixtureFetch } from "@/lib/stockholm/fixture-fetch";
 import {
   SWEEP_DISTRICTS,
   buildCaseIndex,
+  buildSweepEvidence,
   classifySoldAddress,
   collectSweep,
   isStambyteCase,
@@ -16,11 +17,13 @@ import {
   normaliseAddress,
   parseAddresses,
   planSweep,
+  renderSweepMarkdown,
   runSweep,
   shiftYears,
   splitWindow,
   stambyteAtSale,
   summariseCases,
+  sweepEvidenceSchema,
   sweepKeywords,
   sweepWindows,
   type CaseIndex,
@@ -675,5 +678,119 @@ describe("collectSweep reads the plan back from the cache", () => {
     expect(result.splitParents).toEqual([whole]);
     expect(result.leaves.map((l) => l.query.from)).toEqual(["1985-01-01", "1990-01-01", "2000-01-01", "2005-01-01", "2010-01-01"]);
     expect(result.missing).toEqual([query("Södermalm", "stam", "1995-01-01", "1999-12-31"), query("Kungsholmen", "stam", "2010-01-01", null)]);
+  });
+});
+
+describe("the sweep evidence holds counts only", () => {
+  const sweepCase = (rec: string, beteckning: string, startDate: string, kinds: Array<"stambyte" | "relining">, archived = true): SweepCase => ({
+    rec,
+    beteckning,
+    addresses: ["Testgatan 1"],
+    startDate,
+    kinds,
+    primary: kinds[0],
+    tillsyn: false,
+    archived,
+  });
+
+  const whole = query("Södermalm", "stam", "1985-01-01", "2009-12-31");
+  const spans = splitWindow({ from: whole.from, to: whole.to }).map((w) => query("Södermalm", "stam", w.from, w.to));
+  const open = query("Södermalm", "stam", "2010-01-01", null);
+  const kungs = query("Kungsholmen", "stam", "2010-01-01", null);
+
+  function evidence(stop: string | null = null) {
+    const first = [sweepCase("1", "Skrovet 8", "1995-03-01", ["stambyte"]), sweepCase("2", "Skrovet 8", "2001-05-01", ["relining"])];
+    const second = [sweepCase("3", "Slipen 41", "2015-05-01", ["stambyte", "relining"], false), sweepCase("1", "Skrovet 8", "1995-03-01", ["stambyte"])];
+    return buildSweepEvidence({
+      ranAt: "2026-10-18T20:00:00.000Z",
+      keywords: ["stam"],
+      substring: true,
+      districts: ["Södermalm", "Kungsholmen"],
+      windows: sweepWindows(),
+      collection: {
+        leaves: [
+          { query: spans[0], cases: first, headingCount: 2 },
+          { query: spans[1], cases: [], headingCount: 0 },
+          { query: open, cases: second, headingCount: 2 },
+        ],
+        splitParents: [whole],
+        missing: [kungs],
+      },
+      splits: [{ ...whole, reason: "antal" }],
+      requests: 9,
+      seconds: [1.2, 3.4, 2.1],
+      stop,
+    });
+  }
+
+  it("counts distinct cases and buildings, keeps relining apart from stambyte and is not complete while a query is missing", () => {
+    const e = evidence("http-429");
+    expect(e.complete).toBe(false);
+    expect(e.stop).toBe("http-429");
+    expect(e.totals).toMatchObject({
+      searches: 3,
+      cases: 3,
+      distinctBeteckningar: 2,
+      stambyteTagged: 2,
+      stambyteBeteckningar: 2,
+      reliningTagged: 2,
+      active: 1,
+      archived: 2,
+    });
+    expect(e.totals.stambytePerStartYear).toEqual({ "1995": 1, "2015": 1 });
+    expect(e.byDistrict.map((d) => [d.district, d.cases, d.complete])).toEqual([
+      ["Södermalm", 3, true],
+      ["Kungsholmen", 0, false],
+    ]);
+    expect(e.byDistrict[0].stambyteByDecade).toEqual({ "1990": 1, "2010": 1 });
+    expect(e.requests).toBe(9);
+    expect(e.secondsMedian).toBe(2.1);
+    expect(e.secondsMax).toBe(3.4);
+  });
+
+  it("lists the split parent as a split query and its spans with their own counts", () => {
+    const e = evidence();
+    const parent = e.queries.find((q) => q.split);
+    expect(parent).toMatchObject({ district: "Södermalm", keyword: "stam", from: "1985-01-01", to: "2009-12-31", rows: null });
+    const leaves = e.queries.filter((q) => !q.split);
+    expect(leaves.every((q) => q.rows === q.headingCount)).toBe(true);
+    expect(e.splits).toEqual([{ district: "Södermalm", keyword: "stam", from: "1985-01-01", to: "2009-12-31", reason: "antal" }]);
+    expect(e.missing).toEqual([{ district: "Kungsholmen", keyword: "stam", from: "2010-01-01", to: null }]);
+  });
+
+  it("is complete only when nothing is missing and nothing stopped it", () => {
+    const done = buildSweepEvidence({
+      ranAt: "2026-10-18T20:00:00.000Z",
+      keywords: ["stam"],
+      substring: null,
+      districts: ["Södermalm"],
+      windows: [{ from: "1985-01-01", to: null }],
+      collection: { leaves: [{ query: query("Södermalm", "stam", "1985-01-01", null), cases: [], headingCount: 0 }], splitParents: [], missing: [] },
+      splits: [],
+      requests: 1,
+      seconds: [],
+      stop: null,
+    });
+    expect(done.complete).toBe(true);
+    expect(done.secondsMedian).toBeNull();
+  });
+
+  it("refuses a key that is not in the schema and carries no name, text or document key", () => {
+    const e = evidence();
+    expect(sweepEvidenceSchema.safeParse({ ...e, handler: "x" }).success).toBe(false);
+    expect(sweepEvidenceSchema.safeParse({ ...e, totals: { ...e.totals, description: "x" } }).success).toBe(false);
+    expect(JSON.stringify(e)).not.toMatch(/"(Handler|Documents|Description)"/);
+  });
+
+  it("renders plain Swedish with every stadsdel, the request count, the median and the sentence on the thin record", () => {
+    const text = renderSweepMarkdown(evidence("http-429"));
+    expect(text).toContain("Utfall: DELVIS, stoppat (http-429)");
+    expect(text).toContain("| Södermalm |");
+    expect(text).toContain("| Kungsholmen |");
+    expect(text).toContain("9 anrop");
+    expect(text).toContain("i median 2,1 sekunder");
+    expect(text).toContain("okänd, inte utan stambyte");
+    expect(text).toContain("Relining är 2 ärenden och räknas för sig");
+    expect(text).toContain("Södermalm, \"stam\", 1985-01-01 till 2009-12-31 (antal)");
   });
 });

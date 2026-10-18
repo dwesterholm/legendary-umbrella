@@ -28,7 +28,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod/v4";
 import { acquireRunLock, type RunLock } from "@/lib/discovery/watch-state";
-import { readJsonIfExists } from "@/lib/discovery/json-store";
+import { readJsonIfExists, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
 import {
   BYGGLOV_CACHE_DIR,
   loadSweep,
@@ -42,8 +42,10 @@ import { makeFixtureFetch, type FixtureRoute } from "@/lib/stockholm/fixture-fet
 import { CITY_DATA_DIR, CITY_LOCK_PATH, HOST_GATES_PATH, assertManualRunAllowed, hostBlockedUntil, readHostGates } from "@/lib/stockholm/host-gate";
 import {
   SWEEP_DISTRICTS,
+  buildSweepEvidence,
   collectSweep,
   planSweep,
+  renderSweepMarkdown,
   runSweep,
   summariseCases,
   sweepKeywords,
@@ -270,6 +272,7 @@ async function main(): Promise<number> {
   let gatesPath = HOST_GATES_PATH;
   let dataDir = CITY_DATA_DIR;
   let keywords: string[];
+  let substring: boolean | null = null;
 
   if (args.dryRun) {
     const fixtureDir = resolve(args.fixtures as string);
@@ -295,6 +298,7 @@ async function main(): Promise<number> {
   } else {
     assertManualRunAllowed(new Date());
     const spike = readSpike();
+    substring = spike.substring;
     keywords = args.keywords ?? sweepKeywords(spike.substring);
     mkdirSync(BYGGLOV_CACHE_DIR, { recursive: true });
     mkdirSync(args.cacheDir, { recursive: true });
@@ -398,6 +402,24 @@ async function main(): Promise<number> {
     console.log(
       `Anrop: ${state.requests}, median ${secondsText(median(state.seconds))} s per anrop, ${plural(result.splits.length, "delning", "delningar")} i den här körningen, ${result.saved} av ${result.total} sökningar sparade`,
     );
+    if (args.evidence !== null) {
+      const evidence = buildSweepEvidence({
+        ranAt: now().toISOString(),
+        keywords,
+        substring,
+        districts: args.districts,
+        windows,
+        collection,
+        splits: state.splits,
+        requests: state.requests,
+        seconds: state.seconds,
+        stop: result.stop?.label ?? null,
+      });
+      const jsonPath = resolve(args.evidence);
+      writeJsonAtomic(jsonPath, evidence);
+      writeTextAtomic(jsonPath.replace(/\.json$/, ".md"), renderSweepMarkdown(evidence));
+      console.log(`Rapport: ${args.evidence} och ${args.evidence.replace(/\.json$/, ".md")}`);
+    }
     for (const q of result.unsplittable) {
       console.error(`Saknas: ${q.district} ${q.description} ${q.from}..${q.to ?? "idag"} (ett enda år vars antal inte går att lita på)`);
     }
