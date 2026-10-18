@@ -32,6 +32,16 @@
       "r2": 0.61635317537722,
       "cvRmseLog": 0.11432712065452255,
       "ranked": 77
+    },
+    {
+      "label": "14.5 ±12 %",
+      "snapshotAsOf": "2026-10-13",
+      "modelVersion": 2,
+      "modelAsOf": "2026-10-12",
+      "modelN": 7381,
+      "r2": 0.61635317537722,
+      "cvRmseLog": 0.11432712065452255,
+      "ranked": 77
     }
   ],
   "tracked": [
@@ -55,6 +65,13 @@
       "resaleSek": 5280586.955011592,
       "profitSek": 931419.6746253072,
       "creditSek": 876593.909453623
+    },
+    {
+      "label": "14.5 ±12 %",
+      "rank": 16,
+      "resaleSek": 5288312.830179103,
+      "profitSek": 938661.0491613836,
+      "creditSek": 883601.4475012962
     }
   ],
   "top": [
@@ -432,56 +449,172 @@
           "tracked": false
         }
       ]
+    },
+    {
+      "label": "14.5 ±12 %",
+      "rows": [
+        {
+          "rank": 1,
+          "id": "booli:572581",
+          "address": "Fatburs Kvarngata 18",
+          "resaleSek": 6138039.854061713,
+          "profitSek": 1967289.836038742,
+          "tracked": false
+        },
+        {
+          "rank": 2,
+          "id": "booli:568925",
+          "address": "Falugatan 5",
+          "resaleSek": 6526719.612462655,
+          "profitSek": 1780075.0708083538,
+          "tracked": false
+        },
+        {
+          "rank": 3,
+          "id": "booli:572010",
+          "address": "Fatburstrappan 18",
+          "resaleSek": 6092746.841495256,
+          "profitSek": 1626868.858598715,
+          "tracked": false
+        },
+        {
+          "rank": 4,
+          "id": "booli:6155023",
+          "address": "Sågargatan 14",
+          "resaleSek": 5572570.494739896,
+          "profitSek": 1585245.0822712486,
+          "tracked": false
+        },
+        {
+          "rank": 5,
+          "id": "booli:324863",
+          "address": "Tjurbergsgatan 38",
+          "resaleSek": 5698854.0393724535,
+          "profitSek": 1444708.0567088488,
+          "tracked": false
+        },
+        {
+          "rank": 6,
+          "id": "booli:6305391",
+          "address": "Sysslomansgatan 26",
+          "resaleSek": 5716878.205207113,
+          "profitSek": 1405235.3720073341,
+          "tracked": false
+        },
+        {
+          "rank": 7,
+          "id": "booli:635120",
+          "address": "Klippgatan 14E",
+          "resaleSek": 5646434.3773677405,
+          "profitSek": 1359981.9951137404,
+          "tracked": false
+        },
+        {
+          "rank": 8,
+          "id": "booli:700725",
+          "address": "Pokalvägen 4",
+          "resaleSek": 4980631.705416167,
+          "profitSek": 1329923.225678465,
+          "tracked": false
+        },
+        {
+          "rank": 9,
+          "id": "booli:348671",
+          "address": "Fyrverkarbacken 25",
+          "resaleSek": 4527777.7950439565,
+          "profitSek": 1214053.4302142956,
+          "tracked": false
+        },
+        {
+          "rank": 10,
+          "id": "booli:6295311",
+          "address": "Hornsgatan 119",
+          "resaleSek": 5482165.285014292,
+          "profitSek": 1203231.0303588125,
+          "tracked": false
+        },
+        {
+          "rank": 11,
+          "id": "booli:4309411",
+          "address": "Erstagatan 21",
+          "resaleSek": 5533573.5970084425,
+          "profitSek": 1115990.3861677728,
+          "tracked": false
+        },
+        {
+          "rank": 12,
+          "id": "booli:372080",
+          "address": "Ola Hanssonsgatan 4",
+          "resaleSek": 4784679.590303153,
+          "profitSek": 1018930.6892587338,
+          "tracked": false
+        },
+        {
+          "rank": 13,
+          "id": "booli:348715",
+          "address": "Fyrverkarbacken 23",
+          "resaleSek": 4590859.772651568,
+          "profitSek": 999054.6992860129,
+          "tracked": false
+        },
+        {
+          "rank": 14,
+          "id": "booli:144070",
+          "address": "Fridhemsgatan 41",
+          "resaleSek": 5384163.378944886,
+          "profitSek": 961944.5063407641,
+          "tracked": false
+        },
+        {
+          "rank": 15,
+          "id": "booli:6256773",
+          "address": "Ringvägen 162",
+          "resaleSek": 4848261.499733051,
+          "profitSek": 940267.6670106878,
+          "tracked": false
+        }
+      ]
     }
   ],
   "moves": [
     {
-      "id": "booli:4314237",
-      "address": "Hagaesplanaden 63",
+      "id": "booli:767763",
+      "address": "Tideliusgatan 55",
       "ranks": [
-        19,
-        19,
-        24
-      ],
-      "from": 19,
-      "to": 24,
-      "move": -5
-    },
-    {
-      "id": "booli:309602",
-      "address": "Frödingsvägen 9",
-      "ranks": [
+        58,
+        58,
         57,
-        57,
-        62
+        68
       ],
-      "from": 57,
-      "to": 62,
-      "move": -5
+      "from": 58,
+      "to": 68,
+      "move": -10
     },
     {
-      "id": "booli:6271664",
-      "address": "Kungsbro Strand 19",
+      "id": "booli:6269573",
+      "address": "Ringvägen 124",
       "ranks": [
-        14,
-        14,
-        18
+        61,
+        61,
+        63,
+        69
       ],
-      "from": 14,
-      "to": 18,
-      "move": -4
+      "from": 61,
+      "to": 69,
+      "move": -8
     },
     {
-      "id": "booli:324812",
-      "address": "Tjurbergsgatan 34",
+      "id": "booli:3958359",
+      "address": "Reimersholmsgatan 39",
       "ranks": [
-        34,
-        34,
-        38
+        24,
+        24,
+        23,
+        30
       ],
-      "from": 34,
-      "to": 38,
-      "move": -4
+      "from": 24,
+      "to": 30,
+      "move": -6
     },
     {
       "id": "booli:6248840",
@@ -489,11 +622,38 @@
       "ranks": [
         63,
         63,
-        59
+        59,
+        57
       ],
       "from": 63,
-      "to": 59,
-      "move": 4
+      "to": 57,
+      "move": 6
+    },
+    {
+      "id": "booli:130457",
+      "address": "Idungatan 5",
+      "ranks": [
+        18,
+        18,
+        17,
+        23
+      ],
+      "from": 18,
+      "to": 23,
+      "move": -5
+    },
+    {
+      "id": "booli:6305304",
+      "address": "Rålambsvägen 70",
+      "ranks": [
+        68,
+        68,
+        66,
+        63
+      ],
+      "from": 68,
+      "to": 63,
+      "move": 5
     },
     {
       "id": "booli:6110614",
@@ -501,35 +661,25 @@
       "ranks": [
         31,
         31,
-        28
+        28,
+        27
       ],
       "from": 31,
-      "to": 28,
-      "move": 3
+      "to": 27,
+      "move": 4
     },
     {
-      "id": "booli:498782",
-      "address": "Lidnersplan 12",
+      "id": "booli:324812",
+      "address": "Tjurbergsgatan 34",
       "ranks": [
-        37,
-        37,
-        34
+        34,
+        34,
+        38,
+        38
       ],
-      "from": 37,
-      "to": 34,
-      "move": 3
-    },
-    {
-      "id": "booli:576305",
-      "address": "Pipersgatan 9",
-      "ranks": [
-        43,
-        43,
-        40
-      ],
-      "from": 43,
-      "to": 40,
-      "move": 3
+      "from": 34,
+      "to": 38,
+      "move": -4
     },
     {
       "id": "booli:6230072",
@@ -537,23 +687,25 @@
       "ranks": [
         38,
         38,
-        41
+        41,
+        42
       ],
       "from": 38,
-      "to": 41,
-      "move": -3
+      "to": 42,
+      "move": -4
     },
     {
-      "id": "booli:586385",
-      "address": "Dalslandsgatan 3",
+      "id": "booli:3916472",
+      "address": "Fyrverkarbacken 27",
       "ranks": [
+        50,
+        50,
         48,
-        48,
-        45
+        54
       ],
-      "from": 48,
-      "to": 45,
-      "move": 3
+      "from": 50,
+      "to": 54,
+      "move": -4
     }
   ],
   "coefficients": [
@@ -567,6 +719,10 @@
         {
           "beta": 1.0663224539597498,
           "se": 0.01185659672437826
+        },
+        {
+          "beta": 1.049658693448891,
+          "se": 0.01192988605301473
         },
         {
           "beta": 1.049658693448891,
@@ -588,6 +744,10 @@
         {
           "beta": 0.015606238453950882,
           "se": 0.0008801833530510163
+        },
+        {
+          "beta": 0.015606238453950882,
+          "se": 0.0008801833530510163
         }
       ]
     },
@@ -601,6 +761,10 @@
         {
           "beta": -0.06722202862096957,
           "se": 0.007976724070494925
+        },
+        {
+          "beta": -0.06616888851834885,
+          "se": 0.007933671481682123
         },
         {
           "beta": -0.06616888851834885,
@@ -622,6 +786,10 @@
         {
           "beta": 0.040368703629822145,
           "se": 0.005518539858914672
+        },
+        {
+          "beta": 0.040368703629822145,
+          "se": 0.005518539858914672
         }
       ]
     },
@@ -635,6 +803,10 @@
         {
           "beta": -0.007752802408912329,
           "se": 0.00027016976427295336
+        },
+        {
+          "beta": -0.007825915404427513,
+          "se": 0.00026875140290056704
         },
         {
           "beta": -0.007825915404427513,
@@ -656,6 +828,10 @@
         {
           "beta": -0.004364536932546244,
           "se": 0.004201233126750904
+        },
+        {
+          "beta": -0.004364536932546244,
+          "se": 0.004201233126750904
         }
       ]
     },
@@ -669,6 +845,10 @@
         {
           "beta": -0.000643599629455161,
           "se": 0.0001967019428620363
+        },
+        {
+          "beta": -0.0010084637000047458,
+          "se": 0.00011368059743056137
         },
         {
           "beta": -0.0010084637000047458,
@@ -690,12 +870,20 @@
         {
           "beta": -0.0000025025720335726862,
           "se": 5.283372613608994e-7
+        },
+        {
+          "beta": -0.0000025025720335726862,
+          "se": 5.283372613608994e-7
         }
       ]
     },
     {
       "name": "tomtratt",
       "cells": [
+        {
+          "beta": 0,
+          "se": null
+        },
         {
           "beta": 0,
           "se": null
@@ -730,11 +918,20 @@
           "pct": 0.08,
           "capPct": 0.08,
           "onCap": true
+        },
+        {
+          "pct": 0.08322235594612537,
+          "capPct": 0.12,
+          "onCap": false
         }
       ],
       "raw": [
         null,
         null,
+        {
+          "pctRaw": 0.08322235594612537,
+          "se": 0.003477154139851596
+        },
         {
           "pctRaw": 0.08322235594612537,
           "se": 0.003477154139851596
@@ -759,11 +956,20 @@
           "pct": 0.03550086600210345,
           "capPct": 0.08,
           "onCap": false
+        },
+        {
+          "pct": 0.03550086600210345,
+          "capPct": 0.12,
+          "onCap": false
         }
       ],
       "raw": [
         null,
         null,
+        {
+          "pctRaw": 0.03550086600210345,
+          "se": 0.0023433957812627262
+        },
         {
           "pctRaw": 0.03550086600210345,
           "se": 0.0023433957812627262
@@ -788,11 +994,20 @@
           "pct": -0.022473920174970186,
           "capPct": 0.08,
           "onCap": false
+        },
+        {
+          "pct": -0.022473920174970186,
+          "capPct": 0.12,
+          "onCap": false
         }
       ],
       "raw": [
         null,
         null,
+        {
+          "pctRaw": -0.022473920174970186,
+          "se": 0.003578198572390692
+        },
         {
           "pctRaw": -0.022473920174970186,
           "se": 0.003578198572390692
@@ -817,11 +1032,20 @@
           "pct": -0.08,
           "capPct": 0.08,
           "onCap": true
+        },
+        {
+          "pct": -0.11163695400655005,
+          "capPct": 0.12,
+          "onCap": false
         }
       ],
       "raw": [
         null,
         null,
+        {
+          "pctRaw": -0.11163695400655005,
+          "se": 0.007396890171031343
+        },
         {
           "pctRaw": -0.11163695400655005,
           "se": 0.007396890171031343
@@ -846,11 +1070,20 @@
           "pct": -0.05258124394646457,
           "capPct": 0.08,
           "onCap": false
+        },
+        {
+          "pct": -0.05258124394646457,
+          "capPct": 0.12,
+          "onCap": false
         }
       ],
       "raw": [
         null,
         null,
+        {
+          "pctRaw": -0.05258124394646457,
+          "se": 0.006078079790662358
+        },
         {
           "pctRaw": -0.05258124394646457,
           "se": 0.006078079790662358
@@ -882,6 +1115,27 @@
         "fitted": false,
         "reason": "sålda sidor har ingen annonstext, R-03; ej anpassad (för få angivna)"
       }
+    },
+    {
+      "label": "14.5 ±12 %",
+      "capPct": 0.12,
+      "n": 7381,
+      "cvRmseLog": 0.11432712065452255,
+      "enrichedRows": 3912,
+      "stage2N": 3615,
+      "onCap": [],
+      "cv": {
+        "without": 0.11557287393447988,
+        "cap8": 0.10224583330424757,
+        "cap12": 0.10187855217287742
+      },
+      "avgiftDebt": 0.2990029824291424,
+      "correlationRows": 2320,
+      "ceiling": {
+        "soldRowsWithHeight": 0,
+        "fitted": false,
+        "reason": "sålda sidor har ingen annonstext, R-03; ej anpassad (för få angivna)"
+      }
     }
   ],
   "capDecision": {
@@ -891,5 +1145,11 @@
     "verdict": "Taket vidgas till ±12 %: steg-2-felet är 0,10188 vid ±12 % mot 0,10225 vid ±8 %, alltså inte sämre."
   },
   "capStepNeeded": true,
-  "capResaleDiff": null
+  "capResaleDiff": {
+    "cap8Label": "14.5 ±8 %",
+    "cap12Label": "14.5 ±12 %",
+    "resale8": 5280586.955011592,
+    "resale12": 5288312.830179103,
+    "diffSek": 7726
+  }
 }

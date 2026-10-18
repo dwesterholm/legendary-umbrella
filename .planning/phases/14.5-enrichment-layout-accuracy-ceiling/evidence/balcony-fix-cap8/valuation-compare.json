@@ -1,0 +1,632 @@
+{
+  "version": 1,
+  "trackId": 150148,
+  "trackedAddress": "Folkungagatan 61",
+  "columns": [
+    {
+      "label": "14.5 ±8 %, balkong ocentrerad (före rättningen)",
+      "snapshotAsOf": "2026-10-13",
+      "modelVersion": 2,
+      "modelAsOf": "2026-10-12",
+      "modelN": 7381,
+      "r2": 0.61635317537722,
+      "cvRmseLog": 0.11432712065452255,
+      "ranked": 77
+    },
+    {
+      "label": "14.5 ±8 %, balkong centrerad (efter rättningen)",
+      "snapshotAsOf": "2026-10-13",
+      "modelVersion": 2,
+      "modelAsOf": "2026-10-12",
+      "modelN": 7381,
+      "r2": 0.61635317537722,
+      "cvRmseLog": 0.11432712065452255,
+      "ranked": 77
+    }
+  ],
+  "tracked": [
+    {
+      "label": "14.5 ±8 %, balkong ocentrerad (före rättningen)",
+      "rank": 15,
+      "resaleSek": 5491662.16192631,
+      "profitSek": 1129585.476859171,
+      "creditSek": 1068371.1687582014
+    },
+    {
+      "label": "14.5 ±8 %, balkong centrerad (efter rättningen)",
+      "rank": 16,
+      "resaleSek": 5280586.955011592,
+      "profitSek": 931419.6746253072,
+      "creditSek": 876593.909453623
+    }
+  ],
+  "top": [
+    {
+      "label": "14.5 ±8 %, balkong ocentrerad (före rättningen)",
+      "rows": [
+        {
+          "rank": 1,
+          "id": "booli:572581",
+          "address": "Fatburs Kvarngata 18",
+          "resaleSek": 6374063.391746208,
+          "profitSek": 2189124.1410524235,
+          "tracked": false
+        },
+        {
+          "rank": 2,
+          "id": "booli:568925",
+          "address": "Falugatan 5",
+          "resaleSek": 6797911.23301993,
+          "profitSek": 2030843.78365443,
+          "tracked": false
+        },
+        {
+          "rank": 3,
+          "id": "booli:572010",
+          "address": "Fatburstrappan 18",
+          "resaleSek": 6327028.745480313,
+          "profitSek": 1849043.5740023525,
+          "tracked": false
+        },
+        {
+          "rank": 4,
+          "id": "booli:6155023",
+          "address": "Sågargatan 14",
+          "resaleSek": 5786850.270276772,
+          "profitSek": 1785858.1964553958,
+          "tracked": false
+        },
+        {
+          "rank": 5,
+          "id": "booli:324863",
+          "address": "Tjurbergsgatan 38",
+          "resaleSek": 5935647.030955196,
+          "profitSek": 1667399.07304916,
+          "tracked": false
+        },
+        {
+          "rank": 6,
+          "id": "booli:6305391",
+          "address": "Sysslomansgatan 26",
+          "resaleSek": 5936706.986151161,
+          "profitSek": 1611616.2232347038,
+          "tracked": false
+        },
+        {
+          "rank": 7,
+          "id": "booli:6295311",
+          "address": "Hornsgatan 119",
+          "resaleSek": 5895710.396686181,
+          "profitSek": 1585142.3133030727,
+          "tracked": false
+        },
+        {
+          "rank": 8,
+          "id": "booli:635120",
+          "address": "Klippgatan 14E",
+          "resaleSek": 5881049.280426354,
+          "profitSek": 1580607.3721745538,
+          "tracked": false
+        },
+        {
+          "rank": 9,
+          "id": "booli:348671",
+          "address": "Fyrverkarbacken 25",
+          "resaleSek": 4869329.039220293,
+          "profitSek": 1531287.970628689,
+          "tracked": false
+        },
+        {
+          "rank": 10,
+          "id": "booli:700725",
+          "address": "Pokalvägen 4",
+          "resaleSek": 5172149.90063251,
+          "profitSek": 1507826.8760997213,
+          "tracked": false
+        },
+        {
+          "rank": 11,
+          "id": "booli:4309411",
+          "address": "Erstagatan 21",
+          "resaleSek": 5763499.02361635,
+          "profitSek": 1328918.3303546081,
+          "tracked": false
+        },
+        {
+          "rank": 12,
+          "id": "booli:348715",
+          "address": "Fyrverkarbacken 23",
+          "resaleSek": 4937169.582489092,
+          "profitSek": 1319250.0481160816,
+          "tracked": false
+        },
+        {
+          "rank": 13,
+          "id": "booli:372080",
+          "address": "Ola Hanssonsgatan 4",
+          "resaleSek": 4983487.734208087,
+          "profitSek": 1202068.063210752,
+          "tracked": false
+        },
+        {
+          "rank": 14,
+          "id": "booli:144070",
+          "address": "Fridhemsgatan 41",
+          "resaleSek": 5591198.412666433,
+          "profitSek": 1155438.4433509728,
+          "tracked": false
+        },
+        {
+          "rank": 15,
+          "id": "booli:150148",
+          "address": "Folkungagatan 61",
+          "resaleSek": 5491662.16192631,
+          "profitSek": 1129585.476859171,
+          "tracked": true
+        }
+      ]
+    },
+    {
+      "label": "14.5 ±8 %, balkong centrerad (efter rättningen)",
+      "rows": [
+        {
+          "rank": 1,
+          "id": "booli:572581",
+          "address": "Fatburs Kvarngata 18",
+          "resaleSek": 6129072.583930668,
+          "profitSek": 1958873.3858269495,
+          "tracked": false
+        },
+        {
+          "rank": 2,
+          "id": "booli:568925",
+          "address": "Falugatan 5",
+          "resaleSek": 6536629.588630819,
+          "profitSek": 1789225.5870573707,
+          "tracked": false
+        },
+        {
+          "rank": 3,
+          "id": "booli:572010",
+          "address": "Fatburstrappan 18",
+          "resaleSek": 6083845.741458963,
+          "profitSek": 1618440.0914054057,
+          "tracked": false
+        },
+        {
+          "rank": 4,
+          "id": "booli:6155023",
+          "address": "Sågargatan 14",
+          "resaleSek": 5564429.337931087,
+          "profitSek": 1577634.3525225054,
+          "tracked": false
+        },
+        {
+          "rank": 5,
+          "id": "booli:324863",
+          "address": "Tjurbergsgatan 38",
+          "resaleSek": 5707507.009174954,
+          "profitSek": 1452833.1588316134,
+          "tracked": false
+        },
+        {
+          "rank": 6,
+          "id": "booli:6305391",
+          "address": "Sysslomansgatan 26",
+          "resaleSek": 5708526.224380783,
+          "profitSek": 1397406.5547809526,
+          "tracked": false
+        },
+        {
+          "rank": 7,
+          "id": "booli:6295311",
+          "address": "Hornsgatan 119",
+          "resaleSek": 5669105.362509556,
+          "profitSek": 1375596.343951518,
+          "tracked": false
+        },
+        {
+          "rank": 8,
+          "id": "booli:635120",
+          "address": "Klippgatan 14E",
+          "resaleSek": 5655007.754720733,
+          "profitSek": 1368031.350400816,
+          "tracked": false
+        },
+        {
+          "rank": 9,
+          "id": "booli:348671",
+          "address": "Fyrverkarbacken 25",
+          "resaleSek": 4682173.56530659,
+          "profitSek": 1357242.3676629977,
+          "tracked": false
+        },
+        {
+          "rank": 10,
+          "id": "booli:700725",
+          "address": "Pokalvägen 4",
+          "resaleSek": 4973355.3320156,
+          "profitSek": 1323174.378506261,
+          "tracked": false
+        },
+        {
+          "rank": 11,
+          "id": "booli:348715",
+          "address": "Fyrverkarbacken 23",
+          "resaleSek": 4747406.618113403,
+          "profitSek": 1143566.7270210297,
+          "tracked": false
+        },
+        {
+          "rank": 12,
+          "id": "booli:4309411",
+          "address": "Erstagatan 21",
+          "resaleSek": 5541975.609922621,
+          "profitSek": 1123758.2657790624,
+          "tracked": false
+        },
+        {
+          "rank": 13,
+          "id": "booli:372080",
+          "address": "Ola Hanssonsgatan 4",
+          "resaleSek": 4791944.504919932,
+          "profitSek": 1025611.9194717242,
+          "tracked": false
+        },
+        {
+          "rank": 14,
+          "id": "booli:144070",
+          "address": "Fridhemsgatan 41",
+          "resaleSek": 5376297.472467147,
+          "profitSek": 954605.788996474,
+          "tracked": false
+        },
+        {
+          "rank": 15,
+          "id": "booli:6256773",
+          "address": "Ringvägen 162",
+          "resaleSek": 4841178.510445309,
+          "profitSek": 933638.6479291362,
+          "tracked": false
+        }
+      ]
+    }
+  ],
+  "moves": [
+    {
+      "id": "booli:6238321",
+      "address": "Folkskolegatan 3",
+      "ranks": [
+        65,
+        68
+      ],
+      "from": 65,
+      "to": 68,
+      "move": -3
+    },
+    {
+      "id": "booli:6256773",
+      "address": "Ringvägen 162",
+      "ranks": [
+        17,
+        15
+      ],
+      "from": 17,
+      "to": 15,
+      "move": 2
+    },
+    {
+      "id": "booli:6156024",
+      "address": "Stagneliusvägen 28",
+      "ranks": [
+        34,
+        32
+      ],
+      "from": 34,
+      "to": 32,
+      "move": 2
+    },
+    {
+      "id": "booli:6282708",
+      "address": "Wennerbergsgatan 6A",
+      "ranks": [
+        33,
+        35
+      ],
+      "from": 33,
+      "to": 35,
+      "move": -2
+    },
+    {
+      "id": "booli:3916472",
+      "address": "Fyrverkarbacken 27",
+      "ranks": [
+        50,
+        48
+      ],
+      "from": 50,
+      "to": 48,
+      "move": 2
+    },
+    {
+      "id": "booli:3987792",
+      "address": "Hornsbergs Strand 15F",
+      "ranks": [
+        54,
+        52
+      ],
+      "from": 54,
+      "to": 52,
+      "move": 2
+    },
+    {
+      "id": "booli:654789",
+      "address": "Levertinsgatan 5",
+      "ranks": [
+        67,
+        65
+      ],
+      "from": 67,
+      "to": 65,
+      "move": 2
+    },
+    {
+      "id": "booli:348715",
+      "address": "Fyrverkarbacken 23",
+      "ranks": [
+        12,
+        11
+      ],
+      "from": 12,
+      "to": 11,
+      "move": 1
+    },
+    {
+      "id": "booli:4309411",
+      "address": "Erstagatan 21",
+      "ranks": [
+        11,
+        12
+      ],
+      "from": 11,
+      "to": 12,
+      "move": -1
+    },
+    {
+      "id": "booli:150148",
+      "address": "Folkungagatan 61",
+      "ranks": [
+        15,
+        16
+      ],
+      "from": 15,
+      "to": 16,
+      "move": -1
+    }
+  ],
+  "coefficients": [
+    {
+      "name": "nbLevel",
+      "cells": [
+        {
+          "beta": 1.049658693448891,
+          "se": 0.01192988605301473
+        },
+        {
+          "beta": 1.049658693448891,
+          "se": 0.01192988605301473
+        }
+      ]
+    },
+    {
+      "name": "floor",
+      "cells": [
+        {
+          "beta": 0.015606238453950882,
+          "se": 0.0008801833530510163
+        },
+        {
+          "beta": 0.015606238453950882,
+          "se": 0.0008801833530510163
+        }
+      ]
+    },
+    {
+      "name": "groundOrBelow",
+      "cells": [
+        {
+          "beta": -0.06616888851834885,
+          "se": 0.007933671481682123
+        },
+        {
+          "beta": -0.06616888851834885,
+          "se": 0.007933671481682123
+        }
+      ]
+    },
+    {
+      "name": "lnArea",
+      "cells": [
+        {
+          "beta": 0.040368703629822145,
+          "se": 0.005518539858914672
+        },
+        {
+          "beta": 0.040368703629822145,
+          "se": 0.005518539858914672
+        }
+      ]
+    },
+    {
+      "name": "monthsAgo",
+      "cells": [
+        {
+          "beta": -0.007825915404427513,
+          "se": 0.00026875140290056704
+        },
+        {
+          "beta": -0.007825915404427513,
+          "se": 0.00026875140290056704
+        }
+      ]
+    },
+    {
+      "name": "centralityKm",
+      "cells": [
+        {
+          "beta": -0.004364536932546244,
+          "se": 0.004201233126750904
+        },
+        {
+          "beta": -0.004364536932546244,
+          "se": 0.004201233126750904
+        }
+      ]
+    },
+    {
+      "name": "avgiftPerSqmMonth",
+      "cells": [
+        {
+          "beta": -0.0010084637000047458,
+          "se": 0.00011368059743056137
+        },
+        {
+          "beta": -0.0010084637000047458,
+          "se": 0.00011368059743056137
+        }
+      ]
+    },
+    {
+      "name": "brfDebtPerSqm",
+      "cells": [
+        {
+          "beta": -0.0000025025720335726862,
+          "se": 5.283372613608994e-7
+        },
+        {
+          "beta": -0.0000025025720335726862,
+          "se": 5.283372613608994e-7
+        }
+      ]
+    },
+    {
+      "name": "tomtratt",
+      "cells": [
+        {
+          "beta": 0,
+          "se": null
+        },
+        {
+          "beta": 0,
+          "se": null
+        }
+      ]
+    }
+  ],
+  "stage2": [
+    {
+      "key": "balcony",
+      "label": "Balkong",
+      "cells": [
+        {
+          "pct": 0.08,
+          "capPct": 0.08,
+          "onCap": true
+        },
+        {
+          "pct": 0.08,
+          "capPct": 0.08,
+          "onCap": true
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "le1930",
+      "label": "Byggår till 1930",
+      "cells": [
+        {
+          "pct": 0.03550086600210345,
+          "capPct": 0.08,
+          "onCap": false
+        },
+        {
+          "pct": 0.03550086600210345,
+          "capPct": 0.08,
+          "onCap": false
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "y1931to1960",
+      "label": "Byggår 1931–1960",
+      "cells": [
+        {
+          "pct": -0.022473920174970186,
+          "capPct": 0.08,
+          "onCap": false
+        },
+        {
+          "pct": -0.022473920174970186,
+          "capPct": 0.08,
+          "onCap": false
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "y1961to1990",
+      "label": "Byggår 1961–1990",
+      "cells": [
+        {
+          "pct": -0.08,
+          "capPct": 0.08,
+          "onCap": true
+        },
+        {
+          "pct": -0.08,
+          "capPct": 0.08,
+          "onCap": true
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    },
+    {
+      "key": "ge1991",
+      "label": "Byggår från 1991",
+      "cells": [
+        {
+          "pct": -0.05258124394646457,
+          "capPct": 0.08,
+          "onCap": false
+        },
+        {
+          "pct": -0.05258124394646457,
+          "capPct": 0.08,
+          "onCap": false
+        }
+      ],
+      "raw": [
+        null,
+        null
+      ]
+    }
+  ],
+  "fitReports": [],
+  "capDecision": null,
+  "capStepNeeded": null,
+  "capResaleDiff": null
+}
