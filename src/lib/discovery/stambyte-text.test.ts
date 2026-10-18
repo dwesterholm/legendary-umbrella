@@ -94,6 +94,69 @@ describe("held-back stambyte phrases (the honest pre-live score)", () => {
   });
 });
 
+/**
+ * SECOND HELD-BACK SET. Written AFTER the reader was finished (including the comma fix above), from the
+ * Swedish meaning, and scored exactly once: no rule was changed to fit it. Misses are pinned below, not
+ * fixed, unless a fix is a general rule (each such change is stated in the plan summary).
+ */
+const FRESH: ReadonlyArray<readonly [string, Expected]> = [
+  ["Stambytet i fastigheten är genomfört och slutbesiktigat 2013.", ex(2013)],
+  ["Föreningen står inför ett stambyte inom de närmaste åren.", NOTHING],
+  ["Nyligen genomfört stambyte (2023) med nya badrum.", ex(2023)],
+  ["Hela huset fick nya stammar 2008.", ex(2008)],
+  ["Stambyte är under projektering, planerad start 2027.", ex(null, 2027)],
+  ["Vi har gjort stambyte och dragit om all el 2015.", ex(2015)],
+  ["Här gäller att stambyte redan är gjort, vilket ger lugn de närmaste decennierna.", NOTHING],
+  ["Stambyte gjordes mellan 2016 och 2017.", ex(2017)],
+  ["Stambyte utfördes i två etapper, 2014 och 2019.", ex(2019)],
+  ["Föreningen avser genomföra stambyte under 2028.", ex(null, 2028)],
+  ["Information om stambyte: genomfört 2017.", ex(2017)],
+  ["Stambytet blev klart i oktober 2020.", ex(2020)],
+  ["Köpare bör notera att stambyte inte är utfört.", NOTHING],
+  ["VA-stammarna är bytta 2005.", ex(2005)],
+  ["Stambyte i hus nr 2 klart 2019.", ex(2019)],
+  ["Frågor om stambyte besvaras av mäklaren 070-1234567.", NOTHING],
+  ["Planerat stambyte 2029-2030.", ex(null, 2029)],
+  ["Stambyte genomfördes i flera etapper 2005–2008.", ex(2008)],
+  ["Tidigare stambyte 2009 och ett nytt är beslutat till 2031.", ex(2009, 2031)],
+  ["Husets rör är från 1950-talet men stambyte är gjort 2006.", ex(2006)],
+  ["Stambyte väntar på nästa år.", NOTHING],
+  ["Fastigheten har inte genomgått stambyte.", NOTHING],
+  ["Efter stambytet 2019 är alla rör nya.", ex(2019)],
+  ["Relining utfördes 2016 istället för stambyte.", ex(null, null, false, true)],
+];
+
+const FRESH_KNOWN_MISSES: readonly string[] = [
+  "Stambytet i fastigheten är genomfört och slutbesiktigat 2013.",
+  "Hela huset fick nya stammar 2008.",
+  "Stambyte är under projektering, planerad start 2027.",
+  "Vi har gjort stambyte och dragit om all el 2015.",
+  "Stambyte gjordes mellan 2016 och 2017.",
+  "Stambyte utfördes i två etapper, 2014 och 2019.",
+  "Tidigare stambyte 2009 och ett nytt är beslutat till 2031.",
+  "Relining utfördes 2016 istället för stambyte.",
+];
+
+describe("second held-back stambyte set (scored once, after the reader was finished)", () => {
+  it("has at least 15 phrases", () => {
+    expect(FRESH.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("reports how many pass and pins the misses", () => {
+    const misses: string[] = [];
+    const detail: string[] = [];
+    for (const [phrase, expected] of FRESH) {
+      const got = stambyteFromText(phrase, RUN);
+      if (JSON.stringify(got) !== JSON.stringify(expected)) {
+        misses.push(phrase);
+        detail.push(`${phrase} -> ${JSON.stringify(got)} (wanted ${JSON.stringify(expected)})`);
+      }
+    }
+    console.info(`second set: ${FRESH.length - misses.length} av ${FRESH.length}\n${detail.join("\n")}`);
+    expect(misses).toEqual([...FRESH_KNOWN_MISSES]);
+  });
+});
+
 /** The 33 phrases of RESEARCH 8.2, used while tuning (circular by nature; the held-back set is the honest signal). */
 const TUNED: ReadonlyArray<readonly [string, Expected]> = [
   ["Stambyte genomfört 2018. Nytt kök och badrum 2021.", ex(2018)],
