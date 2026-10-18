@@ -422,6 +422,38 @@ export function sampleOutcome(
   return { asked: keys.length, answered, resolved, hits };
 }
 
+/** Why a sold row is still not tied to a building, in rows. */
+export interface UnidentifiedRows {
+  /** The address has no house number ("Lützengatan", "Adress saknas"): never asked. */
+  readonly noNumber: number;
+  /** The city's address search named more than one beteckning for the address. */
+  readonly ambiguous: number;
+  /** The city's address search named none, or only street land. */
+  readonly noCandidates: number;
+  /** An address the stages did not reach (a stopped run). */
+  readonly notAsked: number;
+}
+
+export function unidentifiedRows(
+  sold: readonly SoldInput[],
+  rows: Readonly<Record<string, JoinRow>>,
+  plans: ReadonlyMap<string, AddressPlan>,
+  lookup: (key: string) => LookupAnswer | undefined,
+): UnidentifiedRows {
+  const out = { noNumber: 0, ambiguous: 0, noCandidates: 0, notAsked: 0 };
+  for (const s of sold) {
+    const row = rows[s.booliId];
+    if (row === undefined || row.stage !== null) continue;
+    const plan = plans.get(row.addressKey);
+    const answer = lookup(row.addressKey);
+    if (plan?.group === "nonumber") out.noNumber += 1;
+    else if (answer?.status === "ambiguous") out.ambiguous += 1;
+    else if (answer?.status === "no_candidates") out.noCandidates += 1;
+    else out.notAsked += 1;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // The evidence: counts only
 // ---------------------------------------------------------------------------
@@ -470,6 +502,8 @@ export const joinEvidenceSchema = z.strictObject({
     addressesAnswered: count,
   }),
   stageB: z.strictObject({ addressesTotal: count, addressesAnswered: count, resolved: count }),
+  /** Rows not tied to a building, by reason. */
+  unidentified: z.strictObject({ noNumber: count, ambiguous: count, noCandidates: count, notAsked: count }),
   detail: z.strictObject({ wanted: count, read: count, cap: count }),
   stop: z.string().max(60).nullable(),
 });
@@ -484,6 +518,7 @@ export interface JoinEvidenceInput {
   readonly sample: { ran: boolean; size: number; seed: number; answered: number; resolved: number; hits: number; threshold: number };
   readonly stageC: { run: boolean; decision: string; addressesTotal: number; addressesAnswered: number };
   readonly stageB: { addressesTotal: number; addressesAnswered: number; resolved: number };
+  readonly unidentified: UnidentifiedRows;
   readonly detail: { wanted: number; read: number; cap: number };
   readonly stop: string | null;
 }
@@ -507,6 +542,7 @@ export function buildJoinEvidence(input: JoinEvidenceInput): JoinEvidence {
     sample: input.sample,
     stageC: input.stageC,
     stageB: input.stageB,
+    unidentified: input.unidentified,
     detail: input.detail,
     stop: input.stop,
   });
@@ -525,6 +561,9 @@ export const dec = (n: number): string => n.toFixed(1).replace(".", ",");
 export const joinLine = (c: Pick<JoinCounts, "identified" | "rows" | "joinRatePct">): string =>
   `Kopplade sålda rader: ${fmt(c.identified)} av ${fmt(c.rows)} (${dec(c.joinRatePct)} %)`;
 
+/** The class as it is written in Swedish text ("over 40" is the key in the JSON). */
+const yearsLabel = (k: YearsClass): string => (k === "over 40" ? "över 40" : k);
+
 /** Fewer rows than this in a class is too few for the fit (RESEARCH 6.2). */
 export const MIN_ROWS_PER_CLASS = 30;
 
@@ -537,7 +576,7 @@ export function renderJoinReport(e: JoinEvidence): string[] {
   lines.push(
     `Rader i hus med registrerat stambyte före försäljningen: ${fmt(e.total.recordedBeforeSale)} av ${fmt(e.total.rows)} (${dec(percent(e.total.recordedBeforeSale, e.total.rows))} %)`,
   );
-  lines.push(`Rader per år från stambyte till försäljning: ${YEARS_CLASSES.map((k) => `${k} ${fmt(e.yearsBefore[k])}`).join(", ")}`);
+  lines.push(`Rader per år från stambyte till försäljning: ${YEARS_CLASSES.map((k) => `${yearsLabel(k)} ${fmt(e.yearsBefore[k])}`).join(", ")}`);
   lines.push(
     `Pågående stambyte vid försäljningen: ${fmt(e.total.ongoingAtSale)}. Stambyte som startade efter försäljningen: ${fmt(e.total.futureAtSale)}. Hus med bara relining: ${fmt(e.total.reliningOnly)} rader`,
   );
@@ -559,7 +598,7 @@ export function renderJoinMarkdown(e: JoinEvidence): string {
   lines.push("## Hur många sålda lägenheter vi kunde knyta till ett hus", "");
   lines.push(joinLine(t), "");
   lines.push(
-    `En såld lägenhet räknas som kopplad när vi vet vilken fastighet den ligger i. Det gäller ${fmt(t.identified)} av ${fmt(t.rows)} rader. De ${fmt(t.rows - t.identified)} övriga är okända: vi vet inte om huset har haft ett stambyte.`,
+    `En såld lägenhet räknas som kopplad när vi vet vilken fastighet den ligger i. Det gäller ${fmt(t.identified)} av ${fmt(t.rows)} rader. En kopplad rad är ändå inte en rad med känt stambyte: bara ${fmt(t.recordedBeforeSale)} rader (${dec(percent(t.recordedBeforeSale, t.rows))} %) ligger i ett hus med ett stambyte registrerat före försäljningen. Övriga kopplade rader ligger i hus utan registrerat stambyte, och det betyder inte att de aldrig bytt stammar.`,
     "",
   );
   lines.push(
@@ -590,7 +629,12 @@ export function renderJoinMarkdown(e: JoinEvidence): string {
   }
   lines.push(e.stageC.decision, "");
   lines.push(
-    `Steg B frågade ${fmt(e.stageB.addressesAnswered)} av ${fmt(e.stageB.addressesTotal)} adresser och kunde placera ${fmt(e.stageB.resolved)} av dem i en fastighet.`,
+    `Steg B besvarade ${fmt(e.stageB.addressesAnswered)} av ${fmt(e.stageB.addressesTotal)} adresser och kunde placera ${fmt(e.stageB.resolved)} av dem i en fastighet.`,
+    "",
+  );
+  const u = e.unidentified;
+  lines.push(
+    `Rader som inte knöts till något hus: ${fmt(u.noNumber + u.ambiguous + u.noCandidates + u.notAsked)}. ${fmt(u.noNumber)} saknar husnummer, ${fmt(u.ambiguous)} gav flera fastigheter i stadens adresssökning (tvetydiga och därför lämnade), ${fmt(u.noCandidates)} gav ingen träff och ${fmt(u.notAsked)} hann inte frågas.`,
     "",
   );
 
@@ -598,7 +642,7 @@ export function renderJoinMarkdown(e: JoinEvidence): string {
   lines.push("| År från stambyte till försäljning | Sålda rader | Räcker för passningen (minst 30) |");
   lines.push("|---|---|---|");
   for (const k of YEARS_CLASSES) {
-    lines.push(`| ${k} | ${fmt(e.yearsBefore[k])} | ${e.yearsBefore[k] >= MIN_ROWS_PER_CLASS ? "ja" : "nej"} |`);
+    lines.push(`| ${yearsLabel(k)} | ${fmt(e.yearsBefore[k])} | ${e.yearsBefore[k] >= MIN_ROWS_PER_CLASS ? "ja" : "nej"} |`);
   }
   lines.push("");
   lines.push(
@@ -607,14 +651,18 @@ export function renderJoinMarkdown(e: JoinEvidence): string {
   );
   const young = e.yearsBefore["0-5"];
   const mid = e.yearsBefore["6-10"] + e.yearsBefore["11-15"];
+  const enough = (n: number, what: string) =>
+    n >= MIN_ROWS_PER_CLASS ? `${what} når ${MIN_ROWS_PER_CLASS} rader.` : `${what} når inte ${MIN_ROWS_PER_CLASS} rader och går inte att anpassa på egen hand.`;
   lines.push(
-    `Stambyte 0 till 5 år före försäljningen: ${fmt(young)} rader. 6 till 15 år: ${fmt(mid)} rader. ${young >= MIN_ROWS_PER_CLASS && mid >= MIN_ROWS_PER_CLASS ? "Båda klasserna når 30 rader." : "Minst en av klasserna når inte 30 rader, så de yngre klasserna går inte att anpassa var för sig."}`,
+    `Stambyte 0 till 5 år före försäljningen: ${fmt(young)} rader. 6 till 15 år: ${fmt(mid)} rader. ${enough(young, "Klassen 0 till 5 år")} ${enough(mid, "Klassen 6 till 15 år")}`,
     "",
   );
 
   lines.push("## Trafik", "");
+  const sec = e.requests.secondsPerStage;
+  const minutes = (n: number) => `${fmt(Math.round(n / 60))} min`;
   lines.push(
-    `Anrop mot etjanster.stockholm.se: B ${fmt(e.requests.perStage.B)}, stickprov ${fmt(e.requests.perStage["C-sample"])}, C ${fmt(e.requests.perStage.C)}, detaljsidor ${fmt(e.requests.perStage.detail)}, totalt ${fmt(e.requests.total)}. Detaljsidor lästes för ${fmt(e.detail.read)} av ${fmt(e.detail.wanted)} stambyteärenden som startade 2019 eller senare (tak ${fmt(e.detail.cap)}).`,
+    `Anrop mot etjanster.stockholm.se: B ${fmt(e.requests.perStage.B)}, stickprov ${fmt(e.requests.perStage["C-sample"])}, C ${fmt(e.requests.perStage.C)}, detaljsidor ${fmt(e.requests.perStage.detail)}, totalt ${fmt(e.requests.total)}. Tid i körningarna: B ${minutes(sec.B)}, stickprov ${minutes(sec["C-sample"])}, C ${minutes(sec.C)}, detaljsidor ${minutes(sec.detail)} (pauserna mellan omstarter räknas inte). Median ${e.requests.medianSecondsPerRequest === null ? "-" : dec(e.requests.medianSecondsPerRequest)} sekunder per svar, med 3 sekunder mellan anropen. Detaljsidor lästes för ${fmt(e.detail.read)} av ${fmt(e.detail.wanted)} stambyteärenden som startade 2019 eller senare (tak ${fmt(e.detail.cap)}).`,
     "",
   );
 

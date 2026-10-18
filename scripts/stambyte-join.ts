@@ -69,6 +69,7 @@ import {
   sampleOutcome,
   seededSample,
   summariseJoin,
+  unidentifiedRows,
   type AddressPlan,
   type JoinDetail,
   type JoinEvidence,
@@ -367,7 +368,14 @@ async function main(): Promise<number> {
       const realFetch = globalThis.fetch as CityFetch;
       const countingFetch: CityFetch = async (url, init) => {
         state.requests[current] += 1;
-        return realFetch(url, init);
+        try {
+          return await realFetch(url, init);
+        } catch (error) {
+          // The client keeps only the error's name; the cause code (a closed socket, a reset) tells a flaky line from a refusal.
+          const cause = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+          log(`[koppling] anropet misslyckades (${typeof cause === "string" ? cause.slice(0, 40) : "okänd orsak"})`);
+          throw error;
+        }
       };
       const clientLog = (line: string) => {
         log(line);
@@ -571,7 +579,7 @@ async function main(): Promise<number> {
 
   const summary = summariseJoin(sold.rows, merged);
   const groups = groupCounts(plans);
-  const evidence = buildEvidence(args, state, summary, groups, plans, lookup, index, details, merged, sold.asOf);
+  const evidence = buildEvidence(args, state, summary, groups, plans, lookup, index, details, merged, sold.asOf, sold.rows);
   for (const line of renderJoinReport(evidence)) console.log(line);
 
   const south = summary.byDistrict["Södermalm"];
@@ -637,6 +645,7 @@ function buildEvidence(
   details: ReadonlyMap<string, JoinDetail>,
   rows: Record<string, JoinRow>,
   soldAsOf: string,
+  soldRows: readonly SoldInput[],
 ): JoinEvidence {
   const sampleKeys = state.sample?.keys ?? [];
   const outcome = sampleOutcome(sampleKeys, lookup, index);
@@ -681,6 +690,7 @@ function buildEvidence(
     },
     stageC: { run: cRequests > 0, decision, addressesTotal: cKeys.length, addressesAnswered: cAnswered },
     stageB: { addressesTotal: bKeys.length, addressesAnswered: answered(bKeys), resolved: bResolved },
+    unidentified: unidentifiedRows(soldRows, rows, plans, lookup),
     detail: { wanted: picked.wanted, read: detailsRead, cap: DEFAULT_BUDGET.detail },
     stop: state.lastStop?.label ?? null,
   });

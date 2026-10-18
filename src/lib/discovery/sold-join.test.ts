@@ -16,6 +16,7 @@ import {
   seededSample,
   soldAddressKey,
   summariseJoin,
+  unidentifiedRows,
   yearsClass,
   type JoinDetail,
   type LookupAnswer,
@@ -227,6 +228,20 @@ describe("sampleOutcome", () => {
   });
 });
 
+describe("unidentifiedRows", () => {
+  it("says why a row has no building", () => {
+    const plans = planAddresses(SOLD, index);
+    const answers: Record<string, LookupAnswer> = {
+      "hornsgatan 40": { beteckning: null, status: "ambiguous" },
+      "götgatan 94": { beteckning: null, status: "no_candidates" },
+    };
+    const lookup = (k: string) => answers[k];
+    const rows = buildJoinRows(SOLD, index, plans, lookup, new Map());
+    // d: ambiguous, e: not asked yet, f: no candidates, g: no number
+    expect(unidentifiedRows(SOLD, rows, plans, lookup)).toEqual({ noNumber: 1, ambiguous: 1, noCandidates: 1, notAsked: 1 });
+  });
+});
+
 describe("detailCandidates", () => {
   it("picks stambyte cases from the year on, once per case, oldest first, within the cap", () => {
     const plans = planAddresses(SOLD, index);
@@ -257,6 +272,7 @@ describe("the evidence", () => {
     sample: { ran: true, size: 100, seed: 14, answered: 100, resolved: 40, hits: 3, threshold: 5 },
     stageC: { run: false, decision: "Steg C kördes inte. Stickprovet gav 3 träffar av 100, gränsen är 5.", addressesTotal: 1, addressesAnswered: 0 },
     stageB: { addressesTotal: 2, addressesAnswered: 2, resolved: 1 },
+    unidentified: { noNumber: 1, ambiguous: 1, noCandidates: 0, notAsked: 2 },
     detail: { wanted: 1, read: 1, cap: 80 },
     stop: null,
   };
@@ -288,7 +304,9 @@ describe("the evidence", () => {
     expect(md).toContain("Stickprov ingen-klassen: 3 av 100 träffar");
     expect(md).toContain("Steg C kördes inte");
     expect(md).toContain("Vad kopplingen inte ser");
-    expect(md).toContain("| over 40 |");
+    expect(md).toContain("Rader som inte knöts till något hus: 4");
+    expect(md).toContain("| över 40 |");
+    expect(md).toContain("Klassen 0 till 5 år når inte 30 rader");
     expect(md).not.toMatch(/slipgatan|bondegatan/i);
     expect(JSON.stringify(evidence)).not.toMatch(/slipgatan|bondegatan|hornsgatan/i);
   });
