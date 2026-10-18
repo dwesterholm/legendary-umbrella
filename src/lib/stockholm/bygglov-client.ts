@@ -162,11 +162,23 @@ export function makeCityClient(deps: CityDeps) {
 
   type Fetched = { text: string; status: number } | "overflow";
 
+  /** A run of unparsable detail pages this long is a changed site, not one odd case. */
+  const DETAIL_SHAPE_LIMIT = 3;
+  let detailShapeMisses = 0;
+
   /**
    * One GET: block check, budget, gate, ONE fetch, then status / content-type / size. `mode "robots"` skips the
    * HTML check, accepts any status below 500 except 403/429, and cuts the text instead of refusing it.
+   * With `missingOk`, an HTTP 404 is the answer "missing" (one case is gone) instead of a stop.
    */
-  async function send(path: string, query: ReadonlyArray<readonly [string, string]>, mode: "page" | "robots"): Promise<Fetched> {
+  async function send(path: string, query: ReadonlyArray<readonly [string, string]>, mode: "page" | "robots"): Promise<Fetched>;
+  async function send(path: string, query: ReadonlyArray<readonly [string, string]>, mode: "page", missingOk: true): Promise<Fetched | "missing">;
+  async function send(
+    path: string,
+    query: ReadonlyArray<readonly [string, string]>,
+    mode: "page" | "robots",
+    missingOk = false,
+  ): Promise<Fetched | "missing"> {
     assertNotBlocked();
     if (used >= budget) {
       line(`budgeten på ${budget} anrop är slut`);
@@ -205,6 +217,11 @@ export function makeCityClient(deps: CityDeps) {
         await response.body?.cancel().catch(() => undefined);
         line(`${CITY_HOST}${path} HTTP ${status} (${took()} s)`);
         return refuse(`http-${status}`);
+      }
+      if (status === 404 && missingOk) {
+        await response.body?.cancel().catch(() => undefined);
+        line(`${CITY_HOST}${path} HTTP 404 (${took()} s)`);
+        return "missing";
       }
       const acceptable = mode === "robots" ? status >= 200 && status < 500 : status === 200;
       if (!acceptable) {
@@ -301,17 +318,36 @@ export function makeCityClient(deps: CityDeps) {
     return { ok: true, cases, headingCount: parsed.headingCount };
   }
 
-  /** One case's detail page, reduced to decisions and dates (no officer, no documents, no free text). */
-  async function caseDetail(rec: string, archived: boolean): Promise<CaseDetail> {
+  /**
+   * One case's detail page, reduced to decisions and dates (no officer, no documents, no free text).
+   *
+   * `null` means this one case has no usable detail page (HTTP 404, for a case that moved between the active list and
+   * the archive, or a page without the case model): the caller skips the case. That is NOT a refusal and never blocks
+   * the host, with two exceptions that still do: a login or terms page, and three unparsable detail pages in a row
+   * (a changed site, not one odd case).
+   */
+  async function caseDetail(rec: string, archived: boolean): Promise<CaseDetail | null> {
     if (!/^\d{1,12}$/.test(rec)) throw new Error("Ogiltigt rec-nummer: bara siffror (1-12 tecken)");
     const page = await send(
       `/Byggochplantjansten/arende/arende/${rec}`,
       [["dataSource", archived ? "Archived" : "Active"]],
       "page",
+      true,
     );
     if (page === "overflow") throw new CityStop("storlek");
+    if (page === "missing") {
+      line("ett ärende saknade detaljsida (hoppas över)");
+      return null;
+    }
     const parsed = parseCaseDetail(page.text);
-    if (!parsed.ok) return refuse(PARSE_LABEL[parsed.reason]);
+    if (!parsed.ok) {
+      if (parsed.reason === "login" || parsed.reason === "terms") return refuse(PARSE_LABEL[parsed.reason]);
+      detailShapeMisses += 1;
+      if (detailShapeMisses >= DETAIL_SHAPE_LIMIT) return refuse(PARSE_LABEL[parsed.reason]);
+      line("en detaljsida kunde inte tolkas (hoppas över)");
+      return null;
+    }
+    detailShapeMisses = 0;
     return parsed.detail;
   }
 

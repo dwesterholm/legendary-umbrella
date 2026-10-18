@@ -71,7 +71,8 @@ export interface CityCaseList {
 export interface CityStageClient {
   addressSearch(address: string): Promise<AddressOption[]>;
   caseList(beteckning: string): Promise<CityCaseList>;
-  caseDetail(rec: string, archived: boolean): Promise<CaseDetail>;
+  /** `null`: this one case has no usable detail page (skip it; it is not a refusal). */
+  caseDetail(rec: string, archived: boolean): Promise<CaseDetail | null>;
 }
 
 /** One candidate as the stage sees it. `facts` is the record the enrichment made (null: none yet). */
@@ -344,7 +345,9 @@ export async function runCityStage(rows: readonly CityStageRow[], opts: CityStag
     let read = 0;
     for (const c of wanted) {
       try {
-        const next = applyDetail(c, await counted.caseDetail(c.rec, c.archived));
+        const detail = await counted.caseDetail(c.rec, c.archived);
+        if (detail === null) continue;
+        const next = applyDetail(c, detail);
         updated = updated.map((x) => (x.rec === c.rec ? next : x));
         read += 1;
       } catch (error) {

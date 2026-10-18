@@ -388,7 +388,7 @@ describe("the other calls build their URLs from digits and encoded values only",
     const s = setup([{ path: "/Byggochplantjansten/arende/arende/1208902", file: "case-stambyte-2020-startbesked-slutbesked.fixture.html" }]);
     const detail = await s.client.caseDetail("1208902", false);
     expect(s.fetchImpl.requests[0].url).toBe(`https://${CITY_HOST}/Byggochplantjansten/arende/arende/1208902?dataSource=Active`);
-    expect(detail.decisions.length).toBeGreaterThan(0);
+    expect(detail?.decisions.length).toBeGreaterThan(0);
 
     const t = setup([{ path: "/Byggochplantjansten/arende/arende/1208902", file: "case-stambyte-2006-archived.fixture.html" }]);
     await t.client.caseDetail("1208902", true);
@@ -401,6 +401,38 @@ describe("the other calls build their URLs from digits and encoded values only",
       await expect(s.client.caseDetail(bad, false), bad).rejects.toThrow(/rec/);
     }
     expect(s.fetchImpl.requests).toHaveLength(0);
+  });
+
+  it("WR-07: a 404 detail page is null (the case is skipped), logs one fixed line, and neither stops the run nor blocks the host", async () => {
+    const s = setup([
+      { path: "/Byggochplantjansten/arende/arende/111", status: 404, body: "gone" },
+      { path: "/Byggochplantjansten/arende/arende/1208902", file: "case-stambyte-2020-startbesked-slutbesked.fixture.html" },
+    ]);
+    expect(await s.client.caseDetail("111", true)).toBeNull();
+    expect(s.gatesExist()).toBe(false);
+    expect(s.logs.filter((l) => l.includes("saknade detaljsida"))).toHaveLength(1);
+    // the next case still works: the run was not ended
+    expect((await s.client.caseDetail("1208902", false))?.decisions.length).toBeGreaterThan(0);
+  });
+
+  it("WR-07: one detail page without the case model is null and does not block; three in a row do (a changed site)", async () => {
+    const odd = "<html><body><p>Ingen ärendevy här</p></body></html>";
+    const s = setup([
+      { path: "/Byggochplantjansten/arende/arende/222", body: odd },
+      { path: "/Byggochplantjansten/arende/arende/1208902", file: "case-stambyte-2020-startbesked-slutbesked.fixture.html" },
+    ]);
+    expect(await s.client.caseDetail("222", false)).toBeNull();
+    expect(s.gatesExist()).toBe(false);
+    expect(s.logs.filter((l) => l.includes("kunde inte tolkas"))).toHaveLength(1);
+    // a good page in between resets the count
+    expect(await s.client.caseDetail("1208902", false)).not.toBeNull();
+    expect(await s.client.caseDetail("222", false)).toBeNull();
+    expect(await s.client.caseDetail("222", false)).toBeNull();
+    expect(s.gatesExist()).toBe(false);
+    const stop = await stopOf(s.client.caseDetail("222", false));
+    expect(stop.label).toBe("andrad-sida");
+    expect(stop.blocked).toBe(true);
+    expect(s.gates()[CITY_HOST].reason).toBe("andrad-sida");
   });
 
   it("a detail page with a login form blocks, like a list page does", async () => {

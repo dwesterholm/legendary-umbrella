@@ -531,6 +531,20 @@ describe("live mode: limits and a clean stop", () => {
     expect(calls.filter((c) => c.startsWith("caseDetail"))).toHaveLength(1);
   });
 
+  it("WR-07: a case without a detail page (null) is skipped; the next case is still read and the stage goes on", async () => {
+    const cases = [hissCase("001", "2025-01-10"), hissCase("002", "2025-02-10")];
+    const { client, calls } = scriptedClient({
+      caseList: async () => ({ cases, otherCases: [], headingCount: 2, termsLinks: [], addresses: [] }),
+      caseDetail: async (rec) => (rec === "002" ? null : emptyDetail(rec)),
+    });
+    const { stats } = await runCityStage([row("Testgatan 1"), row("Annangatan 2")], { mode: "live", asOf: AS_OF, cacheDir, client, now: fakeClock().now });
+    expect(stats.stopped).toBeNull();
+    expect(stats.notReached).toBe(0);
+    expect(stats.detailsRead).toBeGreaterThanOrEqual(1);
+    expect(calls.filter((c) => c.startsWith("caseDetail 001")).length).toBeGreaterThanOrEqual(1);
+    expect(calls.filter((c) => c.startsWith("caseDetail 002")).length).toBeGreaterThanOrEqual(1);
+  });
+
   it("a deadline reached before a row starts counts that row and all after it as notReached", async () => {
     const clock = fakeClock();
     const { client } = scriptedClient({

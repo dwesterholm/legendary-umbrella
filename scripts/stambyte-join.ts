@@ -503,6 +503,10 @@ async function main(): Promise<number> {
             if (base === undefined) continue;
             const detail = await city.caseDetail(item.rec, item.archived);
             asked += 1;
+            if (detail === null) {
+              log("[koppling] en detaljsida saknades eller kunde inte tolkas och hoppas över");
+              continue;
+            }
             const stored: StoredCase = {
               rec: base.rec,
               diarie: "",

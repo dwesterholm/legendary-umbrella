@@ -453,6 +453,10 @@ async function main(): Promise<number> {
           }
           if (!args.dryRun) assertManualRunAllowed(now());
           const detail = await client.caseDetail(c.rec, c.archived);
+          if (detail === null) {
+            record.notes.push("en detaljsida saknades eller kunde inte tolkas och hoppades över");
+            continue;
+          }
           try {
             const updated = applyDetail(c, detail);
             cases = cases.map((x) => (x.rec === c.rec ? updated : x));
