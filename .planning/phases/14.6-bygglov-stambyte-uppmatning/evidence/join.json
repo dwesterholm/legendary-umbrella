@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "ranAt": "2026-10-18T20:13:16.005Z",
+  "soldAsOf": "2026-10-12",
+  "total": {
+    "rows": 7431,
+    "addresses": 3287,
+    "identified": 7371,
+    "stageA": 2122,
+    "stageAplus": 704,
+    "stageB": 2166,
+    "stageC": 2379,
+    "joinRatePct": 99.2,
+    "inStambyteBuilding": 2467,
+    "freeInStambyteBuilding": 1985,
+    "recordedBeforeSale": 2417,
+    "ongoingAtSale": 22,
+    "futureAtSale": 27,
+    "reliningOnly": 0,
+    "yearsBefore": {
+      "0-5": 5,
+      "6-10": 78,
+      "11-15": 148,
+      "16-25": 858,
+      "26-40": 1323,
+      "over 40": 5
+    }
+  },
+  "districts": {
+    "Östermalm": {
+      "rows": 870,
+      "addresses": 527,
+      "identified": 862,
+      "stageA": 222,
+      "stageAplus": 107,
+      "stageB": 290,
+      "stageC": 243,
+      "joinRatePct": 99.1,
+      "inStambyteBuilding": 228,
+      "freeInStambyteBuilding": 189,
+      "recordedBeforeSale": 228,
+      "ongoingAtSale": 0,
+      "futureAtSale": 0,
+      "reliningOnly": 0,
+      "yearsBefore": {
+        "0-5": 0,
+        "6-10": 2,
+        "11-15": 16,
+        "16-25": 101,
+        "26-40": 109,
+        "over 40": 0
+      }
+    },
+    "Kungsholmen": {
+      "rows": 2218,
+      "addresses": 797,
+      "identified": 2196,
+      "stageA": 716,
+      "stageAplus": 167,
+      "stageB": 559,
+      "stageC": 754,
+      "joinRatePct": 99,
+      "inStambyteBuilding": 867,
+      "freeInStambyteBuilding": 695,
+      "recordedBeforeSale": 823,
+      "ongoingAtSale": 21,
+      "futureAtSale": 23,
+      "reliningOnly": 0,
+      "yearsBefore": {
+        "0-5": 0,
+        "6-10": 28,
+        "11-15": 48,
+        "16-25": 228,
+        "26-40": 519,
+        "over 40": 0
+      }
+    },
+    "Vasastan": {
+      "rows": 1972,
+      "addresses": 899,
+      "identified": 1961,
+      "stageA": 493,
+      "stageAplus": 215,
+      "stageB": 681,
+      "stageC": 572,
+      "joinRatePct": 99.4,
+      "inStambyteBuilding": 595,
+      "freeInStambyteBuilding": 482,
+      "recordedBeforeSale": 590,
+      "ongoingAtSale": 1,
+      "futureAtSale": 4,
+      "reliningOnly": 0,
+      "yearsBefore": {
+        "0-5": 2,
+        "6-10": 18,
+        "11-15": 60,
+        "16-25": 215,
+        "26-40": 295,
+        "over 40": 0
+      }
+    },
+    "Södermalm": {
+      "rows": 2371,
+      "addresses": 1065,
+      "identified": 2352,
+      "stageA": 691,
+      "stageAplus": 215,
+      "stageB": 636,
+      "stageC": 810,
+      "joinRatePct": 99.2,
+      "inStambyteBuilding": 777,
+      "freeInStambyteBuilding": 619,
+      "recordedBeforeSale": 776,
+      "ongoingAtSale": 0,
+      "futureAtSale": 0,
+      "reliningOnly": 0,
+      "yearsBefore": {
+        "0-5": 3,
+        "6-10": 30,
+        "11-15": 24,
+        "16-25": 314,
+        "26-40": 400,
+        "over 40": 5
+      }
+    }
+  },
+  "addressGroups": {
+    "addresses": {
+      "exact": 832,
+      "letter": 356,
+      "near": 990,
+      "none": 1104,
+      "nonumber": 5
+    },
+    "rows": {
+      "exact": 2156,
+      "letter": 749,
+      "near": 2116,
+      "none": 2405,
+      "nonumber": 5
+    }
+  },
+  "yearsBefore": {
+    "0-5": 5,
+    "6-10": 78,
+    "11-15": 148,
+    "16-25": 858,
+    "26-40": 1323,
+    "over 40": 5
+  },
+  "requests": {
+    "perStage": {
+      "B": 1019,
+      "C-sample": 100,
+      "C": 1001,
+      "detail": 16
+    },
+    "secondsPerStage": {
+      "B": 3151,
+      "C-sample": 298,
+      "C": 3040,
+      "detail": 46
+    },
+    "total": 2136,
+    "medianSecondsPerRequest": 0.3
+  },
+  "sample": {
+    "ran": true,
+    "size": 100,
+    "seed": 14,
+    "answered": 100,
+    "resolved": 99,
+    "hits": 6,
+    "threshold": 5
+  },
+  "stageC": {
+    "run": true,
+    "decision": "Steg C kördes. Stickprovet gav 6 träffar av 100 (gräns 5) och alla 1 104 adresser i ingen-klassen är besvarade.",
+    "addressesTotal": 1104,
+    "addressesAnswered": 1104
+  },
+  "stageB": {
+    "addressesTotal": 1019,
+    "addressesAnswered": 1019,
+    "resolved": 1004
+  },
+  "unidentified": {
+    "noNumber": 5,
+    "ambiguous": 39,
+    "noCandidates": 16,
+    "notAsked": 0
+  },
+  "detail": {
+    "wanted": 16,
+    "read": 16,
+    "cap": 80
+  },
+  "stop": null
+}
