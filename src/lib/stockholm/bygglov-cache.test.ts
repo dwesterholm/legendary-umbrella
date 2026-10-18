@@ -9,6 +9,8 @@ import {
   addressEntryFresh,
   beteckningSlug,
   caseListNeedsRefresh,
+  AddressMapDamaged,
+  addressMapDamage,
   loadAddressMap,
   loadCaseList,
   loadSweep,
@@ -271,9 +273,34 @@ describe("the address map (address-beteckning.json)", () => {
     expect(loadAddressMap({ dir })).toEqual({ ok: false, error: "saknas" });
     writeFileSync(join(dir, "address-beteckning.json"), "[1,", "utf8");
     expect(loadAddressMap({ dir })).toEqual({ ok: false, error: "ogiltig JSON" });
-    writeFileSync(join(dir, "address-beteckning.json"), JSON.stringify({ schemaVersion: 1, entries: { x: 1 } }), "utf8");
+    writeFileSync(join(dir, "address-beteckning.json"), JSON.stringify({ schemaVersion: 1, entries: 5 }), "utf8");
     expect(loadAddressMap({ dir })).toEqual({ ok: false, error: "fel format" });
     expect(readFileSync(join(dir, "address-beteckning.json"), "utf8")).toContain('"entries"');
+  });
+
+  it("CR-01: one damaged entry is dropped and counted, the good ones are kept", () => {
+    const good = entry();
+    writeFileSync(
+      join(dir, "address-beteckning.json"),
+      JSON.stringify({ schemaVersion: 1, entries: { "folkungagatan 61": good, "torsgatan 48a": { ...good, status: "resolvd" }, x: 1 } }),
+      "utf8",
+    );
+    const loaded = loadAddressMap({ dir });
+    if (!loaded.ok) throw new Error(loaded.error);
+    expect(Object.keys(loaded.map)).toEqual(["folkungagatan 61"]);
+    expect(loaded.dropped).toBe(2);
+    expect(addressMapDamage({ dir })).toMatch(/2 poster/);
+  });
+
+  it("CR-01: a save over a file that lost entries on reading is refused and the file is untouched", () => {
+    const file = join(dir, "address-beteckning.json");
+    const text = JSON.stringify({ schemaVersion: 1, entries: { "folkungagatan 61": entry(), "torsgatan 48a": { ...entry(), status: "resolvd" } } });
+    writeFileSync(file, text, "utf8");
+    expect(() => saveAddressMap({ "oljan 29": entry() }, { dir })).toThrow(AddressMapDamaged);
+    expect(readFileSync(file, "utf8")).toBe(text);
+    writeFileSync(file, "[1,", "utf8");
+    expect(() => saveAddressMap({ "oljan 29": entry() }, { dir })).toThrow(AddressMapDamaged);
+    expect(readFileSync(file, "utf8")).toBe("[1,");
   });
 });
 

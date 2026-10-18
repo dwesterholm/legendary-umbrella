@@ -6,7 +6,8 @@
  * free-text field, an officer name or a document list can neither be saved nor be served from a hand-edited file.
  *
  * A bad file is a miss that the caller says out loud ("ogiltig JSON", "fel format", "annan fastighet"); it is never
- * renamed or deleted (the next save overwrites it).
+ * renamed or deleted. The address map is the exception to "the next save overwrites it": it holds many independent
+ * answers, so it is read entry by entry and a save over a file that lost entries on reading is refused (CR-01).
  *
  * `niche-score.ts` and `report/flags.ts` must NEVER import this module (the `stockholm/` prefix is registered in the
  * structural-separation test).
@@ -327,7 +328,68 @@ export function addressEntryFresh(entry: AddressEntry, now: Date): boolean {
 
 const addressMapPath = (dir: string) => join(dir, "address-beteckning.json");
 
-/** Saves the whole map. A `fetch_failed` entry (or anything else outside the three statuses) is refused. */
+/** Thrown instead of a save that would overwrite entries the loader could not read (CR-01). */
+export class AddressMapDamaged extends Error {
+  constructor(readonly detail: string) {
+    super(`Adresscachen är skadad (${detail}) och skrivs inte över: öppna eller flytta address-beteckning.json först`);
+    this.name = "AddressMapDamaged";
+  }
+}
+
+export type AddressMapLoad =
+  | {
+      ok: true;
+      /** Every entry that parsed on its own. */
+      map: AddressMap;
+      /** How many entries in the file could not be read and were left out of `map` (0 for a clean file). */
+      dropped: number;
+    }
+  | { ok: false; error: CacheMiss };
+
+/**
+ * Reads the address map entry by entry: one damaged entry is dropped and counted, the others survive. A file that
+ * is not JSON, or whose wrapper is not `{ schemaVersion: 1, entries: {...} }`, is a miss. Never throws, never
+ * renames or deletes the file.
+ */
+export function loadAddressMap(opts: CacheDirOpts = {}): AddressMapLoad {
+  const path = addressMapPath(opts.dir ?? BYGGLOV_CACHE_DIR);
+  let raw: unknown;
+  try {
+    raw = readJsonIfExists(path);
+  } catch (error) {
+    return { ok: false, error: error instanceof SyntaxError ? "ogiltig JSON" : "oläsbar" };
+  }
+  if (raw === null) return { ok: false, error: "saknas" };
+  const wrapper = z.object({ schemaVersion: z.literal(1), entries: z.record(z.string(), z.unknown()) }).safeParse(raw);
+  if (!wrapper.success) return { ok: false, error: "fel format" };
+  const map: AddressMap = {};
+  let dropped = 0;
+  for (const [key, value] of Object.entries(wrapper.data.entries)) {
+    const entry = addressEntrySchema.safeParse(value);
+    if (!addressKeySchema.safeParse(key).success || !entry.success) {
+      dropped += 1;
+      continue;
+    }
+    map[key] = entry.data as AddressEntry;
+  }
+  return { ok: true, map, dropped };
+}
+
+/**
+ * Why the map on disk must not be overwritten, or null when saving is safe (no file, or every entry in it reads).
+ * A file whose parse loses anything is a hand-edited or newer-version file: the good entries in it took hours of
+ * polite traffic to collect.
+ */
+export function addressMapDamage(opts: CacheDirOpts = {}): string | null {
+  const loaded = loadAddressMap(opts);
+  if (!loaded.ok) return loaded.error === "saknas" ? null : loaded.error;
+  return loaded.dropped > 0 ? `${loaded.dropped} poster går inte att läsa` : null;
+}
+
+/**
+ * Saves the whole map. A `fetch_failed` entry (or anything else outside the three statuses) is refused, and so is a
+ * save over a damaged file (`AddressMapDamaged`): nothing on disk changes.
+ */
 export function saveAddressMap(map: Record<string, AddressEntry>, opts: CacheDirOpts = {}): void {
   const dir = opts.dir ?? BYGGLOV_CACHE_DIR;
   for (const entry of Object.values(map)) {
@@ -335,13 +397,10 @@ export function saveAddressMap(map: Record<string, AddressEntry>, opts: CacheDir
       throw new Error("Ett misslyckat uppslag (fetch_failed) sparas aldrig i adresscachen");
     }
   }
+  const damage = addressMapDamage({ dir });
+  if (damage !== null) throw new AddressMapDamaged(damage);
   const file = addressMapFileSchema.parse({ schemaVersion: 1, entries: map });
   saveGuardedJson(addressMapPath(dir), file, dir);
-}
-
-export function loadAddressMap(opts: CacheDirOpts = {}): { ok: true; map: AddressMap } | { ok: false; error: CacheMiss } {
-  const loaded = loadValidated(addressMapPath(opts.dir ?? BYGGLOV_CACHE_DIR), addressMapFileSchema);
-  return loaded.ok ? { ok: true, map: loaded.value.entries as AddressMap } : loaded;
 }
 
 // ---------------------------------------------------------------------------

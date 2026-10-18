@@ -18,6 +18,7 @@
  */
 import {
   addressEntryFresh,
+  addressMapDamage,
   loadAddressMap,
   normaliseAddressKey,
   saveAddressMap,
@@ -122,15 +123,25 @@ const unknown = (status: BeteckningStatus, notes: string[], fromCache = false): 
   notes,
 });
 
-/** Reads the address map; a damaged file is said out loud and counts as empty (the next save rewrites it). */
-function readMap(deps: BeteckningDeps): AddressMap {
+/**
+ * Reads the address map. Every entry that parses is kept; a damaged entry or file is said out loud and the file is
+ * then never written over (CR-01): the answers of this call stay in memory and the next call asks again.
+ */
+function readMap(deps: BeteckningDeps): { map: AddressMap; writable: boolean } {
   const loaded = loadAddressMap({ dir: deps.cacheDir });
-  if (loaded.ok) return { ...loaded.map };
-  if (loaded.error !== "saknas") deps.log?.(`[stockholm] adresscachen kunde inte läsas (${loaded.error}), den skrivs om`);
-  return {};
+  if (loaded.ok) {
+    if (loaded.dropped > 0) {
+      deps.log?.(`[stockholm] adresscachen har ${loaded.dropped} poster som inte går att läsa, filen skrivs inte över`);
+    }
+    return { map: { ...loaded.map }, writable: loaded.dropped === 0 };
+  }
+  if (loaded.error === "saknas") return { map: {}, writable: true };
+  deps.log?.(`[stockholm] adresscachen kunde inte läsas (${loaded.error}), filen skrivs inte över`);
+  return { map: {}, writable: false };
 }
 
-function remember(map: AddressMap, key: string, entry: AddressEntry, deps: BeteckningDeps): void {
+function remember(map: AddressMap, key: string, entry: AddressEntry, deps: BeteckningDeps, writable: boolean): void {
+  if (!writable || addressMapDamage({ dir: deps.cacheDir }) !== null) return;
   saveAddressMap({ ...map, [key]: entry }, { dir: deps.cacheDir });
 }
 
@@ -156,7 +167,7 @@ export async function resolveBeteckning(input: BeteckningInput, deps: Beteckning
   if (address === "" || address.length > 80) return unknown("no_candidates", ["ingen sökbar adress"]);
   const key = normaliseAddressKey(address);
 
-  const map = readMap(deps);
+  const { map, writable } = readMap(deps);
   const cached = map[key];
   if (cached !== undefined && addressEntryFresh(cached, deps.now())) {
     return { beteckning: cached.beteckning, rung: cached.rung, status: cached.status, fromCache: true, notes: [] };
@@ -171,7 +182,7 @@ export async function resolveBeteckning(input: BeteckningInput, deps: Beteckning
       notes.push(`${beteckning} är inte en byggnad (gatumark)`);
       return null;
     }
-    remember(map, key, { beteckning, rung, status: "resolved", at: stamp() }, deps);
+    remember(map, key, { beteckning, rung, status: "resolved", at: stamp() }, deps, writable);
     return { beteckning, rung, status: "resolved", fromCache: false, notes, ...extra };
   };
 
@@ -224,7 +235,7 @@ export async function resolveBeteckning(input: BeteckningInput, deps: Beteckning
   }
 
   const status = ambiguous ? "ambiguous" : "no_candidates";
-  remember(map, key, { beteckning: null, rung: null, status, at: stamp() }, deps);
+  remember(map, key, { beteckning: null, rung: null, status, at: stamp() }, deps, writable);
   return unknown(status, notes);
 }
 

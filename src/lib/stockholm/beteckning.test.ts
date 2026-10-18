@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -67,6 +67,30 @@ function setup(routes: readonly FixtureRoute[]) {
   const deps: BeteckningDeps = { client, cacheDir: dir, now: clock.now, log: (l) => logs.push(l) };
   return { clock, fetchImpl, logs, deps };
 }
+
+describe("CR-01: a damaged address-map entry never makes the map smaller", () => {
+  it("keeps a 2-entry map with one damaged entry as 2 entries after the next lookup, and says why", async () => {
+    const file = join(dir, "address-beteckning.json");
+    const good = { beteckning: "Oljan 29", rung: "b", status: "resolved", at: "2026-10-01T00:00:00.000Z" };
+    const text = JSON.stringify({ schemaVersion: 1, entries: { "oljan gatan 1": good, "torsgatan 48a": { ...good, status: "resolvd" } } });
+    writeFileSync(file, text, "utf8");
+    const s = setup([folkungagatan]);
+
+    const result = await resolveBeteckning({ address: "Folkungagatan 61", brfName: null, text: null }, s.deps);
+    expect(result).toMatchObject({ beteckning: "Droskhästen 8", status: "resolved" });
+    expect(readFileSync(file, "utf8")).toBe(text);
+    expect(Object.keys((JSON.parse(readFileSync(file, "utf8")) as { entries: object }).entries)).toHaveLength(2);
+    expect(s.logs.some((l) => l.includes("1 poster som inte går att läsa"))).toBe(true);
+  });
+
+  it("does not rewrite a file that is not JSON either", async () => {
+    const file = join(dir, "address-beteckning.json");
+    writeFileSync(file, "[1,", "utf8");
+    const s = setup([folkungagatan]);
+    await resolveBeteckning({ address: "Folkungagatan 61", brfName: null, text: null }, s.deps);
+    expect(readFileSync(file, "utf8")).toBe("[1,");
+  });
+});
 
 describe("Folkungagatan 61 -> Droskhästen 8 through the city's address search (tracer)", () => {
   it("resolves on rung b after exactly one request, remembers it, and the next ask makes none", async () => {

@@ -309,8 +309,19 @@ async function main(): Promise<number> {
   const state = loadState(log);
   const details = loadDetails(log);
   const loaded = loadAddressMap({});
-  if (!loaded.ok && loaded.error !== "saknas") log(`[koppling] adresscachen kunde inte läsas (${loaded.error}), den skrivs om`);
+  // CR-01: a damaged address map is never written over. Good entries are still used; the asking stages refuse to run.
+  let mapWritable = true;
+  if (loaded.ok && loaded.dropped > 0) {
+    mapWritable = false;
+    log(`[koppling] adresscachen har ${loaded.dropped} poster som inte går att läsa, filen skrivs inte över`);
+  } else if (!loaded.ok && loaded.error !== "saknas") {
+    mapWritable = false;
+    log(`[koppling] adresscachen kunde inte läsas (${loaded.error}), filen skrivs inte över`);
+  }
   const map: AddressMap = loaded.ok ? { ...loaded.map } : {};
+  const persistMap = () => {
+    if (mapWritable) saveAddressMap(map);
+  };
   const clock = () => new Date();
 
   const lookup = (key: string): LookupAnswer | undefined => {
@@ -414,6 +425,10 @@ async function main(): Promise<number> {
     /** Asks the city's address search about each key not already answered, on the equal-address rule. */
     async function askAddresses(stage: "B" | "C-sample" | "C", keys: readonly string[]): Promise<string | null> {
       current = stage;
+      if (!mapWritable) {
+        log("[koppling] adresscachen är skadad: inga adresser frågas förrän filen har setts över (öppna eller flytta address-beteckning.json)");
+        return "adresscache";
+      }
       const todoKeys = keys.filter((k) => lookup(k) === undefined);
       const budget = budgetOf(stage);
       const startedAt = Date.now();
@@ -447,7 +462,7 @@ async function main(): Promise<number> {
             remember(key, { beteckning: null, rung: null, status: match.ambiguous ? "ambiguous" : "no_candidates", at });
           }
           if (asked % SAVE_EVERY === 0) {
-            saveAddressMap(map);
+            persistMap();
             saveState(state);
             log(`[koppling] steg ${stage}: ${fmt(asked)} av ${fmt(todoKeys.length)} frågade`);
           }
@@ -457,7 +472,7 @@ async function main(): Promise<number> {
         if (label === null) throw error;
         stop = label;
       } finally {
-        saveAddressMap(map);
+        persistMap();
         state.seconds[stage] += Math.round((Date.now() - startedAt) / 1000);
         state.lastStop = stop === null ? null : { stage, label: stop };
         saveState(state);
