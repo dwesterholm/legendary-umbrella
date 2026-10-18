@@ -91,6 +91,13 @@ const ONGOING = new RegExp(
 /** A negation. Whether it belongs to a keyword is decided by distance (see {@link negatedKeywords}). */
 const NEGATION = new RegExp(`${W}(?:inget|ingen|inga|ej|inte|icke|aldrig|saknar|saknas|utan)${E}`, "giu");
 
+/**
+ * What follows a negation that cancels a year before it: a completion participle ("Stambyte 2020 ej genomfört") or
+ * the end of the clause ("stambyte 2019 saknas"). A year before a negation that goes on about something else
+ * ("Stambyte genomfört 2018 ingen avgiftshöjning") is not cancelled.
+ */
+const NEGATES_COMPLETION = /^\s{0,3}(?:(?:än|ännu|helt|fullt|riktigt|alls)\s{1,3}){0,2}(?:(?:genomför|gjor|utför|klar|slutför|färdig)\p{L}{0,6}|[)\]\s]*$)/iu;
+
 /** "istället för stambyte": the job was done another way, so no stambyte. Counts only BEFORE the keyword ("stambyte istället för relining" means the stambyte happened). */
 const SUBSTITUTE = new RegExp(`${W}i\\s{0,2}stället\\s{1,3}för${E}`, "giu");
 
@@ -115,6 +122,7 @@ const WORD_BEFORE_REACH = 40;
 const WORD_AFTER_REACH = 60;
 const NEGATION_BEFORE_REACH = 25;
 const NEGATION_AFTER_REACH = 30;
+const RELINING_NEGATION_REACH = 15;
 
 /** Safety limits per text, far above any real listing (T-14.6-71). */
 const MAX_KEYWORDS = 100;
@@ -126,6 +134,15 @@ interface Span {
 }
 interface YearHit extends Span {
   readonly value: number;
+}
+
+/** True when the clause mentions relining and a negation does not stand just before the word ("Stambyte (ej relining)"). */
+function readsAsRelining(clause: string): boolean {
+  for (const match of clause.matchAll(new RegExp(RELINING.source, "giu"))) {
+    const before = clause.slice(Math.max(0, match.index - RELINING_NEGATION_REACH), match.index);
+    if (before.search(NEGATION) === -1) return true; // `search` ignores the global flag's lastIndex
+  }
+  return false;
 }
 
 /** Cap, then drop soft hyphens and zero-width characters, turn no-break spaces into spaces. */
@@ -191,9 +208,11 @@ function nearestKeyword(
 
 /**
  * Keywords a negation belongs to. Before the keyword: within 25 characters and no comma or colon in
- * between ("inget stambyte", "ännu inget planerat stambyte"). After it: within 30 characters, no comma and
- * no year in between ("stambyte ej genomfört", "stambyte (ej genomfört)"), so "Stambyte genomfört 2018,
- * ingen avgiftshöjning" is not negated. Each negation binds to one keyword (the nearer one that qualifies).
+ * between ("inget stambyte", "ännu inget planerat stambyte"). After it: within 30 characters and no comma in
+ * between ("stambyte ej genomfört", "stambyte (ej genomfört)"). A year in between cancels the negation, so
+ * "Stambyte genomfört 2018 ingen avgiftshöjning" is not negated, unless the negation is about completion
+ * ("Stambyte 2020 ej genomfört", "stambyte 2019 saknas"). Each negation binds to one keyword (the nearer one that
+ * qualifies).
  */
 function negatedKeywords(clause: string, keywords: readonly Span[]): Set<number> {
   const negated = new Set<number>();
@@ -211,7 +230,13 @@ function negatedKeywords(clause: string, keywords: readonly Span[]): Set<number>
       } else if (word.start >= k.end) {
         const gap = word.start - k.end;
         const between = clause.slice(k.end, word.start);
-        if (gap <= NEGATION_AFTER_REACH && !/,/.test(between) && !/(?<!\d)(?:19[5-9]\d|20[0-3]\d|204[0-5])(?!\d)/.test(between) && gap < targetGap) {
+        const yearBetween = /(?<!\d)(?:19[5-9]\d|20[0-3]\d|204[0-5])(?!\d)/.test(between);
+        if (
+          gap <= NEGATION_AFTER_REACH &&
+          !/,/.test(between) &&
+          (!yearBetween || NEGATES_COMPLETION.test(clause.slice(word.end))) &&
+          gap < targetGap
+        ) {
           target = i;
           targetGap = gap;
         }
@@ -300,7 +325,7 @@ export function stambyteFromText(text: string | null, opts: { readonly runYear: 
   let keywordsSeen = 0;
 
   for (const clause of clausesOf(prepare(text))) {
-    if (RELINING.test(clause)) relining = true;
+    if (readsAsRelining(clause)) relining = true;
     if (keywordsSeen >= MAX_KEYWORDS) continue;
     const keywords = spansOf(KEYWORD, clause, MAX_KEYWORDS - keywordsSeen);
     if (keywords.length === 0) continue;

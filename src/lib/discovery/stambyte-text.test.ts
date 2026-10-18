@@ -273,6 +273,22 @@ describe("stambyteFromText: the rules in their own words", () => {
     expect(stambyteFromText("Inget stambyte har gjorts.", RUN)).toEqual(ex(null));
   });
 
+  it("WR-02: a negation after the year cancels the stambyte when it is about completion", () => {
+    expect(stambyteFromText("Stambyte 2020 ej genomfört.", RUN)).toEqual(NOTHING);
+    expect(stambyteFromText("Stambytet från 1975 är ej genomfört.", RUN)).toEqual(NOTHING);
+    expect(stambyteFromText("Stambyte 2019 saknas.", RUN)).toEqual(NOTHING);
+    expect(stambyteFromText("Stambyte 2019 är inte utfört ännu.", RUN)).toEqual(NOTHING);
+    // a negation about something else after the year still leaves the stambyte alone
+    expect(stambyteFromText("Stambyte genomfört 2018 ingen avgiftshöjning.", RUN)).toEqual(ex(2018));
+    expect(stambyteFromText("Stambyte 2018 utan problem.", RUN)).toEqual(ex(2018));
+  });
+
+  it("WR-02: a negated relining word does not set the relining flag", () => {
+    expect(stambyteFromText("Stambyte genomfört 2018 (ej relining).", RUN)).toEqual(ex(2018));
+    expect(stambyteFromText("Stambyte genomfört 2018 utan relining.", RUN)).toEqual(ex(2018));
+    expect(stambyteFromText("Stambyte genomfört 2018. Relining av stammar.", RUN)).toEqual(ex(2018, null, false, true));
+  });
+
   it("the result carries exactly four keys and never the sentence", () => {
     const found = stambyteFromText("Ring Svensson på 070-123 45 67. Stambyte genomfört 2018.", RUN);
     expect(Object.keys(found).sort()).toEqual(["lastYear", "ongoing", "plannedYear", "relining"]);
