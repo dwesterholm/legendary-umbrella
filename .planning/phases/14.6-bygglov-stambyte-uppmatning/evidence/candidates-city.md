@@ -101,7 +101,7 @@ Inglasning sökt men utan beslut: ingen. Det betyder inte att balkongerna saknas
 | Fatburstrappan 18 | Södermalm | Fatburshöjden 1 | b | okänd | - |
 | Flintbacken 4 | Södermalm | - | - | okänd | okänd |
 | Folkskolegatan 3 | Södermalm | Turbinen 25 | a2 | 2008 | - |
-| Folkungagatan 61 | Södermalm | Droskhästen 8 | b | 2006 | vind 2023-10, hiss 2021-12 |
+| Folkungagatan 61 | Södermalm | Droskhästen 8 | b | 2006 (ansökt) | vind 2023-10, hiss 2021-12 |
 | Hallandsgatan 30 | Södermalm | Kniven 25 | b | okänd | - |
 | Heleneborgsgatan 30A | Södermalm | Borren 38 | b | okänd | - |
 | Heleneborgsgatan 36B | Södermalm | - | - | okänd | okänd |

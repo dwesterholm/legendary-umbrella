@@ -41,3 +41,6 @@ npx tsx scripts/fit-hedonic.ts --graft-stambyte .planning/calibration/data/hedon
 ```
 
 Kommandot flyttar bara nyckeln `stambyteTerm` och vägrar om något annat tal skiljer sig mellan de två filerna. Det är provkört till en skrapfil (`hedonic-model-14.6-graftcheck.json`, inte committad): enda skillnaden mot den committade modellen var `stambyteTerm`. Gör det sist i en fas och först när 14.5:s planer 12 och 13 har körts, eftersom deras uppspelningar jämför mot just den här filen. Provmodellerna är bara lokala (`.planning/calibration/data/`) och måste i så fall räknas om först om slutpriscachen har ändrats (`scripts/fit-hedonic.ts --stambyte-join ...`, se plan 07).
+
+
+Note 2026-10-19 (after review fix WR-13): the graft command above now refuses unless BOTH the CV rule and t ≥ 2 hold (R-08). On the existing scratch fit (t 0,9) it is expected to refuse; a new fit with a stored t is needed before any graft.
