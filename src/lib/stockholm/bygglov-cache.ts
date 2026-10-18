@@ -93,6 +93,18 @@ export type CaseListEntry = {
   readonly otherCases: readonly StoredCase[];
 };
 
+/** One case of a sweep (an extended search): tags, digits and dates, plus where it sits. No diarienummer, no text. */
+export interface SweepCase {
+  readonly rec: string;
+  readonly beteckning: string;
+  readonly addresses: readonly string[];
+  readonly startDate: string;
+  readonly kinds: readonly StoredCase["kinds"][number][];
+  readonly primary: StoredCase["primary"];
+  readonly tillsyn: boolean;
+  readonly archived: boolean;
+}
+
 /** Why a cache file could not be used. Said out loud by the caller. */
 export type CacheMiss = "saknas" | "ogiltig JSON" | "fel format" | "annan fastighet" | "annan sökning" | "oläsbar";
 
