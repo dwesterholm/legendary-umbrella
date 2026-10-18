@@ -1,0 +1,123 @@
+=== MODELLANPASSNING (offline, inga nätverksanrop) ===
+Cache: .planning/calibration/data/slutpriser-cache.json (sålda 2025-04-12 till 2026-10-12), prisnivå per 2026-10-12, anpassad 2026-10-18
+Rader i cachen: 7 431. Uteslutna som kalibreringsobjekt (Folkungagatan 61, 34-36 kvm): 1
+Rader med detaljuppgifter (byggår/balkong från försäljningssidan): 3 912
+Steg-2-tak: ±8 % (balkong och byggår begränsas till detta)
+
+Detaljurval: 3634 försäljningar med både balkong- och byggårsuppgift; balkong angiven på 1845. Per byggårsgrupp: före 1931 2124, 1931-1960 888, 1961-1990 266, 1991 och senare 356.
+
+Använda rader: 7 381 av 7 430 (49 avvikare uteslutna). Rader med både balkong- och byggårsuppgift i den kvarvarande datan: 3615.
+Modellen bygger på 35–120 kvm; kandidater utanför flaggas.
+
+Rader per storleksband (kvm, före avvikarrensning):
+  35-40     1 639
+  40-45     1 516
+  45-50     1 109
+  50-60     1 894
+  60-80       714
+  80-120      558
+
+R²: 0,616 (på samma data). Korsvalidering (5 delar), RMSE i logskala: 0,114; per del: 0,113, 0,115, 0,117, 0,113, 0,113
+Jämförelse med modellen före 14.4 (version 2): R² 0,611 -> 0,616, korsvalidering 0,115 -> 0,114, n 7 379 -> 7 381
+Smearing: 1,007. Residualens 75:e percentil (log): 0,079. Residualens SD (log): 0,114
+
+Koefficienter och slutsatser i klartext:
+  - Underlag: 7381 försäljningar. Modellen förklarar 62 % av prisskillnaderna (R², på samma data).
+  - Modellen bygger på 35–120 kvm; lägenheter utanför intervallet prissätts inte av modellen utan flaggas.
+  - Felmarginal på försäljningar modellen inte sett (korsvalidering): ungefär ±12,1 % på kvadratmeterpriset (CV-RMSE 0,114 i logskala).
+  - Områdesnivå: grannförsäljningarna inom 1,0 km väger 1,05 (1,00 = priset följer grannarna fullt ut), källa: data.
+  - En våning upp ≈ +1,6 % (SE 0,1 %), källa: data.
+  - Bottenvåning eller lägre ≈ -6,4 % (SE 0,8 %), källa: data.
+  - 10 % större yta ≈ +0,4 % på kvadratmeterpriset (SE 0,1 %), källa: data.
+  - Varje km längre från närmaste centrumpunkt ≈ -0,4 % (SE 0,4 %), källa: data.
+  - 10 kr högre avgift per kvm och månad ≈ -1,00 % (SE 0,11 %), källa: data.
+  - 1 000 kr mer föreningsskuld per kvm ≈ -0,25 % (SE 0,05 %), källa: data.
+  - Tomträtt: kan inte skattas av underlaget (se reservvärdet nedan); effekten sätts till noll och ligger inte i värderingen.
+  - Prisutveckling per månad ≈ +0,8 % (SE 0,0 %), källa: data; priset avser 2026-10-12.
+  - Balkong ≈ +8,0 % (på taket ±8 %), källa: data.
+  - Byggår, jämfört med en genomsnittlig lägenhet: före 1931 +3,6 %, 1931–1960 -2,2 %, 1961–1990 -8,0 % (på taket ±8 %), 1991 och senare -5,3 %, källa: data.
+  - Budpremie (slutpris över utgångspris), lutande (b = -0,11: ju lägre utgångspris mot modellens pris, desto högre bud); siffrorna gäller när utgångspriset är lika med modellens pris: Södermalm +12,0 % (n 1792), Kungsholmen +6,6 % (n 1571), Vasastan +6,7 % (n 1360), Östermalm +4,9 % (n 640).
+  - Budpremiens korsvalidering (logskala): fast 0,076, lutande 0,075.
+  - Dagar på marknaden i budpremien: används (med: korsvalidering 0,0747 -> 0,0728; koefficient -0,0299 per ln-dag, 2706 försäljningar med dagar och utgångspris). Gäller förväntat slutpris, inte lägenhetens värde.
+  - 27,3 % av försäljningarna saknar uppgift om slutpris mot utgångspris och är utelämnade ur budpremien; de räknas inte som noll.
+  - Smearing (omräkning från logskala) 1,007. En renoverad lägenhet prissätts högst +8,2 % över modellens pris (75:e percentilen av avvikelserna).
+  - Reservvärde, tomtratt (saknas i underlaget): tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)
+
+Steg 2 (balkong och byggår), n 3 615, tak ±8 %
+  Balkong: rått +8,3 %, SE ≈ 0,3 %, anpassat +8,0 % (på taket)
+  Byggår före 1931: n 2 119, rått +3,6 %, SE ≈ 0,2 %, anpassat +3,6 %
+  Byggår 1931–1960: n 884, rått -2,2 %, SE ≈ 0,4 %, anpassat -2,2 %
+  Byggår 1961–1990: n 256, rått -11,2 %, SE ≈ 0,7 %, anpassat -8,0 % (på taket)
+  Byggår 1991 och senare: n 356, rått -5,3 %, SE ≈ 0,6 %, anpassat -5,3 %
+På taket: balkong, byggår 1961–1990
+Steg-2-korsvalidering (fel i ln kr/kvm): utan steg 2 0,11557, med ±8 % 0,10225, med ±12 % 0,10188
+  Samma fel med den gamla, ocentrerade prissättningen före 14.5-11 (balkong sant x (1 + procent), annars x 1): med ±8 % 0,11038, med ±12 % 0,10971. Byggårsvärdena gäller en lägenhet med genomsnittlig balkongandel, så en känd balkong fick där ett tillägg som överskattade ungefär (andel med balkong x balkongeffekt). Prissättningen centrerar nu balkongen på den andelen, så det som gäller är raden ovan.
+Steg-1-korsvalidering (cvRmseLog) räknas före steg 2 och kan inte skilja ±8 % från ±12 %: 0,11433 för båda.
+Takhöjd: 0 sålda rader med angiven höjd (sålda sidor har ingen annonstext, R-03); ej anpassad (för få angivna)
+
+Nya egenskaper (14.4):
+  Avgift kr/kvm/mån: kända rader 3 880 av 7 430 (3 859 kvar efter avvikarrensning)
+    rå skattning före kontrollen: β -0,00101, SE 0,000114, t = -8,9
+    använd β -0,00101, källa: data, SE 0,000114
+    effekt på kvadratmeterpriset: -1,00 % per 10 kr/kvm/mån (rå: -1,00 %)
+    värden begränsas till 18,2–116,9 (1:a–99:e percentilen), medelvärde 60,8
+  Föreningsskuld kr/kvm: kända rader 2 329 av 7 430, distinkta föreningar 649 (2 315 kvar efter avvikarrensning)
+    rå skattning före kontrollen: β -0,00000250, SE 5,28e-7, t = -4,7
+    använd β -0,00000250, källa: data, SE 5,28e-7
+    effekt på kvadratmeterpriset: -0,25 % per 1 000 kr/kvm (rå: -0,25 %)
+    värden begränsas till 0,0–20955,6 (1:a–99:e percentilen), medelvärde 5701,5
+  Tomträtt: kända rader 3 759 av 7 430 (3 738 kvar efter avvikarrensning)
+    rå skattning: ingen (egenskapen kunde inte skattas, se reservvärdet nedan)
+    använd β 0, källa: nollställd
+    reservvärde (absent): tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)
+Korrelation avgift/kvm och skuld/kvm: 0,30 (n 2 320)
+VIF: avgift 1,22, skuld 1,17
+
+Budpremie, vald form: lutande (premien beror på hur långt utgångspriset ligger från modellens pris). Korsvalideringsfel (logskala): fast 0,0758, lutande 0,0747.
+Budpremie per område (modellen) mot rå median av slutpris mot utgångspris och studiens siffra (CONTEXT D-03):
+  Södermalm    modell +12,0 % (n 1792, anpassad)   rå median +13,9 %   studien +7 till +10 %
+  Kungsholmen  modell +6,6 % (n 1571, anpassad)   rå median +7,0 %   studien +3 till +4 %
+  Vasastan     modell +6,7 % (n 1360, anpassad)   rå median +8,1 %   studien (ingen studiesiffra)
+  Östermalm    modell +4,9 % (n 640, anpassad)   rå median +5,8 %   studien (ingen studiesiffra)
+  (Lutande form: modellens siffra gäller när utgångspriset är lika med modellens pris, b = -0,11; den är därför inte direkt jämförbar med råmedianen.)
+Andel försäljningar utan etikett (utelämnade ur budpremien, räknas inte som noll): 27,3 %
+
+Budpremie: dagar på marknaden
+  Rader med dagar: 3 849 av 7 430; av dem med utgångspris: 2 887.
+  Försäljningar i skattningen: 2 706 (basform: lutande).
+  Korsvalideringsfel (logskala, samma hållna rader): utan dagar 0,07474, med dagar 0,07275 (lägre).
+  Koefficient per ln(1 + dagar): -0,02994 (negativ: längre annons, lägre premie).
+  Beslut: behålls - med: korsvalidering 0,0747 -> 0,0728
+  Effekt på premien för en median-lägenhet, 7 mot 60 dagar: -6,49 procentenheter (+9,9 % -> +3,4 %).
+
+Budpremie: skick
+  Sålda lägenheter med läst skick (nuvarande läsversion): 300; säkerhet under 0,6 (utesluts, räknas aldrig som 0): 113 (37,7 %).
+  Användbara avläsningar: 187 - föråldrat 8 (4,3 %), vanligt 39 (20,9 %), fräscht 140 (74,9 %).
+  Betalt för skicksläsningen hittills: 26,56 kr av 30,00 kr.
+  Märkta försäljningar med slutpris mot utgångspris i skattningen: 186.
+  Korsvalideringsfel (logskala, märkta rader): utan skick 0,06408, med skick 0,06413 (inte lägre).
+  Beslut: förkastas, termen är 0 och budpremien säger 'skick ej mätt'; koefficient (steg i skick): 0,00000.
+  Not: budpremie: skick ej mätt: korsvalidering förkastade termen (0,06408 -> 0,06413, skattning -0,0080). corr(skick, utgångspris/modell) = 0,17; en effekt under ≈ 2 pp kan inte ses med n = 186.
+
+Storlekskontroll (storlek per band mot 35-40 kvm, samma variabler som modellen men utan tidsblandning):
+  alla 7 430 försäljningar:
+    40-45 kvm    -0,2 % mot 35-40 kvm (SE 0,4 %, 1 516 rader)
+    45-50 kvm    -1,1 % mot 35-40 kvm (SE 0,5 %, 1 109 rader)
+    50-60 kvm    +1,0 % mot 35-40 kvm (SE 0,4 %, 1 894 rader)
+    60-80 kvm    +2,8 % mot 35-40 kvm (SE 0,6 %, 714 rader)
+    80-120 kvm   +4,4 % mot 35-40 kvm (SE 0,6 %, 558 rader)
+  försäljningar sedan 2026-07-12 (1 913 st):
+    40-45 kvm    +0,9 % mot 35-40 kvm (SE 1,1 %, 265 rader)
+    45-50 kvm    -0,1 % mot 35-40 kvm (SE 1,2 %, 198 rader)
+    50-60 kvm    +1,8 % mot 35-40 kvm (SE 1,1 %, 324 rader)
+    60-80 kvm    +3,4 % mot 35-40 kvm (SE 1,0 %, 457 rader)
+    80-120 kvm   +4,9 % mot 35-40 kvm (SE 1,0 %, 393 rader)
+  Storleksvalet i modellen: Storlek: koefficienten tas från data (beslut D-10, 2026-10-18). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-18 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0404, SE 0,0055, t = 7,3, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen.
+
+Reservvärden (fallbacks):
+  - tomtratt (absent): tomträtt: inga tomträttsförsäljningar i underlaget (upplåtelseform är Bostadsrätt på alla sålda sidor)
+
+R² >= 0,35 och CV-RMSE <= 0,13: OK (R² 0,616, CV-RMSE 0,114)
+
+Modell skriven: .planning/calibration/data/hedonic-model-14.5-cap8.json (320 kB, 7 381 punkter)
+Anpassningsrapport skriven: .planning/phases/14.5-enrichment-layout-accuracy-ceiling/evidence/fit-14.5-cap8.json
