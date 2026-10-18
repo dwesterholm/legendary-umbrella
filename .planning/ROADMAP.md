@@ -229,27 +229,60 @@ Plans:
 **Why (Daniel, 2026-10-18, from a discussion with a friend + research `.planning/research/2026-10-18-uppmatning-bygglov-stambyte.md`):** Stockholm's building-permit e-service (Bygg- och plantjänsten) lists every case per property without a login, back to 1929: balcony permits granted but not built add value; a stambyte must be reported to the city, so the same list gives a dated stambyte history per building — which can be joined to the 7 379 sold flats and MEASURED in the price model instead of the unsourced "−8–15 % before / +5–12 % after" folklore. Old flats are often under-measured (walls and wardrobes left out of pre-standard figures); the broker text states where the area figure comes from. Daniel on terms: "If there are no stated terms, it means they don't say we can't do it. So let's do it." — polite rate, no login-gated content, no email gate.
 
 **Goal, in order:**
+
 1. **City case-list fetcher (CASE-).** Resolve the fastighetsbeteckning from an address (the city's own search; the rental repo's Lantmäteriet route as fallback, read-only), fetch the case list per property, parse case type / description / dates / decisions (Bifall, slutbesked), classify: balcony permits (granted / built / pending, glazing), stambyte years (done, ongoing, planned), other value-relevant cases (hiss, vind, takterrass). Polite: ≤ 1 request/s, cached per property under `.planning/calibration/data/`, refreshed monthly; test on 10 known buildings incl. Folkungagatan 61's; coverage measured.
 2. **Stambyte into the valuation (STAM-).** Join the dated history to the sold rows by address → `yearsSinceStambyte` / `stambyteWithin3y` features; fit with the honesty rule; keep only if CV improves; report the measured effect vs the folklore; either way an "stambyte planerat/pågående" reason line and a table/mail column with the year(s).
 3. **Balcony-permit and uppmätning flags (FLAG-).** "Balkong beviljad, ej byggd" flag + mail column; area-source parsing from broker text (`uppmätt YYYY`, `ej uppmätt`, `enligt säljaren/ritning`) → `areaSourceKind`, `measuredYear`, a soft "troligen ej uppmätt" flag with the kr upside shown separately (≈ 100–115 kkr per kvm at this price level), never in the score; coverage measured on the first live run.
 4. **Floor-plan under-measurement signals** — deferred until the layout read passes its 75 % gate (Phase 14.5).
+
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
 **Plans:** 12 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 14.6-01-PLAN.md — separation specifiers first; city page parsers and keyword tag set from the saved pages (CASE-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 14.6-02-PLAN.md — host gate, gated city client, caches (CASE-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14.6-03-PLAN.md — address to fastighetsbeteckning: text, BRF-name guess, city search, Min Karta (CASE-01)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 14.6-04-PLAN.md — live 10-building spike + robots/substring/Min Karta probes; GO or STOP for the phase (CASE-03)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 14.6-05-PLAN.md — one-off stambyte sweep per innerstan stadsdel since 1985 (STAM-01)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 14.6-06-PLAN.md — sweep joined to the sold rows, join rate printed (STAM-01)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 14.6-07-PLAN.md — optional stambyteTerm, CV keep rule, fits to scratch, verdict beside the folklore (STAM-02)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 14.6-08-PLAN.md — broker-text readers: stambyte and area source; source precedence (STAM-03, FLAG-02)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [ ] 14.6-09-PLAN.md — new CandidateFacts, enrichment wiring, city stage live/cache-only (STAM-03, FLAG-01, FLAG-02, CASE-01)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [ ] 14.6-10-PLAN.md — Stambyte / Byggärenden / Area columns in table and mail, coverage lines, live wiring (STAM-03, FLAG-01, FLAG-02)
 - [ ] 14.6-11-PLAN.md — "stambyte pågår/planerat" reason and confounder entries (STAM-03)
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
 - [ ] 14.6-12-PLAN.md — today's candidates at the city, with/without comparison, model swap last, area audit deferred to next live run (STAM-02, STAM-03, FLAG-01, FLAG-02)
 
 ### Phase 15: ROI-Aware Opportunity Brief

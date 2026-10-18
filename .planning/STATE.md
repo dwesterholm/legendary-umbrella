@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v1.2
 milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGRESS
-current_phase: "14.5"
-current_phase_name: Full Enrichment, Layout Accuracy, Ceiling Height
+current_phase: "14.6"
+current_phase_name: Bygglov & Stambyte, Uppmätning Flags
 status: executing
 stopped_at: Completed 14.5-11-PLAN.md (wave 8 out of order; plans 06-09 still open)
-last_updated: "2026-10-18T15:19:04.024Z"
+last_updated: "2026-10-18T16:40:21.113Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: cfe1240389a456120738ef2f13846372e40ab2bf
+state_head: 6b1500cf408dd7c6193cce8918d3e43241bd789a
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 1
-  total_plans: 65
+  total_plans: 77
   completed_plans: 59
-  percent: 14
+  percent: 13
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-17)
 
 ## Current Position
 
-Phase: 14.5 (Full Enrichment, Layout Accuracy, Ceiling Height) — READY TO EXECUTE
+Phase: 14.6 (Bygglov & Stambyte, Uppmätning Flags) — READY TO EXECUTE
 Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-10-13 — Phase 14.3 execution started
