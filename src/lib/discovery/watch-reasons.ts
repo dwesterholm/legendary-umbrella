@@ -29,6 +29,13 @@
  * candidate.ts), so in the weekly table the reason normally fires through the card
  * status key.
  *
+ * "STAMBYTE" (Phase 14.6, STAM-03, D-07): a building whose stambyte (pipe replacement) is under way or planned
+ * often sells below its neighbours; the line reads "stambyte pågår", "stambyte planerat 2027" or, with no
+ * year, "stambyte planerat", and counts as an explanation. It follows "hög föreningsskuld" in the print order.
+ * A finished stambyte ("genomfort") and an unknown status give no line: absence is not "no stambyte". The
+ * " (redan i värderingen)" suffix is added only when the loaded model kept a stambyte term (R-08: the term is
+ * only in the valuation when the fit kept it, so the line never claims the valuation prices stambyte otherwise).
+ *
  * NOT USED: the card's sale-type field. It reads "succession" on every active card
  * and carries no information about the flat.
  *
@@ -103,6 +110,7 @@ export const REASON_ORDER = [
   "daysOnMarket",
   "highAvgift",
   "highBrfDebt",
+  "stambyte",
   "noElevator",
   "unusualLayout",
   "upcomingSale",
@@ -146,6 +154,12 @@ export type DistrictAvgiftMedians = ReadonlyMap<string, number | null>;
 export interface CoveredByModel {
   readonly avgift: boolean;
   readonly brfDebt: boolean;
+  /**
+   * Phase 14.6 (D-07): the loaded model carries a KEPT stambyte term (`stambyteTerm.kept === true`), so the
+   * stambyte status is inside the valuation. Absent or false means "not priced": the reason line then
+   * carries no "(redan i värderingen)" suffix.
+   */
+  readonly stambyte?: boolean;
 }
 
 export interface ReasonContext {
@@ -261,6 +275,21 @@ export function reasonsFor(row: ReasonRow, ctx: ReasonContext): string[] {
       );
     }
 
+    // Phase 14.6 (STAM-03, D-07): a stambyte under way or planned often explains a low price (the buyer
+    // expects months without a bathroom and maybe a higher avgift). A finished stambyte ("genomfort") and
+    // an unknown status (null) give no reason: absence is not "no stambyte". The suffix is added only when
+    // the loaded model kept a stambyte term; without one the valuation does not price stambyte (R-08).
+    const stambyteSuffix = ctx.coveredByModel?.stambyte === true ? IN_VALUATION_SUFFIX : "";
+    if (facts.stambyteStatus === "pagar") {
+      found.set("stambyte", `stambyte pågår${stambyteSuffix}`);
+    } else if (facts.stambyteStatus === "planerat") {
+      const year = facts.plannedStambyteYear;
+      found.set(
+        "stambyte",
+        `${isNumber(year) ? `stambyte planerat ${Math.round(year)}` : "stambyte planerat"}${stambyteSuffix}`,
+      );
+    }
+
     // `elevatorListed` is false only after a detail read; a card's missing elevator is null.
     if (
       facts.elevatorListed === false &&
@@ -308,13 +337,20 @@ export function reasonCell(reasons: readonly string[], flagged: boolean): string
 // ---------------------------------------------------------------------------
 
 /**
- * Whether the loaded model fitted avgift and association debt (source "fit" or "prior"). A feature whose
- * source is "zeroed", or that the file does not list, is not in the valuation. Pure.
+ * Whether the loaded model fitted avgift and association debt (source "fit" or "prior"), and whether it
+ * carries a kept stambyte term. A feature whose source is "zeroed", or that the file does not list, is
+ * not in the valuation; a model without a `stambyteTerm`, or with `kept: false`, does not price stambyte. Pure.
  */
-export function coveredByModelOf(model: Pick<HedonicModel, "features">): CoveredByModel {
+export function coveredByModelOf(
+  model: Pick<HedonicModel, "features"> & { readonly stambyteTerm?: { readonly kept: boolean } },
+): CoveredByModel {
   const fitted = (name: string): boolean =>
     model.features.some((f) => f.name === name && (f.source === "fit" || f.source === "prior"));
-  return { avgift: fitted("avgiftPerSqmMonth"), brfDebt: fitted("brfDebtPerSqm") };
+  return {
+    avgift: fitted("avgiftPerSqmMonth"),
+    brfDebt: fitted("brfDebtPerSqm"),
+    stambyte: model.stambyteTerm?.kept === true,
+  };
 }
 
 /** A signed percentage with one decimal and a decimal comma: -0.25 gives "-25,0 %", 0.042 gives "+4,2 %". */

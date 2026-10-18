@@ -22,6 +22,7 @@
 
 import { BRF_SANITY_BANDS } from "@/lib/brf/sanity";
 import type { StambyteStatus } from "@/lib/schemas/brf";
+import { stambyteFromAnnualReport } from "@/lib/discovery/stambyte-facts";
 import {
   tomtrattFromTenureForm,
   brfFieldTrusted,
@@ -156,6 +157,8 @@ export type ConfounderId =
   | "brf_debt_high"
   | "tomtratt"
   | "odd_boa"
+  | "stambyte_ongoing"
+  | "stambyte_planned"
   | "elevator_unknown"
   | "micro_location_unknown"
   | "brf_unknown"
@@ -172,6 +175,13 @@ export interface ConfounderGuardInput {
   readonly tenureForm: string | null;
   readonly comps: AreaCompsSummary | null;
   readonly brf: BrfSummary | null;
+  /**
+   * Phase 14.6 (STAM-03, D-07): stambyte facts from a source other than the annual report (the city's case
+   * list or the broker text). Optional, so every existing caller compiles and behaves as before; `null` or
+   * absent means "not read", never "no stambyte". The annual report's own value arrives through
+   * `brf.stambytePlanerat` and needs nothing here.
+   */
+  readonly stambyte?: { readonly ongoing: boolean | null; readonly planned: boolean | null } | null;
 }
 
 export interface ConfounderGuardResult {
@@ -210,7 +220,7 @@ export interface ConfounderGuardResult {
 export function normalizeForConfounders(
   input: ConfounderGuardInput,
 ): ConfounderGuardResult {
-  const { pricePerSqm, livingArea, floor, balcony, tenureForm, comps, brf } = input;
+  const { pricePerSqm, livingArea, floor, balcony, tenureForm, comps, brf, stambyte } = input;
 
   // CR-02 (14-REVIEW.md): the SINGLE admission decision for the BRF debt
   // figure, computed once and reused by rules 1/5/6 below. See
@@ -297,6 +307,16 @@ export function normalizeForConfounders(
   }
   if (livingArea !== null && (livingArea < ODD_BOA_MIN_SQM || livingArea > ODD_BOA_MAX_SQM)) {
     residualDrivers.push("odd_boa");
+  }
+  // Phase 14.6 (STAM-03, D-07): an ongoing or planned stambyte is a known factor behind a low price, so it
+  // is named instead of leaving the gap "unexplained". It is appended after the existing drivers so their
+  // order is unchanged. The annual-report value goes through a Map lookup (T-14.6-100): only the exact
+  // "planerat" maps to stambyte_planned; "nyligen_genomfort", "ej_nämnt", null and any drifted string map to
+  // nothing. An ongoing stambyte wins over a planned one (one driver per building, not two).
+  if (stambyte?.ongoing === true) {
+    residualDrivers.push("stambyte_ongoing");
+  } else if (stambyte?.planned === true || stambyteFromAnnualReport(brf?.stambytePlanerat) === "planerat") {
+    residualDrivers.push("stambyte_planned");
   }
 
   // 6. unknownConfounders — confounders that cannot be evaluated, in this
@@ -483,6 +503,10 @@ function confounderLabel(id: ConfounderId): string {
       return "tomträtt";
     case "odd_boa":
       return "ovanlig boarea";
+    case "stambyte_ongoing":
+      return "stambyte pågår";
+    case "stambyte_planned":
+      return "stambyte planerat";
     case "elevator_unknown":
       return "hiss (okänt)";
     case "micro_location_unknown":

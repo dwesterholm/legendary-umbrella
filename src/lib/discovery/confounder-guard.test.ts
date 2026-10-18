@@ -879,3 +879,64 @@ describe("CR-03 — stambyte renders as prose, and 'not mentioned' is not an ite
     expect(concatenated).not.toContain("Stambyte-läge");
   });
 });
+
+describe("STAM-03 / D-07 — an ongoing or planned stambyte is a known factor behind a low price", () => {
+  const driversOf = (overrides: Partial<ConfounderGuardInput>) => normalizeForConfounders(makeInput(overrides)).residualDrivers;
+
+  it("stambyte { ongoing: true } lists stambyte_ongoing and the brief names it 'stambyte pågår'", () => {
+    expect(driversOf({ stambyte: { ongoing: true, planned: null } })).toContain("stambyte_ongoing");
+    const brief = briefFrom({ comps: makeComps(), stambyte: { ongoing: true, planned: null } });
+    const text = brief.items.map((i) => i.text).join(" ");
+    expect(text).toContain("Kända faktorer som kan förklara delar av prisbilden: stambyte pågår.");
+  });
+
+  it("stambyte { planned: true } lists stambyte_planned, labelled 'stambyte planerat'", () => {
+    expect(driversOf({ stambyte: { ongoing: false, planned: true } })).toEqual(["stambyte_planned"]);
+    const text = briefFrom({ comps: makeComps(), stambyte: { ongoing: null, planned: true } }).items.map((i) => i.text).join(" ");
+    expect(text).toContain("prisbilden: stambyte planerat.");
+  });
+
+  it("brf.stambytePlanerat 'planerat' maps to stambyte_planned", () => {
+    const input = { brf: makeBrf({ stambytePlanerat: "planerat" }) };
+    expect(driversOf(input)).toEqual(["stambyte_planned"]);
+    const text = briefFrom(input).items.map((i) => i.text).join(" ");
+    expect(text).toContain("prisbilden: stambyte planerat.");
+  });
+
+  it("'nyligen_genomfort' and 'ej_nämnt' add no driver", () => {
+    for (const value of ["nyligen_genomfort", "ej_nämnt"] as const) {
+      expect(driversOf({ brf: makeBrf({ stambytePlanerat: value }) })).toEqual([]);
+    }
+    expect(driversOf({ brf: makeBrf({ stambytePlanerat: null }) })).toEqual([]);
+  });
+
+  it("an Object.prototype member name in brf.stambytePlanerat maps to nothing (toString, T-14.6-100)", () => {
+    for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty", "__proto__"]) {
+      const result = normalizeForConfounders(
+        makeInput({ brf: makeBrf({ stambytePlanerat: inherited as StambyteStatus }) }),
+      );
+      expect(result.residualDrivers).toEqual([]);
+    }
+  });
+
+  it("an ongoing stambyte wins over a planned one: one driver, not two", () => {
+    expect(
+      driversOf({ stambyte: { ongoing: true, planned: true }, brf: makeBrf({ stambytePlanerat: "planerat" }) }),
+    ).toEqual(["stambyte_ongoing"]);
+  });
+
+  it("absence is not 'no': null, absent and all-null stambyte give exactly the output of an input without the field", () => {
+    const base = makeInput({ brf: makeBrf({ skuldPerKvm: 20_000 }), floor: 0, balcony: false, livingArea: 15 });
+    const expected = normalizeForConfounders(base);
+    expect(expected.residualDrivers).toEqual(["bottenvaning", "no_balcony", "brf_debt_high", "odd_boa"]);
+    expect(normalizeForConfounders({ ...base, stambyte: null })).toEqual(expected);
+    expect(normalizeForConfounders({ ...base, stambyte: { ongoing: null, planned: null } })).toEqual(expected);
+    expect(normalizeForConfounders({ ...base, stambyte: { ongoing: false, planned: false } })).toEqual(expected);
+  });
+
+  it("the new drivers come after the existing ones, so their order is unchanged", () => {
+    expect(
+      driversOf({ floor: 0, balcony: false, livingArea: 15, stambyte: { ongoing: true, planned: null } }),
+    ).toEqual(["bottenvaning", "no_balcony", "odd_boa", "stambyte_ongoing"]);
+  });
+});

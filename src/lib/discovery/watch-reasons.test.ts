@@ -65,7 +65,7 @@ describe("REASON_THRESHOLDS", () => {
   it("'snart till salu' is the last entry of REASON_ORDER (W3)", () => {
     expect(REASON_ORDER[REASON_ORDER.length - 1]).toBe("upcomingSale");
     expect(UPCOMING_SALE_REASON).toBe("snart till salu (ej budgivning än)");
-    expect(REASON_ORDER).toHaveLength(11);
+    expect(REASON_ORDER).toHaveLength(12);
   });
 });
 
@@ -441,10 +441,10 @@ describe("'redan i värderingen' only for what the fitted model contains (D-05, 
     const feat = (name: string, source: "fit" | "prior" | "zeroed") => ({ name, mean: 0, beta: 0, se: null, source });
     const covered = (features: ReturnType<typeof feat>[]) =>
       coveredByModelOf({ features } as unknown as Parameters<typeof coveredByModelOf>[0]);
-    expect(covered([feat("avgiftPerSqmMonth", "fit"), feat("brfDebtPerSqm", "prior")])).toEqual({ avgift: true, brfDebt: true });
-    expect(covered([feat("avgiftPerSqmMonth", "zeroed"), feat("brfDebtPerSqm", "fit")])).toEqual({ avgift: false, brfDebt: true });
-    expect(covered([feat("brfDebtPerSqm", "zeroed")])).toEqual({ avgift: false, brfDebt: false });
-    expect(covered([])).toEqual({ avgift: false, brfDebt: false });
+    expect(covered([feat("avgiftPerSqmMonth", "fit"), feat("brfDebtPerSqm", "prior")])).toEqual({ avgift: true, brfDebt: true, stambyte: false });
+    expect(covered([feat("avgiftPerSqmMonth", "zeroed"), feat("brfDebtPerSqm", "fit")])).toEqual({ avgift: false, brfDebt: true, stambyte: false });
+    expect(covered([feat("brfDebtPerSqm", "zeroed")])).toEqual({ avgift: false, brfDebt: false, stambyte: false });
+    expect(covered([])).toEqual({ avgift: false, brfDebt: false, stambyte: false });
   });
 });
 
@@ -485,5 +485,77 @@ describe("residualReason (R-04)", () => {
       { residualSdLog: 0.115, basis: "expectedFinal", covered: bothCovered },
     );
     expect(text).toBe("ovanligt långt under modellpris");
+  });
+});
+
+describe("stambyte reason (STAM-03, D-07)", () => {
+  const stambyteRow = (over: Partial<CandidateFacts>) => row({ facts: over });
+  const modelOf = (stambyteTerm?: { kept: boolean }) =>
+    ({ features: [], ...(stambyteTerm === undefined ? {} : { stambyteTerm }) }) as unknown as Parameters<typeof coveredByModelOf>[0];
+
+  it("'pagar' gives 'stambyte pågår' and the flagged cell is no longer an unexplained find", () => {
+    const reasons = reasonsFor(stambyteRow({ stambyteStatus: "pagar" }), NO_MEDIANS);
+    expect(reasons).toEqual(["stambyte pågår"]);
+    expect(reasonCell(reasons, true)).toBe("stambyte pågår");
+    expect(reasonCell(reasons, true)).not.toBe("oförklarat fynd");
+  });
+
+  it("'planerat' with a year names the year, without a year it says only 'stambyte planerat'", () => {
+    expect(reasonsFor(stambyteRow({ stambyteStatus: "planerat", plannedStambyteYear: 2027 }), NO_MEDIANS)).toEqual([
+      "stambyte planerat 2027",
+    ]);
+    expect(reasonsFor(stambyteRow({ stambyteStatus: "planerat", plannedStambyteYear: null }), NO_MEDIANS)).toEqual([
+      "stambyte planerat",
+    ]);
+  });
+
+  it("'genomfort' and an unknown status give no stambyte reason (absence is not 'no')", () => {
+    expect(reasonsFor(stambyteRow({ stambyteStatus: "genomfort", lastStambyteYear: 2019 }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(stambyteRow({ stambyteStatus: null }), NO_MEDIANS)).toEqual([]);
+    expect(reasonsFor(row({ facts: null }), NO_MEDIANS)).toEqual([]);
+  });
+
+  it("a row without any stambyte fact prints exactly what it printed before the reason existed", () => {
+    const before = row({ facts: { daysOnMarket: 70, priceCutSek: 100_000 } });
+    expect(reasonsFor(before, NO_MEDIANS)).toEqual(["prissänkt 100 000 kr", "ute i 70 dagar"]);
+  });
+
+  it("sits after 'hög föreningsskuld' and before 'ingen hiss angiven'; 'snart till salu' is still last", () => {
+    const r = row({
+      facts: {
+        stambyteStatus: "pagar",
+        brf: { loanSek: 1, areaSqm: 1, reportYear: 2024, debtPerSqm: 12_000 },
+        elevatorListed: false,
+        floor: 5,
+        statusKey: "upcomingSale",
+      },
+    });
+    const reasons = reasonsFor(r, NO_MEDIANS);
+    expect(reasons).toEqual([
+      "hög föreningsskuld (12 000 kr/kvm)",
+      "stambyte pågår",
+      "ingen hiss angiven (vån 5)",
+      UPCOMING_SALE_REASON,
+    ]);
+    expect(REASON_ORDER.indexOf("stambyte")).toBe(REASON_ORDER.indexOf("highBrfDebt") + 1);
+    expect(REASON_ORDER[REASON_ORDER.length - 1]).toBe("upcomingSale");
+  });
+
+  it("the suffix is added only when the model kept a stambyte term", () => {
+    const planned = stambyteRow({ stambyteStatus: "planerat", plannedStambyteYear: 2027 });
+    const ongoing = stambyteRow({ stambyteStatus: "pagar" });
+    const kept = coveredByModelOf(modelOf({ kept: true }));
+    expect(kept.stambyte).toBe(true);
+    expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: kept })).toEqual(["stambyte pågår (redan i värderingen)"]);
+    expect(reasonsFor(planned, { ...NO_MEDIANS, coveredByModel: kept })).toEqual([
+      "stambyte planerat 2027 (redan i värderingen)",
+    ]);
+    for (const model of [modelOf({ kept: false }), modelOf(undefined)]) {
+      const covered = coveredByModelOf(model);
+      expect(covered.stambyte).toBe(false);
+      expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: covered })).toEqual(["stambyte pågår"]);
+    }
+    expect(reasonsFor(ongoing, NO_MEDIANS)).toEqual(["stambyte pågår"]);
+    expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: { avgift: true, brfDebt: true } })).toEqual(["stambyte pågår"]);
   });
 });
