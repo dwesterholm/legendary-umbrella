@@ -144,6 +144,61 @@ describe("areaFactsFromText: the 14 held-back phrases (the honest pre-live score
   });
 });
 
+/**
+ * SECOND HELD-BACK SET. Written AFTER the reader was finished, from the Swedish meaning, and scored
+ * exactly once: no rule was changed to fit it. Misses are pinned below.
+ */
+const FRESH: readonly Row[] = [
+  ["Lägenhetens boarea är 41 kvm enligt föreningens uppgifter.", s("forening")],
+  ["Arean 38 kvm är baserad på uppgifter från bostadsrättsföreningen.", s("forening")],
+  ["Boytan har mätts upp på plats av en mätare 2023.", u(2023, true)],
+  ["Kvadratmeterytan är inte kontrollerad av mäklaren.", s("ej_kontrollmatt")],
+  ["Arean är angiven enligt köpehandlingar och ej kontrollmätt.", s("ej_kontrollmatt")],
+  ["Uppgifterna om boarean kommer från säljaren och har inte kontrollerats.", s("saljare")],
+  ["Mäklaren har mätt lägenheten på plats 2022.", u(2022, false)],
+  ["Lägenhetens yta har kontrollmätts av oss.", u(null, false)],
+  ["Boarea 45 kvm. Källare och vind ingår ej i boarean.", NONE],
+  ["Ytan stämmer med lägenhetsförteckningen från föreningen.", s("lagenhetsregister")],
+  ["Arean är enligt säljaren cirka 36 kvm.", s("saljare")],
+  ["Alla mått är ungefärliga och ska kontrolleras av köparen.", NONE],
+  ["Uppmätningen gjordes 2018 av Svensk Areamätning.", u(2018, true)],
+  ["Boarean är verifierad genom mätning 2021.", u(2021, false)],
+  ["Ritningens areaangivelse är 37 kvm.", NONE],
+  ["Areauppgiften är hämtad från bostadsrättsföreningens ekonomiska plan.", s("ekonomisk_plan")],
+  ["Uppmätt av oss i maj 2024, boarea 33 kvm.", u(2024, false)],
+];
+
+const FRESH_KNOWN_MISSES: readonly string[] = [
+  "Boytan har mätts upp på plats av en mätare 2023.",
+  "Kvadratmeterytan är inte kontrollerad av mäklaren.",
+  "Uppgifterna om boarean kommer från säljaren och har inte kontrollerats.",
+  "Mäklaren har mätt lägenheten på plats 2022.",
+  "Ytan stämmer med lägenhetsförteckningen från föreningen.",
+  "Boarean är verifierad genom mätning 2021.",
+  "Areauppgiften är hämtad från bostadsrättsföreningens ekonomiska plan.",
+  "Uppmätt av oss i maj 2024, boarea 33 kvm.",
+];
+
+describe("areaFactsFromText: second held-back set (scored once, after the reader was finished)", () => {
+  it("has at least 15 phrases", () => {
+    expect(FRESH.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("reports how many pass and pins the misses", () => {
+    const misses: string[] = [];
+    const detail: string[] = [];
+    for (const [phrase, expected] of FRESH) {
+      const got = areaFactsFromText(phrase, RUN);
+      if (JSON.stringify(got) !== JSON.stringify(expected)) {
+        misses.push(phrase);
+        detail.push(`${phrase} -> ${JSON.stringify(got)} (wanted ${JSON.stringify(expected)})`);
+      }
+    }
+    console.info(`second set: ${FRESH.length - misses.length} av ${FRESH.length}\n${detail.join("\n")}`);
+    expect(misses).toEqual([...FRESH_KNOWN_MISSES]);
+  });
+});
+
 describe("areaFactsFromText: the null-text contract", () => {
   it("null and empty text are not read: all null", () => {
     expect(areaFactsFromText(null, RUN)).toEqual(NONE);
