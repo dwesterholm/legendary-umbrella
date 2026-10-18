@@ -310,6 +310,15 @@ describe("while the host is blocked, no request is made", () => {
     expect(s.fetchImpl.requests).toHaveLength(1);
   });
 
+  it("WR-12: a damaged host-gates.json pauses the client with no request, and is not rewritten", async () => {
+    const s = setup([{ path: SEARCH_PATH, file: "list-droskhasten-8.fixture.html" }]);
+    writeFileSync(s.gatesPath, "{not json", "utf8");
+    const stop = await stopOf(s.client.caseList("Droskhästen 8"));
+    expect(stop.label).toBe("pausad");
+    expect(s.fetchImpl.requests).toHaveLength(0);
+    expect(readFileSync(s.gatesPath, "utf8")).toBe("{not json");
+  });
+
   it("every public call checks the block first", async () => {
     const s = setup([]);
     writeFileSync(

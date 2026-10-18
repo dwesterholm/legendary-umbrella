@@ -49,8 +49,13 @@ export interface HostGateEntry {
 
 export type HostGates = Record<string, HostGateEntry>;
 
-type GatesRead = { gates: HostGates; problem: null } | { gates: HostGates; problem: "ogiltig JSON" | "fel format" | "oläsbar" };
+type GatesProblem = "ogiltig JSON" | "fel format" | "oläsbar";
+type GatesRead = { gates: HostGates; problem: null } | { gates: HostGates; problem: GatesProblem };
 
+/**
+ * Reads the block file entry by entry: every valid entry is kept (a `disabled` flag included), and any entry or file
+ * that cannot be read is reported as the problem.
+ */
 function readGatesChecked(path: string): GatesRead {
   let raw: unknown;
   try {
@@ -59,28 +64,46 @@ function readGatesChecked(path: string): GatesRead {
     return { gates: {}, problem: error instanceof SyntaxError ? "ogiltig JSON" : "oläsbar" };
   }
   if (raw === null) return { gates: {}, problem: null };
-  const parsed = gatesSchema.safeParse(raw);
-  if (!parsed.success) return { gates: {}, problem: "fel format" };
-  return { gates: parsed.data, problem: null };
+  if (typeof raw !== "object" || Array.isArray(raw)) return { gates: {}, problem: "fel format" };
+  const gates: HostGates = {};
+  let problem: GatesProblem | null = null;
+  for (const [host, value] of Object.entries(raw)) {
+    const entry = entrySchema.safeParse(value);
+    if (!HOST.test(host) || !entry.success) {
+      problem = "fel format";
+      continue;
+    }
+    gates[host] = entry.data;
+  }
+  return problem === null ? { gates, problem: null } : { gates, problem };
 }
 
+/** Block files that failed to read in full. A damaged politeness file fails CLOSED: see `hostBlockedUntil`. */
+const damagedGates = new WeakSet<object>();
+
+/** True when the gates object came from a block file that could not be read in full. */
+export const hostGatesDamaged = (gates: HostGates): boolean => damagedGates.has(gates);
+
 /**
- * The block file's content. A missing file is no block and silent. A damaged file (invalid JSON, wrong shape,
- * unreadable) counts as no block but is reported through `log`, in Swedish; reading never rewrites it.
+ * The block file's content. A missing file is no block and silent. A damaged file (invalid JSON, a bad entry,
+ * unreadable) is reported through `log`, in Swedish, and FAILS CLOSED: `hostBlockedUntil` treats every host as
+ * blocked until a person has looked at the file. Reading never rewrites it.
  */
 export function readHostGates(path: string = HOST_GATES_PATH, log?: (line: string) => void): HostGates {
   const read = readGatesChecked(path);
   if (read.problem !== null) {
-    log?.(`[stockholm] host-gates.json är skadad (${read.problem}) och räknas som ingen spärr`);
+    damagedGates.add(read.gates);
+    log?.(`[stockholm] host-gates.json är skadad (${read.problem}): inga anrop görs förrän filen har setts över`);
   }
   return read.gates;
 }
 
 /**
  * When the host's block ends, or null when it is not blocked at `now`. A `disabled` host is blocked with no end
- * (the answer is {@link NO_END}).
+ * (the answer is {@link NO_END}), and so is every host when the block file was damaged (fail closed).
  */
 export function hostBlockedUntil(gates: HostGates, host: string, now: Date): Date | null {
+  if (damagedGates.has(gates)) return NO_END;
   const entry = gates[host];
   if (entry === undefined) return null;
   if (entry.disabled === true) return NO_END;
@@ -91,7 +114,8 @@ export function hostBlockedUntil(gates: HostGates, host: string, now: Date): Dat
 /**
  * Puts the host on the 24 hour list. The label must be a fixed word (`/^[a-z0-9-]{1,40}$/`), the file stays under the
  * data directory (`opts.dir`, tests pass a temp one) and is written atomically. Blocks of other hosts are kept; an
- * earlier `disabled` flag is kept. A damaged file is rewritten only after a log line says so.
+ * earlier `disabled` flag is kept. A damaged file is never rewritten: that would drop the `disabled` flag of another
+ * host, so this throws (Swedish message) until a person has moved or fixed the file.
  */
 export function blockHost(
   path: string,
@@ -107,7 +131,10 @@ export function blockHost(
   if (safe === null) throw new Error(`Spärrfilen får bara skrivas under ${dir}/ som .json-fil (fick ${path})`);
 
   const read = readGatesChecked(safe);
-  if (read.problem !== null) opts.log?.(`[stockholm] host-gates.json är skadad (${read.problem}) och skrivs om`);
+  if (read.problem !== null) {
+    opts.log?.(`[stockholm] host-gates.json är skadad (${read.problem}) och skrivs inte över`);
+    throw new Error(`Spärrfilen är skadad (${read.problem}) och skrivs inte över: öppna eller flytta ${path} först`);
+  }
   const disabled = opts.disabled === true || read.gates[host]?.disabled === true;
   const entry: HostGateEntry = {
     blockedUntil: new Date(now.getTime() + HOST_BLOCK_MS).toISOString(),

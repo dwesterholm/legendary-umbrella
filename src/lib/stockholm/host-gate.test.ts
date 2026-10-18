@@ -10,6 +10,7 @@ import {
   assertManualRunAllowed,
   blockHost,
   hostBlockedUntil,
+  hostGatesDamaged,
   inWeeklyWindow,
   makeHostPacer,
   readHostGates,
@@ -91,33 +92,48 @@ describe("blockHost / readHostGates / hostBlockedUntil", () => {
     expect(lines).toEqual([]);
   });
 
-  it("a corrupt file is reported in Swedish and counts as no block, and reading never rewrites it", () => {
+  it("a corrupt file is reported in Swedish, fails closed (every host blocked) and reading never rewrites it", () => {
     writeFileSync(path, "{not json", "utf8");
     const lines: string[] = [];
-    expect(readHostGates(path, (l) => lines.push(l))).toEqual({});
+    const gates = readHostGates(path, (l) => lines.push(l));
+    expect(gates).toEqual({});
+    expect(hostGatesDamaged(gates)).toBe(true);
+    expect(hostBlockedUntil(gates, HOST, NOW)).not.toBeNull();
+    expect(hostBlockedUntil(gates, "minkarta.lantmateriet.se", NOW)).not.toBeNull();
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatch(/^\[stockholm\] .*host-gates\.json.*(ogiltig JSON)/);
     expect(readFileSync(path, "utf8")).toBe("{not json");
   });
 
-  it("a wrong-shaped file is reported as fel format", () => {
+  it("a wrong-shaped file is reported as fel format and fails closed", () => {
     writeFileSync(path, JSON.stringify({ [HOST]: { blockedUntil: "not a date", reason: "http-403" } }), "utf8");
     const lines: string[] = [];
-    expect(readHostGates(path, (l) => lines.push(l))).toEqual({});
+    const gates = readHostGates(path, (l) => lines.push(l));
     expect(lines[0]).toMatch(/fel format/);
+    expect(hostBlockedUntil(gates, HOST, NOW)).not.toBeNull();
   });
 
-  it("blockHost rewrites a corrupt file only after saying so", () => {
-    writeFileSync(path, "{not json", "utf8");
-    let fileWhenLogged: string | null = null;
-    blockHost(path, HOST, "http-403", NOW, {
-      dir,
-      log: (l) => {
-        if (/skrivs om/.test(l)) fileWhenLogged = readFileSync(path, "utf8");
-      },
+  it("WR-12: one bad entry keeps the good ones (the disabled flag too), still fails closed, and blockHost refuses to rewrite the file", () => {
+    const text = JSON.stringify({
+      "minkarta.lantmateriet.se": { blockedUntil: NOW.toISOString(), reason: "ua-nekad", disabled: true },
+      [HOST]: { blockedUntil: "not a date", reason: "http-403" },
     });
-    expect(fileWhenLogged).toBe("{not json");
-    expect(readHostGates(path)[HOST].reason).toBe("http-403");
+    writeFileSync(path, text, "utf8");
+    const lines: string[] = [];
+    const gates = readHostGates(path, (l) => lines.push(l));
+    expect(gates["minkarta.lantmateriet.se"]?.disabled).toBe(true);
+    expect(gates[HOST]).toBeUndefined();
+    expect(hostGatesDamaged(gates)).toBe(true);
+    expect(hostBlockedUntil(gates, HOST, new Date(NOW.getTime() + 400 * 86_400_000))).not.toBeNull();
+
+    expect(() => blockHost(path, HOST, "http-403", NOW, { dir, log: (l) => lines.push(l) })).toThrow(/skadad/);
+    expect(readFileSync(path, "utf8")).toBe(text);
+    expect(lines.some((l) => /skrivs inte över/.test(l))).toBe(true);
+  });
+
+  it("a healthy file is not marked damaged", () => {
+    blockHost(path, HOST, "http-403", NOW, { dir });
+    expect(hostGatesDamaged(readHostGates(path))).toBe(false);
   });
 });
 

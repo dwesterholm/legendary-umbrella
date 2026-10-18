@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -385,6 +385,14 @@ describe("refusals and failures", () => {
     const result = await s.resolver("Bondegatan 59");
     expect(result).toMatchObject({ status: "fetch_failed", reason: "pausad", calls: 0 });
     expect(s.fetchImpl.requests).toHaveLength(0);
+  });
+
+  it("WR-12: a damaged host-gates.json pauses Min Karta too (fail closed), with no request", async () => {
+    const s = setup(bondegatanRoutes);
+    writeFileSync(s.gatesPath, "{not json", "utf8");
+    expect(await s.resolver("Bondegatan 59")).toMatchObject({ status: "fetch_failed", reason: "pausad", calls: 0 });
+    expect(s.fetchImpl.requests).toHaveLength(0);
+    expect(readFileSync(s.gatesPath, "utf8")).toBe("{not json");
   });
 
   it("an answer that is not JSON is a refusal: blocked, fetch_failed", async () => {

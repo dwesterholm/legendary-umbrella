@@ -314,8 +314,13 @@ export async function resolveViaMinKarta(address: string, deps: MinKartaDeps): P
 
     /** A refusal: the host goes on the 24 hour list and this lookup ends. */
     const refuse = (label: string): Called => {
-      blockHost(gatesPath, MINKARTA_HOST, label, deps.now(), { dir: dataDir, log: deps.log });
-      line(`${MINKARTA_HOST} blockerad i 24 timmar (${label})`);
+      try {
+        blockHost(gatesPath, MINKARTA_HOST, label, deps.now(), { dir: dataDir, log: deps.log });
+        line(`${MINKARTA_HOST} blockerad i 24 timmar (${label})`);
+      } catch {
+        // The block file is damaged and is not rewritten (WR-12): every later call is paused until it has been looked at.
+        line(`${MINKARTA_HOST} spärren kunde inte skrivas (${label})`);
+      }
       return { ok: false, reason: label };
     };
 

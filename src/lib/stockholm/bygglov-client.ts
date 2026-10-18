@@ -35,7 +35,7 @@ import {
   type ParseFailure,
 } from "@/lib/stockholm/bygglov-parse";
 import { looksLikeRedirect, readCapped } from "@/lib/stockholm/http-guards";
-import { CITY_DATA_DIR, HOST_GATES_PATH, blockHost, hostBlockedUntil, makeHostPacer, readHostGates } from "@/lib/stockholm/host-gate";
+import { CITY_DATA_DIR, HOST_GATES_PATH, blockHost, hostBlockedUntil, hostGatesDamaged, makeHostPacer, readHostGates } from "@/lib/stockholm/host-gate";
 
 /** The only host this client may call. */
 export const CITY_HOST = "etjanster.stockholm.se";
@@ -144,8 +144,13 @@ export function makeCityClient(deps: CityDeps) {
 
   /** Puts the host on the 24 hour list, says so, and ends the run. */
   function refuse(label: string): never {
-    blockHost(gatesPath, CITY_HOST, label, deps.now(), { dir: dataDir, log: deps.log });
-    line(`${CITY_HOST} blockerad i 24 timmar (${label})`);
+    try {
+      blockHost(gatesPath, CITY_HOST, label, deps.now(), { dir: dataDir, log: deps.log });
+      line(`${CITY_HOST} blockerad i 24 timmar (${label})`);
+    } catch {
+      // The block file is damaged and is not rewritten (WR-12): every later call is paused until it has been looked at.
+      line(`${CITY_HOST} spärren kunde inte skrivas (${label})`);
+    }
     throw new CityStop(label, true);
   }
 
@@ -154,6 +159,7 @@ export function makeCityClient(deps: CityDeps) {
     const gates = readHostGates(gatesPath, deps.log);
     const until = hostBlockedUntil(gates, CITY_HOST, deps.now());
     if (until === null) return;
+    if (hostGatesDamaged(gates)) throw new CityStop("pausad", true);
     const reason = gates[CITY_HOST]?.reason ?? "okänd";
     if (gates[CITY_HOST]?.disabled === true) line(`Stadens e-tjänst avstängd (${reason})`);
     else line(`Stadens e-tjänst pausad till ${until.toISOString()} (${reason})`);
