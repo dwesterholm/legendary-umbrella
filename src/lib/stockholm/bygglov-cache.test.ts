@@ -64,12 +64,27 @@ describe("constants", () => {
 });
 
 describe("beteckningSlug", () => {
-  it("lower-cases, maps å and ä to a and ö to o, spaces to a dash, and drops every other character", () => {
+  it("lower-cases, maps å and ä to a and ö to o, spaces to a dash, a colon to an underscore, and drops every other character", () => {
     expect(beteckningSlug("Droskhästen 8")).toBe("droskhasten-8");
     expect(beteckningSlug("Ormen Mindre 2")).toBe("ormen-mindre-2");
     expect(beteckningSlug("Älgen Östra 5")).toBe("algen-ostra-5");
-    expect(beteckningSlug("Tegelbruket 7:3")).toBe("tegelbruket-73");
+    expect(beteckningSlug("Tegelbruket 7:3")).toBe("tegelbruket-7_3");
     expect(beteckningSlug("  Kv.  Ö/Å  ")).toBe("kv-oa");
+  });
+
+  it("WR-11: Södermalm 8:57, 85:7 and 857 get three different file names", () => {
+    const slugs = ["Södermalm 8:57", "Södermalm 85:7", "Södermalm 857"].map(beteckningSlug);
+    expect(new Set(slugs).size).toBe(3);
+    expect(slugs).toEqual(["sodermalm-8_57", "sodermalm-85_7", "sodermalm-857"]);
+  });
+
+  it("WR-11: each of them keeps its own case-list file", () => {
+    saveCaseList("Södermalm 8:57", { cases: [aCase("1")] }, { dir, now: NOW });
+    saveCaseList("Södermalm 857", { cases: [aCase("2")] }, { dir, now: NOW });
+    const a = loadCaseList("Södermalm 8:57", { dir });
+    const b = loadCaseList("Södermalm 857", { dir });
+    expect(a.ok && a.entry.cases.map((c) => c.rec)).toEqual(["1"]);
+    expect(b.ok && b.entry.cases.map((c) => c.rec)).toEqual(["2"]);
   });
 
   it("a beteckning that tries to climb out of the directory is slugged to plain characters", () => {

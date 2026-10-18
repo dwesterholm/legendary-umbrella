@@ -30,7 +30,7 @@
 import { candidateFactsSchema, emptyFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import { mergeStambyte, type CityStambyteReading } from "@/lib/discovery/stambyte-facts";
 import {
-  beteckningSlug,
+  beteckningKey,
   loadAddressMap,
   loadCaseList,
   normaliseAddressKey,
@@ -371,7 +371,7 @@ export async function runCityStage(rows: readonly CityStageRow[], opts: CityStag
   }
 
   async function building(beteckning: string): Promise<readonly StoredCase[] | null> {
-    const key = beteckningSlug(beteckning);
+    const key = beteckningKey(beteckning);
     if (buildings.has(key)) return buildings.get(key) ?? null;
     let cases: readonly StoredCase[] | null = null;
     try {

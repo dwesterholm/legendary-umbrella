@@ -31,9 +31,10 @@ const FUTURE_TOLERANCE_MS = DAY_MS;
 // ---------------------------------------------------------------------------
 
 /**
- * The file-name form of a beteckning or search word: lower case, å and ä to a, ö to o, runs of spaces to one "-",
- * every other character dropped. The result holds only [a-z0-9-], so it cannot escape a directory. Empty when
- * nothing is left (the callers refuse that).
+ * The file-name form of a beteckning or search word: lower case, å and ä to a, ö to o, runs of spaces to one "-", a
+ * colon to "_" ("Södermalm 8:57" and "Södermalm 857" are different designations), every other character dropped.
+ * The result holds only [a-z0-9_-], so it cannot escape a directory. Empty when nothing is left (the callers refuse
+ * that).
  */
 export function beteckningSlug(text: string): string {
   return text
@@ -43,16 +44,17 @@ export function beteckningSlug(text: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/ /g, "-")
-    .replace(/[^a-z0-9-]/g, "")
+    .replace(/:/g, "_")
+    .replace(/[^a-z0-9_-]/g, "")
     .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "");
 }
 
+/** The comparison form of a beteckning: trimmed, inner whitespace collapsed, case-insensitive. Keys in-run maps. */
+export const beteckningKey = (beteckning: string): string => beteckning.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv");
+
 /** The comparison form of a beteckning: trimmed, inner whitespace collapsed, case-insensitive (as `exactMatchRows`). */
-const sameBeteckning = (a: string, b: string): boolean => {
-  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv");
-  return norm(a) === norm(b);
-};
+const sameBeteckning = (a: string, b: string): boolean => beteckningKey(a) === beteckningKey(b);
 
 // ---------------------------------------------------------------------------
 // Schemas (strict: an unknown key is a failure, never silently dropped)

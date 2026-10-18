@@ -467,6 +467,28 @@ describe("live mode: limits and a clean stop", () => {
     expect(stats.detailsRead).toBe(3);
   });
 
+  it("WR-11: 7:3 and 73 are two buildings in one run: the second does not receive the first one's cases", async () => {
+    const { client, calls } = scriptedClient({
+      caseList: async (beteckning) => ({
+        cases: beteckning === "Tegelbruket 7:3" ? [hissCase("001", "2025-01-10")] : [],
+        otherCases: [],
+        headingCount: 0,
+        termsLinks: [],
+        addresses: [],
+      }),
+    });
+    const { facts } = await runCityStage([textRow("Testgatan 1", "Tegelbruket 7:3"), textRow("Testgatan 2", "Tegelbruket 73")], {
+      mode: "live",
+      asOf: AS_OF,
+      cacheDir,
+      client,
+      now: fakeClock().now,
+    });
+    expect(calls.filter((c) => c.startsWith("caseList")).sort()).toEqual(["caseList Tegelbruket 73", "caseList Tegelbruket 7:3"]);
+    expect((facts[0] as CandidateFacts).byggarenden?.map((c) => c.kind)).toEqual(["hiss"]);
+    expect((facts[1] as CandidateFacts).byggarenden).toEqual([]);
+  });
+
   it("a case that is old, not interesting, or an enforcement case never gets a detail page", async () => {
     const old = hissCase("010", "2019-01-10");
     const notInteresting: StoredCase = { ...hissCase("011", "2025-03-10"), kinds: ["fasad"], primary: "fasad" };
