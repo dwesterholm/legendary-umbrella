@@ -72,11 +72,7 @@ const HELD_BACK: ReadonlyArray<readonly [string, Expected]> = [
  * Held-back phrases the reader gets wrong, pinned so a later fix (or a regression) shows up. Listed here,
  * not hidden by editing the expectations above. Empty = every held-back phrase passes.
  */
-const HELD_BACK_KNOWN_MISSES: readonly string[] = [
-  "Stambytet är slutfört, besiktigat och godkänt 2021.",
-  "Bostadsrättsföreningen planerar stambyte inom några år, troligen 2029.",
-  "Föreningen har gjort stambyte, senast 2012.",
-];
+const HELD_BACK_KNOWN_MISSES: readonly string[] = [];
 
 describe("held-back stambyte phrases (the honest pre-live score)", () => {
   it("has at least 15 phrases", () => {
@@ -167,6 +163,12 @@ describe("stambyteFromText: the rules in their own words", () => {
   it("a year behind another renovation topic is refused, but 'och badrumsrenovering' is a joined subject", () => {
     expect(stambyteFromText("Stambyte, nytt badrum och golv 2020.", RUN)).toEqual(ex(null));
     expect(stambyteFromText("Stambyte och badrumsrenovering gjordes 2019.", RUN)).toEqual(ex(2019));
+  });
+
+  it("a comma lets only status and hedge words through: 'senast 2012' counts, a new subject does not", () => {
+    expect(stambyteFromText("Föreningen har gjort stambyte, senast 2012.", RUN)).toEqual(ex(2012));
+    expect(stambyteFromText("Stambyte genomfört, hyresgäst flyttade in 2020.", RUN)).toEqual(ex(null));
+    expect(stambyteFromText("Stambyte genomfört, föreningen har bra ekonomi sedan 2015.", RUN)).toEqual(ex(null));
   });
 
   it("the run year splits past from future, and the caller owns it", () => {

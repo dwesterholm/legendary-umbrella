@@ -218,9 +218,30 @@ function negatedKeywords(clause: string, keywords: readonly Span[]): Set<number>
   return negated;
 }
 
+/**
+ * Words that may stand between a keyword and its year even across a comma: how the job went and hedges
+ * about when ("Stambytet är slutfört, besiktigat och godkänt 2021", "stambyte inom några år, troligen
+ * 2029", "stambyte, senast 2012"). Any other word after a comma starts a new subject, and its year is not
+ * the stambyte year.
+ */
+const COMMA_FILLER: ReadonlySet<string> = new Set(
+  (
+    "är har var blev blivit och samt inom några år i på till som det den för av en ett sedan under senast " +
+    "troligen sannolikt preliminärt preliminär ungefär ca cirka omkring runt slutfört genomfört klart färdigt " +
+    "utfört gjort gjorts godkänt besiktigat avslutat slutfördes genomfördes utfördes gjordes klar färdig " +
+    "slutförd genomförd utförd godkänd besiktigad avslutad avslutades nyligen tidigare redan helt " +
+    "fullständigt fullt totalt först hela huset fastigheten föreningen husets även nu då nästa planerat " +
+    "planerad planeras beräknat beräknas väntas"
+  ).split(" "),
+);
+
+function onlyFiller(between: string): boolean {
+  return (between.toLowerCase().match(/\p{L}+/gu) ?? []).every((word) => COMMA_FILLER.has(word));
+}
+
 /** True when the text between a keyword and a year says the year belongs to something else. */
 function refusedAfter(between: string): boolean {
-  if (/,/.test(between) && !/^[\s,:;()–-]*$/.test(between)) return true;
+  if (/,/.test(between) && !onlyFiller(between)) return true;
   if (KEYWORD_ONCE.test(between)) return true;
   const topic = TOPIC.exec(between);
   if (topic && !JOINED_TOPIC.test(between.slice(0, topic.index))) return true;
