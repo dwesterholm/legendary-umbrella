@@ -6,6 +6,7 @@ import { loadAddressMap, loadCaseList } from "@/lib/stockholm/bygglov-cache";
 import { CityStop, makeCityClient, type CaseListAnswer } from "@/lib/stockholm/bygglov-client";
 import type { AddressOption } from "@/lib/stockholm/bygglov-parse";
 import {
+  askOneAddress,
   matchAddressFragment,
   pickFromAddressFragment,
   resolveBeteckning,
@@ -516,5 +517,52 @@ describe("rungSummaryLine", () => {
 
   it("handles an empty list", () => {
     expect(rungSummaryLine([])).toBe("Fastighetsbeteckning: 0 av 0 hittade (a 0, a2 0, b 0, c 0), okänd 0");
+  });
+});
+
+describe("WR-15: askOneAddress isolates one bad address in the sold join", () => {
+  const NOW = () => new Date("2026-10-20T12:00:00.000Z");
+  const isStop = (error: unknown) => error instanceof CityStop;
+
+  it("an address the client refuses before any request (a plain Error) is logged once, remembered as no_candidates and not counted", async () => {
+    const logs: string[] = [];
+    const answer = await askOneAddress("x".repeat(81), {
+      addressSearch: async () => {
+        throw new Error("Ogiltigt värde för adress");
+      },
+      isStop,
+      now: NOW,
+      log: (l) => logs.push(l),
+    });
+    expect(answer.requested).toBe(false);
+    expect(answer.entry).toEqual({ beteckning: null, rung: null, status: "no_candidates", at: "2026-10-20T12:00:00.000Z" });
+    expect(logs).toEqual(["[koppling] en adress kunde inte frågas och hoppas över"]);
+    expect(logs.join("")).not.toContain("xxx"); // the address never reaches the log
+  });
+
+  it("a CityStop is not swallowed: it ends the run", async () => {
+    await expect(
+      askOneAddress("Folkungagatan 61", {
+        addressSearch: async () => {
+          throw new CityStop("http-429", true);
+        },
+        isStop,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(CityStop);
+  });
+
+  it("an equal address resolves on rung b; street land and no match do not", async () => {
+    const options: AddressOption[] = [{ text: "Droskhästen 8, Folkungagatan 61", value: "Droskhästen 8" }];
+    const ok = await askOneAddress("Folkungagatan 61", { addressSearch: async () => options, isStop, now: NOW });
+    expect(ok).toMatchObject({ requested: true, entry: { beteckning: "Droskhästen 8", rung: "b", status: "resolved" } });
+    const street = await askOneAddress("Folkungagatan 61", {
+      addressSearch: async () => [{ text: "Södermalm 8:57, Folkungagatan 61", value: "Södermalm 8:57" }],
+      isStop,
+      now: NOW,
+    });
+    expect(street.entry).toMatchObject({ beteckning: null, status: "no_candidates" });
+    const none = await askOneAddress("Folkungagatan 61", { addressSearch: async () => [], isStop, now: NOW });
+    expect(none.entry).toMatchObject({ beteckning: null, status: "no_candidates" });
   });
 });

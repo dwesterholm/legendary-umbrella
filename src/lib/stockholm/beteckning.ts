@@ -113,6 +113,49 @@ export function pickFromAddressFragment(asked: string, options: readonly Address
 }
 
 // ---------------------------------------------------------------------------
+// One address through the city's address search, for the sold join (rung b only)
+// ---------------------------------------------------------------------------
+
+export interface AskOneAddressDeps {
+  /** `city.addressSearch` of the city client. */
+  addressSearch: (address: string) => Promise<AddressOption[]>;
+  /** True for an error that must end the run (a CityStop); anything else is the fault of this one address. */
+  isStop: (error: unknown) => boolean;
+  now: () => Date;
+  log?: (line: string) => void;
+}
+
+/**
+ * Asks the city's address search about ONE address on the equal-address rule and returns the address-map entry to
+ * remember. A stop (`isStop`) propagates and the run ends. Any other error is this address's own fault (a value the
+ * client refuses before any request: longer than 80 characters, a control character): it is logged as one fixed line
+ * (never the address), the address is remembered as "no_candidates" so a re-run does not stop at it again, and the run
+ * goes on (WR-15). `requested` is false then: no request was made, so it does not count against the budget.
+ */
+export async function askOneAddress(
+  asking: string,
+  deps: AskOneAddressDeps,
+): Promise<{ entry: AddressEntry; requested: boolean }> {
+  const at = () => deps.now().toISOString();
+  let options: AddressOption[];
+  try {
+    options = await deps.addressSearch(asking);
+  } catch (error) {
+    if (deps.isStop(error)) throw error;
+    deps.log?.("[koppling] en adress kunde inte frågas och hoppas över");
+    return { entry: { beteckning: null, rung: null, status: "no_candidates", at: at() }, requested: false };
+  }
+  const match = matchAddressFragment(asking, options);
+  if (match.value !== null && !isStreetLandBeteckning(match.value)) {
+    return { entry: { beteckning: match.value, rung: "b", status: "resolved", at: at() }, requested: true };
+  }
+  return {
+    entry: { beteckning: null, rung: null, status: match.ambiguous ? "ambiguous" : "no_candidates", at: at() },
+    requested: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The ladder
 // ---------------------------------------------------------------------------
 

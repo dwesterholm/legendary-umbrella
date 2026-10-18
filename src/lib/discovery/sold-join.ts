@@ -72,6 +72,33 @@ export interface JoinDetail {
   readonly latest: { readonly type: string; readonly code: string | null } | null;
 }
 
+const joinDetailSchema = z.strictObject({
+  startbeskedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  slutbeskedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  latest: z.strictObject({ type: z.string().max(60), code: z.string().max(60).nullable() }).nullable(),
+});
+
+/**
+ * Reads the saved detail file (`{ schemaVersion: 1, details: { <rec>: {...} } }`) entry by entry. A rec that is not
+ * digits, or an entry of the wrong shape, is dropped and counted; the rest is kept. Anything that is not an object
+ * with a `details` record gives nothing. Pure (WR-15: the file is no more trusted than the other cache files).
+ */
+export function parseJoinDetails(raw: unknown): { details: Map<string, JoinDetail>; dropped: number } {
+  const out = new Map<string, JoinDetail>();
+  const entries = (raw as { details?: unknown } | null)?.details;
+  if (typeof entries !== "object" || entries === null || Array.isArray(entries)) return { details: out, dropped: 0 };
+  let dropped = 0;
+  for (const [rec, value] of Object.entries(entries)) {
+    const parsed = joinDetailSchema.safeParse(value);
+    if (!/^\d{1,12}$/.test(rec) || !parsed.success) {
+      dropped += 1;
+      continue;
+    }
+    out.set(rec, parsed.data);
+  }
+  return { details: out, dropped };
+}
+
 /** What the city's address search answered for one address (the address map's entry). */
 export interface LookupAnswer {
   readonly beteckning: string | null;

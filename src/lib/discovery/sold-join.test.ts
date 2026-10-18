@@ -19,6 +19,7 @@ import {
   unidentifiedRows,
   yearsClass,
   type JoinDetail,
+  parseJoinDetails,
   type LookupAnswer,
   type SoldInput,
 } from "@/lib/discovery/sold-join";
@@ -309,5 +310,31 @@ describe("the evidence", () => {
     expect(md).toContain("Klassen 0 till 5 år når inte 30 rader");
     expect(md).not.toMatch(/slipgatan|bondegatan/i);
     expect(JSON.stringify(evidence)).not.toMatch(/slipgatan|bondegatan|hornsgatan/i);
+  });
+});
+
+describe("parseJoinDetails (WR-15: the detail file is validated like every other cache file)", () => {
+  const good = { startbeskedDate: "2021-04-01", slutbeskedDate: null, latest: { type: "Startbesked", code: null } };
+
+  it("keeps good entries and drops (and counts) bad ones: a wrong shape, an extra key, a bad date, a rec that is not digits", () => {
+    const { details, dropped } = parseJoinDetails({
+      schemaVersion: 1,
+      details: {
+        "100": good,
+        "101": { ...good, startbeskedDate: "tomorrow" },
+        "102": { ...good, officer: "Anna" },
+        "103": "text",
+        "../x": good,
+        "104": { startbeskedDate: null, slutbeskedDate: "2022-01-10", latest: null },
+      },
+    });
+    expect([...details.keys()]).toEqual(["100", "104"]);
+    expect(dropped).toBe(4);
+  });
+
+  it("gives nothing for a file that is not an object with a details record", () => {
+    for (const raw of [null, 5, "x", [], { details: [] }, { details: "x" }, {}]) {
+      expect(parseJoinDetails(raw)).toEqual({ details: new Map(), dropped: 0 });
+    }
   });
 });

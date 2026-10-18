@@ -43,8 +43,7 @@ import {
 } from "@/lib/stockholm/bygglov-cache";
 import { applyDetail, type StoredCase } from "@/lib/stockholm/bygglov-classify";
 import type { CityClient, CityFetch } from "@/lib/stockholm/bygglov-client";
-import { matchAddressFragment } from "@/lib/stockholm/beteckning";
-import { isStreetLandBeteckning } from "@/lib/stockholm/beteckning-text";
+import { askOneAddress } from "@/lib/stockholm/beteckning";
 import { CITY_LOCK_PATH, HOST_GATES_PATH, assertManualRunAllowed, hostBlockedUntil, readHostGates } from "@/lib/stockholm/host-gate";
 import {
   SWEEP_DISTRICTS,
@@ -63,6 +62,7 @@ import {
   dec,
   fmt,
   groupCounts,
+  parseJoinDetails,
   planAddresses,
   renderJoinMarkdown,
   renderJoinReport,
@@ -221,9 +221,9 @@ function loadDetails(log: (line: string) => void): Map<string, JoinDetail> {
     log("[koppling] join-details.json går inte att läsa och börjar om");
     return out;
   }
-  const entries = (raw as { details?: Record<string, JoinDetail> } | null)?.details;
-  if (entries === undefined) return out;
-  for (const [rec, d] of Object.entries(entries)) if (/^\d{1,12}$/.test(rec)) out.set(rec, d);
+  const parsed = parseJoinDetails(raw);
+  if (parsed.dropped > 0) log(`[koppling] join-details.json: ${parsed.dropped} poster hade fel format och hoppas över`);
+  for (const [rec, d] of parsed.details) out.set(rec, d);
   return out;
 }
 
@@ -452,16 +452,15 @@ async function main(): Promise<number> {
             break;
           }
           const asking = plans.get(key)?.asked ?? key;
-          const options = await city.addressSearch(asking);
-          asked += 1;
-          const match = matchAddressFragment(asking, options);
-          const at = clock().toISOString();
-          if (match.value !== null && !isStreetLandBeteckning(match.value)) {
-            remember(key, { beteckning: match.value, rung: "b", status: "resolved", at });
-          } else {
-            remember(key, { beteckning: null, rung: null, status: match.ambiguous ? "ambiguous" : "no_candidates", at });
-          }
-          if (asked % SAVE_EVERY === 0) {
+          const answer = await askOneAddress(asking, {
+            addressSearch: (address) => city.addressSearch(address),
+            isStop: (error) => stopLabelOf(error) !== null,
+            now: clock,
+            log,
+          });
+          if (answer.requested) asked += 1;
+          remember(key, answer.entry);
+          if (answer.requested && asked % SAVE_EVERY === 0) {
             persistMap();
             saveState(state);
             log(`[koppling] steg ${stage}: ${fmt(asked)} av ${fmt(todoKeys.length)} frågade`);
