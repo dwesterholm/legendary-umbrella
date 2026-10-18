@@ -224,6 +224,23 @@ Plans:
 
 - [ ] 14.5-13-PLAN.md — First live run for ceiling coverage (0 kr), phase exit, plain-words summary for Daniel (CEIL-01, CEIL-02, all)
 
+### Phase 14.6: Bygglov & Stambyte from the City's Case List, Uppmätning Flags (INSERTED 2026-10-18)
+
+**Why (Daniel, 2026-10-18, from a discussion with a friend + research `.planning/research/2026-10-18-uppmatning-bygglov-stambyte.md`):** Stockholm's building-permit e-service (Bygg- och plantjänsten) lists every case per property without a login, back to 1929: balcony permits granted but not built add value; a stambyte must be reported to the city, so the same list gives a dated stambyte history per building — which can be joined to the 7 379 sold flats and MEASURED in the price model instead of the unsourced "−8–15 % before / +5–12 % after" folklore. Old flats are often under-measured (walls and wardrobes left out of pre-standard figures); the broker text states where the area figure comes from. Daniel on terms: "If there are no stated terms, it means they don't say we can't do it. So let's do it." — polite rate, no login-gated content, no email gate.
+
+**Goal, in order:**
+1. **City case-list fetcher (CASE-).** Resolve the fastighetsbeteckning from an address (the city's own search; the rental repo's Lantmäteriet route as fallback, read-only), fetch the case list per property, parse case type / description / dates / decisions (Bifall, slutbesked), classify: balcony permits (granted / built / pending, glazing), stambyte years (done, ongoing, planned), other value-relevant cases (hiss, vind, takterrass). Polite: ≤ 1 request/s, cached per property under `.planning/calibration/data/`, refreshed monthly; test on 10 known buildings incl. Folkungagatan 61's; coverage measured.
+2. **Stambyte into the valuation (STAM-).** Join the dated history to the sold rows by address → `yearsSinceStambyte` / `stambyteWithin3y` features; fit with the honesty rule; keep only if CV improves; report the measured effect vs the folklore; either way an "stambyte planerat/pågående" reason line and a table/mail column with the year(s).
+3. **Balcony-permit and uppmätning flags (FLAG-).** "Balkong beviljad, ej byggd" flag + mail column; area-source parsing from broker text (`uppmätt YYYY`, `ej uppmätt`, `enligt säljaren/ritning`) → `areaSourceKind`, `measuredYear`, a soft "troligen ej uppmätt" flag with the kr upside shown separately (≈ 100–115 kkr per kvm at this price level), never in the score; coverage measured on the first live run.
+4. **Floor-plan under-measurement signals** — deferred until the layout read passes its 75 % gate (Phase 14.5).
+**Requirements**: TBD (prefix CASE-, STAM-, FLAG-)
+**Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 14.6 to break down)
+
 ### Phase 15: ROI-Aware Opportunity Brief
 
 **Goal**: Each analyzed candidate produces a prioritized, buyer-tailored opportunity brief — tiered cost/uplift, profit with and without tax, freshness-based bathroom scoring, and concrete interior-designer specifics — delivered through a slim schema that survives Anthropic strict-output. (SPEC Phase A.5.)
