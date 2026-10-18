@@ -237,7 +237,7 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 3/12 plans executed
+**Plans:** 4/12 plans executed
 
 Plans:
 **Wave 1**
@@ -254,7 +254,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 14.6-04-PLAN.md — live 10-building spike + robots/substring/Min Karta probes; GO or STOP for the phase (CASE-03)
+- [x] 14.6-04-PLAN.md — live 10-building spike + robots/substring/Min Karta probes; GO or STOP for the phase (CASE-03)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
