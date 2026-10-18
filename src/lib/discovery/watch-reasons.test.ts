@@ -446,10 +446,10 @@ describe("'redan i värderingen' only for what the fitted model contains (D-05, 
     const feat = (name: string, source: "fit" | "prior" | "zeroed") => ({ name, mean: 0, beta: 0, se: null, source });
     const covered = (features: ReturnType<typeof feat>[]) =>
       coveredByModelOf({ features } as unknown as Parameters<typeof coveredByModelOf>[0]);
-    expect(covered([feat("avgiftPerSqmMonth", "fit"), feat("brfDebtPerSqm", "prior")])).toEqual({ avgift: true, brfDebt: true, stambyte: false });
-    expect(covered([feat("avgiftPerSqmMonth", "zeroed"), feat("brfDebtPerSqm", "fit")])).toEqual({ avgift: false, brfDebt: true, stambyte: false });
-    expect(covered([feat("brfDebtPerSqm", "zeroed")])).toEqual({ avgift: false, brfDebt: false, stambyte: false });
-    expect(covered([])).toEqual({ avgift: false, brfDebt: false, stambyte: false });
+    expect(covered([feat("avgiftPerSqmMonth", "fit"), feat("brfDebtPerSqm", "prior")])).toEqual({ avgift: true, brfDebt: true, stambyte: false, stambytePagar: false });
+    expect(covered([feat("avgiftPerSqmMonth", "zeroed"), feat("brfDebtPerSqm", "fit")])).toEqual({ avgift: false, brfDebt: true, stambyte: false, stambytePagar: false });
+    expect(covered([feat("brfDebtPerSqm", "zeroed")])).toEqual({ avgift: false, brfDebt: false, stambyte: false, stambytePagar: false });
+    expect(covered([])).toEqual({ avgift: false, brfDebt: false, stambyte: false, stambytePagar: false });
   });
 });
 
@@ -495,7 +495,7 @@ describe("residualReason (R-04)", () => {
 
 describe("stambyte reason (STAM-03, D-07)", () => {
   const stambyteRow = (over: Partial<CandidateFacts>) => row({ facts: over });
-  const modelOf = (stambyteTerm?: { kept: boolean }) =>
+  const modelOf = (stambyteTerm?: { kept: boolean; ongoing?: unknown }) =>
     ({ features: [], ...(stambyteTerm === undefined ? {} : { stambyteTerm }) }) as unknown as Parameters<typeof coveredByModelOf>[0];
 
   it("'pagar' gives 'stambyte pågår' and the flagged cell is no longer an unexplained find", () => {
@@ -546,22 +546,29 @@ describe("stambyte reason (STAM-03, D-07)", () => {
     expect(REASON_ORDER[REASON_ORDER.length - 1]).toBe("upcomingSale");
   });
 
-  it("the suffix is added only when the model kept a stambyte term", () => {
-    const planned = stambyteRow({ stambyteStatus: "planerat", plannedStambyteYear: 2027 });
-    const ongoing = stambyteRow({ stambyteStatus: "pagar" });
-    const kept = coveredByModelOf(modelOf({ kept: true }));
-    expect(kept.stambyte).toBe(true);
-    expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: kept })).toEqual(["stambyte pågår (redan i värderingen)"]);
-    expect(reasonsFor(planned, { ...NO_MEDIANS, coveredByModel: kept })).toEqual([
-      "stambyte planerat 2027 (redan i värderingen)",
-    ]);
-    for (const model of [modelOf({ kept: false }), modelOf(undefined)]) {
+  it("WR-06: the suffix is added only to a city-recorded 'pågår' that a kept term with an under-way group prices", () => {
+    const planned = stambyteRow({ stambyteStatus: "planerat", plannedStambyteYear: 2027, stambyteSource: "arsredovisning" });
+    const ongoingCity = stambyteRow({ stambyteStatus: "pagar", stambyteSource: "bygglov_stockholm" });
+    const ongoingText = stambyteRow({ stambyteStatus: "pagar", stambyteSource: "maklartext" });
+    const withGroup = coveredByModelOf(modelOf({ kept: true, ongoing: { pct: -0.05, se: 0.02, n: 40 } }));
+    expect(withGroup).toMatchObject({ stambyte: true, stambytePagar: true });
+    expect(reasonsFor(ongoingCity, { ...NO_MEDIANS, coveredByModel: withGroup })).toEqual(["stambyte pågår (redan i värderingen)"]);
+    // a broker text "pågår" and any planned stambyte are never in the valuation, whatever the term
+    expect(reasonsFor(ongoingText, { ...NO_MEDIANS, coveredByModel: withGroup })).toEqual(["stambyte pågår"]);
+    expect(reasonsFor(planned, { ...NO_MEDIANS, coveredByModel: withGroup })).toEqual(["stambyte planerat 2027"]);
+    // a kept term with no under-way group (too few rows) prices completed years only
+    const noGroup = coveredByModelOf(modelOf({ kept: true, ongoing: null }));
+    expect(noGroup).toMatchObject({ stambyte: true, stambytePagar: false });
+    expect(reasonsFor(ongoingCity, { ...NO_MEDIANS, coveredByModel: noGroup })).toEqual(["stambyte pågår"]);
+    expect(reasonsFor(planned, { ...NO_MEDIANS, coveredByModel: noGroup })).toEqual(["stambyte planerat 2027"]);
+    for (const model of [modelOf({ kept: false, ongoing: { pct: -0.05 } }), modelOf(undefined)]) {
       const covered = coveredByModelOf(model);
       expect(covered.stambyte).toBe(false);
-      expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: covered })).toEqual(["stambyte pågår"]);
+      expect(covered.stambytePagar).toBe(false);
+      expect(reasonsFor(ongoingCity, { ...NO_MEDIANS, coveredByModel: covered })).toEqual(["stambyte pågår"]);
     }
-    expect(reasonsFor(ongoing, NO_MEDIANS)).toEqual(["stambyte pågår"]);
-    expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: { avgift: true, brfDebt: true } })).toEqual(["stambyte pågår"]);
+    expect(reasonsFor(ongoingCity, NO_MEDIANS)).toEqual(["stambyte pågår"]);
+    expect(reasonsFor(ongoingCity, { ...NO_MEDIANS, coveredByModel: { avgift: true, brfDebt: true } })).toEqual(["stambyte pågår"]);
   });
 });
 

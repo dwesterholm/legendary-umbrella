@@ -33,8 +33,8 @@
  * often sells below its neighbours; the line reads "stambyte pågår", "stambyte planerat 2027" or, with no
  * year, "stambyte planerat", and counts as an explanation. It follows "hög föreningsskuld" in the print order.
  * A finished stambyte ("genomfort") and an unknown status give no line: absence is not "no stambyte". The
- * " (redan i värderingen)" suffix is added only when the loaded model kept a stambyte term (R-08: the term is
- * only in the valuation when the fit kept it, so the line never claims the valuation prices stambyte otherwise).
+ * " (redan i värderingen)" suffix is added only to "stambyte pågår", only when the stambyte under way is the city's
+ * and the loaded model kept a stambyte term that has an "under way" group (R-08, WR-06); never to "planerat".
  *
  * NOT USED: the card's sale-type field. It reads "succession" on every active card
  * and carries no information about the flat.
@@ -155,11 +155,18 @@ export interface CoveredByModel {
   readonly avgift: boolean;
   readonly brfDebt: boolean;
   /**
-   * Phase 14.6 (D-07): the loaded model carries a KEPT stambyte term (`stambyteTerm.kept === true`), so the
-   * stambyte status is inside the valuation. Absent or false means "not priced": the reason line then
-   * carries no "(redan i värderingen)" suffix.
+   * Phase 14.6 (D-07): the loaded model carries a KEPT stambyte term (`stambyteTerm.kept === true`). The term prices
+   * completed stambyte years (age buckets) and, when it has one, a group of buildings with a stambyte under way. It
+   * never prices a PLANNED stambyte. Informational only: the reason line reads `stambytePagar`.
    */
   readonly stambyte?: boolean;
+  /**
+   * WR-06: the kept term has an "under way" group (`stambyteTerm.ongoing !== null`), so a stambyte under way that the
+   * CITY recorded is inside the valuation. Absent or false: not priced, and the "stambyte pågår" line carries no
+   * "(redan i värderingen)" suffix. A planned stambyte, and an "under way" that only the broker text states, are never
+   * priced (the model's input reads the city's record alone).
+   */
+  readonly stambytePagar?: boolean;
 }
 
 export interface ReasonContext {
@@ -278,16 +285,15 @@ export function reasonsFor(row: ReasonRow, ctx: ReasonContext): string[] {
     // Phase 14.6 (STAM-03, D-07): a stambyte under way or planned often explains a low price (the buyer
     // expects months without a bathroom and maybe a higher avgift). A finished stambyte ("genomfort") and
     // an unknown status (null) give no reason: absence is not "no stambyte". The suffix is added only when
-    // the loaded model kept a stambyte term; without one the valuation does not price stambyte (R-08).
-    const stambyteSuffix = ctx.coveredByModel?.stambyte === true ? IN_VALUATION_SUFFIX : "";
+    // the model's kept stambyte term really prices this row's status (WR-06): a stambyte under way that the CITY
+    // recorded, and only when the term has an "under way" group. A planned stambyte and a broker-text "pågår" are
+    // never inside the valuation (R-08).
+    const pagarPriced = ctx.coveredByModel?.stambytePagar === true && facts.stambyteSource === "bygglov_stockholm";
     if (facts.stambyteStatus === "pagar") {
-      found.set("stambyte", `stambyte pågår${stambyteSuffix}`);
+      found.set("stambyte", `stambyte pågår${pagarPriced ? IN_VALUATION_SUFFIX : ""}`);
     } else if (facts.stambyteStatus === "planerat") {
       const year = facts.plannedStambyteYear;
-      found.set(
-        "stambyte",
-        `${isNumber(year) ? `stambyte planerat ${Math.round(year)}` : "stambyte planerat"}${stambyteSuffix}`,
-      );
+      found.set("stambyte", isNumber(year) ? `stambyte planerat ${Math.round(year)}` : "stambyte planerat");
     }
 
     // `elevatorListed` is false only after a detail read; a card's missing elevator is null.
@@ -342,7 +348,7 @@ export function reasonCell(reasons: readonly string[], flagged: boolean): string
  * not in the valuation; a model without a `stambyteTerm`, or with `kept: false`, does not price stambyte. Pure.
  */
 export function coveredByModelOf(
-  model: Pick<HedonicModel, "features"> & { readonly stambyteTerm?: { readonly kept: boolean } },
+  model: Pick<HedonicModel, "features"> & { readonly stambyteTerm?: { readonly kept: boolean; readonly ongoing?: unknown } },
 ): CoveredByModel {
   const fitted = (name: string): boolean =>
     model.features.some((f) => f.name === name && (f.source === "fit" || f.source === "prior"));
@@ -350,6 +356,7 @@ export function coveredByModelOf(
     avgift: fitted("avgiftPerSqmMonth"),
     brfDebt: fitted("brfDebtPerSqm"),
     stambyte: model.stambyteTerm?.kept === true,
+    stambytePagar: model.stambyteTerm?.kept === true && model.stambyteTerm.ongoing != null,
   };
 }
 
