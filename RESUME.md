@@ -6,7 +6,27 @@
 
 ---
 
-## ▶️ PICK UP HERE (2026-10-18 evening — 14.5: 7/13 done; Booli gate closed until 2026-10-19 14:57 UTC)
+## ▶️ PICK UP HERE (2026-10-19 early — 14.6 EXECUTED 12/12 + review fixed; 14.5 waits for the Booli gate 14:57 UTC)
+
+Phase 14.6 (bygglov + stambyte from Stockholm's Bygg- och plantjänsten, uppmätning flags) ran autonomously 2026-10-18/19
+on `gsd/phase-14.6-bygglov-stambyte-uppmatning` (main ff'd + pushed). 2 335 polite city requests, 0 refusals, 0 Booli,
+0 Anthropic. Review 1 critical + 15 warnings → ALL fixed (`14.6-REVIEW-FIX.md`). Verification 13/13, human_needed on
+two items → `14.6-UAT.md` (real-text audit on the next live run; cell wording). Re-verification after the fixes:
+see 14.6-VERIFICATION.md (fingerprint refreshed).
+Findings for Daniel: Folkungagatan 61's building = Droskhästen 8: stambyte case 2006 (ansökt, never opened), lift
+2021, attic 2023, no pending balcony permit. Sweep: 1 613 recorded stambyten in 1 446 innerstan buildings; the record
+thins after 2011 (unreported ≠ never done). Joined to 7 371 of 7 431 sold rows; 32,5 % sit in a building with a
+recorded stambyte. Price effect MEASURED: 0–10 y +2,4 % (SE 1,3), 11–15 y −1,8 %, 16–25 y +1,2 %, 26–40 y +1,0 % —
+CV gain 0,07 %, t 0,9 → NOT in the model (R-08). The folklore (−8–15 % before / +5–12 % after) is unsupported.
+Today's candidates: 15 buildings with a stambyte fact, 2 under way (Kungsklippan 20, Kungsbro Strand 19), 7 addresses
+with a granted-not-signed-off balcony permit (6 are glazing). 13 of 74 addresses still unresolved (city stalls, not
+refusals) — rerun `npx tsx scripts/bygglov-candidates.ts` to fill.
+
+NEXT: (1) 14.5 plans 06–09, 12, 13 after the Booli gate opens 2026-10-19 14:57 UTC (Mac awake + unlocked):
+`/gsd-execute-phase 14.5 --auto`. (2) Daniel's UATs: 14.4 items 2+6, 14.5 (after it finishes), 14.6 items 1–2.
+(3) Enrichment stays PAUSED at 72 % by Daniel's decision (ids in 14.5 evidence/unenriched-rows.json).
+
+## ▶️ STATUS 2026-10-18 evening — 14.5: 7/13 done; Booli gate closed until 2026-10-19 14:57 UTC)
 
 Done today: plan 10 (restart blocked by Booli again after 64 pages at 2 s → ENR-01 PARTLY MET: 3 912/5 469 enriched,
 2 329 with debt/kvm, BRF pass not run; stage-2 cap as model parameter + stage-2 CV) and plan 11 (refit n≈3 900: avgift
