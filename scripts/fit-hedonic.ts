@@ -6,10 +6,13 @@
  *
  *   npx tsx scripts/fit-hedonic.ts [--cache .planning/calibration/data/slutpriser-cache.json] \
  *       [--out data/hedonic-model.json] [--as-of <YYYY-MM-DD, default: the cache's asOf>] \
- *       [--before-record <fil.json>] [--without-new-features --out <fil>] [--stage2-cap 0.08|0.12]
+ *       [--before-record <fil.json>] [--without-new-features --out <fil>] [--stage2-cap 0.08|0.12] [--report-json <fil.json>]
  *
  * 14.5 (R-01, D-03): --stage2-cap sets the limit on the balcony and build-year effects. Only 0.08 (default) and 0.12
  * are allowed; anything else stops the script before the cache is read. The fitted model records it as stage2.capPct.
+ * Every fit prints the stage-2 block (raw values with their uncertainty, what sits on the cap, the stage-2
+ * cross-validation for no stage 2, ±8 % and ±12 %) and the ceiling-height line (CEIL-02, R-03). --report-json writes the
+ * same numbers as JSON (the fitReportJsonSchema shape) under .planning/phases/ or .planning/calibration/data/.
  *
  * 14.4 (VAL-02): avgift per m2 and month, the association's debt per m2 and tomträtt are fitted
  * features. `--before-record` reads (never writes) a frozen run record and prints the new model's
@@ -50,6 +53,7 @@ import {
   trainingFeatureMatrix,
   type HedonicFitReport,
   type HedonicModel,
+  type Stage2Report,
   type HedonicTrainingRow,
   STAGE2_ALLOWED_CAPS,
   STAGE2_CAP_PCT,
@@ -65,6 +69,7 @@ import {
 } from "@/lib/booli/slutpriser";
 import { writeTextAtomic } from "@/lib/discovery/json-store";
 import { parseFitRunRecord } from "@/lib/discovery/valuation-report";
+import { fitReportJsonSchema } from "@/lib/discovery/valuation-compare";
 import {
   SOLD_CONDITION_CACHE_PATH,
   SOLD_CONDITION_MIN_CONFIDENCE,
@@ -82,6 +87,7 @@ const DEFAULT_CACHE = join(CWD, ".planning", "calibration", "data", "slutpriser-
 const DEFAULT_OUT = join(CWD, "data", "hedonic-model.json");
 const CALIBRATION_DATA_DIR = join(CWD, ".planning", "calibration", "data");
 const ALLOWED_OUT_DIRS = [join(CWD, "data"), CALIBRATION_DATA_DIR];
+const ALLOWED_REPORT_DIRS = [join(CWD, ".planning", "phases"), CALIBRATION_DATA_DIR];
 
 /** The listing the whole phase is calibrated against must not be in the training data (RESEARCH Pitfall 10). */
 const CALIBRATION_ADDRESS = /^Folkungagatan 61\b/i;
@@ -135,6 +141,20 @@ function resolveStage2Cap(): number {
   const allowed = STAGE2_ALLOWED_CAPS.find((c) => c.toFixed(2) === raw);
   if (allowed === undefined) throw new Error(`--stage2-cap kan bara vara 0.08 eller 0.12 (fick "${raw}")`);
   return allowed;
+}
+
+/** --report-json: .json only, under .planning/phases/ or .planning/calibration/data/; null when the flag is absent. */
+function resolveReportJsonPath(): string | null {
+  const raw = argValue("--report-json");
+  if (raw === null) return null;
+  const resolved = resolve(raw);
+  const inside = ALLOWED_REPORT_DIRS.some((dir) => {
+    const rel = relative(dir, resolved);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  });
+  if (!inside) throw new Error(`--report-json måste ligga under .planning/phases/ eller .planning/calibration/data/ (fick ${raw})`);
+  if (!resolved.endsWith(".json")) throw new Error("--report-json måste vara en .json-fil");
+  return resolved;
 }
 
 function resolveOutPath(): string {
@@ -541,11 +561,53 @@ function printConditionBlock(
   console.log(`  Not: ${term.note}`);
 }
 
+/**
+ * CEIL-02 / R-03: Booli's sold-detail pages carry no broker text, so no sold row can state a ceiling height and the
+ * hedonic ceiling feature is not built. Printed and written on every fit.
+ */
+const CEILING_SOLD_ROWS_WITH_HEIGHT = 0;
+const CEILING_REASON = "sålda sidor har ingen annonstext, R-03; ej anpassad (för få angivna)";
+const CEILING_LINE = `Takhöjd: ${CEILING_SOLD_ROWS_WITH_HEIGHT} sålda rader med angiven höjd (sålda sidor har ingen annonstext, R-03); ej anpassad (för få angivna)`;
+
+/** The stage-2 block (D-02, R-01): what stage 2 measured, how sure it is, and which cap predicts held-out sales better. */
+function printStage2(s2: Stage2Report | null, stage1Cv: number): void {
+  if (s2 === null) {
+    console.log("\nSteg 2 (balkong och byggår): för få försäljningar med detaljuppgifter, ingen mätning.");
+  } else {
+    console.log(`\nSteg 2 (balkong och byggår), n ${fmt(s2.n)}, tak ±${sv(s2.capPct * 100, 0)} %`);
+    const onCapMark = (pct: number): string => (Math.abs(Math.abs(pct) - s2.capPct) < 1e-9 ? " (på taket)" : "");
+    const b = s2.balcony;
+    console.log(
+      `  Balkong: rått ${svPct(b.pctRaw)}${b.se === null ? "" : `, SE ≈ ${sv(b.se * 100, 1)} %`}, anpassat ${svPct(b.pct)}${b.source === "prior" ? " (studiens värde, datan var för osäker)" : ""}${onCapMark(b.pct)}`,
+    );
+    const labels = { le1930: "före 1931", y1931to1960: "1931–1960", y1961to1990: "1961–1990", ge1991: "1991 och senare" } as const;
+    for (const key of Object.keys(labels) as (keyof typeof labels)[]) {
+      const v = s2.buckets[key];
+      console.log(
+        `  Byggår ${labels[key]}: n ${fmt(v.n)}, rått ${svPct(v.pctRaw)}${v.seApprox === null ? "" : `, SE ≈ ${sv(v.seApprox * 100, 1)} %`}, anpassat ${svPct(v.pct)}${onCapMark(v.pct)}`,
+      );
+    }
+    console.log(`På taket: ${s2.onCap.length === 0 ? "inget" : s2.onCap.join(", ")}`);
+    console.log(
+      `Steg-2-korsvalidering (fel i ln kr/kvm): utan steg 2 ${sv(s2.cv.without, 5)}, med ±8 % ${sv(s2.cv.byCap["0.08"], 5)}, med ±12 % ${sv(s2.cv.byCap["0.12"], 5)}`,
+    );
+    console.log(
+      `  Samma fel när värdena läggs på som prissättningen gör (balkong sant x (1 + procent), annars x 1): med ±8 % ${sv(s2.cv.asApplied["0.08"], 5)}, med ±12 % ${sv(s2.cv.asApplied["0.12"], 5)}. ` +
+        "Byggårsvärdena gäller en lägenhet med genomsnittlig balkongandel, så en känd balkong får där ett tillägg som överskattar ungefär (andel med balkong x balkongeffekt).",
+    );
+  }
+  console.log(
+    `Steg-1-korsvalidering (cvRmseLog) räknas före steg 2 och kan inte skilja ±8 % från ±12 %: ${sv(stage1Cv, 5)} för båda.`,
+  );
+  console.log(CEILING_LINE);
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 function main(): void {
   const stage2Cap = resolveStage2Cap();
+  const reportJsonPath = resolveReportJsonPath();
   const cachePath = resolve(argValue("--cache") ?? DEFAULT_CACHE);
   const outPath = resolveOutPath();
   // R-05: the intermediate model (old feature set) must never replace the committed one.
@@ -601,6 +663,9 @@ function main(): void {
 
   console.log(`Steg-2-tak: ±${sv(stage2Cap * 100, 0)} % (balkong och byggår begränsas till detta)`);
   let { model: fitted, report } = fitHedonicModel(training, { asOf, fittedAt, stage2CapPct: stage2Cap });
+
+  // What stage 2 measured on the full detail sample, kept even when the thin-bucket gate below drops it from the model.
+  const measuredStage2 = report.stage2;
 
   // Detail-sample evidence, and the gate that decides whether to trust it.
   const detail = training.filter((r) => r.enriched && r.balcony !== null && r.buildYear !== null);
@@ -752,6 +817,8 @@ function main(): void {
   console.log("\nKoefficienter och slutsatser i klartext:");
   for (const l of lines) console.log(`  - ${l}`);
 
+  printStage2(measuredStage2, model.cvRmseLog);
+
   if (intermediate) {
     console.log("\nNya egenskaper (14.4): utelämnade i den här körningen (mellanmodell, R-05).");
   } else {
@@ -814,6 +881,26 @@ function main(): void {
   // Temp file + rename (IN-10): a crash mid-write must not leave a truncated committed model that every consumer refuses.
   writeTextAtomic(outPath, `${json}\n`);
   console.log(`\nModell skriven: ${relative(CWD, outPath)} (${fmt(Math.round(json.length / 1024))} kB, ${fmt(model.kernel.points.length)} punkter)`);
+
+  if (reportJsonPath !== null) {
+    if (measuredStage2 === null) throw new Error("--report-json: ingen steg-2-mätning (för få försäljningar med detaljuppgifter)");
+    const diagnostics = newFeatureDiagnostics(training, asOf);
+    const payload = {
+      version: 1 as const,
+      capPct: stage2Cap,
+      n: model.n,
+      r2: model.r2,
+      cvRmseLog: model.cvRmseLog,
+      enrichedRows: enrichedRows.length,
+      stage2: measuredStage2,
+      correlation: { avgiftDebt: diagnostics.correlation, rows: diagnostics.correlationRows },
+      ceiling: { soldRowsWithHeight: CEILING_SOLD_ROWS_WITH_HEIGHT, fitted: false, reason: CEILING_REASON },
+    };
+    // Validated against the shape plan 03 defined before anything is written.
+    fitReportJsonSchema.parse(payload);
+    writeTextAtomic(reportJsonPath, `${JSON.stringify(payload, null, 2)}\n`);
+    console.log(`Anpassningsrapport skriven: ${relative(CWD, reportJsonPath)}`);
+  }
 }
 
 try {

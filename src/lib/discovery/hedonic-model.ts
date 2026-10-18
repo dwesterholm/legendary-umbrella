@@ -1832,12 +1832,70 @@ function clampPct(x: number, cap: number): number {
   return Math.min(cap, Math.max(-cap, x));
 }
 
+/** One build-year bucket in the stage-2 report (D-02). */
+export interface Stage2BucketReport {
+  /** Eligible rows in the bucket. */
+  n: number;
+  /** exp(level) - 1 before clamping. */
+  pctRaw: number;
+  /** sd(stage-1 residuals in the bucket) / sqrt(n); null under two rows. An approximation: fitRidge's SE is not usable for collinear one-hot buckets. */
+  seApprox: number | null;
+  /** The value the model uses (clamped to the cap). */
+  pct: number;
+}
+
+/**
+ * What stage 2 measured, for the cap decision (R-01, D-02): the raw (unclamped) values with their uncertainty, which
+ * values sit on the cap, and a cross-validation error that can tell the caps apart (stage-1 cvRmseLog cannot).
+ */
+export interface Stage2Report {
+  /** Rows with a balcony flag and a build year. */
+  n: number;
+  /** The cap this fit used. */
+  capPct: number;
+  balcony: {
+    /** Ridge coefficient (ln scale) from the first stage-2 fit, before the sign and stability guard. */
+    gamma: number;
+    /** Its standard error (ln scale, about the same number as a fraction for small effects). */
+    se: number | null;
+    /** exp(gamma) - 1 before the guard and the cap. */
+    pctRaw: number;
+    /** The value the model uses. */
+    pct: number;
+    source: "fit" | "prior";
+  };
+  buckets: Record<(typeof BUCKET_KEYS)[number], Stage2BucketReport>;
+  /** Labels of the values the model holds at the cap (clamped). */
+  onCap: string[];
+  cv: {
+    /** Held-out error (ln kr/m2) with no stage 2: the stage-1 residual alone. */
+    without: number;
+    /** Held-out error with stage 2 clamped at each allowed cap, on the same folds. */
+    byCap: { "0.08": number; "0.12": number };
+    /** The same two errors when the fitted values are applied the way predictKrPerSqm applies them (see {@link stage2CvRmse}). */
+    asApplied: { "0.08": number; "0.12": number };
+  };
+}
+
+const STAGE2_BUCKET_LABELS: Record<(typeof BUCKET_KEYS)[number], string> = {
+  le1930: "byggår före 1931",
+  y1931to1960: "byggår 1931–1960",
+  y1961to1990: "byggår 1961–1990",
+  ge1991: "byggår 1991 och senare",
+};
+
 function fitStage2(
   rows: readonly HedonicTrainingRow[],
   residuals: readonly number[],
   lambda: number,
   cap: number,
-): { stage2: HedonicModel["stage2"]; fallbacks: HedonicModel["fallbacks"]; usedN: number } {
+): {
+  stage2: HedonicModel["stage2"];
+  fallbacks: HedonicModel["fallbacks"];
+  usedN: number;
+  /** Null when there were too few eligible rows (stage 2 is then the prior). */
+  detail: Omit<Stage2Report, "cv"> | null;
+} {
   const eligible = rows
     .map((r, i) => i)
     .filter((i) => rows[i].enriched && rows[i].balcony !== null && rows[i].buildYear !== null);
@@ -1857,6 +1915,7 @@ function fitStage2(
         },
       ],
       usedN: eligible.length,
+      detail: null,
     };
   }
 
@@ -1909,15 +1968,93 @@ function fitStage2(
   // Bucket level for a flat at the average balcony mix of the enriched sample, so
   // "balcony unknown" stays unbiased and a known balcony adds `pct` on top.
   const pctByBucket = {} as BuildYearBuckets;
+  const bucketReports = {} as Stage2Report["buckets"];
   BUCKET_KEYS.forEach((key, b) => {
     const level = bucketFit.intercept + bucketFit.beta[bucketOffset + b] + gammaUsed * share;
-    pctByBucket[key] = clampPct(Math.exp(level) - 1, cap);
+    const pctRaw = Math.exp(level) - 1;
+    pctByBucket[key] = clampPct(pctRaw, cap);
+    const inBucket = eligible.filter((i) => bucketIndex(rows[i].buildYear as number) === b).map((i) => residuals[i]);
+    bucketReports[key] = { n: inBucket.length, pctRaw, seApprox: sdOverSqrtN(inBucket), pct: pctByBucket[key] };
   });
+  const onCapLabels: string[] = [];
+  const sitsOnCap = (x: number): boolean => Math.abs(Math.abs(x) - cap) < 1e-9;
+  if (sitsOnCap(pct)) onCapLabels.push("balkong");
+  for (const key of BUCKET_KEYS) if (sitsOnCap(pctByBucket[key])) onCapLabels.push(STAGE2_BUCKET_LABELS[key]);
   return {
     stage2: { capPct: cap, balcony: { pct, source }, buildYear: { pctByBucket, source: "fit" } },
     fallbacks,
     usedN: eligible.length,
+    detail: {
+      n: eligible.length,
+      capPct: cap,
+      balcony: { gamma, se: Number.isFinite(withBalcony.se[0]) ? withBalcony.se[0] : null, pctRaw: Math.exp(gamma) - 1, pct, source },
+      buckets: bucketReports,
+      onCap: onCapLabels,
+    },
   };
+}
+
+/** Sample standard deviation over sqrt(n); null under two values. */
+function sdOverSqrtN(values: readonly number[]): number | null {
+  if (values.length < 2) return null;
+  const mean = meanOfValues(values);
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance) / Math.sqrt(values.length);
+}
+
+/**
+ * Stage-2 cross-validation (R-01): the number that can tell the caps apart, because stage 1 is fitted before stage 2.
+ * Eligible rows (balcony, build year, enriched flag) are folded by their index among the eligible rows modulo
+ * {@link CV_FOLDS}. Per fold, stage 2 is fitted on the other folds with `cap`, and a held-out row's error is its
+ * stage-1 residual minus what the clamped stage-2 fit predicts for it. `without` is the residual alone on the same rows.
+ *
+ * Two ways to turn the fitted values into a prediction, both reported:
+ * - `withCap`: the regression's own prediction, ln(1 + bucket pct) + ln(1 + balcony pct) x (balcony - training share of
+ *   balconies). The bucket values are levels at the average balcony mix (fitStage2), so a known balcony is centred on
+ *   that mix. This measures how well the clamped effect sizes predict held-out sales, which is what the cap decides.
+ * - `withCapAsApplied`: the multipliers exactly as {@link predictKrPerSqm} applies them (balcony true: x (1 + pct);
+ *   false: x 1; plus the bucket value). Because the bucket values already include the average balcony effect, this
+ *   over-predicts every flat with a known balcony flag by about (balcony share x balcony effect); a bigger balcony
+ *   effect is penalised for that, not for predicting worse. Reported next to withCap so the difference is visible.
+ * Returns NaN for all when no row is eligible.
+ */
+export function stage2CvRmse(
+  rows: readonly HedonicTrainingRow[],
+  residuals: readonly number[],
+  lambda: number,
+  cap: number,
+): { without: number; withCap: number; withCapAsApplied: number } {
+  const eligible = rows
+    .map((_, i) => i)
+    .filter((i) => rows[i].enriched && rows[i].balcony !== null && rows[i].buildYear !== null);
+  if (eligible.length === 0) return { without: Number.NaN, withCap: Number.NaN, withCapAsApplied: Number.NaN };
+  let sqWithout = 0;
+  let sqWith = 0;
+  let sqApplied = 0;
+  for (let f = 0; f < CV_FOLDS; f++) {
+    const train = eligible.filter((_, k) => k % CV_FOLDS !== f);
+    const test = eligible.filter((_, k) => k % CV_FOLDS === f);
+    const fitted = fitStage2(
+      train.map((i) => rows[i]),
+      train.map((i) => residuals[i]),
+      lambda,
+      cap,
+    ).stage2;
+    const trainShare = meanOfValues(train.map((i) => (rows[i].balcony === true ? 1 : 0)));
+    const gammaLn = Math.log(1 + fitted.balcony.pct);
+    for (const i of test) {
+      const isBalcony = rows[i].balcony === true ? 1 : 0;
+      const bucketLn =
+        fitted.buildYear === null
+          ? 0
+          : Math.log(1 + fitted.buildYear.pctByBucket[BUCKET_KEYS[bucketIndex(rows[i].buildYear as number)]]);
+      sqWithout += residuals[i] ** 2;
+      sqWith += (residuals[i] - (bucketLn + gammaLn * (isBalcony - trainShare))) ** 2;
+      sqApplied += (residuals[i] - (bucketLn + gammaLn * isBalcony)) ** 2;
+    }
+  }
+  const n = eligible.length;
+  return { without: Math.sqrt(sqWithout / n), withCap: Math.sqrt(sqWith / n), withCapAsApplied: Math.sqrt(sqApplied / n) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1929,6 +2066,8 @@ export interface HedonicFitReport {
   droppedOutliers: number;
   /** Kept rows that carried both a balcony flag and a build year (stage-2 evidence). */
   enrichedN: number;
+  /** The stage-2 measurement for the cap decision; null when there were too few rows with details (14.5-10). */
+  stage2: Stage2Report | null;
   /** Out-of-fold RMSE (ln kr/m2) per fold. */
   cvByFold: number[];
   /**
@@ -2137,7 +2276,23 @@ export function fitHedonicModel(
     const r = final.raw[HEDONIC_FEATURES.indexOf(name)];
     if (r !== null) rawEstimates[name] = { beta: r.beta, se: r.se, t: r.se > 0 ? r.beta / r.se : null };
   }
-  return { model, report: { droppedOutliers, enrichedN: stage2Result.usedN, cvByFold, rawEstimates, knownCounts } };
+  let stage2Report: Stage2Report | null = null;
+  if (stage2Result.detail !== null) {
+    const at8 = stage2CvRmse(keptRows, residuals, lambda, STAGE2_CAP_PCT);
+    const at12 = stage2CvRmse(keptRows, residuals, lambda, STAGE2_CAP_WIDENED_PCT);
+    stage2Report = {
+      ...stage2Result.detail,
+      cv: {
+        without: at8.without,
+        byCap: { "0.08": at8.withCap, "0.12": at12.withCap },
+        asApplied: { "0.08": at8.withCapAsApplied, "0.12": at12.withCapAsApplied },
+      },
+    };
+  }
+  return {
+    model,
+    report: { droppedOutliers, enrichedN: stage2Result.usedN, stage2: stage2Report, cvByFold, rawEstimates, knownCounts },
+  };
 }
 
 // ---------------------------------------------------------------------------

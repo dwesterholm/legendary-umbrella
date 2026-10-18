@@ -33,6 +33,7 @@ import {
   modelStage2Cap,
   parseHedonicModel,
   predictKrPerSqm,
+  stage2CvRmse,
   readConditionTerm,
   predictLnKrPerSqm,
   renovatedCapKrPerSqm,
@@ -1130,6 +1131,117 @@ describe("fitHedonicModel: the stage-2 cap as a parameter (R-01, D-03)", () => {
     expect(back.stage2.capPct).toBe(0.12);
     expect(modelStage2Cap(back)).toBe(0.12);
     expect(back.version).toBe(2);
+  });
+});
+
+describe("fitHedonicModel: the stage-2 report and cross-validation (R-01, D-02)", () => {
+  const strong = generateRows({ seed: 96, enrichedShare: 0.8, balconyEffect: Math.log(1.11) });
+  const strongFit = fitHedonicModel(strong, OPTS);
+  const stage2 = strongFit.report.stage2!;
+
+  it("reports the raw balcony value before clamping, with its standard error, and the used value", () => {
+    expect(stage2.n).toBe(strongFit.report.enrichedN);
+    expect(stage2.capPct).toBe(0.08);
+    expect(Math.abs(stage2.balcony.pctRaw - 0.11)).toBeLessThan(0.02);
+    expect(stage2.balcony.pctRaw).toBeCloseTo(Math.exp(stage2.balcony.gamma) - 1, 12);
+    expect(stage2.balcony.se).toBeGreaterThan(0);
+    expect(stage2.balcony.se!).toBeLessThan(0.03);
+    expect(stage2.balcony.pct).toBe(0.08);
+    expect(stage2.balcony.source).toBe("fit");
+  });
+
+  it("reports each build-year bucket with n, raw value, an approximate SE of sd/sqrt(n), and the used value", () => {
+    const keys = ["le1930", "y1931to1960", "y1961to1990", "ge1991"] as const;
+    expect(keys.reduce((sum, k) => sum + stage2.buckets[k].n, 0)).toBe(stage2.n);
+    for (const k of keys) {
+      const b = stage2.buckets[k];
+      expect(b.seApprox).toBeGreaterThan(0);
+      expect(b.seApprox!).toBeLessThan(0.02);
+      expect(b.pct).toBeCloseTo(strongFit.model.stage2.buildYear!.pctByBucket[k], 12);
+      expect(Math.abs(b.pct)).toBeLessThanOrEqual(0.08 + 1e-12);
+    }
+  });
+
+  it("lists the values that sit on the cap: the +11 % balcony at ±8 %, and nothing at ±12 %", () => {
+    expect(stage2.onCap.some((l) => l.startsWith("balkong"))).toBe(true);
+    const wide = fitHedonicModel(strong, { ...OPTS, stage2CapPct: 0.12 }).report.stage2!;
+    expect(wide.capPct).toBe(0.12);
+    expect(wide.onCap).toEqual([]);
+  });
+
+  it("cross-validation: ±12 % beats ±8 %, and both beat no stage 2, on a true +11 % balcony effect", () => {
+    const { without, byCap } = stage2.cv;
+    expect(byCap["0.12"]).toBeLessThan(byCap["0.08"]);
+    expect(byCap["0.08"]).toBeLessThan(without);
+  });
+
+  it("both caps are filled on every fit, whichever cap the fit used", () => {
+    const wide = fitHedonicModel(strong, { ...OPTS, stage2CapPct: 0.12 }).report.stage2!;
+    expect(wide.cv).toEqual(stage2.cv);
+  });
+
+  it("with all effects inside ±8 % nothing is on the cap and the two capped errors are equal", () => {
+    const calm = fitHedonicModel(generateRows({ seed: 97, enrichedShare: 0.8, balconyEffect: Math.log(1.04) }), OPTS).report.stage2!;
+    expect(calm.onCap).toEqual([]);
+    expect(calm.cv.byCap["0.12"]).toBeCloseTo(calm.cv.byCap["0.08"], 12);
+  });
+
+  it("is null when there are too few rows with details", () => {
+    expect(fitHedonicModel(generateRows({ seed: 90 }), OPTS).report.stage2).toBeNull();
+  });
+
+  it("does not change the stage-1 cross-validation or any persisted field other than capPct", () => {
+    const a = fitHedonicModel(strong, OPTS).model;
+    const b = fitHedonicModel(strong, { ...OPTS, stage2CapPct: 0.12 }).model;
+    expect(b.cvRmseLog).toBe(a.cvRmseLog);
+    expect(b.features).toEqual(a.features);
+    expect(b.kernel).toEqual(a.kernel);
+  });
+});
+
+describe("stage2CvRmse", () => {
+  function eligibleRows(n: number, balconyEffect: number, seed: number) {
+    const g = lcg(seed);
+    const rows: HedonicTrainingRow[] = [];
+    const residuals: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const balcony = g.uniform() < 0.5;
+      rows.push({
+        district: "Södermalm", lat: 59.31, lng: 18.07, floor: 2, livingArea: 50, soldPrice: 5_000_000, soldDate: "2026-06-12",
+        soldVsAskPct: null, askingPrice: null, balcony, buildYear: Math.round(1890 + g.uniform() * 120), enriched: true,
+        avgiftPerSqmMonth: null, brfDebtPerSqm: null, tomtratt: null,
+      });
+      residuals.push((balcony ? balconyEffect : 0) + 0.04 * g.normal());
+    }
+    return { rows, residuals };
+  }
+
+  it("scores held-out rows: a true +11 % effect gives a lower error at 0,12 than at 0,08, and both beat no stage 2", () => {
+    const { rows, residuals } = eligibleRows(400, Math.log(1.11), 5);
+    const at8 = stage2CvRmse(rows, residuals, 1, 0.08);
+    const at12 = stage2CvRmse(rows, residuals, 1, 0.12);
+    expect(at12.without).toBe(at8.without);
+    expect(at12.withCap).toBeLessThan(at8.withCap);
+    expect(at8.withCap).toBeLessThan(at8.without);
+  });
+
+  it("as applied (balcony true x (1+pct), false x 1) a bigger balcony effect is penalised by the base mismatch, which withCap does not do", () => {
+    const { rows, residuals } = eligibleRows(400, Math.log(1.11), 5);
+    const at8 = stage2CvRmse(rows, residuals, 1, 0.08);
+    const at12 = stage2CvRmse(rows, residuals, 1, 0.12);
+    expect(at12.withCapAsApplied).toBeGreaterThan(at8.withCapAsApplied);
+    expect(at12.withCap).toBeLessThan(at12.withCapAsApplied);
+  });
+
+  it("is deterministic: the same input gives the same numbers", () => {
+    const { rows, residuals } = eligibleRows(150, 0.05, 6);
+    expect(stage2CvRmse(rows, residuals, 1, 0.08)).toEqual(stage2CvRmse(rows, residuals, 1, 0.08));
+  });
+
+  it("uses only rows with balcony, build year and the enriched flag, and returns NaN for none", () => {
+    const { rows, residuals } = eligibleRows(60, 0.05, 7);
+    const blank = rows.map((r) => ({ ...r, enriched: false }));
+    expect(Number.isNaN(stage2CvRmse(blank, residuals, 1, 0.08).withCap)).toBe(true);
   });
 });
 
