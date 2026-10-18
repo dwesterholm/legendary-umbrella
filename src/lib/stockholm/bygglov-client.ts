@@ -34,7 +34,7 @@ import {
   type CaseDetail,
   type ParseFailure,
 } from "@/lib/stockholm/bygglov-parse";
-import { looksLikeRedirect } from "@/lib/stockholm/http-guards";
+import { looksLikeRedirect, readCapped } from "@/lib/stockholm/http-guards";
 import { CITY_DATA_DIR, HOST_GATES_PATH, blockHost, hostBlockedUntil, makeHostPacer, readHostGates } from "@/lib/stockholm/host-gate";
 
 /** The only host this client may call. */
@@ -133,39 +133,6 @@ function checkedText(value: string, what: string, max: number): string {
   return text;
 }
 
-/**
- * Reads a body. Over `max` bytes (declared or streamed) gives "overflow" - or, with `truncate`, the first `max`
- * bytes. The declared length is checked before reading.
- */
-async function readCapped(response: Response, max: number, truncate = false): Promise<{ text: string; bytes: number } | "overflow"> {
-  const declared = Number(response.headers.get("content-length"));
-  if (!truncate && Number.isFinite(declared) && declared > max) {
-    await response.body?.cancel().catch(() => undefined);
-    return "overflow";
-  }
-  if (response.body === null) {
-    const text = await response.text();
-    const bytes = Buffer.byteLength(text);
-    if (bytes <= max) return { text, bytes };
-    return truncate ? { text: Buffer.from(text).subarray(0, max).toString("utf8"), bytes: max } : "overflow";
-  }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    chunks.push(value);
-    if (total > max) {
-      await reader.cancel().catch(() => undefined);
-      if (!truncate) return "overflow";
-      return { text: Buffer.concat(chunks).subarray(0, max).toString("utf8"), bytes: max };
-    }
-  }
-  return { text: Buffer.concat(chunks).toString("utf8"), bytes: total };
-}
-
 export function makeCityClient(deps: CityDeps) {
   const gatesPath = deps.gatesPath ?? HOST_GATES_PATH;
   const dataDir = deps.dataDir ?? CITY_DATA_DIR;
@@ -250,10 +217,17 @@ export function makeCityClient(deps: CityDeps) {
         line(`${CITY_HOST}${path} HTTP ${status}, fel innehållstyp (${took()} s)`);
         return refuse("fel-innehallstyp");
       }
-      const body =
-        mode === "robots"
-          ? await readCapped(response, CITY_LIMITS.robotsMaxBytes, true)
-          : await readCapped(response, CITY_LIMITS.maxBytes);
+      let body: Awaited<ReturnType<typeof readCapped>>;
+      try {
+        body =
+          mode === "robots"
+            ? await readCapped(response, CITY_LIMITS.robotsMaxBytes, true)
+            : await readCapped(response, CITY_LIMITS.maxBytes);
+      } catch (error) {
+        // A timeout or a reset while the body streams in: a network failure, not a refusal (and never a raw error).
+        line(`${CITY_HOST}${path} ${error instanceof Error ? error.name : "okänt fel"} i svaret (${took()} s)`);
+        throw new CityStop("natverksfel");
+      }
       if (body === "overflow") {
         line(`${CITY_HOST}${path} HTTP ${status}, för stort svar (${took()} s)`);
         return "overflow";

@@ -33,7 +33,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod/v4";
 import { cleanAddressForSearch, isStreetLandBeteckning, normaliseBeteckning } from "@/lib/stockholm/beteckning-text";
-import { looksLikeRedirect } from "@/lib/stockholm/http-guards";
+import { looksLikeRedirect, readCapped } from "@/lib/stockholm/http-guards";
 import { HOST_GATES_PATH, CITY_DATA_DIR, blockHost, hostBlockedUntil, makeHostPacer, readHostGates } from "@/lib/stockholm/host-gate";
 
 export const MINKARTA_HOST = "minkarta.lantmateriet.se";
@@ -352,15 +352,22 @@ export async function resolveViaMinKarta(address: string, deps: MinKartaDeps): P
         line(`${MINKARTA_HOST}${path} HTTP ${status}, fel innehållstyp (${took()} s)`);
         return refuse("fel-innehallstyp");
       }
-      const text = await response.text();
-      const bytes = Buffer.byteLength(text);
-      if (bytes > MINKARTA_LIMITS.maxBytes) {
+      // The cap is enforced while the body streams in (declared length first); a reset or the 30 s abort during the
+      // read is a network failure, never a thrown error (this function never throws on a bad answer).
+      let body: Awaited<ReturnType<typeof readCapped>>;
+      try {
+        body = await readCapped(response, MINKARTA_LIMITS.maxBytes);
+      } catch (error) {
+        line(`${MINKARTA_HOST}${path} ${error instanceof Error ? error.name : "okänt fel"} i svaret (${took()} s)`);
+        return { ok: false, reason: "natverksfel" };
+      }
+      if (body === "overflow") {
         line(`${MINKARTA_HOST}${path} HTTP ${status}, för stort svar (${took()} s)`);
         return { ok: false, reason: "storlek" };
       }
-      line(`${MINKARTA_HOST}${path} HTTP ${status}, ${fmtKb(bytes)} kB, ${took()} s`);
+      line(`${MINKARTA_HOST}${path} HTTP ${status}, ${fmtKb(body.bytes)} kB, ${took()} s`);
       try {
-        return { ok: true, json: JSON.parse(text) as unknown };
+        return { ok: true, json: JSON.parse(body.text) as unknown };
       } catch {
         return { ok: false, reason: "ogiltig-json" };
       }

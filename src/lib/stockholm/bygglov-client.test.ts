@@ -254,6 +254,26 @@ describe("failures that are not a refusal do not block the host", () => {
     expect(s.gatesExist()).toBe(false);
   });
 
+  it("WR-08: a body that breaks off while it streams in is a natverksfel CityStop (not a raw error), without blocking", async () => {
+    const clock = fakeClock();
+    const broken = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("<html>"));
+            controller.error(new TypeError("terminated"));
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/html" } },
+      );
+    const gatesPath = join(dir, "host-gates.json");
+    const client = makeCityClient({ fetchImpl: broken, sleep: clock.sleep, now: clock.now, log: () => undefined, gatesPath, dataDir: dir });
+    const stop = await stopOf(client.caseList("Droskhästen 8"));
+    expect(stop.label).toBe("natverksfel");
+    expect(stop.blocked).toBe(false);
+    expect(existsSync(gatesPath)).toBe(false);
+  });
+
   it("an HTTP 500 stops the run with http-500, once, without blocking", async () => {
     const s = setup([{ path: SEARCH_PATH, status: 500, body: "boom" }]);
     const stop = await stopOf(s.client.caseList("Droskhästen 8"));

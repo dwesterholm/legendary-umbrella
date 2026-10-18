@@ -378,6 +378,58 @@ describe("refusals and failures", () => {
     expect(readHostGates(network.gatesPath)).toEqual({});
   });
 
+  it("WR-08: a body without a declared length is cut off at the cap while reading (storlek), not buffered whole", async () => {
+    const clock = fakeClock();
+    let pulled = 0;
+    const chunk = new Uint8Array(512 * 1024).fill(32);
+    const fetchImpl: MinKartaFetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulled += 1;
+            if (pulled > 100) controller.close();
+            else controller.enqueue(chunk);
+          },
+        }),
+        { status: 200, headers: { "content-type": JSON_TYPE } },
+      );
+    const result = await resolveViaMinKarta("Bondegatan 59", {
+      fetchImpl,
+      now: clock.now,
+      log: () => undefined,
+      gatesPath: join(dir, "host-gates.json"),
+      dataDir: dir,
+      pace: async () => undefined,
+    });
+    expect(result).toMatchObject({ status: "fetch_failed", reason: "storlek" });
+    expect(pulled).toBeLessThan(10);
+  });
+
+  it("WR-08: a body that breaks off while reading is fetch_failed natverksfel, never a thrown error, and does not block", async () => {
+    const clock = fakeClock();
+    const fetchImpl: MinKartaFetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("{"));
+            controller.error(new TypeError("terminated"));
+          },
+        }),
+        { status: 200, headers: { "content-type": JSON_TYPE } },
+      );
+    const gatesPath = join(dir, "host-gates.json");
+    const result = await resolveViaMinKarta("Bondegatan 59", {
+      fetchImpl,
+      now: clock.now,
+      log: () => undefined,
+      gatesPath,
+      dataDir: dir,
+      pace: async () => undefined,
+    });
+    expect(result).toMatchObject({ status: "fetch_failed", reason: "natverksfel" });
+    expect(readHostGates(gatesPath)).toEqual({});
+  });
+
   it("a failure in the middle of the ladder is fetch_failed, not a guess from what came before", async () => {
     const s = setup([searchRoute, bufferRoute(0, { body: "this is not json" })]);
     // the fixture default content type is JSON for bufferRoute, so the body fails to parse
