@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.5"
 current_phase_name: Full Enrichment, Layout Accuracy, Ceiling Height
 status: executing
-stopped_at: Completed 14.5-05-PLAN.md
-last_updated: "2026-10-17T14:41:36.638Z"
+stopped_at: Completed 14.5-10-PLAN.md (wave 7 out of order; plans 06-09 still open)
+last_updated: "2026-10-18T15:07:12.257Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 5c4ca27a50d9933ef1f9a1a6889319a2d2e4851f
+state_head: 562d7fea4d6d07848c32ccdb40e2fa50e0b8544b
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 65
-  completed_plans: 57
+  completed_plans: 58
   percent: 14
 ---
 
@@ -119,6 +119,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.5 P03 | 13 min | 2 tasks | 5 files |
 | Phase 14.5 P04 | 7 min | 2 tasks | 9 files |
 | Phase 14.5 P05 | 22 min | 3 tasks | 9 files |
+| Phase 14.5 P10 | 20 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -295,6 +296,8 @@ Recent decisions affecting current work:
 - [Phase 14.5]: 14.5-04: stated ceiling height adds 1 % of resale from 3,0 m and 2 % from 3,5 m (higher step replaces lower), a bare 'högt i tak' adds 0, inside the unchanged 5 % cap
 - [Phase 14.5]: 14.5-05: layout rates live in the new layout-cost.ts (brf/cost.ts is frozen); the production read is billed at Sonnet rates and each experiment variant has its own version hash and layout-exp-<id>.json cache, so no experiment can touch layout-cache.json
 - [Phase 14.5]: 14.5-05: runVariantReads checkpoints the cache after every paid call and an unreadable variant cache is never overwritten; the smoke uses min(variant estimate, 1 kr) as its per-read estimate
+- [Phase 14.5]: 14.5-10: the R-07 restart stopped on a second Booli 403 after 64 pages; ENR-01 partly met (3 912 of 5 469 enriched), refit uses what exists; next Booli traffic from 2026-10-19 14:57 UTC
+- [Phase 14.5]: 14.5-10: stage-2 cap is a two-value model parameter (0,08 or 0,12, stage2.capPct optional); the cap CV reads the centred stage-2 error; stage-2 CV on 3 912 rows: none 0,11557, +-8 % 0,10225, +-12 % 0,10188
 
 ### Pending Todos
 
@@ -315,6 +318,7 @@ Recent decisions affecting current work:
 
 - ~~[Phase 5/9 BLOCKING spikes]~~ Resolved during v1.1 build (owned acquisition + discovery foundation shipped code-complete).
 - ~~[Phase 9 legal gate]~~ **RESOLVED — GO (operator, 2026-07-08).** `DISCOVERY_ENABLED` set ON in the operator env; per-query/per-day caps enforced in code; flag retained as the runtime kill switch. (v1.1 live validation gates below still stand as separate operator checks.)
+- Open (14.5-10): predictKrPerSqm over-values flats with a known balcony flag by about 4 % (bucket values already hold the average balcony effect); not changed, needs a decision in plan 11 or 12
 
 ### Roadmap Evolution
 
@@ -326,8 +330,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-17T14:41:36.550Z
-Stopped at: Completed 14.5-05-PLAN.md
+Last session: 2026-10-18T15:07:12.166Z
+Stopped at: Completed 14.5-10-PLAN.md (wave 7 out of order; plans 06-09 still open)
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 5/13 plans executed
+**Plans:** 6/13 plans executed
 
 Plans:
 
@@ -210,7 +210,7 @@ Plans:
 
 **Wave 7** *(group C; the one R-07 restart, then its === END line gates the rest)*
 
-- [ ] 14.5-10-PLAN.md — R-07 restart (once, after 2026-10-18 13:15 UTC, concurrency 1, at least 2 s between pages) and run evidence; stage-2 cap as a parameter (±8 % / ±12 % only), stage-2 SE and CV, ceiling line (ENR-01, ENR-02, CEIL-02)
+- [x] 14.5-10-PLAN.md — R-07 restart (once, after 2026-10-18 13:15 UTC, concurrency 1, at least 2 s between pages) and run evidence; stage-2 cap as a parameter (±8 % / ±12 % only), stage-2 SE and CV, ceiling line (ENR-01, ENR-02, CEIL-02)
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
