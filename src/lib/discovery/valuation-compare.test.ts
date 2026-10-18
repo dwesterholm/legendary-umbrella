@@ -566,8 +566,15 @@ describe("the report with models and fit reports", () => {
     expect(renderValuationCompareMd(c)).toContain("skillnad +7 726 kr");
   });
 
-  it("reads the committed model: balcony +8,0 % and 1961-1990 -8,0 % sit on its +-8 % cap", () => {
-    const committed = JSON.parse(readFileSync("data/hedonic-model.json", "utf8")) as unknown;
+  it("reads a model file with no capPct (the 14.4 shape): balcony +8,0 % and 1961-1990 -8,0 % sit on its +-8 % cap", () => {
+    // Built from whatever model is committed, so the real file shape is parsed; the stage-2 values and the missing
+    // capPct are set here so the test does not move when a refit changes the committed numbers (14.5-11).
+    const committed = JSON.parse(readFileSync("data/hedonic-model.json", "utf8")) as {
+      stage2: { capPct?: number; balcony: { pct: number }; buildYear: { pctByBucket: { y1961to1990: number } } };
+    };
+    delete committed.stage2.capPct;
+    committed.stage2.balcony.pct = 0.08;
+    committed.stage2.buildYear.pctByBucket.y1961to1990 = -0.08;
     const md = renderValuationCompareMd(
       buildValuationCompare({
         columns: [
