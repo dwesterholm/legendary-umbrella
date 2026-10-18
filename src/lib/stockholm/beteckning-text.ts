@@ -79,3 +79,45 @@ export function beteckningGuessFromBrfName(brfName: string | null | undefined): 
   if (found === null) return null;
   return `${found[1].replace(/\s+/g, " ").trim()} ${found[2]}`;
 }
+
+// ---------------------------------------------------------------------------
+// The address as the city and Min Karta want it
+// ---------------------------------------------------------------------------
+
+/*
+ * Ported from the rental repo's `clean_search_address` (~/dev/rental-apartments/scripts/resolve_beteckning.py, read
+ * only). A flat number ("LGH 1501") or a floor ("5 TR") tacked onto a registered address is stripped, because both
+ * the city's address search and Min Karta index buildings, not flats (7 of the first 25 addresses found nothing
+ * there until the suffix came off). A trailing entrance letter is closed up onto its number ("Torsgatan 48 A" ->
+ * "Torsgatan 48A"), which is the spelling both indexes use.
+ */
+const LGH_SUFFIX = /[\s,]+(?:lgh|läg|lägenhet)\.?\s*\d{1,6}\s*$/iu;
+const FLOOR_SUFFIX = /[\s,]+\d{1,3}\s*tr\.?\s*$/iu;
+const ENTRANCE_LETTER = /(\d)\s+([A-Za-zÅÄÖåäö])$/u;
+/** An address longer than this is not a street address; it is cut before any regex runs. */
+const ADDRESS_MAX_CHARS = 200;
+
+/** The building address inside a registered address string, ready to be asked. */
+export function cleanAddressForSearch(text: string): string {
+  let s = text.slice(0, ADDRESS_MAX_CHARS).replace(/\s+/g, " ").trim().replace(/^[ ,]+|[ ,]+$/g, "");
+  for (let i = 0; i < 3; i += 1) {
+    const stripped = s.replace(LGH_SUFFIX, "").replace(FLOOR_SUFFIX, "").replace(/^[ ,]+|[ ,]+$/g, "");
+    if (stripped === s) break;
+    s = stripped;
+  }
+  return s.replace(ENTRANCE_LETTER, "$1$2");
+}
+
+/**
+ * True for a designation named after a stadsdel with a block:unit number ("Södermalm 8:57", with or without the
+ * kommun in front). That is street land or another public parcel, never a building we want cases for. The district
+ * list is the rental repo's (innerstad and the ytterstad names the 117xx range resolves to).
+ */
+const STREET_LAND = new RegExp(
+  "^(?:\\S+\\s+)?(?:södermalm|norrmalm|östermalm|kungsholmen|vasastaden|vasastan|gamla stan|skeppsholmen|liljeholmen|gröndal|årsta|hägersten|aspudden|midsommarkransen|södra hammarbyhamnen|johanneshov)\\s+\\d+:\\d+$",
+  "iu",
+);
+
+export function isStreetLandBeteckning(beteckning: string): boolean {
+  return STREET_LAND.test(beteckning.replace(/\s+/g, " ").trim());
+}

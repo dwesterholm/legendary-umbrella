@@ -88,6 +88,11 @@ export interface CaseListAnswer {
   otherCases: StoredCase[];
   headingCount: number | null;
   termsLinks: string[];
+  /**
+   * The street addresses the exact-match rows are listed under (at most 40, each cut at 80 characters, no
+   * duplicates). Kept in memory for the BRF-name rung (14.6-03); the case-list cache does not store them.
+   */
+  addresses: string[];
 }
 
 export interface ExtendedSearchParams {
@@ -265,11 +270,15 @@ export function makeCityClient(deps: CityDeps) {
     if (!parsed.ok) return refuse(PARSE_LABEL[parsed.reason]);
     const store = (rows: typeof parsed.rows) =>
       exactMatchRows(rows, wanted).map((row) => toStoredCase(row, classifyDescription(row.description)));
+    const addresses = [
+      ...new Set(exactMatchRows(parsed.rows, wanted).flatMap((row) => row.addresses.map((a) => a.slice(0, 80)))),
+    ].slice(0, 40);
     return {
       cases: store(parsed.rows),
       otherCases: store(parsed.otherRows),
       headingCount: parsed.headingCount,
       termsLinks: [...parsed.termsLinks],
+      addresses,
     };
   }
 

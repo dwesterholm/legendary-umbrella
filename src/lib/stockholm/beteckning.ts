@@ -21,12 +21,19 @@ import {
   loadAddressMap,
   normaliseAddressKey,
   saveAddressMap,
+  saveCaseList,
   type AddressEntry,
   type AddressMap,
   type AddressRung,
 } from "@/lib/stockholm/bygglov-cache";
-import type { CityClient } from "@/lib/stockholm/bygglov-client";
+import type { CaseListAnswer, CityClient } from "@/lib/stockholm/bygglov-client";
 import type { AddressOption } from "@/lib/stockholm/bygglov-parse";
+import {
+  beteckningFromText,
+  beteckningGuessFromBrfName,
+  cleanAddressForSearch,
+  isStreetLandBeteckning,
+} from "@/lib/stockholm/beteckning-text";
 
 /** The rungs in the order they are tried. */
 export const BETECKNING_RUNGS = ["a", "a2", "b", "c"] as const satisfies readonly AddressRung[];
@@ -48,10 +55,15 @@ export interface BeteckningResult {
   fromCache: boolean;
   /** Short Swedish notes about answers that were refused on the way ("inte en byggnad", "tvetydig"). */
   notes: string[];
+  /**
+   * Set on a rung (a2) success: the case list the city already gave for the confirmed designation, so the caller
+   * does not fetch it again. It is also saved to the case-list cache.
+   */
+  list?: CaseListAnswer;
 }
 
 export interface BeteckningDeps {
-  client: Pick<CityClient, "addressSearch">;
+  client: Pick<CityClient, "addressSearch" | "caseList">;
   /** Directory of the address map; tests pass a temp directory. */
   cacheDir?: string;
   now: () => Date;
@@ -116,13 +128,26 @@ function remember(map: AddressMap, key: string, entry: AddressEntry, deps: Betec
   saveAddressMap({ ...map, [key]: entry }, { dir: deps.cacheDir });
 }
 
+/** "Folkungagatan 61" -> "folkungagatan 61"; an entrance letter is dropped ("42a" -> "42"). */
+const streetAndNumber = (address: string): string =>
+  normaliseAddressKey(address).replace(/(\d)[a-zåäö]$/u, "$1");
+
+/**
+ * True when one of the city's listed addresses for the guessed designation is the candidate's street and number
+ * (entrance letter ignored). The city sometimes writes two addresses in one cell ("Östgötagatan 33/Folkungagatan 61").
+ */
+function listConfirmsAddress(listed: readonly string[], address: string): boolean {
+  const wanted = streetAndNumber(address);
+  return listed.some((entry) => entry.split("/").some((part) => streetAndNumber(part.trim()) === wanted));
+}
+
 /**
  * Finds the fastighetsbeteckning of one address. A CityStop from the client propagates (the caller decides to stop
  * the run) and stores nothing.
  */
 export async function resolveBeteckning(input: BeteckningInput, deps: BeteckningDeps): Promise<BeteckningResult> {
-  const address = input.address.replace(/\s+/g, " ").trim();
-  if (address === "") return unknown("no_candidates", ["ingen adress"]);
+  const address = cleanAddressForSearch(input.address);
+  if (address === "" || address.length > 80) return unknown("no_candidates", ["ingen sökbar adress"]);
   const key = normaliseAddressKey(address);
 
   const map = readMap(deps);
@@ -131,16 +156,54 @@ export async function resolveBeteckning(input: BeteckningInput, deps: Beteckning
     return { beteckning: cached.beteckning, rung: cached.rung, status: cached.status, fromCache: true, notes: [] };
   }
 
+  const notes: string[] = [];
+  const stamp = () => deps.now().toISOString();
+
+  /** A designation is accepted only when it is a building, not street land. Remembers and returns the answer. */
+  const accept = (beteckning: string, rung: AddressRung, extra: Partial<BeteckningResult> = {}): BeteckningResult | null => {
+    if (isStreetLandBeteckning(beteckning)) {
+      notes.push(`${beteckning} är inte en byggnad (gatumark)`);
+      return null;
+    }
+    remember(map, key, { beteckning, rung, status: "resolved", at: stamp() }, deps);
+    return { beteckning, rung, status: "resolved", fromCache: false, notes, ...extra };
+  };
+
+  // (a) the broker text states it
+  const fromText = beteckningFromText(input.text);
+  if (fromText !== null) {
+    const hit = accept(fromText, "a");
+    if (hit !== null) return hit;
+  }
+
+  // (a2) the BRF name as a guess, confirmed by a city row with this street and number
+  const guess = beteckningGuessFromBrfName(input.brfName);
+  if (guess !== null && !isStreetLandBeteckning(guess)) {
+    const list = await deps.client.caseList(guess);
+    if (listConfirmsAddress(list.addresses, address)) {
+      saveCaseList(guess, list, { dir: deps.cacheDir, now: deps.now() });
+      const hit = accept(guess, "a2", { list });
+      if (hit !== null) return hit;
+    } else {
+      notes.push(`BRF-namnet ${guess} bekräftades inte av stadens ärenden`);
+    }
+  }
+
+  // (b) the city's own address search, equal address only
+  let ambiguous = false;
   const options = await deps.client.addressSearch(address);
   const match = matchAddressFragment(address, options);
   if (match.value !== null) {
-    remember(map, key, { beteckning: match.value, rung: "b", status: "resolved", at: deps.now().toISOString() }, deps);
-    return { beteckning: match.value, rung: "b", status: "resolved", fromCache: false, notes: [] };
+    const hit = accept(match.value, "b");
+    if (hit !== null) return hit;
+  } else if (match.ambiguous) {
+    ambiguous = true;
+    notes.push("stadens adresssökning gav flera fastighetsbeteckningar (tvetydig)");
   }
 
-  const status = match.ambiguous ? "ambiguous" : "no_candidates";
-  remember(map, key, { beteckning: null, rung: null, status, at: deps.now().toISOString() }, deps);
-  return unknown(status, [], false);
+  const status = ambiguous ? "ambiguous" : "no_candidates";
+  remember(map, key, { beteckning: null, rung: null, status, at: stamp() }, deps);
+  return unknown(status, notes);
 }
 
 // ---------------------------------------------------------------------------
