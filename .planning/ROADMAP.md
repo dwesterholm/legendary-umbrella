@@ -237,7 +237,7 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 6/12 plans executed
+**Plans:** 7/12 plans executed
 
 Plans:
 **Wave 1**
@@ -266,7 +266,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 14.6-07-PLAN.md — optional stambyteTerm, CV keep rule, fits to scratch, verdict beside the folklore (STAM-02)
+- [x] 14.6-07-PLAN.md — optional stambyteTerm, CV keep rule, fits to scratch, verdict beside the folklore (STAM-02)
 
 **Wave 8** *(blocked on Wave 7 completion)*
 

@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.6"
 current_phase_name: Bygglov & Stambyte, Uppmätning Flags
 status: executing
-stopped_at: Completed 14.6-06-PLAN.md
-last_updated: "2026-10-18T20:15:39.375Z"
+stopped_at: Completed 14.6-07-PLAN.md
+last_updated: "2026-10-18T20:28:15.587Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 9ff2bc323e683464d72c8af516c5ec207de0f3c1
+state_head: 2f38f8b369bc3147abeae579db054d4eef35646b
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 77
-  completed_plans: 65
+  completed_plans: 66
   percent: 13
 ---
 
@@ -127,6 +127,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.6 P04 | 14 min | 2 tasks | 5 files |
 | Phase 14.6 P05 | 21 min | 3 tasks | 5 files |
 | Phase 14.6 P06 | 142 min | 2 tasks | 5 files |
+| Phase 14.6 P07 | 15 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -316,6 +317,7 @@ Recent decisions affecting current work:
 - [Phase 14.6]: 14.6-05: the stambyte sweep's second window has no end date (to: null), so the cache name is stable across days — A run stopped before midnight resumes without re-asking window 2
 - [Phase 14.6]: 14.6-05: a case counts as stambyte when its kinds contain stambyte (tillsyn included); withdrawn or refused cases and relining-only cases do not — Relining is 2 cases in the whole register; years are counted from the sale date
 - [Phase 14.6]: Sold-join: a sold row is 'kopplad' when its building is known (99,2 %); the figure that decides the fit is the share in a building with a stambyte recorded before the sale (32,5 %), and only 5 rows fall within 5 years of a stambyte — Measured join: the sample found 6 of 100 buildings with a stambyte case so the full pass ran; an ambiguous city answer stays unidentified
+- [Phase 14.6]: 14.6-07: stambyte term kept by the strict cross-validation rule (0,1078 -> 0,1077, t 0,9) but only in scratch model hedonic-model-14.6-med.json; plan 12 should not graft it without Daniel's explicit yes
 
 ### Pending Todos
 
@@ -348,8 +350,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-18T20:15:34.829Z
-Stopped at: Completed 14.6-06-PLAN.md
+Last session: 2026-10-18T20:28:15.489Z
+Stopped at: Completed 14.6-07-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
