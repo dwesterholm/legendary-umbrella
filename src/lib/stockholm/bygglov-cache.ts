@@ -261,3 +261,187 @@ export async function refreshCaseListIfStale(
   saveCaseList(beteckning, fresh, { dir: opts.dir, now: opts.now() });
   return { source: "city", cases: fresh.cases, otherCases: fresh.otherCases, termsLinks: fresh.termsLinks, miss };
 }
+
+// ---------------------------------------------------------------------------
+// Address -> beteckning map (one file, shared by the sold join and the candidate lookup)
+// ---------------------------------------------------------------------------
+
+/**
+ * The key form of an address: lower case, spaces collapsed, and an entrance letter closed up
+ * ("Torsgatan 48 A" -> "torsgatan 48a"), so the city's "48A" and a broker's "48 A" meet.
+ */
+export function normaliseAddressKey(address: string): string {
+  return address
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("sv")
+    .replace(/(\d) ([a-zåäö])$/u, "$1$2");
+}
+
+export type AddressRung = "a" | "a2" | "b" | "c";
+export type AddressStatus = "resolved" | "ambiguous" | "no_candidates";
+
+/** What one address resolved to. A failed lookup (a network or page problem) has no entry: it is never cached. */
+export interface AddressEntry {
+  readonly beteckning: string | null;
+  readonly rung: AddressRung | null;
+  readonly status: AddressStatus;
+  /** ISO time of the lookup. */
+  readonly at: string;
+}
+
+export type AddressMap = Record<string, AddressEntry>;
+
+const ADDRESS_RESOLVED_TTL_DAYS = 365;
+const ADDRESS_NEGATIVE_TTL_DAYS = 30;
+
+const addressEntrySchema = z
+  .strictObject({
+    beteckning: z.string().min(1).max(80).nullable(),
+    rung: z.enum(["a", "a2", "b", "c"]).nullable(),
+    status: z.enum(["resolved", "ambiguous", "no_candidates"]),
+    at: z.string(),
+  })
+  .refine((e) => e.status !== "resolved" || e.beteckning !== null, { message: "resolved needs a beteckning" });
+
+const addressKeySchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .refine((k) => normaliseAddressKey(k) === k, { message: "key must be normalised" });
+
+const addressMapFileSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  entries: z.record(addressKeySchema, addressEntrySchema),
+});
+
+/** A resolved entry is trusted for 365 days, an ambiguous or empty one for 30. Pure: the clock is a parameter. */
+export function addressEntryFresh(entry: AddressEntry, now: Date): boolean {
+  const at = Date.parse(entry.at);
+  if (Number.isNaN(at)) return false;
+  const age = now.getTime() - at;
+  if (age < -FUTURE_TOLERANCE_MS) return false;
+  const ttl = entry.status === "resolved" ? ADDRESS_RESOLVED_TTL_DAYS : ADDRESS_NEGATIVE_TTL_DAYS;
+  return age < ttl * DAY_MS;
+}
+
+const addressMapPath = (dir: string) => join(dir, "address-beteckning.json");
+
+/** Saves the whole map. A `fetch_failed` entry (or anything else outside the three statuses) is refused. */
+export function saveAddressMap(map: Record<string, AddressEntry>, opts: CacheDirOpts = {}): void {
+  const dir = opts.dir ?? BYGGLOV_CACHE_DIR;
+  for (const entry of Object.values(map)) {
+    if ((entry as { status: string }).status === "fetch_failed") {
+      throw new Error("Ett misslyckat uppslag (fetch_failed) sparas aldrig i adresscachen");
+    }
+  }
+  const file = addressMapFileSchema.parse({ schemaVersion: 1, entries: map });
+  saveGuardedJson(addressMapPath(dir), file, dir);
+}
+
+export function loadAddressMap(opts: CacheDirOpts = {}): { ok: true; map: AddressMap } | { ok: false; error: CacheMiss } {
+  const loaded = loadValidated(addressMapPath(opts.dir ?? BYGGLOV_CACHE_DIR), addressMapFileSchema);
+  return loaded.ok ? { ok: true, map: loaded.value.entries as AddressMap } : loaded;
+}
+
+// ---------------------------------------------------------------------------
+// Sweep files (one extended search each)
+// ---------------------------------------------------------------------------
+
+export interface SweepQuery {
+  readonly district: string;
+  readonly description: string;
+  /** YYYY-MM-DD. */
+  readonly from: string;
+  /** YYYY-MM-DD, or null for "to today". */
+  readonly to: string | null;
+}
+
+const sweepCaseSchema = z.strictObject({
+  rec: z.string().regex(/^\d{1,12}$/),
+  // May be empty: a case the city lists without a fastighet cannot be joined, but it must not break the whole sweep file.
+  beteckning: z.string().max(80),
+  addresses: z.array(z.string().max(80)).max(20),
+  startDate: DATE,
+  kinds: z.array(z.enum(CASE_KINDS)).max(CASE_KINDS.length),
+  primary: z.enum(CASE_KINDS),
+  tillsyn: z.boolean(),
+  archived: z.boolean(),
+});
+
+const sweepEntrySchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  rulesVersion: z.number().int(),
+  query: z.strictObject({
+    district: z.string().min(1).max(60),
+    description: z.string().min(1).max(60),
+    from: DATE,
+    to: DATE.nullable(),
+  }),
+  fetchedAt: z.string(),
+  headingCount: z.number().int().nonnegative().nullable(),
+  cases: z.array(sweepCaseSchema).max(20_000),
+});
+
+export type SweepEntry = {
+  readonly schemaVersion: 1;
+  readonly rulesVersion: number;
+  readonly query: SweepQuery;
+  readonly fetchedAt: string;
+  readonly headingCount: number | null;
+  readonly cases: readonly SweepCase[];
+};
+
+const compactDate = (date: string): string => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Ogiltigt datum i sökningen: ${date.slice(0, 20)}`);
+  return date.replace(/-/g, "");
+};
+
+/** `<stadsdel>-<sökord>-<från>-<till|open>.json`, built from slugged parts only. */
+export function sweepFileName(query: SweepQuery): string {
+  const district = beteckningSlug(query.district);
+  const description = beteckningSlug(query.description);
+  if (district === "" || description === "") throw new Error("Ogiltig sökning för sweep-cachen: stadsdel och sökord måste ha bokstäver");
+  const to = query.to === null ? "open" : compactDate(query.to);
+  return `${district}-${description}-${compactDate(query.from)}-${to}.json`;
+}
+
+const sweepPath = (query: SweepQuery, dir: string) => join(dir, "sweep", sweepFileName(query));
+
+export function saveSweep(
+  query: SweepQuery,
+  result: { cases: readonly SweepCase[]; headingCount: number | null },
+  opts: CacheDirOpts & { now: Date },
+): void {
+  const dir = opts.dir ?? BYGGLOV_CACHE_DIR;
+  const path = sweepPath(query, dir);
+  const entry = sweepEntrySchema.parse({
+    schemaVersion: 1,
+    rulesVersion: BYGGLOV_RULES_VERSION,
+    query: { district: query.district, description: query.description, from: query.from, to: query.to },
+    fetchedAt: opts.now.toISOString(),
+    headingCount: result.headingCount,
+    cases: result.cases,
+  });
+  saveGuardedJson(path, entry, dir);
+}
+
+const sameText = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv") === b.replace(/\s+/g, " ").trim().toLocaleLowerCase("sv");
+
+/** Reads one sweep. A file written for another search under the same slugged name is a miss "annan sökning". */
+export function loadSweep(
+  query: SweepQuery,
+  opts: CacheDirOpts = {},
+): { ok: true; entry: SweepEntry } | { ok: false; error: CacheMiss } {
+  const loaded = loadValidated(sweepPath(query, opts.dir ?? BYGGLOV_CACHE_DIR), sweepEntrySchema);
+  if (!loaded.ok) return loaded;
+  const q = loaded.value.query;
+  if (!sameText(q.district, query.district) || !sameText(q.description, query.description) || q.from !== query.from || q.to !== query.to) {
+    return { ok: false, error: "annan sökning" };
+  }
+  return { ok: true, entry: loaded.value as SweepEntry };
+}
+
+/** A sweep follows the same 30 day and rulesVersion rule as a case list. */
+export const sweepNeedsRefresh = (entry: { fetchedAt: string; rulesVersion: number } | null, now: Date): boolean =>
+  cacheEntryNeedsRefresh(entry, now, CASE_LIST_TTL_DAYS);

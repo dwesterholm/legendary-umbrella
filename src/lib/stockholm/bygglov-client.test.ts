@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { refreshCaseListIfStale } from "@/lib/stockholm/bygglov-cache";
+import { loadSweep, refreshCaseListIfStale, saveSweep } from "@/lib/stockholm/bygglov-cache";
 import { CITY_HOST, CITY_LIMITS, CITY_USER_AGENT, CityStop, makeCityClient } from "@/lib/stockholm/bygglov-client";
 import { makeFixtureFetch } from "@/lib/stockholm/fixture-fetch";
 
@@ -318,6 +318,13 @@ describe("the other calls build their URLs from digits and encoded values only",
     if (!result.ok) throw new Error(`unexpected ${result.reason}`);
     expect(result.cases).toHaveLength(380);
     expect(result.headingCount).toBe(380);
+
+    // The real 380-row sweep saves as a sweep file and loads back unchanged.
+    const query = { district: "Södermalm", description: "stambyte", from: "1985-01-01", to: null };
+    saveSweep(query, { cases: result.cases, headingCount: result.headingCount }, { dir, now: s.clock.now() });
+    const loaded = loadSweep(query, { dir });
+    if (!loaded.ok) throw new Error(loaded.error);
+    expect(loaded.entry.cases).toEqual(result.cases);
     expect(Object.keys(result.cases[0]).sort()).toEqual(
       ["addresses", "archived", "beteckning", "kinds", "primary", "rec", "startDate", "tillsyn"].sort(),
     );

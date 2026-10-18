@@ -301,7 +301,7 @@ export function makeCityClient(deps: CityDeps) {
       return {
         rec: row.rec,
         beteckning: row.beteckning,
-        addresses: [...row.addresses],
+        addresses: row.addresses.slice(0, 20).map((a) => a.slice(0, 80)),
         startDate: row.startDate,
         kinds: [...c.kinds],
         primary: c.primary,
