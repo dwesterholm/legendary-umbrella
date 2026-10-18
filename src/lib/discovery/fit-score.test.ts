@@ -1807,3 +1807,71 @@ describe("ceiling height in taste (14.5 D-07, CEIL-02)", () => {
     expect(rowsAtTasteCap([lifted])).toEqual({ reached: 1, of: 1 });
   });
 });
+
+describe("building facts reach the result and the stambyte input (14.6 STAM-03, FLAG-01, FLAG-02, D-07)", () => {
+  const cityFacts = candidateFactsSchema.parse({
+    stambyteStatus: "genomfort",
+    lastStambyteYear: 2006,
+    plannedStambyteYear: 2027,
+    stambyteSource: "bygglov_stockholm",
+    cityStambyte: { lastYear: 2006, basis: "slutbesked", ongoing: false, relining: false },
+    byggarenden: [{ kind: "vind_inredning", month: "2023-10", decision: "slutbesked", slutbeskedMonth: "2024-02", diarie: null }],
+    balkongBeviljadEjByggd: true,
+    balkongInglasningAnsokt: false,
+    areaSource: "forening",
+    areaMeasuredYear: null,
+  });
+
+  it("the result copies the stambyte, byggärenden, balcony and area facts from row.facts, and the construction year from the candidate", () => {
+    const row = { ...flat({ facades: null }), facts: cityFacts };
+    const r = fitScore(row, model);
+    expect(r.stambyteStatus).toBe("genomfort");
+    expect(r.lastStambyteYear).toBe(2006);
+    expect(r.plannedStambyteYear).toBe(2027);
+    expect(r.stambyteSource).toBe("bygglov_stockholm");
+    expect(r.byggarenden).toEqual(cityFacts.byggarenden);
+    expect(r.balkongBeviljadEjByggd).toBe(true);
+    expect(r.balkongInglasningAnsokt).toBe(false);
+    expect(r.areaSource).toBe("forening");
+    expect(r.areaMeasuredYear).toBeNull();
+    expect(r.constructionYear).toBe(row.candidate.constructionYear);
+  });
+
+  it("without facts every new field is null and the not-comparable branch carries the same values", () => {
+    const row = flat({ facades: null });
+    const none = fitScore({ ...row, facts: null }, model);
+    for (const key of [
+      "stambyteStatus",
+      "lastStambyteYear",
+      "plannedStambyteYear",
+      "stambyteSource",
+      "byggarenden",
+      "balkongBeviljadEjByggd",
+      "balkongInglasningAnsokt",
+      "areaSource",
+      "areaMeasuredYear",
+    ] as const) {
+      expect(none[key], key).toBeNull();
+    }
+    const noPrice = fitScore({ ...row, facts: cityFacts, candidate: { ...row.candidate, price: null } }, model);
+    expect(noPrice.comparable).toBe(false);
+    expect(noPrice.lastStambyteYear).toBe(2006);
+    expect(noPrice.areaSource).toBe("forening");
+  });
+
+  it("hedonicInputOf passes the stambyte input: identified = the city list was read, years since the city's latest stambyte, ongoing", () => {
+    const row = { ...flat({ facades: null }), facts: cityFacts };
+    expect(hedonicInputOf(row, 40, 2026).stambyte).toEqual({ identified: true, yearsSince: 20, ongoing: false });
+    // No run year given: a recorded stambyte has no age, never a guessed one.
+    expect(hedonicInputOf(row, 40).stambyte).toEqual({ identified: true, yearsSince: null, ongoing: false });
+    // A stambyte year after the run year reads as zero years, never negative.
+    expect(hedonicInputOf(row, 40, 2005).stambyte?.yearsSince).toBe(0);
+    // A list that was read and showed nothing: the building is known, it has no stambyte on record.
+    const emptyList = candidateFactsSchema.parse({ byggarenden: [], cityStambyte: { lastYear: null, basis: null, ongoing: false, relining: false } });
+    expect(hedonicInputOf({ ...row, facts: emptyList }, 40, 2026).stambyte).toEqual({ identified: true, yearsSince: null, ongoing: false });
+    // The city list was never read (broker text only): the building is unknown to the model.
+    const textOnly = candidateFactsSchema.parse({ stambyteStatus: "genomfort", lastStambyteYear: 2019, textStambyte: { lastYear: 2019, plannedYear: null, ongoing: false, relining: false } });
+    expect(hedonicInputOf({ ...row, facts: textOnly }, 40, 2026).stambyte).toEqual({ identified: false, yearsSince: null, ongoing: null });
+    expect(hedonicInputOf({ ...row, facts: null }, 40, 2026).stambyte).toBeNull();
+  });
+});

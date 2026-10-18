@@ -131,6 +131,7 @@ import {
   toFitTableRows,
   withReasonsOnFlagged,
   FIT_FLAG_LABELS,
+  asOfYearOf,
   type AreaReport,
   type FitPipelineDeps,
   type FitPipelineResult,
@@ -226,6 +227,8 @@ import { SUN_FAILURE_REASON, computeSunFactSafe, renderSunReport, unknownSunFact
 import type { PlanBearing } from "@/lib/discovery/sun-fact";
 
 const DEFAULT_MODEL_PATH = "data/hedonic-model.json";
+/** Phase 14.6: the city's building cache (address map and case lists), written by the city stage and by scripts/bygglov-candidates.ts. */
+const DEFAULT_CITY_CACHE = ".planning/calibration/data/bygglov";
 const DEFAULT_TRACK_ID = 150148;
 const DATA_DIR = ".planning/calibration/data";
 /** Where `--json` may write a run record (14.4-01, T-14.4-01): the phase evidence dirs and the gitignored data dir. */
@@ -240,7 +243,7 @@ const MAX_APIFY_MAX_RENDERS = 100;
 
 const USAGE = `Användning:
   Uppspelning (gratis, offline):
-    npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>] [--json <fil.json>]
+    npx tsx scripts/fit-score.ts --replay <snapshot.json> [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}] [--osm <utdrag.json>] [--json <fil.json>] [--city-cache <mapp>|none]
   Live-körning (lokal webbläsare är gratis för Booli; Apify och bildtolkning kostar):
     npx tsx scripts/fit-score.ts [--window all|<n>] [--district <område>] [--no-vision] [--budget-usd <n>] [--out <fil>] [--dry-run] [--renderer local|apify] [--allow-apify] [--apify-max-renders <n>] [--osm <utdrag.json>] [--model ${DEFAULT_MODEL_PATH}] [--track ${DEFAULT_TRACK_ID}]
   Veckomejl med bevakningsminne (båda lägena):
@@ -263,6 +266,8 @@ const USAGE = `Användning:
   --json <fil>       Uppspelning: skriv körningen (varje rad med okapad skillnad, krediterad del, vinst och flaggor, samt modell och snapshot)
                      som en körningspost. Filen måste sluta på .json och ligga under ${RUN_RECORD_ROOTS.map((r) => `${r}/`).join(" eller ")}.
                      Tabellen som skrivs ut är oförändrad; raden "Körningspost: <fil>" läggs till efter täckningsraden
+  --city-cache <mapp> Stadens ärendecache att läsa (standard ${DEFAULT_CITY_CACHE}; none = hoppa över). Uppspelning lägger stadens uppgifter
+                     (stambyte, byggärenden) på raderna från cachen, utan nätverk; kolumnerna Stambyte och Byggärenden ändrar aldrig en siffra
   --model <fil>      Hedonisk modell (JSON), standard ${DEFAULT_MODEL_PATH}
   --track <id>       Booli-id att visa uppdelat i detalj, standard ${DEFAULT_TRACK_ID}
   --window all|<n>   Live: antal annonser som får detaljsida (och bildtolkning). Standard: all (alla jämförbara) med lokal webbläsare,
@@ -355,6 +360,11 @@ interface Args {
   /** The memory file; null = {@link WATCH_STATE_PATH}. */
   state: string | null;
   noStateWrite: boolean;
+  /**
+   * Phase 14.6 (R-01): where the city's building cache is read (a replay overlays city facts from it, offline) or kept (a live
+   * run's city stage); "none" skips the city facts altogether. null = {@link DEFAULT_CITY_CACHE}.
+   */
+  cityCache: string | null;
   help: boolean;
 }
 
@@ -377,6 +387,7 @@ function parseArgs(argv: string[]): Args | null {
     email: false,
     state: null,
     noStateWrite: false,
+    cityCache: null,
     help: false,
   };
   let liveOnly = false;
@@ -403,6 +414,7 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--email") out.email = true;
     else if (flag === "--state" && value !== undefined) { out.state = value; i++; }
     else if (flag === "--no-state-write") out.noStateWrite = true;
+    else if (flag === "--city-cache" && value !== undefined && value !== "") { out.cityCache = value; i++; }
     else if (
       flag === "--apify-max-renders" &&
       value !== undefined &&
@@ -916,6 +928,32 @@ function runRecordPathOf(path: string): string | null {
   return null;
 }
 
+/**
+ * Replay (Phase 14.6, R-01, FIT-06): puts the city's building facts on the snapshot's rows from the cache only. The city stage is
+ * loaded by dynamic import and runs in its cache-only mode, which reads files and makes no request, so a replay stays offline;
+ * a row with no cached answer keeps the facts the snapshot holds. `none` or a missing cache folder leaves every row as stored.
+ * The line says which of the three happened.
+ */
+async function overlayCityFacts(
+  rows: readonly FitInputRow[],
+  asOf: string,
+  cityCache: string | null,
+): Promise<{ rows: FitInputRow[]; line: string }> {
+  const label = "Stadens ärendelista (cache):";
+  if (cityCache === "none") return { rows: [...rows], line: `${label} hoppades över (--city-cache none)` };
+  const dir = cityCache ?? DEFAULT_CITY_CACHE;
+  if (!existsSync(resolve(dir))) return { rows: [...rows], line: `${label} ingen cache i ${dir}, snapshotens egna uppgifter används` };
+  const { runCityStage, cityStageLine } = await import("@/lib/stockholm/city-stage");
+  const result = await runCityStage(
+    rows.map((row) => ({ address: row.candidate.address ?? "", brfName: row.facts?.brfName ?? null, facts: row.facts })),
+    { mode: "cache-only", asOf, cacheDir: dir, log: (line) => console.log(line) },
+  );
+  return {
+    rows: rows.map((row, i) => (result.facts[i] === row.facts ? row : { ...row, facts: result.facts[i] })),
+    line: cityStageLine(result.stats).replace("Stadens ärendelista:", label),
+  };
+}
+
 async function runReplay(args: Args): Promise<void> {
   // --email: the lock is taken before anything else, exactly as in a live run (exit 3 when another run holds it).
   const statePath = args.email ? resolveStatePath(args) : null;
@@ -948,7 +986,12 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
     solLines.push(stage.timingLine());
   }
 
-  const ranking = rankFit(rows, model);
+  // Phase 14.6 (R-01): the city's building facts from the cache only, before ranking. A replay never loads the city client.
+  const cityLine = await overlayCityFacts(rows, snapshot.asOf, args.cityCache);
+  rows = cityLine.rows;
+
+  const asOfYear = asOfYearOf(snapshot.asOf);
+  const ranking = rankFit(rows, model, { asOfYear });
 
   // 14.4-01 (R-05): freeze the ranking as a machine-readable record. Written before anything is printed;
   // the table below is unchanged by it.
@@ -969,13 +1012,14 @@ async function runReplayInner(args: Args, statePath: string | null): Promise<voi
   // The free pre-rank is recomputed from the stored rows (their detail-page
   // facts are included, so it can differ slightly from the live run's own).
   const preRankPositions = new Map<string, number>();
-  for (const p of preRank(rows, model).ranked) preRankPositions.set(fitRowKey(p.row.candidate), p.position);
+  for (const p of preRank(rows, model, { asOfYear }).ranked) preRankPositions.set(fitRowKey(p.row.candidate), p.position);
 
   printModelLine(model);
   console.log(
     `Snapshot per ${snapshot.asOf}: ${rows.length} rader, ${ranking.ranked.length} jämförbara, ${ranking.notComparable.length} ej jämförbara (förrank räknat om från snapshoten)`,
   );
   for (const line of solLines) console.log(line);
+  console.log(cityLine.line);
   console.log("");
   const reasonsOf = makeReasonsOf(rows, ranking.ranked, model);
   const tableRows = toFitTableRows(ranking, preRankPositions, { reasonsOf });

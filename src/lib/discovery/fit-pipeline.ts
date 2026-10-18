@@ -50,6 +50,7 @@ import {
 } from "@/lib/discovery/fit-score";
 import { readConditionTerm, type HedonicModel, type InnerstanDistrict, type OverbidDetail } from "@/lib/discovery/hedonic-model";
 import type { EnrichmentResult } from "@/lib/discovery/job";
+import type { AreaSource } from "@/lib/discovery/area-source";
 import { mergeFacts, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
   formatKorsdragCell,
@@ -66,6 +67,7 @@ import {
   type LayoutFact,
 } from "@/lib/discovery/layout-fact";
 import { formatSolHours, type SunFact } from "@/lib/discovery/sun-fact";
+import type { CaseKind } from "@/lib/stockholm/bygglov-classify";
 import { UNEXPLAINED_LABEL, isReasonFlagged, reasonCell } from "@/lib/discovery/watch-reasons";
 
 // ---------------------------------------------------------------------------
@@ -226,6 +228,12 @@ function dedupe(rows: readonly ScrapedRow[]): ScrapedRow[] {
   return out;
 }
 
+/** The year of a "YYYY-MM-DD" run date, or undefined when the text is not a date (the stambyte input then has no age). */
+export function asOfYearOf(asOf: string): number | undefined {
+  const year = Number(asOf.slice(0, 4));
+  return /^\d{4}-\d{2}-\d{2}$/.test(asOf) && Number.isInteger(year) ? year : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------
@@ -242,6 +250,7 @@ export async function runFitPipeline(
   opts: { model: HedonicModel; asOf: string; window?: number | "all" },
 ): Promise<FitPipelineResult> {
   const { model, asOf } = opts;
+  const asOfYear = asOfYearOf(asOf);
   const windowOpt = opts.window ?? FIT_VISION_WINDOW;
   const readAll = windowOpt === "all";
 
@@ -270,7 +279,7 @@ export async function runFitPipeline(
   }));
 
   const counts = { scraped: scraped.rows.length, deduped: deduped.length, filtered: filtered.length };
-  const pre = preRank(baseRows, model);
+  const pre = preRank(baseRows, model, { asOfYear });
   const preRankPositions = new Map<string, number>();
   for (const p of pre.ranked) preRankPositions.set(fitRowKey(p.row.candidate), p.position);
 
@@ -325,7 +334,7 @@ export async function runFitPipeline(
   const notComparableRowsSun = notComparableRows.map(withSun);
 
   const allRows = [...windowRowsSun, ...outsideRowsSun, ...notComparableRowsSun];
-  const ranking = rankFit(allRows, model);
+  const ranking = rankFit(allRows, model, { asOfYear });
   const coverage = computeCoverage([...windowRowsSun, ...outsideRowsSun]);
 
   const visionSkipped: Record<string, number> = {};
@@ -426,6 +435,15 @@ export interface FitTableRow {
    * "okänd". Stated text only (D-05); no picture-based estimate exists (D-08).
    */
   readonly takhojd: string;
+  /**
+   * STAM-03 "Stambyte" (D-07): "2019" (the latest completed year), "pågår", "planerat 2027", "planerat", "genomfört" (done,
+   * year unknown) or "okänd". Information only; it moves a price only through a model term that cross-validation kept.
+   */
+  readonly stambyte: string;
+  /** FLAG-01 "Byggärenden" (D-08): the building's recent cases of interest and the balcony flags, "-" when none, "okänd" when the building is unknown. */
+  readonly byggarenden: string;
+  /** FLAG-02 "Area" (D-09): where the area figure comes from, and for a non-measured figure in a pre-1987 building the separately computed upside (antagande). */
+  readonly area: string;
   readonly flags: string[];
   /** WATCH-03 "Varför här": the reasons, "oförklarat fynd" on a flagged row with none, "-" on an unflagged one. */
   readonly reasons: string;
@@ -467,6 +485,83 @@ export function formatTakhojdCell(ceilingHeightM: number | null, tallCeilingPhra
   return tallCeilingPhrase === true ? "högt i tak" : "okänd";
 }
 
+/**
+ * The "Stambyte" cell (STAM-03, D-07) from the merged stambyte facts: the completed year when known ("2019"), "genomfört"
+ * when a completed stambyte has no year, "pågår", "planerat 2027" / "planerat", and "okänd" when nothing was read.
+ */
+export function formatStambyteCell(facts: {
+  readonly stambyteStatus: CandidateFacts["stambyteStatus"];
+  readonly lastStambyteYear: number | null;
+  readonly plannedStambyteYear: number | null;
+}): string {
+  switch (facts.stambyteStatus) {
+    case "genomfort":
+      return facts.lastStambyteYear !== null ? String(facts.lastStambyteYear) : "genomfört";
+    case "pagar":
+      return "pågår";
+    case "planerat":
+      return facts.plannedStambyteYear !== null ? `planerat ${facts.plannedStambyteYear}` : "planerat";
+    default:
+      return "okänd";
+  }
+}
+
+/** The words the "Byggärenden" cell uses for a case kind. Stambyte, relining and "annat" never appear there. */
+const BYGGARENDE_LABELS: Partial<Record<CaseKind, string>> = {
+  balkong_ny: "balkong",
+  balkong_inglasning: "inglasning",
+  balkongdorr: "balkongdörr",
+  balkong_renovering: "balkongrenovering",
+  vind_inredning: "vind",
+  hiss: "hiss",
+  tak: "tak",
+  fasad: "fasad",
+};
+
+/** At most this many items in the "Byggärenden" cell. */
+const BYGGARENDE_MAX_ITEMS = 3;
+
+type ByggarendeItem = NonNullable<CandidateFacts["byggarenden"]>[number];
+
+/**
+ * The "Byggärenden" cell (FLAG-01, D-08): the building's recent cases of interest from the city's list as
+ * "<kind> YYYY-MM", newest first, at most three, joined with ", ". "-" when the list was read and showed nothing, "okänd"
+ * when the building (or its list) is unknown. Stambyte and relining live in the Stambyte column and are left out here.
+ */
+export function formatByggarendenCell(facts: {
+  readonly byggarenden: CandidateFacts["byggarenden"];
+}): string {
+  if (facts.byggarenden === null) return "okänd";
+  const items = facts.byggarenden.flatMap((item: ByggarendeItem) => {
+    const label = BYGGARENDE_LABELS[item.kind];
+    return label === undefined ? [] : [`${label} ${item.month}`];
+  });
+  return items.slice(0, BYGGARENDE_MAX_ITEMS).join(", ") || "-";
+}
+
+/** The words the "Area" cell uses for the source of the area figure. */
+const AREA_SOURCE_LABELS: Record<AreaSource, string> = {
+  uppmatt: "uppmätt",
+  forening: "föreningen",
+  ekonomisk_plan: "ekonomisk plan",
+  lagenhetsregister: "lägenhetsregistret",
+  saljare: "säljaren",
+  ej_kontrollmatt: "ej kontrollmätt",
+};
+
+/**
+ * The "Area" cell (FLAG-02, D-09): where the broker says the area figure comes from ("uppmätt 2019", "föreningen", ...), or
+ * "okänd" when the text said nothing or was never read.
+ */
+export function formatAreaCell(facts: {
+  readonly areaSource: CandidateFacts["areaSource"];
+  readonly areaMeasuredYear: number | null;
+}): string {
+  if (facts.areaSource === null) return "okänd";
+  const label = AREA_SOURCE_LABELS[facts.areaSource];
+  return facts.areaSource === "uppmatt" && facts.areaMeasuredYear !== null ? `${label} ${facts.areaMeasuredYear}` : label;
+}
+
 const roundKr = (n: number): number => Math.round(n);
 const roundOrNull = (n: number | null): number | null => (n === null ? null : roundKr(n));
 
@@ -506,6 +601,9 @@ export function toFitTableRows(
       korsdrag: formatKorsdragCell(korsdragOf(r.layout)),
       sovrum: formatSovrumCell(quietBedroomOf(r.layout)),
       takhojd: formatTakhojdCell(r.ceilingHeightM, r.tallCeilingPhrase),
+      stambyte: formatStambyteCell(r),
+      byggarenden: formatByggarendenCell(r),
+      area: formatAreaCell(r),
       flags: r.flags.map((f) => FIT_FLAG_LABELS[f]),
       reasons: reasonCell(opts.reasonsOf?.(r) ?? [], isReasonFlagged(r.flags)),
       link: r.sourceListingUrl ?? "-",
@@ -514,7 +612,7 @@ export function toFitTableRows(
 }
 
 export const FIT_TABLE_HEADER =
-  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Flaggor | Varför här | Länk";
+  "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor | Varför här | Länk";
 
 const kr = (n: number): string => n.toLocaleString("sv-SE");
 const orDash = (n: number | null): string => (n === null ? "-" : kr(n));
@@ -550,6 +648,9 @@ export function renderFitTable(rows: readonly FitTableRow[], opts: { maxRows?: n
         r.korsdrag,
         r.sovrum,
         r.takhojd,
+        r.stambyte,
+        r.byggarenden,
+        r.area,
         r.flags.join(", ") || "-",
         r.reasons,
         r.link,

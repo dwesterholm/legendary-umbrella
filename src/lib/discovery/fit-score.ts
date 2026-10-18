@@ -61,7 +61,7 @@
 import { z } from "zod/v4";
 import { discoveryCandidateSchema, type DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { taxLines, valueGap, type ValueGapInput } from "@/lib/discovery/flip-economics";
-import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
+import { candidateFactsSchema, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
   INNERSTAN_DISTRICTS,
   expectedOverbidDetail,
@@ -237,6 +237,12 @@ export interface FitScoreOptions {
   readonly renoOverride?: RenoEstimate;
   /** Which ratio decides the residual flag; defaults to {@link RESIDUAL_FLAG_BASIS}. */
   readonly residualFlagBasis?: ResidualFlagBasis;
+  /**
+   * The run's year (Phase 14.6, D-07), a whole number the caller takes from the snapshot's own date so this module
+   * stays free of a clock. Only the stambyte input of the hedonic model reads it (years since the city's latest recorded
+   * stambyte); absent, a recorded stambyte has no age and the row reads as "recorded, age unknown".
+   */
+  readonly asOfYear?: number;
 }
 
 /**
@@ -307,6 +313,22 @@ export interface FitScoreResult {
   readonly ceilingHeightM: number | null;
   /** Phase 14.5 (CEIL-01): a tall-ceiling phrase without a number ("högt i tak"); null when the text was not read. */
   readonly tallCeilingPhrase: boolean | null;
+  /**
+   * Phase 14.6 (STAM-03, FLAG-01, FLAG-02): the building facts, copied unchanged from row.facts for the printed
+   * columns. INFORMATION ONLY: no profit, taste, resale or flag reads them (D-08, D-09); the one exception is the
+   * stambyte input of the hedonic model, which moves a price only through a model term that cross-validation kept.
+   */
+  readonly stambyteStatus: CandidateFacts["stambyteStatus"];
+  readonly lastStambyteYear: number | null;
+  readonly plannedStambyteYear: number | null;
+  readonly stambyteSource: CandidateFacts["stambyteSource"];
+  readonly byggarenden: CandidateFacts["byggarenden"];
+  readonly balkongBeviljadEjByggd: boolean | null;
+  readonly balkongInglasningAnsokt: boolean | null;
+  readonly areaSource: CandidateFacts["areaSource"];
+  readonly areaMeasuredYear: number | null;
+  /** The building's construction year from the candidate (the pre-1987 area note reads it); null when not known. */
+  readonly constructionYear: number | null;
 }
 
 /**
@@ -403,7 +425,7 @@ export function rowsAtTasteCap(rows: ReadonlyArray<FitScoreResult>): { reached: 
  * debt per m2, and tomträtt from the stated land lease. An unknown value stays null
  * (never a made-up number), so the model marginalises it and names it in `imputed`.
  */
-export function hedonicInputOf(row: FitInputRow, area: number): HedonicInput {
+export function hedonicInputOf(row: FitInputRow, area: number, asOfYear: number | null = null): HedonicInput {
   const c = row.candidate;
   const facts = row.facts;
   const avgift = facts?.avgiftMonthlySek ?? null;
@@ -419,7 +441,23 @@ export function hedonicInputOf(row: FitInputRow, area: number): HedonicInput {
     avgiftPerSqmMonth: avgift !== null && Number.isFinite(avgift) && avgift > 0 && area > 0 ? avgift / area : null,
     brfDebtPerSqm: debt !== null && Number.isFinite(debt) && debt >= 0 ? debt : null,
     tomtratt: facts?.landLease ?? null,
+    stambyte: stambyteInputOf(facts, asOfYear),
   };
+}
+
+/**
+ * The city's stambyte history as the hedonic model takes it (Phase 14.6, D-07, STAM-02). `identified` is true when the
+ * city's case list for the building was read (an empty list counts: the building is known, it just has no stambyte on
+ * record). Years since the CITY's latest recorded stambyte (the broker text is not the training data's source), never
+ * negative. Null when the row has no facts. Only a model that kept a stambyte term reads this; the committed model has none.
+ */
+function stambyteInputOf(facts: CandidateFacts | null, asOfYear: number | null): HedonicInput["stambyte"] {
+  if (facts === null) return null;
+  const city = facts.cityStambyte;
+  const lastYear = city?.lastYear ?? null;
+  const yearsSince =
+    lastYear !== null && asOfYear !== null && Number.isFinite(asOfYear) ? Math.max(0, asOfYear - lastYear) : null;
+  return { identified: facts.byggarenden !== null, yearsSince, ongoing: city?.ongoing ?? null };
 }
 
 /**
@@ -469,6 +507,16 @@ export function fitScore(
     layoutAppliedToSun: sunWithLayout.applied,
     ceilingHeightM: row.facts?.ceilingHeightM ?? null,
     tallCeilingPhrase: row.facts?.tallCeilingPhrase ?? null,
+    stambyteStatus: row.facts?.stambyteStatus ?? null,
+    lastStambyteYear: row.facts?.lastStambyteYear ?? null,
+    plannedStambyteYear: row.facts?.plannedStambyteYear ?? null,
+    stambyteSource: row.facts?.stambyteSource ?? null,
+    byggarenden: row.facts?.byggarenden ?? null,
+    balkongBeviljadEjByggd: row.facts?.balkongBeviljadEjByggd ?? null,
+    balkongInglasningAnsokt: row.facts?.balkongInglasningAnsokt ?? null,
+    areaSource: row.facts?.areaSource ?? null,
+    areaMeasuredYear: row.facts?.areaMeasuredYear ?? null,
+    constructionYear: c.constructionYear,
     renoSek: reno.midSek,
     renoLowSek: reno.lowSek,
     renoHighSek: reno.highSek,
@@ -530,7 +578,7 @@ export function fitScore(
     };
   }
 
-  const { krPerSqm: pred, imputed } = predictKrPerSqm(model, hedonicInputOf(row, area));
+  const { krPerSqm: pred, imputed } = predictKrPerSqm(model, hedonicInputOf(row, area, opts.asOfYear ?? null));
   const askingPerSqm = price / area;
   // BID-02 (D-13): the candidate's EXISTING picture verdict, no new call.
   const conditionIndex = conditionIndexOf(reno);
@@ -727,9 +775,13 @@ function medianOf(values: readonly number[]): number {
 export function preRank(
   rows: readonly FitInputRow[],
   model: HedonicModel,
+  opts: { readonly asOfYear?: number } = {},
 ): { ranked: PreRankedRow[]; notComparable: FitScoreResult[] } {
   const unknownBundle = renoBundle(UNKNOWN_RENO_STATES);
-  const scored = rows.map((row) => ({ row, pre: fitScore(row, model, { renoOverride: unknownBundle }) }));
+  const scored = rows.map((row) => ({
+    row,
+    pre: fitScore(row, model, { renoOverride: unknownBundle, asOfYear: opts.asOfYear }),
+  }));
   const comparable = scored.filter((x) => x.pre.comparable && x.pre.profitSek !== null);
   const notComparable = scored.filter((x) => !(x.pre.comparable && x.pre.profitSek !== null)).map((x) => x.pre);
 

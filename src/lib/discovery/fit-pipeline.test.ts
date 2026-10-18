@@ -24,6 +24,9 @@ import {
   budpremieCell,
   conditionLineOf,
   formatTakhojdCell,
+  formatStambyteCell,
+  formatByggarendenCell,
+  formatAreaCell,
   checkApifyHeadroom,
   computeCoverage,
   reasonsOnFlaggedOf,
@@ -467,7 +470,7 @@ describe("table rows and rendering (FIT-03)", () => {
   it("the header puts 'Sol' right after 'Smak'; a row prints '-' without a sun record and the formatted cell with one (D-02)", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
     expect(headerCells.indexOf("Sol")).toBe(headerCells.indexOf("Smak") + 1);
-    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 6); // two hour columns (plan 07), Korsdrag, Sovrum (14.4 plan 08) and Takhöjd (14.5 plan 01) in between
+    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Sol") + 9); // two hour columns (plan 07), Korsdrag, Sovrum (14.4 plan 08), Takhöjd (14.5 plan 01), Stambyte, Byggärenden and Area (14.6 plan 10) in between
     const none = renderFitTable(toFitTableRows({ ranked: [sample[0]] }, new Map())).split("\n")[1].split(" | ");
     expect(none).toHaveLength(headerCells.length);
     expect(none[headerCells.indexOf("Sol")]).toBe("-");
@@ -501,7 +504,7 @@ describe("table rows and rendering (FIT-03)", () => {
 
   it("the header ends the sun block with 'Korsdrag' and 'Sovrum' (LAY-03): unknown prints 'okänd', Folkungagatan 61's layout prints 'nej' and 'gata', a courtyard bedroom with two window sides 'ja' and 'gård'", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
-    expect(FIT_TABLE_HEADER).toContain("| Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Flaggor |");
+    expect(FIT_TABLE_HEADER).toContain("| Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor |");
     expect(headerCells.indexOf("Sovrum")).toBe(headerCells.indexOf("Korsdrag") + 1);
     const base: LayoutFact = {
       balconySide: "street", livingOnBalconySide: true, kitchenOnBalconySide: true, bedroomOnBalconySide: true,
@@ -520,11 +523,11 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(cellsOf(weak)).toEqual(["okänd", "okänd"]);
   });
 
-  it("the header puts 'Takhöjd' between 'Sovrum' and 'Flaggor' (CEIL-01); a stored snapshot (no text) prints 'okänd' on every row", () => {
+  it("the header puts 'Takhöjd' right after 'Sovrum' (CEIL-01); a stored snapshot (no text) prints 'okänd' on every row", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
-    expect(FIT_TABLE_HEADER).toContain("| Korsdrag | Sovrum | Takhöjd | Flaggor |");
+    expect(FIT_TABLE_HEADER).toContain("| Korsdrag | Sovrum | Takhöjd | Stambyte |");
     expect(headerCells.indexOf("Takhöjd")).toBe(headerCells.indexOf("Sovrum") + 1);
-    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Takhöjd") + 1);
+    expect(headerCells.indexOf("Stambyte")).toBe(headerCells.indexOf("Takhöjd") + 1);
     const rows = toFitTableRows({ ranked: sample }, new Map());
     expect(rows.every((r) => r.takhojd === "okänd")).toBe(true);
     const stated = candidateFactsSchema.parse({ ceilingHeightM: 3.2, ceilingSource: "angiven", tallCeilingPhrase: false });
@@ -552,9 +555,92 @@ describe("table rows and rendering (FIT-03)", () => {
     expect(formatTakhojdCell(null, null)).toBe("okänd");
   });
 
+  it("formatStambyteCell: the completed year, 'genomfört' without a year, 'pågår', 'planerat 2027' / 'planerat', 'okänd' (STAM-03, D-07)", () => {
+    const cell = (stambyteStatus: CandidateFacts["stambyteStatus"], lastStambyteYear: number | null = null, plannedStambyteYear: number | null = null) =>
+      formatStambyteCell({ stambyteStatus, lastStambyteYear, plannedStambyteYear });
+    expect(cell("genomfort", 2006)).toBe("2006");
+    expect(cell("genomfort", 2019)).toBe("2019");
+    expect(cell("pagar")).toBe("pågår");
+    expect(cell("planerat", null, 2027)).toBe("planerat 2027");
+    expect(cell("planerat")).toBe("planerat");
+    expect(cell("genomfort")).toBe("genomfört");
+    expect(cell(null)).toBe("okänd");
+    // A year without a status is not shown: the status decides what the cell says.
+    expect(cell(null, 2006, 2027)).toBe("okänd");
+  });
+
+  it("the header puts 'Stambyte', 'Byggärenden' and 'Area' between 'Takhöjd' and 'Flaggor'; a row without facts prints 'okänd' in all three, and the cells follow the result's facts", () => {
+    const headerCells = FIT_TABLE_HEADER.split(" | ");
+    expect(FIT_TABLE_HEADER).toBe(
+      "# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor | Varför här | Länk",
+    );
+    expect(headerCells.indexOf("Byggärenden")).toBe(headerCells.indexOf("Stambyte") + 1);
+    expect(headerCells.indexOf("Area")).toBe(headerCells.indexOf("Byggärenden") + 1);
+    expect(headerCells.indexOf("Flaggor")).toBe(headerCells.indexOf("Area") + 1);
+    const printed = (r: FitScoreResult) => {
+      const line = renderFitTable(toFitTableRows({ ranked: [r] }, new Map())).split("\n")[1].split(" | ");
+      expect(line).toHaveLength(headerCells.length);
+      return [line[headerCells.indexOf("Stambyte")], line[headerCells.indexOf("Byggärenden")], line[headerCells.indexOf("Area")]];
+    };
+    expect(printed(sample[0])).toEqual(["okänd", "okänd", "okänd"]);
+    const known: FitScoreResult = {
+      ...sample[0],
+      stambyteStatus: "genomfort",
+      lastStambyteYear: 2006,
+      byggarenden: [
+        { kind: "vind_inredning", month: "2023-10", decision: "slutbesked", slutbeskedMonth: "2024-02", diarie: null },
+        { kind: "stambyte", month: "2006-05", decision: "slutbesked", slutbeskedMonth: null, diarie: null },
+        { kind: "hiss", month: "2021-12", decision: "beviljad", slutbeskedMonth: null, diarie: null },
+      ],
+      areaSource: "uppmatt",
+      areaMeasuredYear: 2019,
+    };
+    expect(printed(known)).toEqual(["2006", "vind 2023-10, hiss 2021-12", "uppmätt 2019"]);
+  });
+
+  it("formatByggarendenCell: '<kind> YYYY-MM' newest first, at most three, stambyte and relining left out, '-' for a read list with nothing, 'okänd' for an unknown building", () => {
+    const item = (kind: NonNullable<CandidateFacts["byggarenden"]>[number]["kind"], month: string) => ({
+      kind,
+      month,
+      decision: "beviljad" as const,
+      slutbeskedMonth: null,
+      diarie: null,
+    });
+    expect(formatByggarendenCell({ byggarenden: null })).toBe("okänd");
+    expect(formatByggarendenCell({ byggarenden: [] })).toBe("-");
+    expect(formatByggarendenCell({ byggarenden: [item("stambyte", "2024-01"), item("relining", "2023-05"), item("annat", "2023-01")] })).toBe("-");
+    expect(
+      formatByggarendenCell({
+        byggarenden: [
+          item("vind_inredning", "2024-09"),
+          item("hiss", "2024-05"),
+          item("tak", "2023-11"),
+          item("fasad", "2023-02"),
+          item("balkongdorr", "2022-08"),
+        ],
+      }),
+    ).toBe("vind 2024-09, hiss 2024-05, tak 2023-11");
+    // Stambyte items do not take one of the three places.
+    expect(formatByggarendenCell({ byggarenden: [item("stambyte", "2024-09"), item("fasad", "2024-05")] })).toBe("fasad 2024-05");
+  });
+
+  it("formatAreaCell: the source in plain words and the measured year; 'okänd' without a source (FLAG-02)", () => {
+    const cell = (areaSource: CandidateFacts["areaSource"], areaMeasuredYear: number | null = null) => formatAreaCell({ areaSource, areaMeasuredYear });
+    expect(cell("uppmatt", 2019)).toBe("uppmätt 2019");
+    expect(cell("uppmatt")).toBe("uppmätt");
+    expect(cell("forening")).toBe("föreningen");
+    expect(cell("ekonomisk_plan")).toBe("ekonomisk plan");
+    expect(cell("lagenhetsregister")).toBe("lägenhetsregistret");
+    expect(cell("saljare")).toBe("säljaren");
+    expect(cell("ej_kontrollmatt")).toBe("ej kontrollmätt");
+    expect(cell(null)).toBe("okänd");
+    // A year belongs to a measurement only.
+    expect(cell("forening", 2019)).toBe("föreningen");
+  });
+
   it("the header puts the two hour columns right after 'Sol' and before 'Flaggor'; every printed row has as many cells as the header", () => {
     const headerCells = FIT_TABLE_HEADER.split(" | ");
-    expect(FIT_TABLE_HEADER).toContain("Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Flaggor");
+    expect(FIT_TABLE_HEADER).toContain("Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor");
     const sun = resolveSunFact({ stated: ["south"], plan: null, footprint: { status: "unknown", reason: "adress saknas" } });
     const printed = renderFitTable(toFitTableRows({ ranked: [{ ...sample[0], sun }, { ...sample[1], sun: null }] }, new Map())).split("\n");
     for (const line of printed.slice(1)) expect(line.split(" | ")).toHaveLength(headerCells.length);
