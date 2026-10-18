@@ -607,7 +607,7 @@ export function renderSweepMarkdown(e: SweepEvidence): string {
   const late = averagePerYear(t.stambytePerStartYear, 2012, 2019);
   lines.push("## Vad den tunna posten efter 2011 betyder", "");
   lines.push(
-    `Mellan 1994 och 2006 startade i snitt ${dec(early)} stambytesärenden per år i de stadsdelar som svepet täcker. Mellan 2012 och 2019 var det ${dec(late)}. Det betyder inte att färre hus fick nya stammar. Staden listar ett stambyte först när någon anmält det, och många föreningar anmälde inte före domen MÖD 2020:19. Svepet kan inte skilja ett hus utan stambyte från ett hus med ett stambyte som aldrig anmäldes. En fastighet utan post är därför okänd, inte utan stambyte.`,
+    `Mellan 1994 och 2006 startade i snitt ${dec(early)} stambytesärenden per år i de stadsdelar som svepet täcker. Mellan 2012 och 2019 var det ${dec(late)}. Det säger inte att färre hus fick nya stammar. Staden listar ett stambyte först när någon har anmält det. Före domen MÖD 2020:19 anmälde troligen många föreningar inte, men det kan svepet inte avgöra. Svepet kan inte skilja ett hus utan stambyte från ett hus med ett stambyte som aldrig anmäldes. En fastighet utan post är därför okänd, inte utan stambyte.`,
     "",
   );
   return lines.join("\n");
