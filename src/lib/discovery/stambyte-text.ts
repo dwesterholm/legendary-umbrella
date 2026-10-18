@@ -73,6 +73,7 @@ const KEYWORD = new RegExp(
 /** A year from 1950 to 2045. Not a decade ("1980-talet"), not part of a longer number, not the second half of "a-b" or "1,2018". */
 const YEAR = /(?<![\d.,-])((?:19[5-9]\d|20[0-3]\d|204[0-5]))(?!\d|-?tal)/gu;
 /** "2011-2012", "2019–2020": the end of a range right after a year. */
+const BETWEEN_RANGE_END = /^\s{1,3}och\s{1,3}((?:19[5-9]\d|20[0-3]\d|204[0-5]))(?!\d|-?tal)/u;
 const RANGE_END = /^\s{0,2}[-–—]\s{0,2}((?:19[5-9]\d|20[0-3]\d|204[0-5]))(?!\d|-?tal)/u;
 
 /** Words that say the stambyte lies ahead. "planer..." does not match inside "underhållsplanen". */
@@ -89,6 +90,9 @@ const ONGOING = new RegExp(
 
 /** A negation. Whether it belongs to a keyword is decided by distance (see {@link negatedKeywords}). */
 const NEGATION = new RegExp(`${W}(?:inget|ingen|inga|ej|inte|icke|aldrig|saknar|saknas|utan)${E}`, "giu");
+
+/** "istället för stambyte": the job was done another way, so no stambyte. Counts only BEFORE the keyword ("stambyte istället för relining" means the stambyte happened). */
+const SUBSTITUTE = new RegExp(`${W}i\\s{0,2}stället\\s{1,3}för${E}`, "giu");
 
 /** Relining and its kin: a different job from a stambyte. */
 const RELINING = new RegExp(`${W}(?:relin\\p{L}{1,8}|rör(?:renover|lin)\\p{L}{3,8})${E}`, "iu");
@@ -215,6 +219,15 @@ function negatedKeywords(clause: string, keywords: readonly Span[]): Set<number>
     }
     if (target >= 0) negated.add(target);
   }
+  for (const word of spansOf(SUBSTITUTE, clause, MAX_MODIFIERS)) {
+    for (let i = 0; i < keywords.length; i++) {
+      const k = keywords[i];
+      if (word.end <= k.start && k.start - word.end <= NEGATION_BEFORE_REACH && !/[,:]/.test(clause.slice(word.end, k.start))) {
+        negated.add(i);
+        break;
+      }
+    }
+  }
   return negated;
 }
 
@@ -322,7 +335,11 @@ export function stambyteFromText(text: string | null, opts: { readonly runYear: 
         continue;
       }
       let value = year.value;
-      const range = RANGE_END.exec(clause.slice(year.end, year.end + 10));
+      const range =
+        RANGE_END.exec(clause.slice(year.end, year.end + 10)) ??
+        (/(?<![\p{L}])mellan\s{1,3}$/iu.test(clause.slice(Math.max(0, year.start - 10), year.start))
+          ? BETWEEN_RANGE_END.exec(clause.slice(year.end, year.end + 12))
+          : null);
       if (range && Number(range[1]) >= value && Number(range[1]) <= opts.runYear) value = Number(range[1]);
       lastYear = lastYear === null ? value : Math.max(lastYear, value);
     }
