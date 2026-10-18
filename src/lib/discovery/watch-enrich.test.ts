@@ -393,6 +393,50 @@ describe("facts from the description", () => {
   });
 });
 
+describe("areaAudit: the opt-in terminal hook (Phase 14.6, FLAG-02)", () => {
+  const brokerFakes = (description: string | null) =>
+    fakes({
+      fetchListing: vi.fn(async () => rawDetail({ agencyListingUrl: "https://maklare.example/objekt/1" })),
+      fetchBrokerListingPage: vi.fn(async () => ({ renovationStatus: null, description, images: [] })),
+    });
+  const TEXT = "Boarean är uppmätt av Svensk Areamätning 2019. Kontakta Anna Svensson på 070-123 45 67 eller anna@maklare.example.";
+
+  it("is called once per read description with masked clauses and the parsed area facts, before the text is dropped", async () => {
+    const areaAudit = vi.fn();
+    const f = brokerFakes(TEXT);
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, opts(f.deps, { areaAudit, concurrency: 1 }));
+    expect(areaAudit).toHaveBeenCalledTimes(2);
+    const [lines, areaFacts] = areaAudit.mock.calls[0] as [string[], Record<string, unknown>];
+    expect(lines.length).toBeGreaterThan(0);
+    const printed = lines.join("\n");
+    expect(printed).toContain("▒");
+    for (const name of ["Svensk", "Areamätning", "Anna", "Svensson", "070-123", "maklare.example"]) expect(printed).not.toContain(name);
+    expect(areaFacts).toEqual({ areaSource: "uppmatt", areaMeasuredYear: 2019, areaMeasuredFirm: true });
+    // The callback is for the terminal: what the run keeps carries none of it.
+    const stored = JSON.stringify({ facts: [...result.facts.values()], candidates: result.candidates });
+    for (const piece of ["Svensk", "Areamätning", "Anna", "Svensson", "070-123", "▒"]) expect(stored).not.toContain(piece);
+  });
+
+  it("is never called when the option is absent, and not for a candidate whose description was not read", async () => {
+    const withText = await enrichAllCandidates([candidate(1)], 1, opts(brokerFakes(TEXT).deps));
+    expect(withText.facts.get(0)?.areaSource).toBe("uppmatt");
+
+    const areaAudit = vi.fn();
+    await enrichAllCandidates([candidate(1)], 1, opts(fakes().deps, { areaAudit }));
+    expect(areaAudit).not.toHaveBeenCalled();
+  });
+
+  it("a callback that throws costs nothing: the candidate is still enriched", async () => {
+    const areaAudit = vi.fn(() => {
+      throw new Error("terminal closed");
+    });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(brokerFakes(TEXT).deps, { areaAudit }));
+    expect(areaAudit).toHaveBeenCalledTimes(1);
+    expect(result.facts.get(0)?.areaSource).toBe("uppmatt");
+    expect(result.facts.get(0)?.detailFetched).toBe(true);
+  });
+});
+
 describe("broker photos", () => {
   const photoFakes = () =>
     fakes({
