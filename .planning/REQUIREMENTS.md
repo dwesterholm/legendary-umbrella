@@ -81,14 +81,14 @@
 
 ### Bygglov & Stambyte from the City's Case List, Uppmätning Flags (Phase 14.6, inserted 2026-10-18)
 
-- [ ] **CASE-01**: A fastighetsbeteckning is resolved per candidate through three rungs (broker-text regex → the city e-service's address search → Lantmäteriet Min Karta endpoints ported from the rental repo's rules: buffer ladder, point-in-polygon, 3 s delay, one attempt), cached per address; unknown stays unknown; the resolution rung and success rate are printed.
+- [x] **CASE-01**: A fastighetsbeteckning is resolved per candidate through three rungs (broker-text regex → the city e-service's address search → Lantmäteriet Min Karta endpoints ported from the rental repo's rules: buffer ladder, point-in-polygon, 3 s delay, one attempt), cached per address; unknown stays unknown; the resolution rung and success rate are printed.
 - [x] **CASE-02**: The Stockholm Bygg- och plantjänsten case list is fetched per beteckning (plain GET, ≤ 1 request / 3 s, honest User-Agent, no retries, 30-day cache under the gitignored data dir, a per-host gate that stops for 24 h on any 403/429/login wall), exact-match filtered, and each case classified by keyword rules into balkong_ny / balkong_inglasning / balkongdorr / stambyte / relining / hiss / vind_inredning / fasad / tak / annat with start date, latest decision + outcome + date, slutbesked date and diarienummer; no personal names stored; detail pages fetched only for interesting kinds started within 5 years; fixtures from saved real pages.
 - [x] **CASE-03**: A 10-building spike (Folkungagatan 61's building first) records resolution success, cases per building, kinds and dates, seconds per request and any refusal under the phase evidence; the phase stops at the spike if the site demands login or refuses.
 - [x] **STAM-01**: A one-off keyword sweep per innerstan stadsdel from 1985 (cached) is joined to the sold rows by beteckning; the join rate is measured and printed; relining is tagged separately and never counted as a stambyte.
-- [ ] **STAM-02**: `yearsSinceStambyte` buckets + `stambyteOngoing` enter the hedonic fit with the honesty rule (unknown → mean, `imputed`) and are kept only if 5-fold CV improves; the report shows the measured effect beside the folklore figures and the correlation with debt/kvm and avgift/kvm.
-- [ ] **STAM-03**: `CandidateFacts` gains lastStambyteYear / plannedStambyteYear / stambyteOngoing / stambyteSource (bygglov_stockholm > arsredovisning > maklartext); a "Stambyte" column in table and mail; a "stambyte pågår/planerat" reason line and a confounder entry so a low kr/kvm with an upcoming stambyte is explained, not called a bargain.
-- [ ] **FLAG-01**: `balkongBeviljadEjByggd` (granted, no slutbesked, ≤ 5 y) and `balkongInglasningAnsokt` flags with a "Byggärenden" cell in table and mail; no taste or valuation change.
-- [ ] **FLAG-02**: Area source (uppmatt / forening / ekonomisk_plan / lagenhetsregister / saljare / ej_kontrollmatt), measured year and a measuring-firm boolean are parsed from broker text with the ceiling-height pattern (clause split, negation guard); a soft "Arean bygger på föreningens uppgift" flag, the pre-1987 "kan vara större vid uppmätning" note and a separately shown kr upside (labelled antagande) — never in the score; patterns checked against ≥ 30 synthetic cases now and against ≥ 40 real texts on the next live run (deferred; texts never stored), with coverage printed by that run.
+- [x] **STAM-02**: `yearsSinceStambyte` buckets + `stambyteOngoing` enter the hedonic fit with the honesty rule (unknown → mean, `imputed`) and are kept only if 5-fold CV improves; the report shows the measured effect beside the folklore figures and the correlation with debt/kvm and avgift/kvm.
+- [x] **STAM-03**: `CandidateFacts` gains lastStambyteYear / plannedStambyteYear / stambyteOngoing / stambyteSource (bygglov_stockholm > arsredovisning > maklartext); a "Stambyte" column in table and mail; a "stambyte pågår/planerat" reason line and a confounder entry so a low kr/kvm with an upcoming stambyte is explained, not called a bargain.
+- [x] **FLAG-01**: `balkongBeviljadEjByggd` (granted, no slutbesked, ≤ 5 y) and `balkongInglasningAnsokt` flags with a "Byggärenden" cell in table and mail; no taste or valuation change.
+- [x] **FLAG-02**: Area source (uppmatt / forening / ekonomisk_plan / lagenhetsregister / saljare / ej_kontrollmatt), measured year and a measuring-firm boolean are parsed from broker text with the ceiling-height pattern (clause split, negation guard); a soft "Arean bygger på föreningens uppgift" flag, the pre-1987 "kan vara större vid uppmätning" note and a separately shown kr upside (labelled antagande) — never in the score; patterns checked against ≥ 30 synthetic cases now and against ≥ 40 real texts on the next live run (deferred; texts never stored), with coverage printed by that run.
 
 ### Opportunity Brief (Phase A.5)
 
@@ -175,14 +175,14 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | LAYACC-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
 | LAYACC-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
 | LAYACC-03 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
-| CASE-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Pending |
+| CASE-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | CASE-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | CASE-03 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | STAM-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
-| STAM-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Pending |
-| STAM-03 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Pending |
-| FLAG-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Pending |
-| FLAG-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Pending |
+| STAM-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
+| STAM-03 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
+| FLAG-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
+| FLAG-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | ROI-01 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-02 | Phase 15 — ROI-Aware Opportunity Brief | Pending |
 | ROI-03 | Phase 15 — ROI-Aware Opportunity Brief | Pending |

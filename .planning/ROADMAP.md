@@ -237,7 +237,7 @@ Plans:
 
 **Requirements**: CASE-01, CASE-02, CASE-03, STAM-01, STAM-02, STAM-03, FLAG-01, FLAG-02
 **Depends on:** 14.4 (model v2, reasons), 14.5 parts 1–2 (refit, text-parsing pattern for takhöjd)
-**Plans:** 11/12 plans executed
+**Plans:** 12/12 plans executed
 
 Plans:
 **Wave 1**
@@ -283,7 +283,7 @@ Plans:
 
 **Wave 11** *(blocked on Wave 10 completion)*
 
-- [ ] 14.6-12-PLAN.md — today's candidates at the city, with/without comparison, model swap last, area audit deferred to next live run (STAM-02, STAM-03, FLAG-01, FLAG-02)
+- [x] 14.6-12-PLAN.md — today's candidates at the city, with/without comparison, model swap last, area audit deferred to next live run (STAM-02, STAM-03, FLAG-01, FLAG-02)
 
 ### Phase 15: ROI-Aware Opportunity Brief
 
