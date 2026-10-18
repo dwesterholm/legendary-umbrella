@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stambyteFromText } from "@/lib/discovery/stambyte-text";
+import { STAMBYTE_TEXT_MAX_CHARS, stambyteFromText } from "@/lib/discovery/stambyte-text";
 
 const RUN = { runYear: 2026 };
 
@@ -68,21 +68,168 @@ const HELD_BACK: ReadonlyArray<readonly [string, Expected]> = [
   ["Förra ägaren bodde här 2020. Stambyte är gjort.", NOTHING],
 ];
 
+/**
+ * Held-back phrases the reader gets wrong, pinned so a later fix (or a regression) shows up. Listed here,
+ * not hidden by editing the expectations above. Empty = every held-back phrase passes.
+ */
+const HELD_BACK_KNOWN_MISSES: readonly string[] = [
+  "Stambytet är slutfört, besiktigat och godkänt 2021.",
+  "Bostadsrättsföreningen planerar stambyte inom några år, troligen 2029.",
+  "Föreningen har gjort stambyte, senast 2012.",
+];
+
 describe("held-back stambyte phrases (the honest pre-live score)", () => {
   it("has at least 15 phrases", () => {
     expect(HELD_BACK.length).toBeGreaterThanOrEqual(15);
   });
 
-  it("reports how many pass and lists the misses", () => {
+  it("reports how many pass and pins the misses", () => {
     const misses: string[] = [];
+    const detail: string[] = [];
     for (const [phrase, expected] of HELD_BACK) {
       const got = stambyteFromText(phrase, RUN);
       if (JSON.stringify(got) !== JSON.stringify(expected)) {
-        misses.push(`${phrase} -> ${JSON.stringify(got)} (wanted ${JSON.stringify(expected)})`);
+        misses.push(phrase);
+        detail.push(`${phrase} -> ${JSON.stringify(got)} (wanted ${JSON.stringify(expected)})`);
       }
     }
-    const passed = HELD_BACK.length - misses.length;
-    console.info(`held-back: ${passed} av ${HELD_BACK.length}\n${misses.join("\n")}`);
-    expect(passed).toBeGreaterThanOrEqual(0);
+    console.info(`held-back: ${HELD_BACK.length - misses.length} av ${HELD_BACK.length}\n${detail.join("\n")}`);
+    expect(misses).toEqual([...HELD_BACK_KNOWN_MISSES]);
+  });
+});
+
+/** The 33 phrases of RESEARCH 8.2, used while tuning (circular by nature; the held-back set is the honest signal). */
+const TUNED: ReadonlyArray<readonly [string, Expected]> = [
+  ["Stambyte genomfört 2018. Nytt kök och badrum 2021.", ex(2018)],
+  ["Föreningen har genomfört stambyte 2019.", ex(2019)],
+  ["Stambytet utfördes 2015.", ex(2015)],
+  ["Stambytt 2005.", ex(2005)],
+  ["2017 genomfördes ett stambyte i huset.", ex(2017)],
+  ["Stammarna byttes 2016.", ex(2016)],
+  ["Stambyte är genomfört (2011).", ex(2011)],
+  ["Nytt kök och badrum 2021, stambyte 2018.", ex(2018)],
+  ["I samband med stambytet 2018 renoverades badrummet.", ex(2018)],
+  ["Stambyte och badrumsrenovering gjordes 2019.", ex(2019)],
+  ["Stambyte genomfört 1991.", ex(1991)],
+  ["Stambyte planeras 2027.", ex(null, 2027)],
+  ["Planerat stambyte 2028.", ex(null, 2028)],
+  ["Föreningen har beslutat om stambyte som startar 2026.", ex(null, 2026)],
+  ["Stambyte är planerat till 2029.", ex(null, 2029)],
+  ["Kommande stambyte, år ej fastställt.", NOTHING],
+  ["Stambyte pågår i fastigheten.", ex(null, null, true)],
+  ["Pågående stambyte under 2026.", ex(null, null, true)],
+  ["Inget stambyte är planerat.", NOTHING],
+  ["Stambyte ej genomfört.", NOTHING],
+  ["Stambyte har ännu inte gjorts.", NOTHING],
+  ["Avloppsstammar relinade 2017.", ex(null, null, false, true)],
+  ["Relining genomfört 2015.", ex(null, null, false, true)],
+  ["Stambyte genomfört 2012 samt relining av stammar i källaren 2020.", ex(2012, null, false, true)],
+  ["Nytt badrum 2021 och nytt kök 2019.", NOTHING],
+  ["VA-stambyte klart 2014.", ex(2014)],
+  ["Stamrenovering utförd 2010.", ex(2010)],
+  ["Stambyte på 1980-talet.", NOTHING],
+  ["Föreningen har ett stambyte i sin underhållsplan för 2035.", ex(null, 2035)],
+  ["Stambyte 2024.", ex(2024)],
+  ["Stambyte 2031 enligt underhållsplanen.", ex(null, 2031)],
+  ["Stambytet slutfördes under 2022.", ex(2022)],
+];
+
+describe("stambyteFromText: the 32 tuned phrases (runYear 2026)", () => {
+  it.each(TUNED)("%s", (phrase, expected) => {
+    expect(stambyteFromText(phrase, RUN)).toEqual(expected);
+  });
+
+  it("has 32 phrases here plus the empty text below (33 in the research)", () => {
+    expect(TUNED.length).toBe(32);
+  });
+});
+
+describe("stambyteFromText: the null-text contract", () => {
+  it("null and empty text are not read: all null", () => {
+    const notRead = { lastYear: null, plannedYear: null, ongoing: null, relining: null };
+    expect(stambyteFromText(null, RUN)).toEqual(notRead);
+    expect(stambyteFromText("", RUN)).toEqual(notRead);
+    expect(stambyteFromText("   \n ", RUN)).toEqual(notRead);
+  });
+
+  it("a text that states nothing is read and says so", () => {
+    expect(stambyteFromText("Ljus etta med balkong i söderläge.", RUN)).toEqual(ex(null));
+  });
+});
+
+describe("stambyteFromText: the rules in their own words", () => {
+  it("a year inside another clause never becomes the stambyte year", () => {
+    expect(stambyteFromText("Badrum 2021. Stambyte finns i planen.", RUN)).toEqual(ex(null));
+    expect(stambyteFromText("Stambyte genomfört, nytt kök 2021.", RUN)).toEqual(ex(null));
+    expect(stambyteFromText("Stambyte genomfört och nytt kök 2021.", RUN)).toEqual(ex(null));
+  });
+
+  it("a year behind another renovation topic is refused, but 'och badrumsrenovering' is a joined subject", () => {
+    expect(stambyteFromText("Stambyte, nytt badrum och golv 2020.", RUN)).toEqual(ex(null));
+    expect(stambyteFromText("Stambyte och badrumsrenovering gjordes 2019.", RUN)).toEqual(ex(2019));
+  });
+
+  it("the run year splits past from future, and the caller owns it", () => {
+    expect(stambyteFromText("Stambyte 2028.", { runYear: 2026 })).toEqual(ex(null, 2028));
+    expect(stambyteFromText("Stambyte 2028.", { runYear: 2030 })).toEqual(ex(2028));
+    expect(stambyteFromText("Stambyte 2026.", { runYear: 2026 })).toEqual(ex(2026));
+  });
+
+  it("years outside 1950 to 2045 and decades are ignored", () => {
+    expect(stambyteFromText("Stambyte 1949.", RUN)).toEqual(ex(null));
+    expect(stambyteFromText("Stambyte 1950.", RUN)).toEqual(ex(1950));
+    expect(stambyteFromText("Stambyte planerat 2045.", RUN)).toEqual(ex(null, 2045));
+    expect(stambyteFromText("Stambyte 2046.", RUN)).toEqual(ex(null));
+    expect(stambyteFromText("Stambyte på 1990-talet och 2000-talet.", RUN)).toEqual(ex(null));
+  });
+
+  it("of several completed years the latest wins, of several planned the earliest", () => {
+    expect(stambyteFromText("Stambyte 2005 i hus A. Stambyte 2012 i hus B.", RUN)).toEqual(ex(2012));
+    expect(stambyteFromText("Stambyte planeras 2030. Stambyte planeras 2028.", RUN)).toEqual(ex(null, 2028));
+  });
+
+  it("relining is never a stambyte: it sets only its own flag", () => {
+    expect(stambyteFromText("Relining genomfördes 2019.", RUN)).toEqual(ex(null, null, false, true));
+    expect(stambyteFromText("Stambyte gjordes genom relining 2019.", RUN)).toEqual(ex(null, null, false, true));
+    expect(stambyteFromText("Rörrenovering 2018.", RUN)).toEqual(ex(null, null, false, true));
+  });
+
+  it("a negation binds to its own keyword only", () => {
+    expect(stambyteFromText("Stambyte genomfört 2012, inget stambyte planerat.", RUN)).toEqual(ex(2012));
+    expect(stambyteFromText("Stambyte genomfört 2018, ingen avgiftshöjning planerad.", RUN)).toEqual(ex(2018));
+    expect(stambyteFromText("Inget stambyte har gjorts.", RUN)).toEqual(ex(null));
+  });
+
+  it("the result carries exactly four keys and never the sentence", () => {
+    const found = stambyteFromText("Ring Svensson på 070-123 45 67. Stambyte genomfört 2018.", RUN);
+    expect(Object.keys(found).sort()).toEqual(["lastYear", "ongoing", "plannedYear", "relining"]);
+    expect(JSON.stringify(found)).not.toContain("Svensson");
+    expect(JSON.stringify(found)).not.toContain("070-123");
+  });
+
+  it("soft hyphens, zero-width characters and no-break spaces do not hide a phrase", () => {
+    expect(stambyteFromText("Stam\u00ADbyte\u00A0genomfört\u00A02018.", RUN)).toEqual(ex(2018));
+    expect(stambyteFromText("Stambyte\u200B genomfört 2018.", RUN)).toEqual(ex(2018));
+  });
+
+  it("only the first 50 000 characters are read", () => {
+    expect(STAMBYTE_TEXT_MAX_CHARS).toBe(50_000);
+    expect(stambyteFromText(`${"x".repeat(STAMBYTE_TEXT_MAX_CHARS)} Stambyte genomfört 2018.`, RUN)).toEqual(ex(null));
+  });
+});
+
+describe("stambyteFromText: pathological 50 000-character inputs read in under 50 ms (T-14.6-71)", () => {
+  const cases: ReadonlyArray<readonly [string, string]> = [
+    ["'stambyte ' repeated", "stambyte ".repeat(6000)],
+    ["digits repeated", "1234567890".repeat(5000)],
+    ["'a' repeated", "a".repeat(50_000)],
+    ["'stambyte 2018 ' repeated", "stambyte 2018 ".repeat(4000)],
+    ["negations and plan words repeated", "ej stambyte planeras pågår ".repeat(2500)],
+    ["'stammar ' repeated", "stammar ".repeat(7000)],
+  ];
+  it.each(cases)("%s", (_name, input) => {
+    const started = performance.now();
+    stambyteFromText(input, RUN);
+    expect(performance.now() - started).toBeLessThan(50);
   });
 });
