@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.5"
 current_phase_name: Full Enrichment, Layout Accuracy, Ceiling Height
 status: executing
-stopped_at: Completed 14.5-10-PLAN.md (wave 7 out of order; plans 06-09 still open)
-last_updated: "2026-10-18T15:07:12.257Z"
+stopped_at: Completed 14.5-11-PLAN.md (wave 8 out of order; plans 06-09 still open)
+last_updated: "2026-10-18T15:19:04.024Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 562d7fea4d6d07848c32ccdb40e2fa50e0b8544b
+state_head: cfe1240389a456120738ef2f13846372e40ab2bf
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 65
-  completed_plans: 58
+  completed_plans: 59
   percent: 14
 ---
 
@@ -120,6 +120,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.5 P04 | 7 min | 2 tasks | 9 files |
 | Phase 14.5 P05 | 22 min | 3 tasks | 9 files |
 | Phase 14.5 P10 | 20 min | 3 tasks | 11 files |
+| Phase 14.5 P11 | 12 min | 3 tasks | 26 files |
 
 ## Accumulated Context
 
@@ -298,6 +299,7 @@ Recent decisions affecting current work:
 - [Phase 14.5]: 14.5-05: runVariantReads checkpoints the cache after every paid call and an unreadable variant cache is never overwritten; the smoke uses min(variant estimate, 1 kr) as its per-read estimate
 - [Phase 14.5]: 14.5-10: the R-07 restart stopped on a second Booli 403 after 64 pages; ENR-01 partly met (3 912 of 5 469 enriched), refit uses what exists; next Booli traffic from 2026-10-19 14:57 UTC
 - [Phase 14.5]: 14.5-10: stage-2 cap is a two-value model parameter (0,08 or 0,12, stage2.capPct optional); the cap CV reads the centred stage-2 error; stage-2 CV on 3 912 rows: none 0,11557, +-8 % 0,10225, +-12 % 0,10188
+- [Phase 14.5]: 14.5-11: stage-2 cap widened once to +-12 % by the R-01 rule (error 0,10188 vs 0,10225, a thin 0,4 % margin); balcony priced centred on the stage-2 mix (stage2.balcony.share), lowering every known-flag resale by 4,0 % — Build-year values already hold the average balcony effect; the fit and cross-validation use the centred form, production now does too
 
 ### Pending Todos
 
@@ -330,8 +332,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-18T15:07:12.166Z
-Stopped at: Completed 14.5-10-PLAN.md (wave 7 out of order; plans 06-09 still open)
+Last session: 2026-10-18T15:19:03.921Z
+Stopped at: Completed 14.5-11-PLAN.md (wave 8 out of order; plans 06-09 still open)
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

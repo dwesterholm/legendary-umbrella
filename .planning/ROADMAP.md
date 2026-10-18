@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 6/13 plans executed
+**Plans:** 7/13 plans executed
 
 Plans:
 
@@ -214,7 +214,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 14.5-11-PLAN.md — Refit on the full enriched set, one widening if needed, R-01 decision, model commit, 14.4 -> 14.5 comparison (ENR-02)
+- [x] 14.5-11-PLAN.md — Refit on the full enriched set, one widening if needed, R-01 decision, model commit, 14.4 -> 14.5 comparison (ENR-02)
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
