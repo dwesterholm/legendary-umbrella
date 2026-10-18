@@ -11,7 +11,8 @@
  *   (c)  Lantmäteriet Min Karta (minkarta.ts)                                      (2 to 5 GETs, last resort)
  *
  * Every answer is remembered per normalised address (resolved 365 days, empty or ambiguous 30 days). A failed lookup
- * (a network or page problem, a CityStop) stores nothing.
+ * (a network or page problem, a CityStop) stores nothing, and neither does an empty or ambiguous answer reached
+ * without rung (c): only an answer that all enabled rungs gave is a "no".
  *
  * Script-side only. This module imports client TYPES only; the caller injects the city client and the Min Karta
  * resolver. `niche-score.ts` and `report/flags.ts` must NEVER import it.
@@ -235,6 +236,12 @@ export async function resolveBeteckning(input: BeteckningInput, deps: Beteckning
   }
 
   const status = ambiguous ? "ambiguous" : "no_candidates";
+  if (!deps.minkarta) {
+    // Rung (c) was not tried (blocked, disabled, a dry run), so "nothing found" is not the answer of all four rungs.
+    // It is not stored: once Min Karta is available again the address must be asked again, not served as unknown.
+    notes.push("Min Karta användes inte, så svaret sparas inte");
+    return unknown(status, notes);
+  }
   remember(map, key, { beteckning: null, rung: null, status, at: stamp() }, deps, writable);
   return unknown(status, notes);
 }

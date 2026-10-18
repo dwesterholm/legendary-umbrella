@@ -261,10 +261,13 @@ function stubClient(script: {
   };
 }
 
-function stubDeps(client: ReturnType<typeof stubClient>["client"]) {
+/** Rung (c) that finds nothing: with it, "nothing found" is the answer of every rung. */
+const emptyMinKarta = async () => ({ status: "no_candidates" as const, beteckning: null, reason: "inga registerenheter i närheten" });
+
+function stubDeps(client: ReturnType<typeof stubClient>["client"], minkarta: BeteckningDeps["minkarta"] = emptyMinKarta) {
   const clock = fakeClock();
   const logs: string[] = [];
-  const deps: BeteckningDeps = { client, cacheDir: dir, now: clock.now, log: (l) => logs.push(l) };
+  const deps: BeteckningDeps = { client, minkarta, cacheDir: dir, now: clock.now, log: (l) => logs.push(l) };
   return { clock, logs, deps };
 }
 
@@ -427,6 +430,37 @@ describe("resolveBeteckning: the negative cache", () => {
     clock.advance(2 * 86_400_000);
     await resolveBeteckning({ address: "Finnsinte 1", brfName: null, text: null }, deps);
     expect(stub.calls).toHaveLength(2);
+  });
+
+  it("WR-10: without rung (c) an empty or ambiguous answer is NOT stored, and Min Karta gets its turn once it is available", async () => {
+    const stub = stubClient({ options: [] });
+    const off = stubDeps(stub.client, null);
+    const first = await resolveBeteckning({ address: "Finnsinte 1", brfName: null, text: null }, off.deps);
+    expect(first).toMatchObject({ beteckning: null, status: "no_candidates", fromCache: false });
+    expect(loadAddressMap({ dir })).toEqual({ ok: false, error: "saknas" });
+
+    // Min Karta is available again: the address is asked again (not served from the cache as unknown) and can be found
+    let asked = 0;
+    const found = await resolveBeteckning(
+      { address: "Finnsinte 1", brfName: null, text: null },
+      {
+        ...off.deps,
+        minkarta: async () => {
+          asked += 1;
+          return { status: "resolved", beteckning: "Oljan 29", reason: "en enda registerenhet" };
+        },
+      },
+    );
+    expect(asked).toBe(1);
+    expect(found).toMatchObject({ beteckning: "Oljan 29", rung: "c", status: "resolved" });
+  });
+
+  it("WR-10: with rung (c) tried, an empty answer is stored as before", async () => {
+    const stub = stubClient({ options: [] });
+    const on = stubDeps(stub.client);
+    await resolveBeteckning({ address: "Finnsinte 1", brfName: null, text: null }, on.deps);
+    const saved = loadAddressMap({ dir });
+    expect(saved.ok && saved.map["finnsinte 1"]).toMatchObject({ status: "no_candidates" });
   });
 
   it("keeps a resolved answer for a year", async () => {
