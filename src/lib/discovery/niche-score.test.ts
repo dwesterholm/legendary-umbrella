@@ -365,6 +365,11 @@ describe("Structural-separation invariant (T-11-11/T-12-09, DISC-04/DISC-05/DISC
     // layout-accuracy, layout-experiment, layout-cost and valuation-compare are already covered
     // by the discovery/layout- and discovery/valuation- prefixes.
     "discovery/ceiling-",
+    // Phase 14.6 (2026-10-18): the city case-list namespace, the stambyte text/join/facts modules and
+    // the area-source parser are registered BEFORE they exist; substring match.
+    "stockholm/",
+    "discovery/stambyte-",
+    "discovery/area-source",
   ];
 
   // Matches a whole `import ... from "..."` / `export ... from "..."`
