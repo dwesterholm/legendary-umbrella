@@ -9,7 +9,12 @@ vi.mock("apify-client", () => apifyClientMockFactory());
 
 // Imported AFTER the mock above is registered.
 import { reshapeListingEntity } from "@/lib/booli/client";
+import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.json";
+import modelJson from "@/lib/discovery/__fixtures__/hedonic-model.fixture.json";
 import { toCandidate } from "@/lib/discovery/candidate";
+import { fitRowKey, reasonsOnFlaggedOf, toFitTableRows } from "@/lib/discovery/fit-pipeline";
+import { parseFitSnapshot, rankFit, type FitScoreResult } from "@/lib/discovery/fit-score";
+import { parseHedonicModel } from "@/lib/discovery/hedonic-model";
 import { candidateFactsSchema, factsFromDetail, type CandidateFacts } from "@/lib/discovery/listing-facts";
 import {
   IN_VALUATION_SUFFIX,
@@ -557,5 +562,49 @@ describe("stambyte reason (STAM-03, D-07)", () => {
     }
     expect(reasonsFor(ongoing, NO_MEDIANS)).toEqual(["stambyte pågår"]);
     expect(reasonsFor(ongoing, { ...NO_MEDIANS, coveredByModel: { avgift: true, brfDebt: true } })).toEqual(["stambyte pågår"]);
+  });
+});
+
+describe("the weekly table: a stambyte counts as an explanation on a flagged row (STAM-03)", () => {
+  // Two real fixture rows, both flagged "ovanligt långt under modellpris". One carries an ongoing stambyte,
+  // the other carries no fact that could explain a low price.
+  const model = parseHedonicModel(modelJson);
+  const snapshot = parseFitSnapshot(snapshotJson);
+  const ranked = rankFit(snapshot.rows, model).ranked.slice(0, 2);
+  const inputRows = ranked.map((r) => {
+    const found = snapshot.rows.find((x) => (r.sourceListingUrl ?? `${r.address}|${r.askingSek}`) === fitRowKey(x.candidate));
+    if (found === undefined) throw new Error("fixture row not found for a ranked result");
+    return found;
+  });
+  const flagged: FitScoreResult[] = ranked.map((r) => ({ ...r, flags: ["residualFlag"] }));
+  const withFacts = [
+    { ...inputRows[0], facts: facts({ stambyteStatus: "pagar" }) },
+    { ...inputRows[1], facts: facts({}) },
+  ];
+  // The reason callback is built the way scripts/fit-score.ts builds it: medians from the run's own rows,
+  // the model's coverage, reasonsFor on the snapshot row of each result. The residualReason line the script
+  // appends to a residual-flagged row is left out here so the cell shows the row reasons alone.
+  const medians = districtAvgiftMedians(withFacts);
+  const covered = coveredByModelOf(model);
+  const keyOf = (r: FitScoreResult): string => r.sourceListingUrl ?? `${r.address}|${r.askingSek}`;
+  const reasonsOf = (r: FitScoreResult): string[] => {
+    const found = withFacts.find((x) => keyOf(r) === fitRowKey(x.candidate));
+    return found === undefined ? [] : reasonsFor(found, { medians, coveredByModel: covered });
+  };
+
+  it("the ongoing-stambyte row prints 'stambyte pågår' and the other still prints 'oförklarat fynd'", () => {
+    expect(flagged).toHaveLength(2);
+    const table = toFitTableRows({ ranked: flagged }, new Map(), { reasonsOf });
+    expect(table.map((r) => r.reasons)).toEqual(["stambyte pågår", "oförklarat fynd"]);
+  });
+
+  it("reasonsOnFlaggedOf counts the stambyte row as explained: { explained: 1, unexplained: 1, flagged: 2 }", () => {
+    const table = toFitTableRows({ ranked: flagged }, new Map(), { reasonsOf });
+    expect(reasonsOnFlaggedOf(table)).toEqual({ explained: 1, unexplained: 1, flagged: 2 });
+  });
+
+  it("without the stambyte fact both rows are unexplained (the count moves because of the reason)", () => {
+    const plain = toFitTableRows({ ranked: flagged }, new Map(), { reasonsOf: () => [] });
+    expect(reasonsOnFlaggedOf(plain)).toEqual({ explained: 0, unexplained: 2, flagged: 2 });
   });
 });
