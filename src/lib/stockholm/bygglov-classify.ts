@@ -62,6 +62,13 @@ export const KIND_PRIORITY: readonly CaseKind[] = [
   "annat",
 ];
 
+/**
+ * True when a case's tags make it a stambyte. THE ONE PLACE for this rule (D-06, R-05, WR-03): a case that also carries
+ * the relining tag ("Stambyte genom relining", "Ej stambyte, enbart relining") is a relining, not a stambyte, so it
+ * never gives a stambyte year, whatever the stambyte rule also matched.
+ */
+export const isStambyteKinds = (kinds: readonly string[]): boolean => kinds.includes("stambyte") && !kinds.includes("relining");
+
 /** Changing a rule or the table means a new version, so a cache entry made with the old rules is refetched at next use. */
 export const BYGGLOV_RULES_VERSION = 1;
 
@@ -408,7 +415,7 @@ export function buildingFactsOf(allCases: readonly StoredCase[], asOf: string): 
   const isRecent = (c: StoredCase) => c.startDate >= recentFrom;
 
   // --- stambyte -----------------------------------------------------------------------------------
-  const stambyte = cases.filter((c) => c.kinds.includes("stambyte") && !c.tillsyn);
+  const stambyte = cases.filter((c) => isStambyteKinds(c.kinds) && !c.tillsyn);
 
   const slutbeskedYears = stambyte
     .filter((c) => c.slutbeskedDate !== null && !isRefused(c))

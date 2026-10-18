@@ -16,7 +16,7 @@
  * months. No handler name, no document list, no free case text: the schema is strict, so an extra key is a failure.
  */
 import { z } from "zod/v4";
-import type { StoredCase } from "@/lib/stockholm/bygglov-classify";
+import { isStambyteKinds, type StoredCase } from "@/lib/stockholm/bygglov-classify";
 
 // ---------------------------------------------------------------------------
 // The buildings
@@ -188,7 +188,7 @@ const refusedOutcome = (c: StoredCase): boolean => c.latest !== null && /avskriv
  */
 export function stambyteYearsOf(cases: readonly StoredCase[]): number[] {
   const years = cases
-    .filter((c) => c.kinds.includes("stambyte") && !c.tillsyn && !refusedOutcome(c))
+    .filter((c) => isStambyteKinds(c.kinds) && !c.tillsyn && !refusedOutcome(c))
     .map((c) => Number((c.slutbeskedDate ?? c.startDate).slice(0, 4)));
   return [...new Set(years)].sort((a, b) => a - b);
 }

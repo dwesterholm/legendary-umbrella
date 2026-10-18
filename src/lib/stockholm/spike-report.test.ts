@@ -154,6 +154,10 @@ describe("stambyteYearsOf", () => {
     expect(years).toEqual([2006, 2023]);
   });
 
+  it("WR-03: a case tagged both stambyte and relining gives no stambyte year", () => {
+    expect(stambyteYearsOf([caseOf({ rec: "1", kinds: ["relining", "stambyte"], primary: "relining", startDate: "2011-01-01" })])).toEqual([]);
+  });
+
   it("leaves out enforcement cases, withdrawn cases and other kinds", () => {
     const years = stambyteYearsOf([
       caseOf({ rec: "1", tillsyn: true }),

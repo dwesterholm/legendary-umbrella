@@ -12,7 +12,7 @@
  *
  * HONESTY RULES:
  *  - "No case on record" is unknown, not "never had a stambyte" (RESEARCH 5.2: the record is thin after 2011).
- *  - Relining is a separate tag. A building's stambyte status comes only from cases whose kinds contain "stambyte" (R-05).
+ *  - Relining is a separate tag. A building's stambyte status comes only from cases whose kinds contain "stambyte" and not "relining" (R-05, WR-03).
  *  - Years are counted from the SALE date. A case that started after the sale is `futureAtSale`, never a past stambyte
  *    (RESEARCH 5.5), so the later price fit cannot see the future.
  *  - A case that was withdrawn (Avskrivet) or refused (Avslag) is not a stambyte.
@@ -26,7 +26,7 @@
  */
 import { z } from "zod/v4";
 import type { SweepCase, SweepQuery } from "@/lib/stockholm/bygglov-cache";
-import { decisionKind } from "@/lib/stockholm/bygglov-classify";
+import { decisionKind, isStambyteKinds } from "@/lib/stockholm/bygglov-classify";
 
 // ---------------------------------------------------------------------------
 // The sweep
@@ -460,8 +460,8 @@ function groupTotals(cases: readonly SweepCase[]) {
 
 /**
  * The counts of a sweep, built from the cache read-back. Counts, tags, districts, keywords and dates only (the strict
- * schema checks it). `stambyteTagged` counts cases whose kinds contain "stambyte"; relining is counted on its own and
- * never added to it (R-05).
+ * schema checks it). `stambyteTagged` counts cases whose kinds contain "stambyte" and not "relining"; relining is counted
+ * on its own and never added to it (R-05, WR-03).
  */
 export function buildSweepEvidence(input: SweepEvidenceInput): SweepEvidence {
   const { collection } = input;
@@ -628,8 +628,8 @@ export interface IndexableCase {
   readonly archived: boolean;
 }
 
-/** True when the case carries the stambyte tag. Relining alone is not a stambyte (D-06, R-05). */
-export const isStambyteCase = (c: { readonly kinds: readonly string[] }): boolean => c.kinds.includes("stambyte");
+/** True when the case carries the stambyte tag and not the relining tag. Relining is never a stambyte (D-06, R-05, WR-03). */
+export const isStambyteCase = (c: { readonly kinds: readonly string[] }): boolean => isStambyteKinds(c.kinds);
 export const isReliningCase = (c: { readonly kinds: readonly string[] }): boolean => c.kinds.includes("relining");
 
 export interface CaseTotals {

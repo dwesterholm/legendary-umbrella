@@ -250,6 +250,9 @@ describe("stambyteAtSale counts from the sale date", () => {
   it("a relining-only building is not recorded and never future or ongoing", () => {
     const relining: StambyteCaseInput = { startDate: "2001-03-12", kinds: ["relining"], slutbeskedDate: null };
     expect(isStambyteCase(relining)).toBe(false);
+    // WR-03: tagged both ways is a relining as well
+    expect(isStambyteCase({ ...relining, kinds: ["relining", "stambyte"] })).toBe(false);
+    expect(stambyteAtSale([{ ...relining, kinds: ["relining", "stambyte"] }], "2022-06-01").recorded).toBe(false);
     expect(stambyteAtSale([relining], "2022-06-01")).toEqual({
       recorded: false,
       latestYear: null,
@@ -261,9 +264,9 @@ describe("stambyteAtSale counts from the sale date", () => {
     expect(stambyteAtSale([relining], "2000-01-01").futureAtSale).toBe(false);
   });
 
-  it("a case that carries both tags is a stambyte", () => {
+  it("WR-03: a case that carries both tags is a relining, not a stambyte", () => {
     const both: StambyteCaseInput = { startDate: "2001-03-12", kinds: ["relining", "stambyte"] };
-    expect(stambyteAtSale([both], "2022-06-01").recorded).toBe(true);
+    expect(stambyteAtSale([both], "2022-06-01").recorded).toBe(false);
   });
 
   it("a withdrawn or refused case is not a stambyte", () => {
@@ -731,18 +734,18 @@ describe("the sweep evidence holds counts only", () => {
       searches: 3,
       cases: 3,
       distinctBeteckningar: 2,
-      stambyteTagged: 2,
-      stambyteBeteckningar: 2,
+      stambyteTagged: 1,
+      stambyteBeteckningar: 1,
       reliningTagged: 2,
       active: 1,
       archived: 2,
     });
-    expect(e.totals.stambytePerStartYear).toEqual({ "1995": 1, "2015": 1 });
+    expect(e.totals.stambytePerStartYear).toEqual({ "1995": 1 });
     expect(e.byDistrict.map((d) => [d.district, d.cases, d.complete])).toEqual([
       ["Södermalm", 3, true],
       ["Kungsholmen", 0, false],
     ]);
-    expect(e.byDistrict[0].stambyteByDecade).toEqual({ "1990": 1, "2010": 1 });
+    expect(e.byDistrict[0].stambyteByDecade).toEqual({ "1990": 1 });
     expect(e.requests).toBe(9);
     expect(e.secondsMedian).toBe(2.1);
     expect(e.secondsMax).toBe(3.4);

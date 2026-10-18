@@ -12,6 +12,7 @@ import {
   buildingFactsOf,
   classifyDescription,
   decisionKind,
+  isStambyteKinds,
   needsDetail,
   toStoredCase,
 } from "@/lib/stockholm/bygglov-classify";
@@ -525,6 +526,22 @@ describe("buildingFactsOf: stambyte", () => {
     const facts = buildingFactsOf([stored({ startDate: "2015-01-01", kinds: ["relining"] })], AS_OF);
     expect(facts.reliningCase).toBe(true);
     expect(facts.lastStambyteYear).toBeNull();
+  });
+
+  it("WR-03: a case tagged both relining and stambyte is a relining: no stambyte year, reliningCase true", () => {
+    for (const text of ["Stambyte genom relining", "Stambyte med relining av stammar", "Ej stambyte, enbart relining"]) {
+      const c = classifyDescription(text);
+      expect([...c.kinds].sort(), text).toEqual(["relining", "stambyte"]);
+      expect(isStambyteKinds(c.kinds), text).toBe(false);
+      const facts = buildingFactsOf(
+        [stored({ startDate: "2015-01-01", kinds: c.kinds, detailRead: true, slutbeskedDate: "2016-05-05" })],
+        AS_OF,
+      );
+      expect(facts.lastStambyteYear, text).toBeNull();
+      expect(facts.lastStambyteBasis, text).toBeNull();
+      expect(facts.reliningCase, text).toBe(true);
+    }
+    expect(isStambyteKinds(classifyDescription("Stambyte i flerbostadshus").kinds)).toBe(true);
   });
 
   it("a stambyte tillsyn case is not a recorded stambyte", () => {
