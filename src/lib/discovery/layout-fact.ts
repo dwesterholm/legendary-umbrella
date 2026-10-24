@@ -39,6 +39,15 @@ export const LAYOUT_MIN_CONFIDENCE = 0.6;
  * the taste term, the Korsdrag/Sovrum/Sol cells and the mail all behave as if no layout existed. The read
  * itself keeps running and caching, and the coverage line still counts what it found (via the `*When`
  * variants with `enabled` true), so the fix can be measured.
+ *
+ * Phase 14.5 (2026-10-24): stays false. Five read variants (a Sonnet today, b Sonnet with evidence rules, c Opus,
+ * d two steps on Sonnet, e Jev) were measured on the 60 locked flats (82,04 kr). The rule is one variant passing
+ * all three fields at 75 % on holdout and pooled, with at least 12 decided truth rows per field. Balcony side
+ * passes in c (holdout 6 of 6, pooled 13 of 13, gate 0,40), d and e. Korsdrag passes in none: the truth set holds
+ * 4 flats with windows on two opposite sides (3 dev, 1 holdout) and no gate gives the 5 believed "ja" on dev that
+ * the rule needs (Opus came closest, 3 of 4 at 0,20). Bedroom side is not measurable: 9 decided rows, 12 needed.
+ * The bar was not lowered. The weekly job keeps reading and caching as the measurement (D-11). Numbers and the two
+ * options for korsdrag: .planning/phases/14.5-enrichment-layout-accuracy-ceiling/evidence/layout-switch.md.
  */
 export const LAYOUT_INFLUENCE_ENABLED = false;
 
