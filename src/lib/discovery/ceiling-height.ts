@@ -81,9 +81,22 @@ const OTHER_SPACE =
   /(?<![\p{L}])(?:källar\w*|förråd\w*|vind\w*|garage\w*|cykelrum\w*|trapphus\w*|souterräng\w*|loftsäng\w*|tvättstuga\w*|gemensam\w*|bergrum\w*|mellanplan\w*)(?![\p{L}])/iu;
 /** "låg takhöjd", "lågt i tak", "låga tak": a low ceiling is never a number and never the tall flag. */
 const LOW_CEILING = /(?<![\p{L}])(?:låga?\s{1,3}(?:tak|rums)h[öo]jd|lågt\s{1,3}i\s{1,3}tak|låga\s{1,3}tak)(?![\p{L}])/iu;
-/** Tall-ceiling phrases that carry no number. A negation right before them rules them out. */
+/** Tall-ceiling phrases that carry no number. */
 const TALL =
-  /(?<!(?:ej|inte|ingen)\s{1,3})(?<![\p{L}])(?:högt\s{1,3}(?:i|till)\s{1,3}tak|höga\s{1,3}tak|hög\s{1,3}takh[öo]jd|generös\s{1,3}takh[öo]jd|extra\s{1,3}hög\s{1,3}takh[öo]jd)(?![\p{L}])/iu;
+  /(?<![\p{L}])(?:högt\s{1,3}(?:i|till)\s{1,3}tak|höga\s{1,3}tak|hög\s{1,3}takh[öo]jd|generös\s{1,3}takh[öo]jd|extra\s{1,3}hög\s{1,3}takh[öo]jd)(?![\p{L}])/iu;
+/**
+ * A negation word. A tall phrase with one ANYWHERE earlier in its clause is ruled out ("inte särskilt högt i tak", "har inte några
+ * höga tak", "saknar höga tak"), not only when the word stands right in front of it. A negation after the phrase does not count
+ * ("höga tak, men ingen balkong"). A missed phrase is free and a false hit is not (module comment), so a phrase after "utan" or
+ * "knappast" is dropped too.
+ */
+const NEGATED = /(?<![\p{L}])(?:ej|inte|ingen|inga|inget|saknar|utan|knappast)(?![\p{L}])/iu;
+
+/** Whether the clause states a tall ceiling: a tall phrase with no negation word before it in the same clause. */
+function statesTallCeiling(clause: string): boolean {
+  const match = TALL.exec(clause);
+  return match !== null && !NEGATED.test(clause.slice(0, match.index));
+}
 
 /** Cap, then drop soft hyphens and zero-width characters, turn no-break spaces into spaces, and unstop "ca.". */
 function prepare(text: string): string {
@@ -166,7 +179,7 @@ function readCeiling(text: string): CeilingReading {
   let tall = false;
   for (const clause of clausesOf(prepare(text))) {
     if (OTHER_SPACE.test(clause) || LOW_CEILING.test(clause)) continue;
-    if (!tall && TALL.test(clause)) tall = true;
+    if (!tall && statesTallCeiling(clause)) tall = true;
     if (height) continue;
     const hit = hitsIn(clause)
       .sort((a, b) => a.index - b.index)

@@ -209,6 +209,30 @@ describe("ceilingFactsFromText: the tall-ceiling flag", () => {
     expect(ceilingFactsFromText("Ej högt i tak.").tallCeilingPhrase).toBe(false);
   });
 
+  it("a negation anywhere before the phrase in its clause rules it out (WR-06)", () => {
+    for (const text of [
+      "Inte särskilt högt i tak men ljust.",
+      "Lägenheten har inte några höga tak.",
+      "Saknar höga tak.",
+      "Ingen hög takhöjd här.",
+      "Lägenheten har inga höga tak.",
+      "Utan generös takhöjd men fin planlösning.",
+      "Knappast högt i tak.",
+    ]) {
+      expect(ceilingFactsFromText(text), text).toEqual({ ceilingHeightM: null, ceilingSource: null, tallCeilingPhrase: false });
+    }
+  });
+
+  it("a negation after the phrase, or in another clause, does not cancel it", () => {
+    expect(ceilingFactsFromText("Höga tak, men ingen balkong.").tallCeilingPhrase).toBe(true);
+    expect(ceilingFactsFromText("Ingen hiss. Högt i tak!").tallCeilingPhrase).toBe(true);
+    expect(ceilingFactsFromText("Inte renoverad; höga tak i hela lägenheten").tallCeilingPhrase).toBe(true);
+  });
+
+  it("a negated phrase does not hide a stated number (the number is the broker's own)", () => {
+    expect(ceilingFactsFromText("Inte högt i tak, takhöjd 2,5 m.")).toEqual({ ceilingHeightM: 2.5, ceilingSource: "angiven", tallCeilingPhrase: false });
+  });
+
   it("never returns the sentence, only the three keys", () => {
     const facts = ceilingFactsFromText("Ring Svensson 070-123 45 67. Hög takhöjd 3,4 m.");
     expect(Object.keys(facts).sort()).toEqual(["ceilingHeightM", "ceilingSource", "tallCeilingPhrase"]);
