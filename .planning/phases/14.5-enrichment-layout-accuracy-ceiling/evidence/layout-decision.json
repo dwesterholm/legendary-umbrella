@@ -1,0 +1,82 @@
+{
+  "rounds": [
+    {
+      "slot": "a",
+      "variant": "a",
+      "status": "run",
+      "spentSek": 15.448587000000003,
+      "fields": {
+        "balcony": {
+          "pass": false,
+          "gate": 0.4,
+          "holdout": {
+            "k": 3,
+            "n": 3,
+            "precision": 1,
+            "low": 0.4384939195509822,
+            "high": 1
+          },
+          "reason": "holdout har 3 spådda svar vid spärren 0,40, minst 5 krävs; poolat har 9 spådda svar vid spärren 0,40, minst 10 krävs"
+        },
+        "korsdrag": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "pass": false
+    },
+    {
+      "slot": "b",
+      "variant": "b",
+      "status": "not_run",
+      "spentSek": 0.38761799999999996,
+      "fields": null,
+      "pass": null
+    },
+    {
+      "slot": "c",
+      "variant": "c",
+      "status": "not_run",
+      "spentSek": 0,
+      "fields": null,
+      "pass": null
+    },
+    {
+      "slot": "d",
+      "variant": "d-sonnet",
+      "status": "not_run",
+      "spentSek": 0,
+      "fields": null,
+      "pass": null
+    }
+  ],
+  "winner": null,
+  "stop": false,
+  "next": "b",
+  "tierForD": "sonnet",
+  "bestByField": {
+    "balcony": {
+      "variant": "a",
+      "holdout": {
+        "k": 3,
+        "n": 3,
+        "precision": 1,
+        "low": 0.4384939195509822,
+        "high": 1
+      },
+      "pass": false,
+      "reason": "holdout har 3 spådda svar vid spärren 0,40, minst 5 krävs; poolat har 9 spådda svar vid spärren 0,40, minst 10 krävs"
+    },
+    "korsdrag": null,
+    "bedroom": null
+  },
+  "totalSpentSek": 15.846218388000004
+}

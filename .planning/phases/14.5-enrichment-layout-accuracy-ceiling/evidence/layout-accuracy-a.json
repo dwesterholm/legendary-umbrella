@@ -1,0 +1,382 @@
+{
+  "source": "variant:a",
+  "version": "30e7dea426b8a469",
+  "truthLocked": true,
+  "lockedAt": "2026-10-24T09:23:11.309Z",
+  "rows": 60,
+  "noRead": 0,
+  "raw": {
+    "balcony": {
+      "decided": 14,
+      "read": 14,
+      "correct": 12,
+      "undecidable": 15
+    },
+    "korsdrag": {
+      "decided": 59,
+      "read": 59,
+      "correct": 46,
+      "undecidable": 1
+    },
+    "bedroom": {
+      "decided": 9,
+      "read": 2,
+      "correct": 1,
+      "undecidable": 51
+    }
+  },
+  "measurability": {
+    "balcony": {
+      "measurable": true,
+      "decided": 14,
+      "reason": null
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decided": 59,
+      "reason": null
+    },
+    "bedroom": {
+      "measurable": false,
+      "decided": 9,
+      "reason": "ej mätbart (n = 9)"
+    }
+  },
+  "sideEvidence": [
+    "cars",
+    "courtyardGreenery"
+  ],
+  "byEvidence": {
+    "dev": [
+      {
+        "evidence": "cars",
+        "balcony": {
+          "n": 2,
+          "correct": 2
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "oppositeFacade",
+        "balcony": {
+          "n": 2,
+          "correct": 2
+        },
+        "bedroom": {
+          "n": 1,
+          "correct": 1
+        }
+      },
+      {
+        "evidence": "courtyardGreenery",
+        "balcony": {
+          "n": 4,
+          "correct": 4
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "none",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "evidence": "cars",
+        "balcony": {
+          "n": 1,
+          "correct": 1
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "oppositeFacade",
+        "balcony": {
+          "n": 3,
+          "correct": 1
+        },
+        "bedroom": {
+          "n": 1,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "courtyardGreenery",
+        "balcony": {
+          "n": 2,
+          "correct": 2
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "none",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      }
+    ]
+  },
+  "fields": {
+    "balcony": {
+      "measurable": true,
+      "decidedRows": 14,
+      "curveDev": [
+        {
+          "t": 0.4,
+          "nBelieved": 6,
+          "nCorrect": 6,
+          "precision": 1,
+          "low": 0.6096569663469354,
+          "high": 1
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 6,
+          "nCorrect": 6,
+          "precision": 1,
+          "low": 0.6096569663469354,
+          "high": 1
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 6,
+          "nCorrect": 6,
+          "precision": 1,
+          "low": 0.6096569663469354,
+          "high": 1
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 6,
+          "nCorrect": 6,
+          "precision": 1,
+          "low": 0.6096569663469354,
+          "high": 1
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 5,
+          "nCorrect": 5,
+          "precision": 1,
+          "low": 0.565508505247919,
+          "high": 1
+        },
+        {
+          "t": 0.72,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        }
+      ],
+      "gate": 0.4,
+      "dev": {
+        "k": 6,
+        "n": 6,
+        "precision": 1,
+        "low": 0.6096569663469354,
+        "high": 1
+      },
+      "holdout": {
+        "k": 3,
+        "n": 3,
+        "precision": 1,
+        "low": 0.4384939195509822,
+        "high": 1
+      },
+      "pooled": {
+        "k": 9,
+        "n": 9,
+        "precision": 1,
+        "low": 0.7008472464490406,
+        "high": 1
+      },
+      "allCalls": {
+        "k": 22,
+        "n": 22,
+        "precision": 1,
+        "low": 0.8513404742740388,
+        "high": 1
+      },
+      "pass": false,
+      "reason": "holdout har 3 spådda svar vid spärren 0,40, minst 5 krävs; poolat har 9 spådda svar vid spärren 0,40, minst 10 krävs"
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decidedRows": 59,
+      "curveDev": [
+        {
+          "t": 0.4,
+          "nBelieved": 7,
+          "nCorrect": 2,
+          "precision": 0.2857142857142857,
+          "low": 0.08221716570901548,
+          "high": 0.6410709098517873
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 7,
+          "nCorrect": 2,
+          "precision": 0.2857142857142857,
+          "low": 0.08221716570901548,
+          "high": 0.6410709098517873
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 7,
+          "nCorrect": 2,
+          "precision": 0.2857142857142857,
+          "low": 0.08221716570901548,
+          "high": 0.6410709098517873
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 7,
+          "nCorrect": 2,
+          "precision": 0.2857142857142857,
+          "low": 0.08221716570901548,
+          "high": 0.6410709098517873
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 5,
+          "nCorrect": 2,
+          "precision": 0.4,
+          "low": 0.11761823115925325,
+          "high": 0.769280067791163
+        },
+        {
+          "t": 0.72,
+          "nBelieved": 2,
+          "nCorrect": 1,
+          "precision": 0.5,
+          "low": 0.09452865480086611,
+          "high": 0.905471345199134
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 1,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 0.7934567085261071
+        }
+      ],
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "allCalls": null,
+      "pass": false,
+      "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+    },
+    "bedroom": {
+      "measurable": false,
+      "decidedRows": 9,
+      "curveDev": [
+        {
+          "t": 0.4,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.72,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        }
+      ],
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "allCalls": null,
+      "pass": false,
+      "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+    }
+  },
+  "livingOnBalconySide": {
+    "decided": 27,
+    "read": 27,
+    "correct": 24
+  },
+  "pass": false
+}
