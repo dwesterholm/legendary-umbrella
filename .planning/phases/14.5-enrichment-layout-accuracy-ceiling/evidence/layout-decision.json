@@ -128,7 +128,7 @@
     "korsdrag": null,
     "bedroom": null
   },
-  "totalSpentSek": 63.418820388,
+  "totalSpentSek": 63.886179126,
   "measurableStop": false,
   "measurablePassing": [],
   "productionCandidate": null,
@@ -405,18 +405,88 @@
     },
     {
       "variant": "e",
-      "calls": null,
-      "sekRound": null,
-      "sekPerFlat": null,
-      "sekVariantTotal": 0.010013388000000002,
-      "secondsRound": null,
-      "secondsPerFlat": null,
-      "ran": false,
-      "fields": null,
-      "raw": null,
-      "passMeasurable": null,
-      "passAll": null,
-      "shortfalls": []
+      "calls": 59,
+      "sekRound": 0.47,
+      "sekPerFlat": 0.007966101694915254,
+      "sekVariantTotal": 0.47737212599999995,
+      "secondsRound": 119,
+      "secondsPerFlat": 2.016949152542373,
+      "ran": true,
+      "fields": {
+        "balcony": {
+          "measurable": true,
+          "decidedRows": 14,
+          "gate": 0.35,
+          "dev": {
+            "k": 7,
+            "n": 8,
+            "precision": 0.875,
+            "low": 0.5291051942301385,
+            "high": 0.9775830911367039
+          },
+          "holdout": {
+            "k": 4,
+            "n": 5,
+            "precision": 0.8,
+            "low": 0.37552826411853885,
+            "high": 0.9637768390302125
+          },
+          "pooled": {
+            "k": 11,
+            "n": 13,
+            "precision": 0.8461538461538461,
+            "low": 0.5776482949136899,
+            "high": 0.9567427368172621
+          },
+          "pass": true,
+          "reason": null
+        },
+        "korsdrag": {
+          "measurable": true,
+          "decidedRows": 59,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "measurable": false,
+          "decidedRows": 9,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "raw": {
+        "balcony": {
+          "correct": 12,
+          "read": 12,
+          "decided": 14
+        },
+        "korsdrag": {
+          "correct": 37,
+          "read": 54,
+          "decided": 59
+        },
+        "bedroom": {
+          "correct": 3,
+          "read": 3,
+          "decided": 9
+        }
+      },
+      "passMeasurable": false,
+      "passAll": false,
+      "shortfalls": [
+        {
+          "field": "korsdrag",
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      ]
     }
   ],
   "folkungagatan61": {
@@ -447,6 +517,17 @@
         "balcony": 0.55,
         "windows": 0.85,
         "bedroom": 0.55
+      }
+    },
+    "e": {
+      "balconySide": "unknown",
+      "windowSides": "twoOpposite",
+      "bedroomSide": "unknown",
+      "confidence": 0.48,
+      "fieldConfidence": {
+        "balcony": 0.48,
+        "windows": 0.51,
+        "bedroom": 0.8
       }
     }
   }

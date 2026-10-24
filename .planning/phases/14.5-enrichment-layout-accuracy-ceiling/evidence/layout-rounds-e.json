@@ -1,0 +1,86 @@
+{
+  "variant": "e",
+  "model": "jev-1.14.0",
+  "n": 60,
+  "rows": 60,
+  "noRead": 0,
+  "fields": {
+    "balcony": {
+      "measurable": true,
+      "decidedRows": 14,
+      "gate": 0.35,
+      "dev": {
+        "k": 7,
+        "n": 8,
+        "precision": 0.875,
+        "low": 0.5291051942301385,
+        "high": 0.9775830911367039
+      },
+      "holdout": {
+        "k": 4,
+        "n": 5,
+        "precision": 0.8,
+        "low": 0.37552826411853885,
+        "high": 0.9637768390302125
+      },
+      "pooled": {
+        "k": 11,
+        "n": 13,
+        "precision": 0.8461538461538461,
+        "low": 0.5776482949136899,
+        "high": 0.9567427368172621
+      },
+      "pass": true,
+      "reason": null
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decidedRows": 59,
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "pass": false,
+      "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+    },
+    "bedroom": {
+      "measurable": false,
+      "decidedRows": 9,
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "pass": false,
+      "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+    }
+  },
+  "raw": {
+    "balcony": {
+      "correct": 12,
+      "read": 12,
+      "decided": 14
+    },
+    "korsdrag": {
+      "correct": 37,
+      "read": 54,
+      "decided": 59
+    },
+    "bedroom": {
+      "correct": 3,
+      "read": 3,
+      "decided": 9
+    }
+  },
+  "sekPerFlat": 0.007966101694915254,
+  "sekTotal": 0.47,
+  "sekVariantTotal": 0.47737212599999995,
+  "secondsPerFlat": 2.016949152542373,
+  "passMeasurable": false,
+  "passAll": false,
+  "shortfalls": [
+    {
+      "field": "korsdrag",
+      "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+    }
+  ]
+}

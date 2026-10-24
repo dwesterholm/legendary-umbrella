@@ -2,5 +2,9 @@
   "c": {
     "seconds": 229,
     "source": "filtiderna på layout-round-c.log: skapad 11:47:31, klar 11:51:20 lokal tid, 59 anrop (rundan tidtogs inte av programmet självt)"
+  },
+  "e": {
+    "seconds": 119,
+    "source": "klocktid runt kommandot, 59 anrop; räknar med bildhämtningen (en bild i taget, med paus) och uppstart"
   }
 }
