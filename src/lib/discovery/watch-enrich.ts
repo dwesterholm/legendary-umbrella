@@ -37,7 +37,7 @@ import {
   DETAIL_ENRICH_WAIT_SECS,
   fetchListing,
 } from "@/lib/booli/client";
-import { runPool } from "@/lib/booli/slutpriser";
+import { enrichStopReason, runPool } from "@/lib/booli/slutpriser";
 import { fetchBrfFacts, type BrfFacts } from "@/lib/booli/brf-page";
 import { fetchBrokerImageBytes, type BrokerImageBytes } from "@/lib/broker/broker-images";
 import { fetchBrokerListingPage } from "@/lib/broker/fetch-broker-page";
@@ -114,6 +114,11 @@ export interface WatchEnrichment {
   facts: Map<number, CandidateFacts>;
   /** The BRF page stage (R-07). `facts` entries of a read association carry `brf`. */
   brfStats: BrfStats;
+  /**
+   * CR-01: "utmaning" when `opts.shouldStop` said stop (Booli challenged the run) at any point of the stage: candidates
+   * and associations not started by then were left unread. null when the stage ran to its end or its deadline.
+   */
+  stoppedBy: "utmaning" | null;
 }
 
 export interface WatchEnrichOptions {
@@ -130,12 +135,28 @@ export interface WatchEnrichOptions {
   /** Fetch broker photos as bytes (default true). A run that reads no pictures passes false. */
   fetchBrokerImages?: boolean;
   /**
+   * CR-01: asked before each candidate, after each detail page and before each BRF page. true = Booli has refused this
+   * run (the D-04 stop rule): nothing new is started, the remainder stays unread and `stoppedBy` says why. A hook that
+   * throws counts as false. The live run wires it to `enrichStopReason` over the local browser's Booli challenge count.
+   */
+  shouldStop?: () => boolean;
+  /**
    * Phase 14.6 (FLAG-02): an opt-in hook for the TERMINAL only. Called once per read description, before the text is
    * dropped, with the clauses that mention an area keyword (each at most 160 characters, every capitalised word outside a
    * short allowlist, e-mail address and phone number masked) and the area facts parsed from them, so a person can judge the
    * reader against real texts. Off by default; the lines are never stored or returned. A hook that throws is ignored.
    */
   areaAudit?: (lines: string[], facts: AreaFacts) => void;
+}
+
+/**
+ * CR-01: the stop hook of the live run. Reads the local browser's BOOLI challenge count (never the broker one, WR-01) and
+ * asks the same rule the enrichment pull uses, `enrichStopReason`, so the weekly run and the restart cannot drift. Only the
+ * challenge arm is fed: the 5 % failure arm is a policy for thousands of pages and would need 100 attempts, more than a
+ * Monday run reads. `stats` returns null when no local browser is installed (Apify mode): the hook then never stops.
+ */
+export function booliChallengeStop(stats: () => { challenged: number } | null): () => boolean {
+  return () => enrichStopReason({ challenged: stats()?.challenged ?? 0, attempted: 0, failed: 0 }) !== null;
 }
 
 const nonEmpty = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
@@ -184,6 +205,18 @@ export async function enrichAllCandidates(
   const startedAt = now();
   const runYear = runYearOf(opts.asOf, now());
   let skipped = 0;
+  let stoppedBy = null as "utmaning" | null;
+  /** Latches: once the hook has said stop, the answer stays stop even if the hook's own counter is reset. */
+  const stopped = (): boolean => {
+    if (stoppedBy === null) {
+      try {
+        if (opts.shouldStop?.() === true) stoppedBy = "utmaning";
+      } catch {
+        // A broken hook must not cost the run; it counts as "keep going".
+      }
+    }
+    return stoppedBy !== null;
+  };
 
   const eligible: number[] = [];
   candidates.forEach((c, i) => {
@@ -193,7 +226,7 @@ export async function enrichAllCandidates(
 
   /** One candidate. Never throws; writes its results in one synchronous block at the end. */
   const readOne = async (i: number): Promise<void> => {
-    if (now() - startedAt >= opts.deadlineMs) {
+    if (stopped() || now() - startedAt >= opts.deadlineMs) {
       skipped += 1;
       return;
     }
@@ -220,7 +253,8 @@ export async function enrichAllCandidates(
       let text: string | null = nonEmpty(raw.description);
       let photos: BrokerImageBytes[] = [];
       const brokerUrl = nonEmpty(raw.agencyListingUrl);
-      if (brokerUrl) {
+      // A block seen while this page was in flight: the page that came back is kept, but the broker leg waits for no one.
+      if (brokerUrl && !stopped()) {
         try {
           const broker = await d.fetchBrokerListingPage(brokerUrl, {
             directTimeoutMs: BROKER_DIRECT_TIMEOUT_MS,
@@ -284,7 +318,9 @@ export async function enrichAllCandidates(
     concurrency,
   );
 
-  if (skipped > 0) {
+  if (stoppedBy !== null) {
+    console.error("[watch-enrich] stopped by a Booli challenge, remainder not read", { skipped });
+  } else if (skipped > 0) {
     console.error("[watch-enrich] deadline reached, remainder not read", {
       skipped,
       deadlineMs: opts.deadlineMs,
@@ -304,7 +340,7 @@ export async function enrichAllCandidates(
   const brfStats = { distinct: byBrf.size, fetched: 0, failed: 0 };
   await runPool(
     [...byBrf].map(([brfId, indices]) => async () => {
-      if (now() - startedAt >= opts.deadlineMs) {
+      if (stopped() || now() - startedAt >= opts.deadlineMs) {
         brfStats.failed += 1;
         return;
       }
@@ -325,5 +361,7 @@ export async function enrichAllCandidates(
     concurrency,
   );
 
-  return { candidates: out, brokerImages, sunPhrases, facts, brfStats };
+  // One last look, so a refusal that arrived on the very last page is reported even though nothing was left to skip.
+  stopped();
+  return { candidates: out, brokerImages, sunPhrases, facts, brfStats, stoppedBy };
 }

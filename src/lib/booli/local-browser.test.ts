@@ -30,6 +30,8 @@ import {
 } from "@/lib/booli/local-browser";
 import { runPlaywrightRender, setRenderer } from "@/lib/booli/transport";
 import { fetchListing } from "@/lib/booli/client";
+import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
+import { booliChallengeStop, enrichAllCandidates, type WatchEnrichDeps } from "@/lib/discovery/watch-enrich";
 
 const BOOLI_URL = "https://www.booli.se/sok/till-salu?areaIds=115341";
 const STATE = { "Listing:1": { __typename: "Listing", id: "1" } };
@@ -415,6 +417,76 @@ describe("the latch after a Booli block (CR-01)", () => {
     expect(settled.every((s) => s.status === "rejected")).toBe(true);
     expect(b.log.urls.length).toBeLessThan(3);
     expect(h.stats().challenged + h.stats().latched).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("the live enrichment stops at Booli's first block (CR-01)", () => {
+  const candidates = Array.from({ length: 12 }, (_, n) => ({ sourceListingUrl: `https://www.booli.se/annons/${n + 1}`, address: `Testgatan ${n + 1}` }) as DiscoveryCandidate);
+  const depsWith = (extra: Partial<WatchEnrichDeps> = {}): WatchEnrichDeps => ({
+    fetchListing: (url, o) => fetchListing(url, o),
+    fetchBrokerListingPage: vi.fn(async () => null),
+    fetchBrokerImageBytes: vi.fn(async () => []),
+    fetchBrfFacts: vi.fn(async () => {
+      throw new Error("never reached");
+    }),
+    ...extra,
+  });
+
+  it("with every page challenged, at most the pages already in flight are requested, not one per candidate", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    const h = install(clock, b.launcher, { retryChallenge: false });
+    const deps = depsWith();
+    const result = await clock.run(
+      enrichAllCandidates(candidates, candidates.length, {
+        deadlineMs: 3_600_000,
+        concurrency: 2,
+        asOf: "2026-10-26",
+        deps,
+        now: clock.now,
+        shouldStop: booliChallengeStop(() => h.stats()),
+      }),
+    );
+    expect(result.stoppedBy).toBe("utmaning");
+    expect(b.log.urls.length).toBeGreaterThanOrEqual(1);
+    expect(b.log.urls.length).toBeLessThanOrEqual(2); // 12 candidates, two in flight when the first refusal came
+    expect(clock.sleeps).not.toContain(5_000); // no retry wait
+    expect(h.stats().challenged).toBeLessThanOrEqual(2);
+    expect(deps.fetchBrfFacts).not.toHaveBeenCalled();
+    expect(result.facts.size).toBe(0);
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("even without the stop hook the latch keeps the loop from sending more than the in-flight pages", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    const h = install(clock, b.launcher, { retryChallenge: false });
+    await clock.run(
+      enrichAllCandidates(candidates, candidates.length, { deadlineMs: 3_600_000, concurrency: 2, asOf: "2026-10-26", deps: depsWith(), now: clock.now }),
+    );
+    expect(b.log.urls.length).toBeLessThanOrEqual(2);
+    expect(h.stats().latched).toBeGreaterThanOrEqual(candidates.length - 2);
+  });
+
+  it("a Cloudflare page on a broker's site does not stop the run (WR-01)", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, (u) => (u.includes("erikolsson") ? { status: 403 } : {}));
+    const h = install(clock, b.launcher, { retryChallenge: false });
+    await expect(clock.run(runPlaywrightRender("https://www.erikolsson.se/objekt/1", BROKER_RENDER_PAGE_FUNCTION))).rejects.toThrow();
+    expect(h.stats()).toMatchObject({ challenged: 0, challengedBroker: 1 });
+    expect(booliChallengeStop(() => h.stats())()).toBe(false);
+    const result = await clock.run(
+      enrichAllCandidates(candidates.slice(0, 3), 3, {
+        deadlineMs: 3_600_000,
+        concurrency: 2,
+        asOf: "2026-10-26",
+        deps: depsWith({ fetchListing: async () => ({ imageUrls: [] }) }),
+        now: clock.now,
+        shouldStop: booliChallengeStop(() => h.stats()),
+      }),
+    );
+    expect(result.stoppedBy).toBeNull();
+    expect(result.facts.size).toBe(3);
   });
 });
 

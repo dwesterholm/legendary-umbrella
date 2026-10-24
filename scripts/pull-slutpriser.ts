@@ -83,6 +83,7 @@ import {
   SOLD_DETAIL_VERSION,
   enrichBrfs,
   enrichSoldRows,
+  ENRICH_STOP_CHALLENGE_LINE,
   enrichStopReason,
   newSlutprisCache,
   pullSlutpriser,
@@ -465,7 +466,7 @@ function makeRunGuard(args: {
 /** The line(s) that tell Daniel why a pass ended; "stopp" means exit 2 (D-04: no same-day retry). */
 function printStopReason(why: StopWhy | null, p: { attempted: number; failed: number }, maxMinutes: number | null): "ok" | "stopp" {
   if (why === "utmaning") {
-    console.log("Stopp: utmaning från Booli upptäckt - körningen avbröts (D-04). Vänta minst ett dygn innan nästa försök.");
+    console.log(ENRICH_STOP_CHALLENGE_LINE);
     return "stopp";
   }
   if (why === "felkvot") {

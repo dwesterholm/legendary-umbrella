@@ -7,7 +7,7 @@ import snapshotJson from "@/lib/discovery/__fixtures__/forsale-snapshot.fixture.
 import type { DiscoveryCandidate } from "@/lib/discovery/candidate";
 import { candidateFactsSchema } from "@/lib/discovery/listing-facts";
 import { parseFitSnapshot } from "@/lib/discovery/fit-score";
-import { enrichAllCandidates, type WatchEnrichDeps } from "@/lib/discovery/watch-enrich";
+import { booliChallengeStop, enrichAllCandidates, type WatchEnrichDeps } from "@/lib/discovery/watch-enrich";
 
 vi.mock("apify-client", () => apifyClientMockFactory());
 
@@ -646,6 +646,137 @@ describe("BRF stage (R-07)", () => {
     expect(f.fetchBrfFacts).not.toHaveBeenCalled();
     expect(result.brfStats).toEqual({ distinct: 2, fetched: 0, failed: 2 });
     err.mockRestore();
+  });
+});
+
+describe("shouldStop: Booli's first refusal ends the stage (CR-01)", () => {
+  it("never set: stoppedBy is null and everything is read", async () => {
+    const f = fakes();
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, opts(f.deps));
+    expect(result.stoppedBy).toBeNull();
+    expect(f.fetchListing).toHaveBeenCalledTimes(2);
+  });
+
+  it("once the hook says stop, no further detail page is requested and the rest keep their identity", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let challenged = 0;
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => {
+        if (idOf(url) === 3) {
+          challenged += 1; // Booli refuses the third page
+          throw new Error("Kunde inte hamta data fran Booli");
+        }
+        return rawDetail();
+      }),
+    });
+    const input = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => candidate(n));
+    const result = await enrichAllCandidates(input, 8, opts(f.deps, { concurrency: 1, shouldStop: () => challenged > 0 }));
+
+    expect(f.fetchListing).toHaveBeenCalledTimes(3); // pages 4 to 8 were never asked for
+    expect(result.stoppedBy).toBe("utmaning");
+    for (const i of [2, 3, 4, 5, 6, 7]) expect(result.candidates[i]).toBe(input[i]);
+    expect(result.candidates[0]).not.toBe(input[0]);
+    expect(result.facts.size).toBe(2);
+    err.mockRestore();
+  });
+
+  it("a stop already in force before the stage starts reads nothing at all, BRF stage included", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const f = fakes();
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, opts(f.deps, { shouldStop: () => true }));
+    expect(f.fetchListing).not.toHaveBeenCalled();
+    expect(f.fetchBrfFacts).not.toHaveBeenCalled();
+    expect(result.stoppedBy).toBe("utmaning");
+    err.mockRestore();
+  });
+
+  it("the BRF stage sends no Booli page after the stop, and counts the associations it did not reach as failed", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let blocked = false;
+    const f = fakes({
+      fetchListing: vi.fn(async (url: string) => rawDetail({ brfId: String(100 + idOf(url)) })),
+      fetchBrfFacts: vi.fn(async () => {
+        blocked = true; // the first association page is the one Booli refuses
+        throw new Error("Kunde inte hamta data fran Booli");
+      }),
+    });
+    const input = [1, 2, 3, 4].map((n) => candidate(n));
+    const result = await enrichAllCandidates(input, 4, opts(f.deps, { concurrency: 1, shouldStop: () => blocked }));
+    expect(f.fetchListing).toHaveBeenCalledTimes(4);
+    expect(f.fetchBrfFacts).toHaveBeenCalledTimes(1);
+    expect(result.brfStats).toEqual({ distinct: 4, fetched: 0, failed: 4 });
+    expect(result.stoppedBy).toBe("utmaning");
+    err.mockRestore();
+  });
+
+  it("a refusal that arrives during the last page is still reported, although nothing was left to skip", async () => {
+    let blocked = false;
+    const f = fakes({
+      fetchListing: vi.fn(async () => {
+        blocked = true;
+        return rawDetail();
+      }),
+    });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps, { shouldStop: () => blocked }));
+    expect(result.stoppedBy).toBe("utmaning");
+    expect(result.facts.size).toBe(1);
+  });
+
+  it("a block seen while a page was in flight keeps that page but skips its broker leg", async () => {
+    let blocked = false;
+    const f = fakes({
+      fetchListing: vi.fn(async () => {
+        blocked = true;
+        return rawDetail({ agencyListingUrl: "https://www.erikolsson.se/objekt/1" });
+      }),
+    });
+    const result = await enrichAllCandidates([candidate(1)], 1, opts(f.deps, { shouldStop: () => blocked }));
+    expect(f.fetchBrokerListingPage).not.toHaveBeenCalled();
+    expect(result.candidates[0]).not.toBe(undefined);
+    expect(result.facts.get(0)?.detailFetched).toBe(true);
+  });
+
+  it("a hook that throws counts as keep going", async () => {
+    const f = fakes();
+    const result = await enrichAllCandidates([candidate(1), candidate(2)], 2, opts(f.deps, {
+      shouldStop: () => {
+        throw new Error("hook broke");
+      },
+    }));
+    expect(f.fetchListing).toHaveBeenCalledTimes(2);
+    expect(result.stoppedBy).toBeNull();
+  });
+
+  it("a stop that was once true stays true even if the hook's counter later reads false", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const answers = [false, true, false, false, false, false, false];
+    const f = fakes();
+    const result = await enrichAllCandidates([1, 2, 3, 4].map((n) => candidate(n)), 4, opts(f.deps, {
+      concurrency: 1,
+      shouldStop: () => answers.shift() ?? false,
+    }));
+    expect(f.fetchListing).toHaveBeenCalledTimes(1);
+    expect(result.stoppedBy).toBe("utmaning");
+    err.mockRestore();
+  });
+});
+
+describe("booliChallengeStop: the stop hook of the live run (CR-01, WR-01)", () => {
+  it("stops at the first Booli challenge, and not before", () => {
+    let challenged = 0;
+    const stop = booliChallengeStop(() => ({ challenged }));
+    expect(stop()).toBe(false);
+    challenged = 1;
+    expect(stop()).toBe(true);
+  });
+
+  it("without a local browser (Apify mode) it never stops", () => {
+    expect(booliChallengeStop(() => null)()).toBe(false);
+  });
+
+  it("reads the Booli number only: a counter that also carries broker challenges does not stop the run", () => {
+    const stop = booliChallengeStop(() => ({ challenged: 0, challengedBroker: 7 }) as { challenged: number });
+    expect(stop()).toBe(false);
   });
 });
 

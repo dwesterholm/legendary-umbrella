@@ -145,6 +145,8 @@ export type EnrichmentLike = Pick<EnrichmentResult, "candidates" | "brokerImages
   readonly facts?: ReadonlyMap<number, CandidateFacts>;
   /** The BRF page stage (watch-enrich.ts); absent from the in-app enrichment. */
   readonly brfStats?: BrfStats;
+  /** CR-01 (watch-enrich.ts): "utmaning" when Booli refused the run and the enrichment stopped early; absent otherwise. */
+  readonly stoppedBy?: "utmaning" | null;
 };
 
 export interface FitPipelineDeps {
@@ -282,6 +284,8 @@ export interface FitPipelineResult {
   readonly coverage: Coverage;
   /** R-07: the BRF page stage; null when the enrichment did not read BRF pages (in-app or Apify path). */
   readonly brfStats: BrfStats | null;
+  /** CR-01: "utmaning" when the enrichment was cut short because Booli refused the run; null otherwise. */
+  readonly enrichStoppedBy: "utmaning" | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +446,7 @@ export async function runFitPipeline(
     counts,
     coverage,
     brfStats: enrichment.brfStats ?? null,
+    enrichStoppedBy: enrichment.stoppedBy ?? null,
   };
 }
 
@@ -913,6 +918,56 @@ export function renderAreaReport(areas: readonly AreaReport[]): string {
   if (areas.length === 0) lines.push("Kandidatlista: OFULLSTÄNDIG (inga distrikt lästes)");
   else lines.push(missing.length === 0 ? "Kandidatlista: komplett" : `Kandidatlista: OFULLSTÄNDIG (${missing.join(", ")})`);
   return lines.join("\n");
+}
+
+/**
+ * CR-01: runs `run` over `items` one after another and settles each, as `Promise.allSettled` would, except that an item
+ * reached after `stopped()` turned true is not run at all: its slot holds a rejection with `skippedReason`. The local
+ * browser pulls the four districts through this, so a Booli block in the first district means the other three send nothing
+ * (a parallel pull would have started all four before the first answer). Never rejects.
+ */
+export async function settleInOrder<T, R>(
+  items: readonly T[],
+  run: (item: T) => Promise<R>,
+  stopped: () => boolean,
+  skippedReason: string,
+): Promise<PromiseSettledResult<R>[]> {
+  const out: PromiseSettledResult<R>[] = [];
+  for (const item of items) {
+    if (stopped()) {
+      out.push({ status: "rejected", reason: new Error(skippedReason) });
+      continue;
+    }
+    try {
+      out.push({ status: "fulfilled", value: await run(item) });
+    } catch (reason) {
+      out.push({ status: "rejected", reason });
+    }
+  }
+  return out;
+}
+
+/** The words the table and the mail use when Booli refused the run and the enrichment ended early (CR-01). */
+export const ENRICH_CUT_SHORT_LABEL = "berikning avbruten (Booli)";
+
+/**
+ * CR-01: the terminal line printed above the table when the enrichment was cut short. It says how many of the window
+ * flats got their detail page, so the reader knows how much of the table rests on the cards alone. Pure.
+ */
+export function renderEnrichCutShortLine(window: Pick<FitWindowStats, "size" | "detailFetched">): string {
+  return `OBS: ${ENRICH_CUT_SHORT_LABEL}: ${window.detailFetched} av ${window.size} annonser fick sin detaljsida, resten bygger bara på kortens uppgifter. Vänta minst ett dygn innan nästa körning.`;
+}
+
+/**
+ * CR-01: the mail header's candidate-list line. A run whose enrichment was cut short is not complete even when every
+ * district list was, so the line gets the label added and the mail shows it in red and bold. Not cut short: unchanged.
+ */
+export function mailCompletenessOf(
+  base: { completeness: string; incomplete: boolean },
+  enrichStoppedBy: "utmaning" | null,
+): { completeness: string; incomplete: boolean } {
+  if (enrichStoppedBy === null) return base;
+  return { completeness: `${base.completeness}; ${ENRICH_CUT_SHORT_LABEL}`, incomplete: true };
 }
 
 // ---------------------------------------------------------------------------

@@ -122,6 +122,9 @@ import {
   areaFlagLines,
   fitRowKey,
   incompleteDistricts,
+  mailCompletenessOf,
+  renderEnrichCutShortLine,
+  settleInOrder,
   renderAreaReport,
   renderBrfLine,
   renderCoverage,
@@ -655,6 +658,8 @@ function printModelLine(model: ReturnType<typeof parseHedonicModel>): void {
 const EXIT_LOCKED = 3;
 /** Exit code 4: the e-mail could not be delivered (the HTML is written, the memory is untouched). */
 const EXIT_MAIL_FAILED = 4;
+/** Exit code 2: Booli challenged the run and it stopped at once (D-04, CR-01); the same code as the enrichment pull's "stopp". */
+const EXIT_BOOLI_BLOCKED = 2;
 
 /** Today's date as YYYY-MM-DD in Europe/Stockholm (the Monday run belongs to the Swedish date, not UTC). */
 function stockholmToday(now: Date = new Date()): string {
@@ -1334,7 +1339,9 @@ async function runLive(args: Args): Promise<void> {
   const sunStage = makeSunStage(sunLoad.index, sunLoad.index === null ? 0 : sunLoad.buildMs, sunLoad.index === null ? osmCacheUnknownReason(sunLoad.failure) : undefined);
 
   const { fetchAreaListings, HEADLESS_MAX_AREA_PAGES } = await import("@/lib/booli/client");
-  const { enrichAllCandidates } = await import("@/lib/discovery/watch-enrich");
+  const { enrichAllCandidates, booliChallengeStop } = await import("@/lib/discovery/watch-enrich");
+  const { ENRICH_STOP_CHALLENGE_LINE } = await import("@/lib/booli/slutpriser");
+  const { recordBooliRefusal } = await import("@/lib/booli/traffic-log");
   const vision = await import("@/lib/discovery/vision");
 
   const asOf = new Date().toISOString().slice(0, 10);
@@ -1361,8 +1368,17 @@ async function runLive(args: Args): Promise<void> {
   if (layoutMods === null) console.log("Planlösning: avstängd (ingen bildtolkning)");
   if (!cityEnabled) console.log(`Stadens ärendelista: hoppas över (${args.noCity ? "--no-city" : "--city-cache none"})`);
   const areaAudit = args.areaAudit ? makeAreaAudit((line) => console.log(line)) : undefined;
+  // CR-01: the first Booli challenge ends the enrichment. `handle` is declared further down; the hook runs only after it exists.
   const enrichOnly: FitPipelineDeps["enrich"] = (candidates, limit, opts) =>
-    enrichAllCandidates(candidates, limit, { ...opts, asOf, fetchBrokerImages: !args.noVision, areaAudit });
+    enrichAllCandidates(candidates, limit, {
+      ...opts,
+      asOf,
+      fetchBrokerImages: !args.noVision,
+      areaAudit,
+      shouldStop: booliChallengeStop(() => handle?.stats() ?? null),
+    });
+  /** Booli has refused this run (the local browser counts only Booli pages here, WR-01). */
+  const booliChallenged = (): boolean => (handle?.stats().challenged ?? 0) > 0;
   const deps: FitPipelineDeps = {
     scrape: async () => {
       const targets: { name: string; district: InnerstanDistrict | null; areaId: string | null }[] = [];
@@ -1398,7 +1414,12 @@ async function runLive(args: Args): Promise<void> {
       // Local mode pages each district until Booli's own count is in hand and asks Booli for >= 35 m2 only (R-04, A6);
       // the Apify call is the 14.1 one (5 pages), unchanged.
       const pageOpts = localMode ? { maxPages: HEADLESS_MAX_AREA_PAGES, minLivingArea: FIT_SIZE_MIN } : undefined;
-      const settled = await Promise.allSettled(runnable.map((t) => fetchAreaListings(t.areaId as string, "Lägenhet", pageOpts)));
+      const pullDistrict = (t: (typeof runnable)[number]) => fetchAreaListings(t.areaId as string, "Lägenhet", pageOpts);
+      // CR-01: the local browser pulls the districts one after another, so a Booli block in the first one means the others
+      // send nothing. The Apify path keeps its parallel pull.
+      const settled = localMode
+        ? await settleInOrder(runnable, pullDistrict, booliChallenged, "hoppades över: Booli utmanade körningen")
+        : await Promise.allSettled(runnable.map(pullDistrict));
       settled.forEach((s, i) => {
         const t = runnable[i];
         if (s.status === "fulfilled") {
@@ -1503,7 +1524,12 @@ async function runLive(args: Args): Promise<void> {
   // this process (scrape, detail, vision enrichment) goes through it; Apify is touched only by an
   // explicit --allow-apify fallback. Nothing may process.exit past this point: the browser must close.
   const handle = localMode
-    ? localBrowser.installLocalRenderer({ allowApify: args.allowApify, apifyMaxRenders: args.apifyMaxRenders })
+    ? localBrowser.installLocalRenderer({
+        allowApify: args.allowApify,
+        apifyMaxRenders: args.apifyMaxRenders,
+        // CR-01: Booli's first refusal is the last request of the weekly run; no 5 s wait and second try.
+        retryChallenge: false,
+      })
     : null;
   const disposeSignals = handle ? localBrowser.closeOnSignals(handle) : null;
   // WR-01: a run that hangs where no per-page timeout reaches must still end by itself (releases the lock on exit).
@@ -1532,12 +1558,25 @@ async function runLive(args: Args): Promise<void> {
     console.log(`\nStart: ${t0.toISOString()}`);
     const result = await runFitPipeline(deps, { model, asOf, window });
 
+    // CR-01: a Booli refusal anywhere in the run (area pages, detail pages, BRF pages). Noted at once in the traffic log the
+    // gate reads, and the exit code is set now so no later failure in the printing can hide it.
+    const booliBlocked = booliChallenged() || result.enrichStoppedBy !== null;
+    const printBooliStop = (): void => {
+      if (booliBlocked) console.log(`\n${ENRICH_STOP_CHALLENGE_LINE}`);
+    };
+    if (booliBlocked) {
+      const noted = recordBooliRefusal("weekly-live");
+      if (!noted) console.error("OBS: vägran från Booli kunde inte antecknas i trafikloggen; vänta ändå ett dygn.");
+      process.exitCode = EXIT_BOOLI_BLOCKED;
+    }
+
     printModelLine(model);
     console.log(renderAreaReport(result.areas));
     const everyDistrictFailed = result.areas.length > 0 && result.areas.every((a) => !a.ok);
     if (everyDistrictFailed) {
       console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
       await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result), layoutSekOf());
+      printBooliStop();
       process.exitCode = 1;
       return;
     }
@@ -1563,9 +1602,11 @@ async function runLive(args: Args): Promise<void> {
     console.log(residualCountLine(result.ranking.ranked, model));
     if (result.brfStats !== null) console.log(renderBrfLine(result.brfStats));
     console.log(sunReportOf(result.ranking.ranked));
+    if (booliBlocked) console.log(`\n${renderEnrichCutShortLine(result.window)}`);
     console.log("");
     printRanking(model, result.ranking, result.snapshot.rows, result.preRankPositions, args.track, tableRows, reasonsOf);
     await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result), layoutSekOf());
+    printBooliStop();
     if (cacheSaveError !== null) {
       console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);
       process.exitCode = 1;
@@ -1589,8 +1630,14 @@ async function runLive(args: Args): Promise<void> {
         tableRows,
         header: {
           // The last line of the area report is the pinned "Kandidatlista: ..." line.
-          completeness: renderAreaReport(result.areas).split("\n").pop() ?? "Kandidatlista: okänd",
-          incomplete: result.areas.length === 0 || incompleteDistricts(result.areas).length > 0,
+          // CR-01: an enrichment cut short by Booli makes the list "incomplete" in the mail (red, bold) even when every district was read.
+          ...mailCompletenessOf(
+            {
+              completeness: renderAreaReport(result.areas).split("\n").pop() ?? "Kandidatlista: okänd",
+              incomplete: result.areas.length === 0 || incompleteDistricts(result.areas).length > 0,
+            },
+            booliBlocked ? "utmaning" : null,
+          ),
           coverageLine: renderCoverage(withReasonsOnFlagged(result.coverage, tableRows)),
           modelLine: modelLineOf(model),
         },

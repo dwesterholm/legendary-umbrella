@@ -41,7 +41,11 @@ import {
   estimateFitRunUsd,
   fitRowKey,
   incompleteDistricts,
+  ENRICH_CUT_SHORT_LABEL,
+  mailCompletenessOf,
   renderAreaReport,
+  renderEnrichCutShortLine,
+  settleInOrder,
   renderCoverage,
   renderFitSections,
   renderFitTable,
@@ -1250,6 +1254,81 @@ describe("coverage: association debt and reasons on flagged rows (WATCH-03, R-07
     expect(result.coverage.brfDebt).toBe(3);
     const none = await run(fakeDeps(fixtureScraped.slice(0, 26)).deps, 3);
     expect(none.brfStats).toBeNull();
+  });
+});
+
+describe("enrichment cut short by a Booli block (CR-01)", () => {
+  it("the pipeline result carries the enrichment's stoppedBy, and null when the enrichment has none", async () => {
+    const deps = fakeDeps(fixtureScraped.slice(0, 26));
+    deps.enrich.mockImplementation(async (candidates: DiscoveryCandidate[]) => ({
+      candidates,
+      brokerImages: new Map(),
+      sunPhrases: new Map(),
+      stoppedBy: "utmaning" as const,
+    }));
+    expect((await run(deps.deps, 3)).enrichStoppedBy).toBe("utmaning");
+    expect((await run(fakeDeps(fixtureScraped.slice(0, 26)).deps, 3)).enrichStoppedBy).toBeNull();
+  });
+
+  it("the mail header says 'berikning avbruten (Booli)' and turns red even when every district was complete", () => {
+    const base = { completeness: "Kandidatlista: komplett", incomplete: false };
+    const cut = mailCompletenessOf(base, "utmaning");
+    expect(cut.completeness).toBe(`Kandidatlista: komplett; ${ENRICH_CUT_SHORT_LABEL}`);
+    expect(cut.completeness).toContain("berikning avbruten (Booli)");
+    expect(cut.incomplete).toBe(true);
+  });
+
+  it("not cut short: the header is returned unchanged", () => {
+    const base = { completeness: "Kandidatlista: OFULLSTÄNDIG (Kungsholmen)", incomplete: true };
+    expect(mailCompletenessOf(base, null)).toBe(base);
+    const ok = { completeness: "Kandidatlista: komplett", incomplete: false };
+    expect(mailCompletenessOf(ok, null)).toEqual(ok);
+  });
+
+  it("the table line says how many flats got a detail page and names the wait", () => {
+    const line = renderEnrichCutShortLine({ size: 90, detailFetched: 12 });
+    expect(line.startsWith("OBS: berikning avbruten (Booli): 12 av 90 annonser fick sin detaljsida")).toBe(true);
+    expect(line).toContain("Vänta minst ett dygn");
+  });
+
+  describe("settleInOrder", () => {
+    it("runs the items one after another and settles each like allSettled", async () => {
+      const order: string[] = [];
+      const out = await settleInOrder(
+        ["a", "b", "c"],
+        async (x) => {
+          order.push(`start ${x}`);
+          await new Promise((r) => setTimeout(r, 2));
+          order.push(`end ${x}`);
+          if (x === "b") throw new Error("b failed");
+          return x.toUpperCase();
+        },
+        () => false,
+        "skipped",
+      );
+      expect(order).toEqual(["start a", "end a", "start b", "end b", "start c", "end c"]);
+      expect(out.map((o) => o.status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
+      expect((out[0] as PromiseFulfilledResult<string>).value).toBe("A");
+    });
+
+    it("an item reached after the stop is never run: its slot is a rejection with the skip reason", async () => {
+      let blocked = false;
+      const ran: string[] = [];
+      const out = await settleInOrder(
+        ["Kungsholmen", "Södermalm", "Östermalm", "Vasastan"],
+        async (x) => {
+          ran.push(x);
+          blocked = true; // Booli refuses the first district
+          return x;
+        },
+        () => blocked,
+        "hoppades över: Booli utmanade körningen",
+      );
+      expect(ran).toEqual(["Kungsholmen"]);
+      expect(out).toHaveLength(4);
+      expect(out.slice(1).every((o) => o.status === "rejected")).toBe(true);
+      expect(String((out[3] as PromiseRejectedResult).reason.message)).toBe("hoppades över: Booli utmanade körningen");
+    });
   });
 });
 

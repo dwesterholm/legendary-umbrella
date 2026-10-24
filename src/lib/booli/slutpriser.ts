@@ -1210,6 +1210,12 @@ export function enrichStopReason(s: { challenged: number; attempted: number; fai
   return null;
 }
 
+/**
+ * The terminal line that tells Daniel a long Booli run ended on a challenge (D-04). One text for the enrichment pull and the
+ * weekly live run, so the two cannot drift. A stopped run is not retried the same day.
+ */
+export const ENRICH_STOP_CHALLENGE_LINE = "Stopp: utmaning från Booli upptäckt - körningen avbröts (D-04). Vänta minst ett dygn innan nästa försök.";
+
 export interface EnrichBrfsOptions {
   /** The cache; `brf` and `enrichFailures` are created and mutated in place. */
   cache: SlutprisCache;
