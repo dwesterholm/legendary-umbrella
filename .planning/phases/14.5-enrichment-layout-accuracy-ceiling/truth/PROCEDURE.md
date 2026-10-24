@@ -67,3 +67,13 @@ Ger alla fyra bildadresserna fel, eller är bilderna borta (såld eller avpublic
 ## 7. Efter låsningen
 
 Filen låses i plan 07 (`--select-and-lock`): mätmängd, delning i utveckling och kvarhållen mängd, och ordning fastställs, och en kontrollsumma av raderna och av denna procedur sparas innan någon betald körning. Efter det ändras en rad aldrig, utom för att rätta ett skrivfel, och då skrivs rättelsen och skälet ned i planens SUMMARY. Procedurtexten ändras inte efter låsningen; en ändring skulle ändra kontrollsumman.
+
+## 8. Förtydliganden som gjordes medan rad 2 till 37 bedömdes
+
+Dessa fem punkter skrevs efter att rad 1 var gjord och medan lägenheterna 2 till 37 bedömdes, för att en andra bedömare ska göra likadant. De ändrar inget som redan avgjorts på annat sätt; de skriver ned hur oklara fall hanterades.
+
+- En fransk balkong (balkongdörr med räcke utanför, ingen ytterplatta) räknas som balkong för `balconySide` och `livingOnBalconySide`.
+- En sovdel räknas som sovrum bara när planen ger den ett eget fönster på den vägg som avgörs; saknar sovdelen fönster är `bedroomSide` `undecidable`.
+- Säger planritningen och ett foto emot varandra om fönstren är `windowSides` `undecidable`. En böjd eller snedställd fönstervägg (burspråk, snedvägg) räknas som en vägg; fönster räknas för hela lägenheten, alla rum.
+- Bevis på gata eller gård som syns i ett foto räknas bara om fotot går att knyta till balkongens vägg (samma fönsterrad eller samma balkong i bilden). En vy från en hög våning mot en väg långt nere utan sådan koppling avgör ingenting.
+- En bild märkt som AI-skapad, och en annons som inte är en bostad (till exempel en båt), nämns i anteckningen; en annons utan rumsbilder och plan får `undecidable` överallt och `planPresent: false`.
