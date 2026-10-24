@@ -475,7 +475,7 @@ describe("run lock", () => {
   it("readRunLock reports the holder without taking the lock", () => {
     expect(readRunLock(lockPath)).toBeNull();
     writeFileSync(lockPath, JSON.stringify({ pid: 31, startedAt: "2026-10-20T05:00:00Z" }), "utf8");
-    expect(readRunLock(lockPath, { isAlive: () => true })).toEqual({ pid: 31, startedAt: "2026-10-20T05:00:00Z", alive: true });
+    expect(readRunLock(lockPath, { isAlive: () => true, now: () => new Date("2026-10-20T06:00:00Z") })).toEqual({ pid: 31, startedAt: "2026-10-20T05:00:00Z", alive: true });
     expect(readRunLock(lockPath, { isAlive: () => false })?.alive).toBe(false);
     expect(existsSync(lockPath)).toBe(true);
   });
