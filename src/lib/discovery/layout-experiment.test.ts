@@ -12,8 +12,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { makeTwoStepLayoutCall } from "@/lib/discovery/layout-call";
 import {
   JEV_IMAGES_HEADER,
+  JEV_IMAGE_PREP,
   JEV_MODEL,
   JEV_QUESTIONS,
+  JEV_YES_THRESHOLD,
   jevAnswerConfidence,
   jevCostSek,
   jevGate,
@@ -1315,6 +1317,35 @@ describe("variant e (Jev, R-10): the spec", () => {
       expect(LAYOUT_VARIANTS[id].callShape).toBeUndefined();
       expect(LAYOUT_VARIANTS[id].typesafe).toBeUndefined();
     }
+  });
+
+  it("the version also covers how the pictures are prepared, the images header and the yes threshold (WR-08)", () => {
+    const v = variantVersion(e);
+    const withTypesafe = (patch: object): LayoutVariantSpec => ({ ...e, typesafe: { ...e.typesafe!, ...patch } }) as unknown as LayoutVariantSpec;
+    expect(e.typesafe!.imagePrep).toEqual(JEV_IMAGE_PREP);
+    expect(e.typesafe!.imagesHeader).toEqual(JEV_IMAGES_HEADER);
+    expect(e.typesafe!.yesThreshold).toBe(JEV_YES_THRESHOLD);
+    expect(JEV_YES_THRESHOLD).toBe(0.5);
+    // each part alone moves the hash
+    expect(variantVersion(withTypesafe({ imagePrep: { ...JEV_IMAGE_PREP, jpegQuality: 80 } }))).not.toBe(v);
+    expect(variantVersion(withTypesafe({ imagePrep: { ...JEV_IMAGE_PREP, planFormat: "jpeg" } }))).not.toBe(v);
+    expect(variantVersion(withTypesafe({ imagePrep: { ...JEV_IMAGE_PREP, photoFormat: "png" } }))).not.toBe(v);
+    expect(variantVersion(withTypesafe({ imagePrep: { ...JEV_IMAGE_PREP, padBackground: "#000000" } }))).not.toBe(v);
+    expect(variantVersion(withTypesafe({ imagesHeader: { "TypeSafe-Danger-Zone-Images": "false" } }))).not.toBe(v);
+    expect(variantVersion(withTypesafe({ yesThreshold: 0.6 }))).not.toBe(v);
+    // the threshold the mapping really uses is the one hashed: 0,49 is no, 0,5 is yes
+    expect(layoutReadFromJev(jevAnswers({ livingOnBalconySide: noulAns(0.49) })).livingOnBalconySide).toBe(false);
+    expect(layoutReadFromJev(jevAnswers({ livingOnBalconySide: noulAns(JEV_YES_THRESHOLD) })).livingOnBalconySide).toBe(true);
+  });
+
+  it("a to d keep the exact versions they had before the preparation settings entered variant e's hash", () => {
+    expect(Object.fromEntries(["a", "b", "c", "d-sonnet", "d-opus"].map((id) => [id, variantVersion(LAYOUT_VARIANTS[id])]))).toEqual({
+      a: "30e7dea426b8a469",
+      b: "4810c64113ec3f71",
+      c: "864927e4ac41ea06",
+      "d-sonnet": "3b9c223e97f3d524",
+      "d-opus": "66f891786362ecc6",
+    });
   });
 });
 

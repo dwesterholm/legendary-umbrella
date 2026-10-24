@@ -27,6 +27,7 @@ import {
   JEV_ABOUT,
   JEV_IMAGES_HEADER,
   JEV_IMAGE_LIMITS,
+  JEV_IMAGE_PREP,
   JEV_MODEL,
   JEV_QUESTIONS,
   jevCostSek,
@@ -62,7 +63,7 @@ export async function prepareJevImage(input: Uint8Array, format: "png" | "jpeg")
   if (width < minSidePx || height < minSidePx) {
     const w = Math.max(width, minSidePx);
     const h = Math.max(height, minSidePx);
-    pipeline = sharp(bytes).resize({ width: w, height: h, fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 1 } });
+    pipeline = sharp(bytes).resize({ width: w, height: h, fit: JEV_IMAGE_PREP.padFit, background: JEV_IMAGE_PREP.padBackground });
     const padded = await pipeline.toBuffer({ resolveWithObject: true });
     bytes = padded.data;
     width = padded.info.width;
@@ -70,9 +71,9 @@ export async function prepareJevImage(input: Uint8Array, format: "png" | "jpeg")
   }
   // flatten: JPEG has no transparency, and a transparent PNG corner should not turn black.
   const encoded =
-    format === "png"
+    format === JEV_IMAGE_PREP.planFormat
       ? await sharp(bytes).png().toBuffer()
-      : await sharp(bytes).flatten({ background: "#ffffff" }).jpeg({ quality: 90, progressive: false }).toBuffer();
+      : await sharp(bytes).flatten({ background: JEV_IMAGE_PREP.padBackground }).jpeg({ quality: JEV_IMAGE_PREP.jpegQuality, progressive: false }).toBuffer();
   return { data: new Uint8Array(encoded), format, width, height };
 }
 
@@ -168,7 +169,7 @@ export function makeJevLayoutCall(client: JevClientLike, spec: LayoutVariantSpec
       if (bytes === null || bytes.byteLength === 0) throw new LayoutCallError("IMAGE_DOWNLOAD", 0);
       let prepared: PreparedImage;
       try {
-        prepared = await prepare(bytes, index === 0 ? "png" : "jpeg");
+        prepared = await prepare(bytes, index === 0 ? JEV_IMAGE_PREP.planFormat : JEV_IMAGE_PREP.photoFormat);
       } catch {
         throw new LayoutCallError("IMAGE_PREPARE", 0);
       }

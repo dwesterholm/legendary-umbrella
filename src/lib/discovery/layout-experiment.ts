@@ -71,9 +71,12 @@ import { FloorPlanCallError, formatSek } from "@/lib/discovery/sun-floorplan";
 import { imageSetKey, visionListingKey } from "@/lib/discovery/vision-cache";
 import {
   JEV_ABOUT,
+  JEV_IMAGES_HEADER,
   JEV_IMAGE_LIMITS,
+  JEV_IMAGE_PREP,
   JEV_MODEL,
   JEV_QUESTIONS,
+  JEV_YES_THRESHOLD,
   layoutReadSchemaE,
 } from "@/lib/discovery/layout-typesafe";
 
@@ -175,11 +178,18 @@ export interface LayoutVariantSpec {
    * Claude strict-output call. Unset on a to d, so their version hashes do not move.
    */
   callShape?: "typesafe";
-  /** Set on a "typesafe" variant: its fixed question set and the picture limits, both part of its version. */
+  /**
+   * Set on a "typesafe" variant: its fixed question set, the picture limits, how the pictures are prepared, the opt-in header
+   * and the probability at which a yes/no answer becomes true. All of it is part of the variant's version (WR-08), because each
+   * changes what a stored read means.
+   */
   typesafe?: {
     about: string;
     questions: typeof JEV_QUESTIONS;
     imageLimits: typeof JEV_IMAGE_LIMITS;
+    imagePrep: typeof JEV_IMAGE_PREP;
+    imagesHeader: typeof JEV_IMAGES_HEADER;
+    yesThreshold: number;
   };
   /** The most one live smoke of this variant may spend, SEK; unset = {@link LAYOUT_SMOKE_CAP_SEK}. */
   smokeCapSek?: number;
@@ -296,7 +306,14 @@ export const LAYOUT_VARIANTS: Readonly<Record<string, LayoutVariantSpec>> = {
     // 4 pictures are about 10 000 tokens per R-10: 0,005 kr. The estimate is four times that, for the cap test only.
     estSekPerFlat: 0.02,
     callShape: "typesafe",
-    typesafe: { about: JEV_ABOUT, questions: JEV_QUESTIONS, imageLimits: JEV_IMAGE_LIMITS },
+    typesafe: {
+      about: JEV_ABOUT,
+      questions: JEV_QUESTIONS,
+      imageLimits: JEV_IMAGE_LIMITS,
+      imagePrep: JEV_IMAGE_PREP,
+      imagesHeader: JEV_IMAGES_HEADER,
+      yesThreshold: JEV_YES_THRESHOLD,
+    },
     smokeCapSek: 0.1,
   },
 };

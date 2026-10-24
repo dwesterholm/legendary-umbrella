@@ -37,6 +37,23 @@ export const JEV_IMAGES_HEADER = { "TypeSafe-Danger-Zone-Images": "true" } as co
 /** What TypeSafe accepts as a picture (docs.typesafe.ai/images): PNG or JPEG, each side 280 to 1568 pixels. */
 export const JEV_IMAGE_LIMITS = { formats: ["png", "jpeg"], minSidePx: 280, maxSidePx: 1568, upright: true } as const;
 
+/**
+ * How `prepareJevImage` turns a Booli picture into what Jev sees: the floor plan as PNG (thin lines stay sharp), photos as
+ * baseline JPEG at quality 90, a side under the minimum padded with `padBackground` by a resize that keeps the aspect
+ * (`padFit`). The preparation code reads these values, and variant e's version hash covers them, so changing one re-keys the
+ * variant's cache instead of mixing two conditions under one name (WR-08).
+ */
+export const JEV_IMAGE_PREP = {
+  planFormat: "png",
+  photoFormat: "jpeg",
+  jpegQuality: 90,
+  padBackground: "#ffffff",
+  padFit: "contain",
+} as const;
+
+/** A Noul answer at or above this probability is stored as true (the mapping in {@link layoutReadFromJev}); part of variant e's version (WR-08). */
+export const JEV_YES_THRESHOLD = 0.5;
+
 // ---------------------------------------------------------------------------
 // The question set
 // ---------------------------------------------------------------------------
@@ -204,7 +221,7 @@ export function layoutReadFromJev(answers: Readonly<Record<string, unknown>>): L
     const a = answerOf(id);
     if (a.type !== "noul" || typeof a.noul !== "number" || !Number.isFinite(a.noul)) throw new Error(`Jev: ${id} är inte ett ja/nej-svar`);
     noul[id] = clamp01(a.noul);
-    return a.noul >= 0.5;
+    return a.noul >= JEV_YES_THRESHOLD;
   };
 
   const livingOnBalconySide = yes("livingOnBalconySide");
