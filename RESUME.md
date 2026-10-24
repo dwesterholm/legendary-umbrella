@@ -22,11 +22,14 @@ TypeSafe key: Keychain item `typesafe-api-key`, loaded by a block in ~/.zshenv (
   `LAYOUT_INFLUENCE_ENABLED` stays FALSE. Cost/flat: Jev 0,008 kr, Opus 0,511 kr. Only Opus got Folkungagatan 61 all right.
 - Spend: 82 kr Anthropic+Jev of 160; 0 USD Apify.
 
-BOOLI: blocked this Mac THREE times (10-17, 10-18, 10-24 after 35 of 58 flats in a weekly-style run). The live run did
-NOT stop at the first 403 (54 refused pages, each retried) → flagged Critical for the 14.5 code review/fixer. Next
+BOOLI: blocked this Mac THREE times (10-17, 10-18, 10-24 after 35 of 58 flats in a weekly-style run). FIXED 2026-10-24
+(14.5 review CR-01, commit ceca82d): the live/Monday run now stops at Booli's first refused page, skips the rest, exits 2,
+writes `refused weekly-live` to the traffic log and marks the mail "berikning avbruten (Booli)". Tested with fake
+renders only — watch the first real block (14.5-UAT item 7). 14.5 review: 1 critical + 8 warnings → 8 fixed, WR-04
+(Wilson lower bound as the pass rule) left to Daniel (UAT item 5). Next
 Booli traffic allowed 2026-10-25 10:17 UTC. The Monday 07:00 job may hit the same wall.
 
-NEXT: (1) 14.5 code review + verification → fixer → UAT; (2) Daniel: korsdrag option (more two-opposite flats vs
+NEXT: (1) 14.5 re-verification after the fixes (then commit it) — UAT in 14.5-UAT.md (7 items); (2) Daniel: korsdrag option (more two-opposite flats vs
 counting true "ja" for the 12-row minimum), Jev-first cascade (Jev every flat, Opus where Jev abstains) as a
 follow-up, ±12 % vs ±8 %, resume enrichment or not; (3) open UATs: 14.4 items 2/6, 14.6 items 1–2 (area audit:
 0 hits in 33 texts — the readers never fired; 14.6 UAT item 1 answered by data), 14.5 after verification.
