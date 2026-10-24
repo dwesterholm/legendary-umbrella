@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-24",
+  "variant": "c",
+  "version": "864927e4ac41ea06",
+  "model": "claude-opus-5-5",
+  "reads": [
+    {
+      "target": "150148",
+      "status": "read",
+      "errorCode": null,
+      "result": {
+        "balconySide": "street",
+        "livingOnBalconySide": true,
+        "kitchenOnBalconySide": false,
+        "bedroomOnBalconySide": true,
+        "windowSides": "one",
+        "bedroomSide": "street",
+        "streetEvidence": "cars",
+        "confidence": 0.6,
+        "planPresent": true,
+        "balconyConfidence": 0.55,
+        "windowsConfidence": 0.85,
+        "bedroomConfidence": 0.55
+      },
+      "spentSek": 0.6387
+    },
+    {
+      "target": "syntetisk",
+      "status": "cost_cap",
+      "errorCode": null,
+      "result": null,
+      "spentSek": 0
+    }
+  ],
+  "calls": 1,
+  "cacheHits": 0,
+  "spentSek": 0.6387,
+  "totalSpentSek": 0.6387,
+  "smokeCapSek": 1,
+  "httpStatuses": [],
+  "grammar": "ok"
+}
