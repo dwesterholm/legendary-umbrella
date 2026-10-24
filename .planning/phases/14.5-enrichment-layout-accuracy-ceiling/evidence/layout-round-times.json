@@ -6,5 +6,9 @@
   "e": {
     "seconds": 119,
     "source": "klocktid runt kommandot, 59 anrop; räknar med bildhämtningen (en bild i taget, med paus) och uppstart"
+  },
+  "d-sonnet": {
+    "seconds": 373,
+    "source": "klocktid runt kommandot, 58 anrop (ett misslyckades i steg B); räknar med uppstart"
   }
 }

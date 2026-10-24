@@ -1,0 +1,430 @@
+{
+  "source": "variant:d-sonnet",
+  "version": "3b9c223e97f3d524",
+  "truthLocked": true,
+  "lockedAt": "2026-10-24T09:23:11.309Z",
+  "rows": 60,
+  "noRead": 1,
+  "raw": {
+    "balcony": {
+      "decided": 14,
+      "read": 13,
+      "correct": 13,
+      "undecidable": 15
+    },
+    "korsdrag": {
+      "decided": 59,
+      "read": 58,
+      "correct": 45,
+      "undecidable": 1
+    },
+    "bedroom": {
+      "decided": 9,
+      "read": 6,
+      "correct": 6,
+      "undecidable": 51
+    }
+  },
+  "measurability": {
+    "balcony": {
+      "measurable": true,
+      "decided": 14,
+      "reason": null
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decided": 59,
+      "reason": null
+    },
+    "bedroom": {
+      "measurable": false,
+      "decided": 9,
+      "reason": "ej mätbart (n = 9)"
+    }
+  },
+  "sideEvidence": [
+    "cars",
+    "courtyardGreenery"
+  ],
+  "byEvidence": {
+    "dev": [
+      {
+        "evidence": "cars",
+        "balcony": {
+          "n": 1,
+          "correct": 1
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "oppositeFacade",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "courtyardGreenery",
+        "balcony": {
+          "n": 5,
+          "correct": 5
+        },
+        "bedroom": {
+          "n": 3,
+          "correct": 3
+        }
+      },
+      {
+        "evidence": "none",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "evidence": "cars",
+        "balcony": {
+          "n": 2,
+          "correct": 2
+        },
+        "bedroom": {
+          "n": 1,
+          "correct": 1
+        }
+      },
+      {
+        "evidence": "oppositeFacade",
+        "balcony": {
+          "n": 1,
+          "correct": 1
+        },
+        "bedroom": {
+          "n": 1,
+          "correct": 1
+        }
+      },
+      {
+        "evidence": "courtyardGreenery",
+        "balcony": {
+          "n": 3,
+          "correct": 3
+        },
+        "bedroom": {
+          "n": 1,
+          "correct": 1
+        }
+      },
+      {
+        "evidence": "none",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      }
+    ]
+  },
+  "fields": {
+    "balcony": {
+      "measurable": true,
+      "decidedRows": 14,
+      "curveDev": [
+        {
+          "t": 0.5,
+          "nBelieved": 6,
+          "nCorrect": 6,
+          "precision": 1,
+          "low": 0.6096569663469354,
+          "high": 1
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 6,
+          "nCorrect": 6,
+          "precision": 1,
+          "low": 0.6096569663469354,
+          "high": 1
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 5,
+          "nCorrect": 5,
+          "precision": 1,
+          "low": 0.565508505247919,
+          "high": 1
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 5,
+          "nCorrect": 5,
+          "precision": 1,
+          "low": 0.565508505247919,
+          "high": 1
+        },
+        {
+          "t": 0.75,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.82,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        },
+        {
+          "t": 0.85,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        },
+        {
+          "t": 0.9,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        }
+      ],
+      "gate": 0.5,
+      "dev": {
+        "k": 6,
+        "n": 6,
+        "precision": 1,
+        "low": 0.6096569663469354,
+        "high": 1
+      },
+      "holdout": {
+        "k": 5,
+        "n": 5,
+        "precision": 1,
+        "low": 0.565508505247919,
+        "high": 1
+      },
+      "pooled": {
+        "k": 11,
+        "n": 11,
+        "precision": 1,
+        "low": 0.7411599827511859,
+        "high": 1
+      },
+      "allCalls": {
+        "k": 42,
+        "n": 43,
+        "precision": 0.9767441860465116,
+        "low": 0.8794073213878312,
+        "high": 0.9958830188225802
+      },
+      "pass": true,
+      "reason": null
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decidedRows": 59,
+      "curveDev": [
+        {
+          "t": 0.6,
+          "nBelieved": 10,
+          "nCorrect": 3,
+          "precision": 0.3,
+          "low": 0.10778928748621182,
+          "high": 0.6032267800204347
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 10,
+          "nCorrect": 3,
+          "precision": 0.3,
+          "low": 0.10778928748621182,
+          "high": 0.6032267800204347
+        },
+        {
+          "t": 0.75,
+          "nBelieved": 10,
+          "nCorrect": 3,
+          "precision": 0.3,
+          "low": 0.10778928748621182,
+          "high": 0.6032267800204347
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 8,
+          "nCorrect": 3,
+          "precision": 0.375,
+          "low": 0.13684175946152105,
+          "high": 0.6942621454161982
+        },
+        {
+          "t": 0.82,
+          "nBelieved": 6,
+          "nCorrect": 3,
+          "precision": 0.5,
+          "low": 0.1876128068994087,
+          "high": 0.8123871931005913
+        },
+        {
+          "t": 0.85,
+          "nBelieved": 5,
+          "nCorrect": 3,
+          "precision": 0.6,
+          "low": 0.23071993220883702,
+          "high": 0.8823817688407467
+        },
+        {
+          "t": 0.9,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.99,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        }
+      ],
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "allCalls": null,
+      "pass": false,
+      "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+    },
+    "bedroom": {
+      "measurable": false,
+      "decidedRows": 9,
+      "curveDev": [
+        {
+          "t": 0.4,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.45,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.75,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.82,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        },
+        {
+          "t": 0.85,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        }
+      ],
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "allCalls": null,
+      "pass": false,
+      "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+    }
+  },
+  "livingOnBalconySide": {
+    "decided": 27,
+    "read": 27,
+    "correct": 17
+  },
+  "pass": false
+}

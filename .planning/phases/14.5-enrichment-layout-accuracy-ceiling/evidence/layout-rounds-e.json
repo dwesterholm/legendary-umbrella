@@ -80,7 +80,7 @@
   "shortfalls": [
     {
       "field": "korsdrag",
-      "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+      "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar; närmast kravet på dev var 1 av 1 trodda svar vid spärren 0,62"
     }
   ]
 }

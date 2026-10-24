@@ -102,15 +102,40 @@
     {
       "slot": "d",
       "variant": "d-sonnet",
-      "status": "not_run",
-      "spentSek": 0,
-      "fields": null,
-      "pass": null
+      "status": "run",
+      "spentSek": 18.151773999999996,
+      "fields": {
+        "balcony": {
+          "pass": true,
+          "gate": 0.5,
+          "holdout": {
+            "k": 5,
+            "n": 5,
+            "precision": 1,
+            "low": 0.565508505247919,
+            "high": 1
+          },
+          "reason": null
+        },
+        "korsdrag": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "pass": false
     }
   ],
   "winner": null,
   "stop": false,
-  "next": "d-sonnet",
+  "next": null,
   "tierForD": "sonnet",
   "bestByField": {
     "balcony": {
@@ -128,7 +153,7 @@
     "korsdrag": null,
     "bedroom": null
   },
-  "totalSpentSek": 63.886179126,
+  "totalSpentSek": 82.037953126,
   "measurableStop": false,
   "measurablePassing": [],
   "productionCandidate": null,
@@ -225,7 +250,7 @@
         },
         {
           "field": "korsdrag",
-          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar; närmast kravet på dev var 1 av 2 trodda svar vid spärren 0,72"
         }
       ]
     },
@@ -314,7 +339,7 @@
         },
         {
           "field": "korsdrag",
-          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar; närmast kravet på dev var 2 av 2 trodda svar vid spärren 0,75"
         }
       ]
     },
@@ -399,7 +424,92 @@
       "shortfalls": [
         {
           "field": "korsdrag",
-          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar; närmast kravet på dev var 3 av 4 trodda svar vid spärren 0,20"
+        }
+      ]
+    },
+    {
+      "variant": "d-sonnet",
+      "calls": 58,
+      "sekRound": 17.85,
+      "sekPerFlat": 0.3077586206896552,
+      "sekVariantTotal": 18.151773999999996,
+      "secondsRound": 373,
+      "secondsPerFlat": 6.431034482758621,
+      "ran": true,
+      "fields": {
+        "balcony": {
+          "measurable": true,
+          "decidedRows": 14,
+          "gate": 0.5,
+          "dev": {
+            "k": 6,
+            "n": 6,
+            "precision": 1,
+            "low": 0.6096569663469354,
+            "high": 1
+          },
+          "holdout": {
+            "k": 5,
+            "n": 5,
+            "precision": 1,
+            "low": 0.565508505247919,
+            "high": 1
+          },
+          "pooled": {
+            "k": 11,
+            "n": 11,
+            "precision": 1,
+            "low": 0.7411599827511859,
+            "high": 1
+          },
+          "pass": true,
+          "reason": null
+        },
+        "korsdrag": {
+          "measurable": true,
+          "decidedRows": 59,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "measurable": false,
+          "decidedRows": 9,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "raw": {
+        "balcony": {
+          "correct": 13,
+          "read": 13,
+          "decided": 14
+        },
+        "korsdrag": {
+          "correct": 45,
+          "read": 58,
+          "decided": 59
+        },
+        "bedroom": {
+          "correct": 6,
+          "read": 6,
+          "decided": 9
+        }
+      },
+      "passMeasurable": false,
+      "passAll": false,
+      "shortfalls": [
+        {
+          "field": "korsdrag",
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar; närmast kravet på dev var 2 av 2 trodda svar vid spärren 0,90"
         }
       ]
     },
@@ -484,7 +594,7 @@
       "shortfalls": [
         {
           "field": "korsdrag",
-          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar; närmast kravet på dev var 1 av 1 trodda svar vid spärren 0,62"
         }
       ]
     }
@@ -513,6 +623,17 @@
       "windowSides": "one",
       "bedroomSide": "street",
       "confidence": 0.6,
+      "fieldConfidence": {
+        "balcony": 0.55,
+        "windows": 0.85,
+        "bedroom": 0.55
+      }
+    },
+    "d-sonnet": {
+      "balconySide": "street",
+      "windowSides": "corner",
+      "bedroomSide": "street",
+      "confidence": 0.55,
       "fieldConfidence": {
         "balcony": 0.55,
         "windows": 0.85,
