@@ -536,7 +536,7 @@ describe("constants of the truth set", () => {
     expect(TRUTH_SEED).toBe("14.5");
     expect(F61_BOOLI_ID).toBe(150148);
     expect(TRUTH_SET_MIN_ROWS).toBe(25);
-    expect(TRUTH_SET_MAX_ROWS).toBe(45);
+    expect(TRUTH_SET_MAX_ROWS).toBe(60);
   });
 });
 
@@ -652,12 +652,12 @@ describe("selectTruthSet", () => {
     expect(out.find((r) => r.booliId === 1)?.inSet).toBe(true);
   });
 
-  it("caps the set at 45 rows, keeping Folkungagatan 61 and the decided-side rows before window-only rows", () => {
+  it("caps the set at 60 rows, keeping Folkungagatan 61 and the decided-side rows before window-only rows", () => {
     const out = selectTruthSet(bigFile(120), "14.5");
     const inSet = out.filter((r) => r.inSet);
     expect(inSet).toHaveLength(TRUTH_SET_MAX_ROWS);
     expect(inSet.some((r) => r.booliId === 150148)).toBe(true);
-    // 120 judged rows hold more than 44 side-decided rows, so no window-only row can be in the set
+    // 120 judged rows hold more than 59 side-decided rows, so no window-only row can be in the set
     expect(inSet.every((r) => r.booliId === 150148 || r.balconySide === "street" || r.balconySide === "courtyard" || r.bedroomSide !== "undecidable")).toBe(true);
   });
 
@@ -734,7 +734,7 @@ describe("rowsHashOf", () => {
 describe("lockTruthFile", () => {
   const NOW = "2026-10-17T16:30:00.000Z";
   const procedure = "Så bedöms en lägenhet.";
-  const locked = lockTruthFile(bigFile(60), { seed: "14.5", procedureText: procedure, now: NOW });
+  const locked = lockTruthFile(bigFile(90), { seed: "14.5", procedureText: procedure, now: NOW });
 
   it("writes the lock fields, the split, the order and the triage counts", () => {
     expect(locked.lockedAt).toBe(NOW);
@@ -742,10 +742,10 @@ describe("lockTruthFile", () => {
     expect(locked.rowsHash).toBe(rowsHashOf(locked.rows));
     expect(locked.procedureHash).toBe(createHash("sha256").update(procedure).digest("hex").slice(0, 16));
     expect(locked.selectionRule).toMatch(/\S/);
-    expect(locked.triage).toMatchObject({ judged: 60, unavailable: 0 });
-    // over all judged rows, not only the set: i % 4 in {0,1} are street/courtyard of 60 -> 30
-    expect(locked.triage?.balconyDecided).toBe(30);
-    expect(locked.rows.filter((r) => r.inSet)).toHaveLength(45);
+    expect(locked.triage).toMatchObject({ judged: 90, unavailable: 0 });
+    // over all judged rows, not only the set: i % 4 in {0,1} are street/courtyard of 90 -> 45
+    expect(locked.triage?.balconyDecided).toBe(45);
+    expect(locked.rows.filter((r) => r.inSet)).toHaveLength(TRUTH_SET_MAX_ROWS);
     expect(locked.rows.find((r) => r.booliId === 150148)?.split).toBe("holdout");
   });
 
@@ -767,7 +767,7 @@ describe("lockTruthFile", () => {
 
 describe("validateTruthFile", () => {
   const NOW = "2026-10-17T16:30:00.000Z";
-  const locked = () => lockTruthFile(bigFile(60), { seed: "14.5", procedureText: "p", now: NOW });
+  const locked = () => lockTruthFile(bigFile(90), { seed: "14.5", procedureText: "p", now: NOW });
   const err = (f: TruthFile, requireLocked = false) => validateTruthFile(f, { requireLocked }).error;
 
   it("accepts the unlocked fixture, and refuses it with requireLocked", () => {
@@ -803,7 +803,7 @@ describe("validateTruthFile", () => {
     expect(err(moved)).toMatch(/hash/i);
   });
 
-  it("a locked file needs 25 to 45 rows in the set, Folkungagatan 61 in the holdout and both halves non-empty", () => {
+  it("a locked file needs 25 to 60 rows in the set, Folkungagatan 61 in the holdout and both halves non-empty", () => {
     const f = locked();
     // hash recomputed so only the rule under test fails
     const rehash = (rows: TruthRow[]): TruthFile => ({ ...f, rows, rowsHash: rowsHashOf(rows) });

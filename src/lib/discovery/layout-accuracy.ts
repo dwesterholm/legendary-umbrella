@@ -770,8 +770,8 @@ export function renderAccuracyMd(report: AccuracyReport): string {
 export const TRUTH_SEED = "14.5";
 /** Fewer rows in the set than this and the file cannot be locked: the research asked for at least 25 judged flats (D-09). */
 export const TRUTH_SET_MIN_ROWS = 25;
-/** The cap keeps one Opus round under 40 kr at about 0,6 to 0,8 kr per flat (D-13). */
-export const TRUTH_SET_MAX_ROWS = 45;
+/** The cap keeps one Opus round under 40 kr at about 0,5 kr per flat (D-13); raised from 45 to 60 by R-11 (14.5-CONTEXT), because the cheap Jev round makes 60 flats affordable and a bigger pool gives each field a chance to reach 12 decided rows. */
+export const TRUTH_SET_MAX_ROWS = 60;
 /** Folkungagatan 61: the one flat with a known truth (row 1 of the file, forced into the holdout). */
 export const F61_BOOLI_ID = 150148;
 
