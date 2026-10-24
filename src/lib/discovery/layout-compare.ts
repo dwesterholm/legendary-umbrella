@@ -81,8 +81,13 @@ export interface Comparison {
   unmeasurableFields: AccuracyField[];
   /** Variants that pass every measurable field. */
   measurablePassing: string[];
-  /** The cheapest per flat among those; null when none passes. */
+  /**
+   * The cheapest per flat among those that pass AND have a measured cost; null when none passes or none has a measured cost
+   * (WR-05: a variant whose cost is unknown is never called cheapest).
+   */
   productionCandidate: string | null;
+  /** Variants that pass every measurable field but have no measured cost per flat; they are left out of the candidate choice. */
+  costUnmeasuredPassing: string[];
   /** The first column passing all three fields; null when none does. */
   strictWinner: string | null;
   totalSpentSek: number;
@@ -199,10 +204,15 @@ export function compareVariants(inputs: readonly CompareInput[]): Comparison {
   const unmeasurableFields = firstRun?.fields ? ACCURACY_FIELDS.filter((f) => !firstRun.fields?.[f].measurable) : [];
   const passing = columns.filter((c) => c.passMeasurable === true);
   let candidate: CompareColumn | null = null;
+  const costUnmeasuredPassing: string[] = [];
   for (const c of passing) {
-    const cost = c.sekPerFlat ?? Number.POSITIVE_INFINITY;
-    const best = candidate?.sekPerFlat ?? Number.POSITIVE_INFINITY;
-    if (candidate === null || cost < best) candidate = c;
+    // WR-05: no parsed round log means no cost; such a column is not "cheapest" by default (it used to be priced as infinite
+    // and still won when it was alone or first).
+    if (c.sekPerFlat === null) {
+      costUnmeasuredPassing.push(c.variant);
+      continue;
+    }
+    if (candidate === null || c.sekPerFlat < (candidate.sekPerFlat as number)) candidate = c;
   }
   const strict = columns.find((c) => c.passAll === true) ?? null;
   const totalSpentSek = columns.reduce((sum, c) => sum + (Number.isFinite(c.sekVariantTotal) && c.sekVariantTotal > 0 ? c.sekVariantTotal : 0), 0);
@@ -212,6 +222,7 @@ export function compareVariants(inputs: readonly CompareInput[]): Comparison {
     unmeasurableFields,
     measurablePassing: passing.map((c) => c.variant),
     productionCandidate: candidate?.variant ?? null,
+    costUnmeasuredPassing,
     strictWinner: strict?.variant ?? null,
     totalSpentSek,
   };
@@ -279,9 +290,18 @@ export function renderComparisonMd(c: Comparison): string {
   if (c.measurablePassing.length === 0) {
     out.push(`Klarar alla mätbara fält: ingen.`);
   } else {
-    out.push(
-      `Klarar alla mätbara fält: ${c.measurablePassing.join(", ")}. Billigast per lägenhet av dem, och därmed produktionskandidat enligt R-10: ${c.productionCandidate ?? "ingen"}.`,
-    );
+    if (c.productionCandidate === null) {
+      out.push(
+        `Klarar alla mätbara fält: ${c.measurablePassing.join(", ")}. Kostnad ej mätt för de som klarar kraven (${c.costUnmeasuredPassing.join(", ")}), så ingen produktionskandidat enligt R-10 kan väljas.`,
+      );
+    } else {
+      out.push(
+        `Klarar alla mätbara fält: ${c.measurablePassing.join(", ")}. Billigast per lägenhet av dem, och därmed produktionskandidat enligt R-10: ${c.productionCandidate}.`,
+      );
+      if (c.costUnmeasuredPassing.length > 0) {
+        out.push(`Kostnad ej mätt för ${c.costUnmeasuredPassing.join(", ")}; de ingår inte i jämförelsen av kostnad.`);
+      }
+    }
   }
   out.push("");
   for (const col of cols) {

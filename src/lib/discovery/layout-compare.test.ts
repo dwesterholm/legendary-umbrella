@@ -106,6 +106,38 @@ describe("compareVariants", () => {
     expect(c.productionCandidate).toBe("a");
   });
 
+  it("a passing variant with no measured cost is never called cheapest, even when alone or first (WR-05)", () => {
+    const alone = compareVariants([{ variant: "e", report: report("variant:e", {}), variantSek: 0.5, stats: null }]);
+    expect(alone.measurablePassing).toEqual(["e"]);
+    expect(alone.productionCandidate).toBeNull();
+    expect(alone.costUnmeasuredPassing).toEqual(["e"]);
+
+    const first = compareVariants([
+      { variant: "a", report: report("variant:a", {}), variantSek: 15, stats: null },
+      { variant: "c", report: report("variant:c", {}), variantSek: 36, stats: stats(60, 36) },
+    ]);
+    expect(first.productionCandidate).toBe("c");
+    expect(first.costUnmeasuredPassing).toEqual(["a"]);
+
+    // a log line with zero live calls (everything came from the cache) gives no per-flat cost either
+    const cached = compareVariants([{ variant: "b", report: report("variant:b", {}), variantSek: 17, stats: stats(0, 0) }]);
+    expect(cached.productionCandidate).toBeNull();
+  });
+
+  it("the markdown says the cost was not measured instead of naming a cheapest variant (WR-05)", () => {
+    const md = renderComparisonMd(compareVariants([{ variant: "e", report: report("variant:e", {}), variantSek: 0.5, stats: null }]));
+    expect(md).toContain("Kostnad ej mätt för de som klarar kraven (e)");
+    expect(md).not.toContain("Billigast per lägenhet");
+    const some = renderComparisonMd(
+      compareVariants([
+        { variant: "a", report: report("variant:a", {}), variantSek: 15, stats: null },
+        { variant: "c", report: report("variant:c", {}), variantSek: 36, stats: stats(60, 36) },
+      ]),
+    );
+    expect(some).toContain("produktionskandidat enligt R-10: c.");
+    expect(some).toContain("Kostnad ej mätt för a");
+  });
+
   it("names the failing field and how far under 75 % it is", () => {
     const failing = field({ pass: false, holdout: prec(4, 6), reason: "holdout-precisionen 4 av 6 (67 %) vid spärren 0,20 är under 75 %" });
     const c = compareVariants([{ variant: "b", report: report("variant:b", { balcony: failing }), variantSek: 17, stats: stats(59, 16.79) }]);
