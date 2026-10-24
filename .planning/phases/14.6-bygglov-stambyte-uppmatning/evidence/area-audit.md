@@ -27,6 +27,6 @@ Alla missar i arealäsaren blir "ingenting" eller en svagare källa, aldrig en f
 
 ## Live-mätning
 
-Ingen live-körning med mäklartext än. Ingen av 14.5:s loggar (`ceiling-live-run.log` finns inte, och inga loggar under `.planning/calibration/data` innehåller en "Areakälla:"-rad) har täckningsraden.
+Första live-körningen med mäklartext och `--area-audit` gjordes 2026-10-24 (fas 14.5, plan 13). Booli utmanade webbläsaren efter 35 av 58 detaljsidor, så 33 texter kunde granskas i stället för 40. Resultat, bara antal: arealäsaren fick 0 träffar och 0 sedda missar, eftersom ingen av de 33 texterna angav en källa för boarean (9 skrev ut en mening med ett nyckelord, alla 9 var lagtext eller en kort notering och lästes rätt som "okänd"; 24 hade ingen areamening). Raden i körningen: "Areakälla: angiven i 0 av 33 lästa beskrivningar". Stambytesläsaren kan inte granskas med `--area-audit`, som inte skriver ut stambytesmeningar. Detaljer: `.planning/phases/14.5-enrichment-layout-accuracy-ceiling/evidence/area-audit-live.md`.
 
-Tills dess står Area-kolumnen som "okänd" för varje kandidat, och uppsidan i kr visas bara för de källor som inte är en uppmätning i hus byggda före 1987.
+Area-kolumnen är fortfarande "okänd" för varje kandidat. Förhandstalen ovan är ännu inte prövade mot en enda riktig areamening.

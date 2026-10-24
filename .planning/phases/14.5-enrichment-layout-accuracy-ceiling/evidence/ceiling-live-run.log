@@ -1,0 +1,1431 @@
+Renderare: lokal webbläsare
+APIFY_API_TOKEN: satt
+ANTHROPIC_API_KEY: satt
+Bildtolkning: avstängd (--no-vision)
+Lokal webbläsare: Apify-kontrollerna (token, minne, månadsutrymme) hoppas över, inga Apify-anrop görs.
+OSM-cache: 10,8 dagar gammal, ingen hämtning (gräns 31 dagar)
+Sol: OSM-cache 10,8 dagar gammal (OSM-tid 2026-10-13T15:13:51Z), 15415 byggnader, 1900 gator, höjd orimlig 11 (ersatt med uppskattning)
+Planlösning: avstängd (ingen bildtolkning)
+
+Start: 2026-10-24T10:09:17.889Z
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 1 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 2 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 173 listings for area 115348 (5 renders)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 7 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 8 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 9 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 10 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 11 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 12 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 13 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 425 listings for area 115341 (13 renders)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 7 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 8 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 9 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 10 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 11 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 12 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 13 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 14 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 478 listings for area 115349 (14 renders)
+[booli-client] fetchAreaListings page 3 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 4 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 5 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 6 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 7 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 8 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 9 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 10 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 11 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 12 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 13 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings page 14 served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchAreaListings collected 471 listings for area 115353 (14 renders)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] <länk> → HTTP 429
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] <länk> → HTTP 403
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-client] fetchListing served by rung 1 (own-playwright, health=ok)
+[broker] refused second redirect for <länk>
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:541:9)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:541:9)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[booli-client] rung 1 (own-playwright) failed NonRetryableRenderError: Kunde inte hamta data fran Booli (lokal webblasare). Forsok igen.
+    at render (src/lib/booli/local-browser.ts:614:11)
+    at async walkFallbackTree (src/lib/booli/fallback-tree.ts:58:20)
+    at async Object.fetchListing (src/lib/booli/client.ts:619:18)
+    at async readOne (src/lib/discovery/watch-enrich.ts:202:19)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:282:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24)
+    at async runFitPipeline (src/lib/discovery/fit-pipeline.ts:372:9) {
+  nonRetryable: true
+}
+[watch-enrich] detail failed (non-fatal) { code: 'Error' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:541:9)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:541:9)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:541:9)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 1)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3)
+    at async enrichAllCandidates (src/lib/discovery/watch-enrich.ts:305:3)
+    at async Object.enrich (src/lib/discovery/fit-pipeline.ts:207:24) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[booli-local] ChallengeError: Booli utmanade den lokala webblasaren (HTTP 403)
+    at attempt (src/lib/booli/local-browser.ts:546:56)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:541:9)
+    at async render (src/lib/booli/local-browser.ts:584:16)
+    at async fetchBrfText (src/lib/booli/brf-page.ts:117:17)
+    at async fetchBrfFacts (src/lib/booli/brf-page.ts:130:23)
+    at async Array.<anonymous> (src/lib/discovery/watch-enrich.ts:312:21)
+    at async worker (src/lib/booli/slutpriser.ts:474:52)
+    at async Promise.all (index 0)
+    at async runPool (src/lib/booli/slutpriser.ts:480:3) {
+  status: 403,
+  marker: 'HTTP 403'
+}
+[watch-enrich] BRF page failed (non-fatal) { code: 'NonRetryableRenderError' }
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 236 kB, 3,2 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 155 kB, 3,0 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 111 kB, 3,0 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,4 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 146 kB, 3,2 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1297828 HTTP 200, 31 kB, 1,9 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,6 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 175 kB, 2,9 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 212 kB, 3,0 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1300539 HTTP 200, 48 kB, 0,4 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1279087 HTTP 200, 47 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 91 kB, 2,9 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 93 kB, 2,9 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 238 kB, 3,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 88 kB, 3,1 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 103 kB, 2,8 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1242822 HTTP 200, 41 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 453 kB, 5,0 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,4 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 99 kB, 2,8 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 577 kB, 3,7 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1320112 HTTP 200, 37 kB, 0,5 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1302373 HTTP 200, 74 kB, 0,4 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1283984 HTTP 200, 42 kB, 0,4 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 79 kB, 2,8 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 233 kB, 3,2 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1320191 HTTP 200, 36 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/arende/arende/1233633 HTTP 200, 39 kB, 0,4 s
+[stockholm] etjanster.stockholm.se/Byggochplantjansten/CaseSearch/AddressSearch HTTP 200, 1 kB, 0,3 s
+[stockholm] etjanster.stockholm.se/byggochplantjansten/arendeochhandlingar HTTP 200, 152 kB, 3,1 s
+Stadens ärendelista: fastighetsbeteckning 35 av 35 (a 0, a2 1, b 34, c 0), ärendelista läst 34, detaljsidor 9, anrop 33, ej nådda 0
+Modell per 2026-10-12: n 7381, R² 0.62, storlek 35–120 kvm, renoband mid
+Budpremie skick: ej mätt (prior 0): korsvalidering förkastade termen (0,06408 -> 0,06413, skattning -0,0080). corr(skick, utgångspris/modell) = 0,17; en effekt under ≈ 2 pp kan inte ses med n = 186.
+OBS: Storlek: koefficienten tas från data (beslut D-10, 2026-10-18). Riktningsregeln för storlek (större = billigare per kvm) togs bort vid ominpassningen 2026-10-18 (granskningsfynd WR-06 i 14.1), eftersom försäljningarna visar att större innerstadslägenheter kostar MER per kvm (koefficient 0,0404, SE 0,0055, t = 7,3, härledd ur marknaden), och regeln nollställde den säkraste koefficienten i modellen. Mätt på försäljningar sedan 2026-07-12, då alla storlekar finns sida vid sida: 60-80 kvm +3,4 % och 80-120 kvm +4,9 % mot 35-40 kvm. Mellan 35 och 50 kvm är effekten nära noll (40-45 kvm +0,9 %, 45-50 kvm -0,1 %), så för lägenheter i den storleken ändras priserna lite; för 60-120 kvm höjs modellpriset märkbart. Daniel kan ändra beslutet D-10 genom att återställa riktningsregeln och passa om modellen. Avgift per kvm och månad och föreningsskuld per kvm kommer från Booli-sidor för sålda lägenheter (sålda från 2025-10-14): avgift känd för 3 880 försäljningar, skuld för 2 329 (649 föreningar); övriga försäljningar läggs på medelvärdet av de kända och påverkar därför inte koefficienten. Föreningsskulden är föreningens senaste årsredovisning, inte siffran vid försäljningen. Tomträtt kan inte skattas (ingen variation i underlaget) och är nollställd. Dagar på marknaden i budpremien: används (med: korsvalidering 0,0747 -> 0,0728). Kandidatens dagar ute är hittills, inte slutliga; det ger långa annonser en något högre premie (dokumenterat, ej korrigerat). Skick i budpremien: används inte, budpremien säger "skick ej mätt" (korsvalidering förkastade termen (0,06408 -> 0,06413, skattning -0,0080). corr(skick, utgångspris/modell) = 0,17; en effekt under ≈ 2 pp kan inte ses med n = 186.)
+Områden:
+  Södermalm: 425 av 427 annonser (13 sidor, komplett)
+  Östermalm: 173 av 173 annonser (5 sidor, komplett)
+  Vasastan: 478 av 480 annonser (14 sidor, komplett)
+  Kungsholmen: 471 av 476 annonser (14 sidor, komplett)
+Kungsholmen: med
+Kandidatlista: komplett
+
+Annonser: 1547 hämtade, 1546 efter dubblettstädning, 59 efter filter (lägenhet, >= 35 kvm, utgångspris <= 4 000 000 kr); 58 jämförbara, 1 ej jämförbara
+Sol: beräknat för 59 rader på 492 ms
+
+Bildfönster (58 annonser, i förrank-ordning; länkar finns bara i tabellen):
+  Förrank 1: Fyrverkarbacken 23 (Booli 348715, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 2: Klippgatan 14E (Booli 635120, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 3: Sankt Göransgatan 102 (Booli 68677, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 4: Kungsholmsgatan 9 (Booli 642188, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 5: Kristinehovsgatan 5B (Booli 3950798, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 6: Hagaesplanaden 63 (Booli 4314237, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 7: Ola Hanssonsgatan 4 (Booli 372080, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 8: Reimersholmsgatan 39 (Booli 3958359, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 9: Erstagatan 21 (Booli 4309411, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 10: Hagaesplanaden 73 (Booli 4515291, Vasastan) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 11: Kungsklippan 20 (Booli 6282457, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 12: Kungsklippan 14 (Booli 308450, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 13: Kungsbro Strand 19 (Booli 6271664, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 14: Love Almqvists väg 4B (Booli 6187084, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 15: Sysslomansgatan 22 (Booli 759101, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 16: Fleminggatan 109 (Booli 83448, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 17: Timotejgatan 8 (Booli 565980, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 18: Grindsgatan 29 (Booli 322398, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 19: Sankt Eriksgatan 41 (Booli 3960625, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 20: Wennerbergsgatan 6A (Booli 6282708, Kungsholmen) | detaljsida hämtad | orientering angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 21: Stagneliusvägen 23 (Booli 745297, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 22: Blekingegatan 36 (Booli 6187784, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 23: Tegelviksgatan 69 (Booli 764543, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 24: Skånegatan 105B (Booli 3950193, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 25: Blekingegatan 36 (Booli 6286736, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 26: Krukmakargatan 62 (Booli 6291120, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 27: Sankt Göransgatan 146 (Booli 3960738, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 28: Tobaksspinnargatan 10 (Booli 768792, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 29: Bergsundsgatan 14 (Booli 323721, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 30: Runiusgatan 7 (Booli 712675, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 31: Lidnersgatan 6 (Booli 655315, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 32: Flintbacken 10 (Booli 6314940, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 33: Tjurbergsgatan 34 (Booli 324812, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 34: Kristinebergsvägen 3 (Booli 6233823, Kungsholmen) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 35: Östgötagatan 75 (Booli 799114, Södermalm) | detaljsida hämtad | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 36: Tegelviksgatan 18 (Booli 4538398, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 37: Flintbacken 4 (Booli 6322689, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 38: Wollmar Yxkullsgatan 40 (Booli 795750, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 39: Bergsunds Strand 42 (Booli 3892935, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 40: Brännkyrkagatan 95A (Booli 594769, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 41: Igeldammsgatan 14 (Booli 6321955, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 42: Fridhemsgatan 29B (Booli 144160, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 43: Vickergatan 3 (Booli 786892, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 44: Dalslandsgatan 3 (Booli 586375, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 45: Liljeholmsbron 8 (Booli 6265111, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 46: Creutzgatan 2 (Booli 208640, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 47: Södermannagatan 21 (Booli 761515, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 48: Heleneborgsgatan 36B (Booli 804932, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 49: Creutzgatan 2 (Booli 6300564, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 50: Kristinebergsvägen 18 (Booli 393863, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 51: Vitalisvägen 11 (Booli 790429, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 52: Atterbomsvägen 58 (Booli 5514709, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 53: Flintbacken 4 (Booli 6216222, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 54: Ljusterögatan 3 (Booli 3952637, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 55: Maria Skolgata 87 (Booli 4395164, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 56: Kocksgatan 51 (Booli 142687, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 57: Creutzgatan 7 (Booli 393008, Kungsholmen) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+  Förrank 58: Helgagatan 36A (Booli 4095669, Södermalm) | detaljsida misslyckades | orientering ej angiven | solfras nej | ingen bildtolkning (ej körd)
+Fönsterutfall: detaljsida hämtad 35/58, orientering angiven 1/58, solfraser 0/58, bildtolkning med påståenden 0/58, hoppade över: inga
+
+Täckning (58 annonser): detaljsida 35 av 58 (60,3 %), balkong känd 38 av 58 (65,5 %), skick känt 0 av 58 (0,0 %), beskrivning läst 33 av 58 (56,9 %), sol/orientering angiven 3 av 58 (5,2 %), avgift 58 av 58 (100,0 %), upplåtelseform 35 av 58 (60,3 %), föreningsskuld känd 0 av 58 (0,0 %), sol härledd 57 av 58 (98,3 %), anledning på flaggade rader: 12 förklarade, 8 oförklarat fynd av 20
+Takhöjd: angiven i 1 av 33 lästa beskrivningar (högt i tak utan siffra 1)
+Areakälla: angiven i 0 av 33 lästa beskrivningar (uppmätt 0, föreningen 0, ekonomisk plan 0, lägenhetsregistret 0, säljaren 0, ej kontrollmätt 0)
+Smak: 5 %-taket nås av 0 av 58 rader
+Residualflagga (ovanligt långt under modellpris): 2 av 58 jämförbara (bas förv. slutpris); med bas utgångspris: 12
+BRF-sidor: 0 av 31 lästa, 31 misslyckades
+Sol (58 annonser): fasad härledd 57 av 58 (98,3 %)
+  källa: angiven 1, planritning 0, fastighet/gata 56, okänd 1
+  säkerhet >= 0,70: 50 av 57
+  okänd, anledningar: ingen gata med samma namn inom 35 m 1
+  hörn: 2, konflikt: 0
+  skugga beräknad 53 av 58 (höjd uppskattad: 37)
+  ±1 h (full dag, spann högst 2,0 h, minst 1,0 h teoretisk sol): mar 41 av 47 (87,2 %), jun 41 av 53 (77,4 %), sep 43 av 49 (87,8 %), dec 37 av 40 (92,5 %)
+  en våning lägre (> 1,0 h skillnad i fönstret): mar 4 av 47, jun 1 av 53, sep 4 av 49, dec 3 av 40
+  angiven mot gata: Wennerbergsgatan 6A: angiven V, gata Ö 93,7°, gård V 273,7°
+  planritning: 0 av 11 planer med verklig kompass (modellen läste 6 av 11, 54,5 %, men alla 6 är ytterdörrspilar), väg stängd, 2026-10-13; överensstämmelse med fastighet/gata: ej beräkningsbar (väg stängd)
+  Kartdata: © OpenStreetMap contributors, ODbL
+
+Förväntat under 4 M (23 annonser)
+# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor | Varför här | Länk
+4 | 1 | Fyrverkarbacken 23 | Kungsholmen | 43 | 12 | 2 995 000 | +11,4 % (distrikt+pris+dagar, skick ej mätt) | 3 337 329 | 4 695 745 | 1 358 416 | mid 105 000 (70 000–140 000) | 1 288 211 | 34 795 | N gata/S gård (fastighet/gata, 0,76) | 1,6/3,4/0,0 | 0,0 (0,0–0,0) / 1,6 (1,6–1,6) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | dold-defekt-risk, ovanligt långt under modellpris, reno okänd | ovanligt långt under modellpris: förv. slutpris -23,1 % mot modellen (gräns -20,4 %), skillnad 1 358 416 kr; avgift och föreningsskuld redan i värderingen | <länk>
+5 | 4 | Kungsholmsgatan 9 | Kungsholmen | 38.5 | 8 | 3 795 000 | +2,1 % (distrikt+pris+dagar, skick ej mätt) | 3 873 895 | 5 111 683 | 1 237 787 | mid 105 000 (70 000–140 000) | 1 243 710 | 110 923 | N gata/S gård (fastighet/gata, 1,00) | 0,9/2,8/0,0 | 0,9 (0,5–0,9) / 2,8 (2,8–2,8) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | - | okänd | dold-defekt-risk, reno okänd | prissänkt 605 000 kr, ute i 244 dagar, hög avgift (1 572 kr/kvm/år mot 967 i Kungsholmen) (redan i värderingen) | <länk>
+7 | 7 | Ola Hanssonsgatan 4 | Kungsholmen | 50 | 1 | 3 350 000 | +9,2 % (distrikt+pris+dagar, skick ej mätt) | 3 657 689 | 4 775 737 | 1 118 048 | mid 105 000 (70 000–140 000) | 1 048 117 | 35 070 | V gata/Ö gård (fastighet/gata, 0,80) | 2,0/1,3/1,6 | 2,0 (2,0–2,0) / 1,3 (1,3–1,3) / 0,5 (0,5–0,5) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | dold-defekt-risk, reno okänd | budgivning pågår | <länk>
+8 | 16 | Fleminggatan 109 | Kungsholmen | 35 | 4 | 3 495 000 | +11,1 % (distrikt+pris+dagar, skick ej mätt) | 3 881 781 | 4 821 453 | 939 672 | mid 105 000 (70 000–140 000) | 966 867 | 132 195 | N gata/S gård (fastighet/gata, 0,80) | 0,9/2,8/0,0 | 0,7 (0,6–0,8) / 2,8 (2,5–2,8) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | balkong 2025-06, balkong 2024-05 | okänd | dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+11 | 12 | Kungsklippan 14 | Kungsholmen | 36.5 | 4 | 3 200 000 | +19,5 % (distrikt+pris+dagar, skick ej mätt) | 3 824 862 | 4 726 702 | 901 840 | mid 105 000 (70 000–140 000) | 886 480 | 89 640 | Ö gata/V gård (fastighet/gata, 0,84) | 6,6/7,4/3,8 | 2,8 (2,8–2,8) / 3,7 (3,2–4,3) / 2,3 (0,6–3,3) usäker | okänd | okänd | okänd | pågår | - | okänd | dold-defekt-risk, reno okänd | hög avgift (1 589 kr/kvm/år mot 967 i Kungsholmen) (redan i värderingen), stambyte pågår | <länk>
+14 | 14 | Love Almqvists väg 4B | Kungsholmen | 44 | 4 | 3 495 000 | +8,6 % (distrikt+pris+dagar, skick ej mätt) | 3 795 803 | 4 678 575 | 882 772 | mid 105 000 (70 000–140 000) | 817 072 | 39 300 | S gata/N gård (fastighet/gata, 0,80) | 7,7/5,8/5,7 | 7,7 (7,7–7,7) / 5,8 (5,8–5,8) / 4,8 (2,4–5,7) usäker höjd uppskattad | okänd | okänd | okänd | okänd | balkongdörr 2022-10 | okänd | dold-defekt-risk, reno okänd | budgivning pågår | <länk>
+17 | 15 | Sysslomansgatan 22 | Kungsholmen | 35 | 5 | 3 495 000 | +10,5 % (distrikt+pris+dagar, skick ej mätt) | 3 860 540 | 4 590 046 | 729 506 | mid 105 000 (70 000–140 000) | 741 246 | 116 740 | Ö gata/V gård (fastighet/gata, 0,60) hörn | 7,0/7,7/4,1 | 6,5 (6,4–6,8) / 7,2 (7,1–7,6) / 1,3 (1,3–1,7) höjd uppskattad | okänd | okänd | okänd | 2016 (ansökt) | - | okänd | dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+20 | 19 | Sankt Eriksgatan 41 | Kungsholmen | 35 | 1 | 3 150 000 | +18,6 % (distrikt+pris+dagar, skick ej mätt) | 3 735 688 | 4 337 004 | 601 316 | mid 105 000 (70 000–140 000) | 614 127 | 117 811 | Ö gata/V gård (fastighet/gata, 1,00) | 6,7/7,4/3,8 | 3,2 (2,8–3,7) / 5,6 (4,9–6,4) / 0,7 (0,5–1,1) höjd uppskattad | okänd | okänd | okänd | 2001 (ansökt) | - | okänd | dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+21 | 8 | Reimersholmsgatan 39 | Södermalm | 46.5 | -1 | 3 395 000 | +6,5 % (distrikt+pris+dagar, skick ej mätt) | 3 617 059 | 4 323 729 | 706 671 | mid 105 000 (70 000–140 000) | 601 671 | 0 | okänd | - | - | okänd | okänd | okänd | okänd | Balkonger beviljade 2026-04, ej slutbesked, inglasning 2024-11, inglasning 2024-10 | okänd | reno okänd | ute i 364 dagar, hög avgift (1 039 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+29 | 32 | Flintbacken 10 | Södermalm | 36 | 5 | 2 950 000 | +16,7 % (distrikt+pris+dagar, skick ej mätt) | 3 442 704 | 3 959 253 | 516 549 | mid 105 000 (70 000–140 000) | 446 390 | 34 841 | Ö gata/V gård (fastighet/gata, 0,88) | 5,4/6,5/2,2 | 3,6 (3,1–4,0) / 6,5 (6,5–6,5) / 0,4 (0,2–1,1) | okänd | okänd | okänd | 2016 (ansökt) | Balkonger beviljade 2026-05, ej slutbesked, inglasning 2022-02 | okänd | dold-defekt-risk, reno okänd | ingen hiss angiven (vån 5) | <länk>
+30 | 30 | Runiusgatan 7 | Kungsholmen | 38 | 3 | 2 995 000 | +10,0 % (distrikt+pris+dagar, skick ej mätt) | 3 293 243 | 3 776 349 | 483 106 | mid 105 000 (70 000–140 000) | 429 005 | 50 899 | V gata/Ö gård (fastighet/gata, 1,00) | 1,8/1,2/1,3 | 1,8 (1,8–1,8) / 1,2 (1,2–1,2) / 0,3 (0,2–0,8) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | reno okänd | - | <länk>
+31 | 34 | Kristinebergsvägen 3 | Kungsholmen | 41 | 2.5 | 3 495 000 | +2,8 % (distrikt+pris+dagar, skick ej mätt) | 3 591 290 | 4 081 601 | 490 311 | mid 105 000 (70 000–140 000) | 427 501 | 42 191 | V gata/Ö gård (fastighet/gata, 1,00) | 0,2/0,0/0,0 | 0,2 (0,2–0,2) / 0,0 (0,0–0,0) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | 1990 (ansökt) | - | okänd | reno okänd | budgivning pågår, prissänkt 200 000 kr, ute i 64 dagar | <länk>
+32 | 28 | Tobaksspinnargatan 10 | Södermalm | 38 | 1.5 | 3 495 000 | +13,7 % (distrikt+pris+dagar, skick ej mätt) | 3 972 241 | 4 457 008 | 484 767 | mid 105 000 (70 000–140 000) | 426 959 | 47 192 | Ö gata/V gård (fastighet/gata, 1,00) | 5,1/6,2/1,8 | 3,6 (3,1–3,6) / 3,2 (2,9–3,8) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | - | okänd | reno okänd | - | <länk>
+33 | 31 | Lidnersgatan 6 | Kungsholmen | 43 | 0.5 | 3 495 000 | +2,4 % (distrikt+pris+dagar, skick ej mätt) | 3 578 032 | 4 058 395 | 480 362 | mid 105 000 (70 000–140 000) | 393 305 | 17 942 | S gata/N gård (fastighet/gata, 0,80) | 7,6/5,8/5,7 | 4,0 (3,7–4,4) / 5,8 (5,2–5,8) / 1,3 (0,8–1,3) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | reno okänd | ute i 71 dagar | <länk>
+34 | 37 | Flintbacken 4 | Södermalm | 36 | 10 | 2 995 000 | +21,9 % (distrikt+pris+dagar, skick ej mätt) | 3 649 771 | 4 083 598 | 433 826 | mid 105 000 (70 000–140 000) | 378 737 | 49 911 | Ö gata/V gård (fastighet/gata, 0,88) | 5,4/6,5/2,2 | 5,0 (5,0–5,0) / 6,3 (6,2–6,4) / 1,5 (1,5–1,5) | okänd | okänd | okänd | okänd | okänd | okänd | dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+35 | 36 | Tegelviksgatan 18 | Södermalm | 35 | 0.5 | 2 775 000 | +14,5 % (distrikt+pris+dagar, skick ej mätt) | 3 176 366 | 3 638 274 | 461 908 | mid 105 000 (70 000–140 000) | 366 487 | 9 579 | Ö gata/V gård (fastighet/gata, 0,56) | 6,7/7,4/3,9 | 2,1 (1,8–2,5) / 3,7 (3,2–4,4) / 0,5 (0,4–0,6) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | hög avgift (1 182 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+39 | 38 | Wollmar Yxkullsgatan 40 | Södermalm | 35.6 | 0.5 | 3 450 000 | +15,5 % (distrikt+pris+dagar, skick ej mätt) | 3 983 422 | 4 342 520 | 359 098 | mid 105 000 (70 000–140 000) | 316 687 | 62 589 | S gata/N gård (fastighet/gata, 1,00) | 9,0/8,0/5,8 | 0,0 (0,0–0,4) / 8,0 (8,0–8,0) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | - | <länk>
+44 | 46 | Creutzgatan 2 | Kungsholmen | 39.5 | 1 | 3 295 000 | +7,2 % (distrikt+pris+dagar, skick ej mätt) | 3 531 605 | 3 854 825 | 323 220 | mid 105 000 (70 000–140 000) | 240 570 | 22 351 | S gata/N gård (fastighet/gata, 1,00) | 5,6/4,1/5,7 | 2,6 (1,8–4,0) / 4,1 (4,0–4,1) / 0,3 (0,3–0,3) usäker höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | budgivning pågår | <länk>
+49 | 51 | Vitalisvägen 11 | Kungsholmen | 40 | 2 | 3 395 000 | +10,2 % (distrikt+pris+dagar, skick ej mätt) | 3 742 622 | 3 928 229 | 185 607 | mid 105 000 (70 000–140 000) | 136 969 | 56 362 | V gata/Ö gård (fastighet/gata, 1,00) | 1,7/1,2/1,3 | 1,7 (1,7–1,7) / 1,2 (1,2–1,2) / 0,3 (0,3–0,3) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | - | <länk>
+50 | 52 | Atterbomsvägen 58 | Kungsholmen | 39 | 4 | 3 495 000 | +9,2 % (distrikt+pris+dagar, skick ej mätt) | 3 815 051 | 3 998 929 | 183 878 | mid 105 000 (70 000–140 000) | 118 068 | 39 190 | V gata/Ö gård (fastighet/gata, 0,92) | 1,7/1,1/1,2 | 1,7 (1,7–1,7) / 1,1 (1,1–1,1) / 1,2 (1,2–1,2) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | - | <länk>
+52 | 53 | Flintbacken 4 | Södermalm | 35 | 12 | 3 600 000 | +7,4 % (distrikt+pris+dagar, skick ej mätt) | 3 866 284 | 3 957 326 | 91 042 | mid 105 000 (70 000–140 000) | 36 344 | 50 302 | Ö gata/V gård (fastighet/gata, 0,88) | 5,4/6,5/2,2 | 5,2 (5,0–5,4) / 6,5 (6,4–6,5) / 1,5 (1,5–2,0) | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | budgivning pågår, ute i 60 dagar | <länk>
+53 | 23 | Tegelviksgatan 69 | Södermalm | 41.5 | 0 | 3 295 000 | +12,6 % (distrikt+pris+dagar, skick ej mätt) | 3 710 287 | 3 799 680 | 89 393 | mid 105 000 (70 000–140 000) | −13 327 | 2 280 | V gata/Ö gård (fastighet/gata, 0,68) | 1,9/1,3/1,5 | 1,9 (1,6–1,9) / 1,3 (1,3–1,3) / 0,3 (0,1–0,4) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | reno okänd | hög avgift (1 140 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+57 | 57 | Creutzgatan 7 | Kungsholmen | 36 | 4 | 3 595 000 | +3,4 % (distrikt+pris+dagar, skick ej mätt) | 3 718 728 | 3 653 474 | −65 254 | mid 105 000 (70 000–140 000) | −131 893 | 38 361 | N gata/S gård (fastighet/gata, 1,00) | 3,1/4,7/0,0 | 2,9 (2,0–3,1) / 4,7 (4,4–4,7) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | okänd | okänd | reno okänd | - | <länk>
+
+Över 4 M förväntat (35 annonser)
+# | Förrank | Adress | Område | kvm | vån | Utgångspris | Budpremie | Förv. slutpris | Värde renoverad | Skillnad | Reno (nivå, spann) | Vinst | Smak | Sol | Soltim. fri (mar/jun/dec) | Soltim. med grannhus (mar/jun/dec) | Korsdrag | Sovrum | Takhöjd | Stambyte | Byggärenden | Area | Flaggor | Varför här | Länk
+1 | 3 | Sankt Göransgatan 102 | Kungsholmen | 45 | 6 | 3 895 000 | +8,9 % (distrikt+pris+dagar, skick ej mätt) | 4 241 279 | 5 788 472 | 1 547 193 | mid 105 000 (70 000–140 000) | 1 618 741 | 176 548 | S gata/N gård (fastighet/gata, 1,00) | 7,7/5,8/5,7 | 7,7 (5,2–7,7) / 5,8 (5,2–5,8) / 0,4 (0,2–1,5) usäker höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, dold-defekt-risk, ovanligt långt under modellpris, reno okänd | ovanligt långt under modellpris: förv. slutpris -20,7 % mot modellen (gräns -20,4 %), skillnad 1 547 193 kr; avgift och föreningsskuld redan i värderingen | <länk>
+2 | 9 | Erstagatan 21 | Södermalm | 47 | 2 | 3 995 000 | +10,8 % (distrikt+pris+dagar, skick ej mätt) | 4 425 784 | 5 748 898 | 1 323 114 | mid 105 000 (70 000–140 000) | 1 297 802 | 79 688 | V gata/Ö gård (fastighet/gata, 1,00) | 3,0/2,1/2,9 | 3,0 (3,0–3,0) / 2,1 (2,1–2,1) / 0,7 (0,5–1,1) höjd uppskattad | okänd | okänd | okänd | 2024 | vind 2023-05 | okänd | slutpris>4M, dold-defekt-risk, reno okänd | hög avgift (1 481 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+3 | 2 | Klippgatan 14E | Södermalm | 47 | 0 | 3 950 000 | +9,9 % (distrikt+pris+dagar, skick ej mätt) | 4 342 962 | 5 603 170 | 1 260 208 | mid 105 000 (70 000–140 000) | 1 295 990 | 140 782 | Ö gata/V gård (fastighet/gata, 1,00) | 5,8/6,8/2,7 | 3,1 (3,1–3,1) / 2,8 (2,5–3,3) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår, prissänkt 500 000 kr, ute i 71 dagar | <länk>
+6 | 5 | Kristinehovsgatan 5B | Södermalm | 46 | - | 3 995 000 | +11,3 % (distrikt+pris+dagar, skick ej mätt) | 4 447 993 | 5 688 797 | 1 240 805 | mid 105 000 (70 000–140 000) | 1 195 537 | 59 732 | V gata/Ö gård (fastighet/gata, 0,70) | 3,4/2,4/3,4 | - | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | prissänkt 255 000 kr | <länk>
+9 | 6 | Hagaesplanaden 63 | Vasastan | 45.5 | 1 | 3 995 000 | +5,4 % (distrikt+pris+dagar, skick ej mätt) | 4 212 535 | 5 256 825 | 1 044 290 | mid 105 000 (70 000–140 000) | 952 783 | 13 493 | S gata/N gård (fastighet/gata, 1,00) | 9,0/8,6/5,7 | 2,2 (2,2–2,2) / 1,9 (1,9–1,9) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | budgivning pågår | <länk>
+10 | 18 | Grindsgatan 29 | Södermalm | 46 | 1 | 3 950 000 | +16,9 % (distrikt+pris+dagar, skick ej mätt) | 4 617 014 | 5 549 715 | 932 700 | mid 105 000 (70 000–140 000) | 939 560 | 111 860 | V gata/Ö gård (fastighet/gata, 1,00) | 3,7/2,6/3,7 | 1,7 (1,4–2,0) / 2,6 (2,6–2,6) / 0,3 (0,3–0,4) höjd uppskattad | okänd | okänd | högt i tak | okänd | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+12 | 13 | Kungsbro Strand 19 | Kungsholmen | 40 | - | 3 895 000 | +5,5 % (distrikt+pris+dagar, skick ej mätt) | 4 109 101 | 4 986 927 | 877 826 | mid 105 000 (70 000–140 000) | 884 083 | 111 257 | Ö gata/V gård (fastighet/gata, 1,00) | 4,0/5,4/0,5 | - | okänd | okänd | okänd | pågår | - | okänd | slutpris>4M, reno okänd | hög avgift (1 376 kr/kvm/år mot 967 i Kungsholmen) (redan i värderingen), stambyte pågår | <länk>
+13 | 11 | Kungsklippan 20 | Kungsholmen | 38.5 | 6 | 3 995 000 | +7,7 % (distrikt+pris+dagar, skick ej mätt) | 4 302 633 | 5 182 117 | 879 484 | mid 105 000 (70 000–140 000) | 882 673 | 108 188 | V gata/Ö gård (fastighet/gata, 0,82) | 2,0/1,4/1,6 | 2,0 (2,0–2,0) / 1,4 (1,4–1,4) / 0,7 (0,0–1,6) | okänd | okänd | okänd | pågår | - | okänd | slutpris>4M, reno okänd | hög avgift (1 572 kr/kvm/år mot 967 i Kungsholmen) (redan i värderingen), stambyte pågår | <länk>
+15 | 10 | Hagaesplanaden 73 | Vasastan | 41.5 | 2 | 3 995 000 | +1,5 % (distrikt+pris+dagar, skick ej mätt) | 4 053 381 | 4 915 411 | 862 030 | mid 105 000 (70 000–140 000) | 765 632 | 8 602 | S gata/N gård (fastighet/gata, 1,00) | 9,0/8,8/5,7 | 1,5 (0,9–2,1) / 1,7 (1,7–1,7) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | balkongdörr 2024-06 (avskrivet) | okänd | slutpris>4M, reno okänd | budgivning pågår, ute i 123 dagar | <länk>
+16 | 24 | Skånegatan 105B | Södermalm | 39 | 5 | 3 495 000 | +22,5 % (distrikt+pris+dagar, skick ej mätt) | 4 282 999 | 5 010 641 | 727 642 | mid 105 000 (70 000–140 000) | 751 013 | 128 371 | S gata/N gård (fastighet/gata, 1,00) | 7,7/5,8/5,8 | 6,0 (6,0–6,0) / 5,8 (5,8–5,8) / 3,7 (3,7–3,7) | okänd | okänd | okänd | 2024 | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | hög avgift (1 330 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+18 | 17 | Timotejgatan 8 | Södermalm | 43 | 3 | 3 950 000 | +16,3 % (distrikt+pris+dagar, skick ej mätt) | 4 592 900 | 5 295 226 | 702 326 | mid 105 000 (70 000–140 000) | 675 603 | 78 277 | Ö gata/V gård (fastighet/gata, 1,00) | 6,9/7,6/4,1 | 6,8 (5,3–6,9) / 7,6 (7,6–7,6) / 3,8 (2,1–4,1) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+19 | 20 | Wennerbergsgatan 6A | Kungsholmen | 48 | 1 | 3 995 000 | +6,8 % (distrikt+pris+dagar, skick ej mätt) | 4 268 188 | 5 006 181 | 737 993 | mid 105 000 (70 000–140 000) | 632 993 | 0 | V (angiven, 1,00) | 2,7/1,8/2,4 | 2,0 (1,7–2,3) / 1,8 (1,8–1,8) / 1,5 (1,5–1,5) höjd uppskattad | okänd | okänd | okänd | 1994 (ansökt) | - | okänd | slutpris>4M, reno okänd | budgivning pågår | <länk>
+22 | 33 | Tjurbergsgatan 34 | Södermalm | 40 | 2 | 3 895 000 | +12,4 % (distrikt+pris+dagar, skick ej mätt) | 4 376 933 | 4 945 931 | 568 998 | mid 105 000 (70 000–140 000) | 555 284 | 91 286 | Ö gata/V gård (fastighet/gata, 1,00) | 4,9/6,1/1,6 | 1,0 (1,0–1,2) / 2,0 (1,7–2,2) / 0,6 (0,2–0,6) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, reno okänd | - | <länk>
+23 | 21 | Stagneliusvägen 23 | Kungsholmen | 48.5 | 3 | 3 995 000 | +9,9 % (distrikt+pris+dagar, skick ej mätt) | 4 388 875 | 4 996 797 | 607 922 | mid 105 000 (70 000–140 000) | 553 003 | 50 082 | N gata/S gård (fastighet/gata, 1,00) | 0,0/1,7/0,0 | 0,0 (0,0–0,0) / 1,7 (1,2–1,7) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, reno okänd | - | <länk>
+24 | 22 | Blekingegatan 36 | Södermalm | 42 | 3 | 3 950 000 | +15,8 % (distrikt+pris+dagar, skick ej mätt) | 4 573 730 | 5 100 365 | 526 636 | mid 105 000 (70 000–140 000) | 536 515 | 114 879 | N gata/S gård (fastighet/gata, 1,00) | 0,0/0,5/0,0 | 0,0 (0,0–0,0) / 0,5 (0,5–0,5) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | hiss 2026-05 (avskrivet), balkongdörr 2022-06 | okänd | slutpris>4M, reno okänd | - | <länk>
+25 | 35 | Östgötagatan 75 | Södermalm | 39 | 4 | 3 850 000 | +21,8 % (distrikt+pris+dagar, skick ej mätt) | 4 688 939 | 5 221 812 | 532 873 | mid 105 000 (70 000–140 000) | 526 387 | 98 514 | V gata/Ö gård (fastighet/gata, 1,00) | 3,7/2,6/3,7 | 3,7 (3,1–3,7) / 2,6 (2,6–2,6) / 1,2 (1,0–2,0) höjd uppskattad | okänd | okänd | okänd | okänd | - | okänd | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+26 | 26 | Krukmakargatan 62 | Södermalm | 39 | 4 | 3 995 000 | +17,4 % (distrikt+pris+dagar, skick ej mätt) | 4 688 342 | 5 218 089 | 529 747 | mid 105 000 (70 000–140 000) | 479 537 | 54 790 | S gata/N gård (fastighet/gata, 1,00) | 8,2/6,4/5,8 | 8,2 (8,2–8,2) / 6,4 (6,4–6,4) / 0,4 (0,0–5,4) usäker höjd uppskattad | okänd | okänd | 2,8 m | okänd | - | okänd | slutpris>4M, reno okänd | ingen hiss angiven (vån 4) | <länk>
+27 | 25 | Blekingegatan 36 | Södermalm | 42 | 1 | 3 950 000 | +13,4 % (distrikt+pris+dagar, skick ej mätt) | 4 480 562 | 4 949 330 | 468 768 | mid 105 000 (70 000–140 000) | 465 429 | 101 661 | N gata/S gård (fastighet/gata, 1,00) | 0,0/0,5/0,0 | 0,0 (0,0–0,0) / 0,5 (0,5–0,5) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | hiss 2026-05 (avskrivet), balkongdörr 2022-06 | okänd | slutpris>4M, reno okänd | - | <länk>
+28 | 29 | Bergsundsgatan 14 | Södermalm | 40 | 1 | 3 995 000 | +9,3 % (distrikt+pris+dagar, skick ej mätt) | 4 366 287 | 4 896 776 | 530 490 | mid 105 000 (70 000–140 000) | 456 599 | 31 109 | Ö gata/V gård (fastighet/gata, 0,80) | 5,1/6,2/1,8 | 2,7 (2,6–2,7) / 3,9 (3,5–4,5) / 0,4 (0,4–0,4) höjd uppskattad | okänd | okänd | okänd | 2002 (ansökt) | hiss 2023-05 | okänd | slutpris>4M, reno okänd | budgivning pågår, hög avgift (1 099 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+36 | 39 | Bergsunds Strand 42 | Södermalm | 36 | 5 | 3 895 000 | +21,3 % (distrikt+pris+dagar, skick ej mätt) | 4 726 334 | 5 111 560 | 385 226 | mid 105 000 (70 000–140 000) | 327 934 | 47 708 | N gata/S gård (fastighet/gata, 1,00) | 0,0/0,5/0,0 | 0,0 (0,0–0,0) / 0,5 (0,5–0,5) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, dold-defekt-risk, reno okänd | oförklarat fynd | <länk>
+37 | 42 | Fridhemsgatan 29B | Kungsholmen | 38 | - | 3 850 000 | +14,5 % (distrikt+pris+dagar, skick ej mätt) | 4 409 520 | 4 672 123 | 262 603 | mid 105 000 (70 000–140 000) | 321 127 | 163 524 | Ö gata/V gård (fastighet/gata, 1,00) | 7,3/7,9/4,5 | - | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+38 | 43 | Vickergatan 3 | Södermalm | 44 | 3 | 3 950 000 | +21,2 % (distrikt+pris+dagar, skick ej mätt) | 4 788 887 | 5 143 296 | 354 409 | mid 105 000 (70 000–140 000) | 319 946 | 70 537 | V gata/Ö gård (fastighet/gata, 1,00) | 1,6/1,1/1,1 | 1,6 (1,6–1,6) / 1,1 (1,1–1,1) / 1,1 (1,1–1,1) | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+40 | 41 | Igeldammsgatan 14 | Kungsholmen | 40 | 2 | 3 995 000 | +14,5 % (distrikt+pris+dagar, skick ej mätt) | 4 575 913 | 4 851 129 | 275 216 | mid 105 000 (70 000–140 000) | 298 382 | 128 166 | V gata/Ö gård (fastighet/gata, 0,99) | 4,7/3,4/5,0 | 4,7 (4,1–4,7) / 3,4 (3,4–3,4) / 2,1 (1,8–2,4) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+41 | 45 | Liljeholmsbron 8 | Södermalm | 40 | 1 | 3 995 000 | +10,6 % (distrikt+pris+dagar, skick ej mätt) | 4 418 623 | 4 767 249 | 348 625 | mid 105 000 (70 000–140 000) | 288 446 | 44 821 | Ö gata/V gård (fastighet/gata, 0,65) | 8,4/8,7/5,8 | 8,1 (8,1–8,1) / 8,1 (7,7–8,5) / 5,8 (5,8–5,8) | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+42 | 40 | Brännkyrkagatan 95A | Södermalm | 36 | 1 | 3 495 000 | +15,5 % (distrikt+pris+dagar, skick ej mätt) | 4 035 921 | 4 404 458 | 368 537 | mid 105 000 (70 000–140 000) | 265 423 | 1 886 | N gata/S gård (fastighet/gata, 1,00) | 0,0/0,5/0,0 | 0,0 (0,0–0,0) / 0,5 (0,5–0,5) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | budgivning pågår | <länk>
+43 | 44 | Dalslandsgatan 3 | Södermalm | 43 | 1 | 3 995 000 | +21,1 % (distrikt+pris+dagar, skick ej mätt) | 4 837 147 | 5 141 587 | 304 440 | mid 105 000 (70 000–140 000) | 245 978 | 46 538 | S gata/N gård (fastighet/gata, 0,56) | 9,0/8,0/5,8 | 0,2 (0,0–1,6) / 8,0 (8,0–8,0) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+45 | 47 | Södermannagatan 21 | Södermalm | 35 | 1 | 3 950 000 | +14,9 % (distrikt+pris+dagar, skick ej mätt) | 4 538 354 | 4 757 446 | 219 092 | mid 105 000 (70 000–140 000) | 209 241 | 95 149 | V gata/Ö gård (fastighet/gata, 1,00) | 3,7/2,6/3,7 | 2,1 (1,4–2,6) / 2,6 (2,6–2,6) / 0,3 (0,2–0,5) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+46 | 49 | Creutzgatan 2 | Kungsholmen | 46 | 2 | 3 795 000 | +14,5 % (distrikt+pris+dagar, skick ej mätt) | 4 346 055 | 4 600 896 | 254 841 | mid 105 000 (70 000–140 000) | 188 595 | 38 754 | S gata/N gård (fastighet/gata, 1,00) | 5,6/4,1/5,7 | 4,0 (2,6–5,6) / 4,1 (4,1–4,1) / 0,3 (0,3–0,3) usäker höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+47 | 48 | Heleneborgsgatan 36B | Södermalm | 36 | - | 3 795 000 | +12,9 % (distrikt+pris+dagar, skick ej mätt) | 4 282 893 | 4 543 084 | 260 191 | mid 105 000 (70 000–140 000) | 181 904 | 26 713 | S gata/N gård (fastighet/gata, 0,56) | 9,0/7,7/5,8 | - | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | budgivning pågår | <länk>
+48 | 50 | Kristinebergsvägen 18 | Kungsholmen | 47.5 | 1 | 3 950 000 | +14,4 % (distrikt+pris+dagar, skick ej mätt) | 4 517 052 | 4 727 386 | 210 334 | mid 105 000 (70 000–140 000) | 152 986 | 47 652 | N gata/S gård (fastighet/gata, 0,96) | 3,1/4,7/0,0 | 1,0 (0,8–1,3) / 2,3 (1,8–2,9) / 0,0 (0,0–0,0) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+51 | 27 | Sankt Göransgatan 146 | Kungsholmen | 41 | 5 | 3 650 000 | +12,5 % (distrikt+pris+dagar, skick ej mätt) | 4 107 657 | 4 219 088 | 111 431 | mid 105 000 (70 000–140 000) | 41 872 | 35 440 | S gata/N gård (fastighet/gata, 0,80) | 7,6/5,7/5,7 | 7,6 (7,3–7,6) / 5,7 (5,7–5,7) / 1,4 (1,4–3,4) höjd uppskattad | okänd | okänd | okänd | 2017 | Balkonger beviljade 2026-05, ej slutbesked, balkong 2025-07, inglasning 2024-08 (beslut okänt) | okänd | slutpris>4M, reno okänd | - | <länk>
+54 | 54 | Ljusterögatan 3 | Södermalm | 39 | 1 | 3 750 000 | +20,2 % (distrikt+pris+dagar, skick ej mätt) | 4 507 370 | 4 519 613 | 12 242 | mid 105 000 (70 000–140 000) | −24 893 | 67 865 | Ö gata/V gård (fastighet/gata, 1,00) | 8,0/8,4/5,5 | 2,2 (1,8–2,8) / 4,4 (3,6–5,6) / 0,4 (0,4–0,4) höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+55 | 55 | Maria Skolgata 87 | Södermalm | 35 | 2 | 3 895 000 | +16,4 % (distrikt+pris+dagar, skick ej mätt) | 4 532 168 | 4 487 948 | −44 220 | mid 105 000 (70 000–140 000) | −101 156 | 48 064 | N gata/S gård (fastighet/gata, 0,80) | 0,0/0,5/0,0 | 0,0 (0,0–0,0) / 0,5 (0,5–0,5) / 0,0 (0,0–0,0) | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | hög avgift (1 052 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+56 | 56 | Kocksgatan 51 | Södermalm | 35 | 1.5 | 3 650 000 | +19,8 % (distrikt+pris+dagar, skick ej mätt) | 4 373 895 | 4 281 160 | −92 735 | mid 105 000 (70 000–140 000) | −113 740 | 83 994 | S gata/N gård (fastighet/gata, 1,00) | 9,0/8,0/5,8 | 1,4 (0,0–4,0) / 8,0 (6,8–8,0) / 0,0 (0,0–0,0) usäker höjd uppskattad | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | hög avgift (1 131 kr/kvm/år mot 792 i Södermalm) (redan i värderingen) | <länk>
+58 | 58 | Helgagatan 36A | Södermalm | 38 | 3 | 3 995 000 | +19,2 % (distrikt+pris+dagar, skick ej mätt) | 4 760 952 | 4 459 497 | −301 455 | mid 105 000 (70 000–140 000) | −331 072 | 75 383 | Ö gata/V gård (fastighet/gata, 0,65) hörn | 4,3/5,6/0,8 | 4,3 (3,8–4,3) / 5,6 (5,6–5,6) / 0,0 (0,0–0,3) | okänd | okänd | okänd | okänd | okänd | okänd | slutpris>4M, reno okänd | - | <länk>
+
+Bevakad annons 150148 finns inte i körningen
+
+Ej jämförbar (1):
+  Norra Hammarbyhamnen | utgångspris 1 750 000 | 45 kvm | utgångspris långt under modellvärdet
+
+Modellhälsa: median förv. slutpris / modellpris 0.965 (band 0.85–1.15, 58 rader)
+
+Kostnad:
+Lokal webbläsare: 212 sidor (108 utmaningar, 54 omförsök, 54 misslyckade, 0 vägrade), 0,00 USD
+Apify-reserv: 0 renderingar (tak 10)
+Apify (runs-API): 0,00 USD, 0 körningar (0 lyckade, 0 timeout, 0 misslyckade)
+Obs: runs-API-siffran gäller hela kontot sedan 2026-10-24T10:09:17.889Z och kan inkludera andra körningar.
+  Anthropic (bildtolkning): 0.00 kr
+  Anthropic (planlösning): 0.00 kr
+  Totalt: 0 kr
+
+Snapshot skriven: .planning/calibration/data/forsale-snapshot-14.5-ceiling.json
