@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 10/13 plans executed
+**Plans:** 11/13 plans executed
 
 Plans:
 
@@ -206,7 +206,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 14.5-09-PLAN.md — Opus smoke; rounds c (Opus) and d (two-step) under the stop rule; final layout decision (LAYACC-02)
+- [x] 14.5-09-PLAN.md — Opus smoke; rounds c (Opus) and d (two-step) under the stop rule; final layout decision (LAYACC-02)
 
 **Wave 7** *(group C; the one R-07 restart, then its === END line gates the rest)*
 
