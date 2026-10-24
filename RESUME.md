@@ -6,7 +6,33 @@
 
 ---
 
-## ▶️ PICK UP HERE (2026-10-19 early — 14.6 EXECUTED 12/12 + review fixed; 14.5 waits for the Booli gate 14:57 UTC)
+## ▶️ PICK UP HERE (2026-10-24 — 14.5 EXECUTED 13/13; review + verification running; repo folder renamed to booli-scraper)
+
+Repo folder is now `~/dev/booli-scraper` (same git remote). Branch `gsd/phase-14.5-enrichment-layout-accuracy-ceiling`
+(includes all of 14.6); main ff'd + pushed. Anthropic key: personal (`anthropic-key use personal` done 2026-10-24).
+TypeSafe key: Keychain item `typesafe-api-key`, loaded by a block in ~/.zshenv (added 2026-10-24).
+
+14.5 outcome (details: 14.5-13-SUMMARY.md "Till Daniel"; evidence/layout-rounds.md, layout-switch.md):
+- Enrichment PAUSED at 3 912/5 469 (Daniel, R-09). Model: avgift −1,0 %/10 kr (SE 0,11), debt −0,25 %/1 000 kr (SE 0,05);
+  cap widened once to ±12 % (thin 0,4 % margin — Daniel may revert); balcony double-count FIXED (all resale −4,0 %).
+  Folkungagatan 61: 17 → 16, profit 1 123 047 → 938 661 kr.
+- Takhöjd: parser + taste + column shipped; live coverage 1 of 33 descriptions (2,75 m); no hedonic feature (sold pages have no text).
+- Layout: 60-flat locked truth set; five variants a–e (e = Jev, R-10). Balcony side passes in Opus / two-step / Jev;
+  korsdrag passes nowhere (only 4 true two-opposite flats in the pool); bedroom side ej mätbart (9/12).
+  `LAYOUT_INFLUENCE_ENABLED` stays FALSE. Cost/flat: Jev 0,008 kr, Opus 0,511 kr. Only Opus got Folkungagatan 61 all right.
+- Spend: 82 kr Anthropic+Jev of 160; 0 USD Apify.
+
+BOOLI: blocked this Mac THREE times (10-17, 10-18, 10-24 after 35 of 58 flats in a weekly-style run). The live run did
+NOT stop at the first 403 (54 refused pages, each retried) → flagged Critical for the 14.5 code review/fixer. Next
+Booli traffic allowed 2026-10-25 10:17 UTC. The Monday 07:00 job may hit the same wall.
+
+NEXT: (1) 14.5 code review + verification → fixer → UAT; (2) Daniel: korsdrag option (more two-opposite flats vs
+counting true "ja" for the 12-row minimum), Jev-first cascade (Jev every flat, Opus where Jev abstains) as a
+follow-up, ±12 % vs ±8 %, resume enrichment or not; (3) open UATs: 14.4 items 2/6, 14.6 items 1–2 (area audit:
+0 hits in 33 texts — the readers never fired; 14.6 UAT item 1 answered by data), 14.5 after verification.
+Backlog: `.planning/BACKLOG.md` (stambyte event study via Apify).
+
+## ▶️ STATUS 2026-10-19 early — 14.6 EXECUTED 12/12 + review fixed; 14.5 waits for the Booli gate 14:57 UTC)
 
 Phase 14.6 (bygglov + stambyte from Stockholm's Bygg- och plantjänsten, uppmätning flags) ran autonomously 2026-10-18/19
 on `gsd/phase-14.6-bygglov-stambyte-uppmatning` (main ff'd + pushed). 2 335 polite city requests, 0 refusals, 0 Booli,
