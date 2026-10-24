@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-24",
+  "variant": "e",
+  "version": "0cf54ed308721db5",
+  "model": "jev-1.14.0",
+  "reads": [
+    {
+      "target": "150148",
+      "status": "read",
+      "errorCode": null,
+      "result": {
+        "balconySide": "unknown",
+        "livingOnBalconySide": true,
+        "kitchenOnBalconySide": false,
+        "bedroomOnBalconySide": false,
+        "windowSides": "twoOpposite",
+        "bedroomSide": "unknown",
+        "streetEvidence": "none",
+        "confidence": 0.48,
+        "planPresent": true,
+        "balconyConfidence": 0.48,
+        "windowsConfidence": 0.51,
+        "bedroomConfidence": 0.8,
+        "jev": {
+          "choices": {
+            "balconySide": {
+              "street": 0.17,
+              "courtyard": 0.35,
+              "none": 0,
+              "unknown": 0.48
+            },
+            "windowSides": {
+              "one": 0.29,
+              "twoOpposite": 0.51,
+              "corner": 0.19,
+              "unknown": 0.01
+            },
+            "bedroomSide": {
+              "street": 0.09,
+              "courtyard": 0.11,
+              "unknown": 0.8
+            },
+            "streetEvidence": {
+              "cars": 0.13,
+              "oppositeFacade": 0.1,
+              "courtyardGreenery": 0.14,
+              "none": 0.63
+            }
+          },
+          "noul": {
+            "livingOnBalconySide": 0.99,
+            "kitchenOnBalconySide": 0.25,
+            "bedroomOnBalconySide": 0.35,
+            "planPresent": 1
+          }
+        }
+      },
+      "spentSek": 0.0087
+    },
+    {
+      "target": "syntetisk",
+      "status": "read",
+      "errorCode": null,
+      "result": {
+        "balconySide": "unknown",
+        "livingOnBalconySide": true,
+        "kitchenOnBalconySide": false,
+        "bedroomOnBalconySide": false,
+        "windowSides": "unknown",
+        "bedroomSide": "unknown",
+        "streetEvidence": "none",
+        "confidence": 0.79,
+        "planPresent": true,
+        "balconyConfidence": 0.79,
+        "windowsConfidence": 0.97,
+        "bedroomConfidence": 0.95,
+        "jev": {
+          "choices": {
+            "balconySide": {
+              "street": 0.09,
+              "courtyard": 0.12,
+              "none": 0,
+              "unknown": 0.79
+            },
+            "windowSides": {
+              "one": 0.02,
+              "twoOpposite": 0.01,
+              "corner": 0,
+              "unknown": 0.97
+            },
+            "bedroomSide": {
+              "street": 0.02,
+              "courtyard": 0.03,
+              "unknown": 0.95
+            },
+            "streetEvidence": {
+              "cars": 0,
+              "oppositeFacade": 0,
+              "courtyardGreenery": 0,
+              "none": 1
+            }
+          },
+          "noul": {
+            "livingOnBalconySide": 0.73,
+            "kitchenOnBalconySide": 0.32,
+            "bedroomOnBalconySide": 0.14,
+            "planPresent": 0.99
+          }
+        }
+      },
+      "spentSek": 0.0013
+    }
+  ],
+  "calls": 2,
+  "cacheHits": 0,
+  "spentSek": 0.01,
+  "totalSpentSek": 0.01,
+  "smokeCapSek": 0.1,
+  "httpStatuses": [],
+  "grammar": "ok",
+  "sek": 0.01,
+  "input_tokens": 21674
+}

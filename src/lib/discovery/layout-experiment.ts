@@ -69,6 +69,13 @@ import {
 } from "@/lib/discovery/layout-read";
 import { FloorPlanCallError, formatSek } from "@/lib/discovery/sun-floorplan";
 import { imageSetKey, visionListingKey } from "@/lib/discovery/vision-cache";
+import {
+  JEV_ABOUT,
+  JEV_IMAGE_LIMITS,
+  JEV_MODEL,
+  JEV_QUESTIONS,
+  layoutReadSchemaE,
+} from "@/lib/discovery/layout-typesafe";
 
 /** The most one paid round may spend, SEK (D-13, R-05). Enforced on real usage at the model's own rates. */
 export const LAYOUT_ROUND_CAP_SEK = 40;
@@ -105,6 +112,19 @@ export interface LayoutVariantSpec {
   images: { maxBooliPhotos: number; maxBrokerPhotos: 0 };
   /** What one read is assumed to cost before it is made, SEK. Checked against the round cap before every call. */
   estSekPerFlat: number;
+  /**
+   * "typesafe" = the read is a set of typed questions answered by Jev with probabilities (variant e, R-10); unset = a
+   * Claude strict-output call. Unset on a to d, so their version hashes do not move.
+   */
+  callShape?: "typesafe";
+  /** Set on a "typesafe" variant: its fixed question set and the picture limits, both part of its version. */
+  typesafe?: {
+    about: string;
+    questions: typeof JEV_QUESTIONS;
+    imageLimits: typeof JEV_IMAGE_LIMITS;
+  };
+  /** The most one live smoke of this variant may spend, SEK; unset = {@link LAYOUT_SMOKE_CAP_SEK}. */
+  smokeCapSek?: number;
   /** Set on a two-step variant (plan 05 task 3): the two step prompts and schemas. */
   twoStep?: {
     stepA: { systemPrompt: string; userInstruction: string; schema: z.ZodType };
@@ -199,10 +219,32 @@ export const LAYOUT_VARIANTS: Readonly<Record<string, LayoutVariantSpec>> = {
       stepB: { systemPrompt: LAYOUT_STEP_B_SYSTEM_PROMPT, userInstruction: LAYOUT_STEP_B_USER_INSTRUCTION, schema: layoutStepBSchema },
     },
   },
+  // Variant e (R-10): Jev (TypeSafe System One) answers typed questions with probabilities; the per-field confidence is the
+  // probability of the answer. Same Booli pictures as every variant, same evidence rules as b (written into the question
+  // criteria). Price is input tokens at 0,042 USD per million, about 0,005 kr per flat. The prompts below are the text that
+  // the version hash sees besides `typesafe`; no temperature, effort or token limit exists for this call shape.
+  e: {
+    id: "e",
+    label: "Jev (TypeSafe) med typade frågor och sannolikheter",
+    model: JEV_MODEL,
+    systemPrompt: JEV_ABOUT,
+    userInstruction: "Jev: en fråga per fält, svaren är sannolikheter (R-10).",
+    schema: layoutReadSchemaE,
+    temperature: null,
+    effort: null,
+    maxTokens: 0,
+    steps: 1,
+    images: { maxBooliPhotos: LAYOUT_MAX_BOOLI_PHOTOS, maxBrokerPhotos: 0 },
+    // 4 pictures are about 10 000 tokens per R-10: 0,005 kr. The estimate is four times that, for the cap test only.
+    estSekPerFlat: 0.02,
+    callShape: "typesafe",
+    typesafe: { about: JEV_ABOUT, questions: JEV_QUESTIONS, imageLimits: JEV_IMAGE_LIMITS },
+    smokeCapSek: 0.1,
+  },
 };
 
-/** Every variant id in the fixed order of D-10; slot d is d-sonnet or d-opus. */
-export const LAYOUT_VARIANT_IDS = ["a", "b", "c", "d-sonnet", "d-opus"] as const;
+/** Every variant id in the fixed order of D-10; slot d is d-sonnet or d-opus; e (R-10) is compared beside them, not in a slot. */
+export const LAYOUT_VARIANT_IDS = ["a", "b", "c", "d-sonnet", "d-opus", "e"] as const;
 
 /** The schema the stored answer must parse as: the final answer for one step, both step answers for two. */
 export function storedSchemaOf(spec: LayoutVariantSpec): z.ZodType {
@@ -235,6 +277,9 @@ export function variantVersion(spec: LayoutVariantSpec): string {
       effort: spec.effort,
       maxTokens: spec.maxTokens,
       steps: spec.steps,
+      // undefined for a to d, which JSON.stringify drops: their versions (and caches) are unchanged by variant e.
+      callShape: spec.callShape,
+      typesafe: spec.typesafe,
       twoStep:
         spec.twoStep === undefined
           ? null
@@ -374,7 +419,7 @@ export interface VariantReadItem {
 }
 
 /** One model read on one flat's pictures; `costSek` is what Anthropic charged (both steps summed for a two-step variant). */
-export type VariantCallFn = (blocks: LayoutImageBlock[]) => Promise<{ result: unknown; costSek: number }>;
+export type VariantCallFn = (blocks: LayoutImageBlock[]) => Promise<{ result: unknown; costSek: number; inputTokens?: number }>;
 
 export interface VariantReadOutcome {
   booliId: number;

@@ -10,6 +10,17 @@ import type { AccuracyReport, FieldReport, Precision } from "@/lib/discovery/lay
 import { wilson } from "@/lib/discovery/layout-accuracy";
 import Anthropic from "@anthropic-ai/sdk";
 import { makeTwoStepLayoutCall } from "@/lib/discovery/layout-call";
+import {
+  JEV_IMAGES_HEADER,
+  JEV_MODEL,
+  JEV_QUESTIONS,
+  jevAnswerConfidence,
+  jevCostSek,
+  jevGate,
+  layoutReadFromJev,
+  layoutReadSchemaE,
+} from "@/lib/discovery/layout-typesafe";
+import { createJevClient, makeJevLayoutCall, type JevClientLike } from "@/lib/discovery/layout-typesafe-call";
 import { layoutCallCostSek } from "@/lib/discovery/layout-cost";
 import {
   LAYOUT_ROUND_CAP_SEK,
@@ -366,7 +377,8 @@ describe("factFromVariantRead", () => {
   it("round-trips every variant through the runner into a fact the schema and the gate accept", async () => {
     for (const variant of Object.values(LAYOUT_VARIANTS)) {
       if (variant.steps !== 1) continue;
-      const { call } = fakeCall(0.2, variant.schema === layoutReadSchema ? read() : readV2());
+      const answer = variant.id === "e" ? layoutReadFromJev(jevAnswers()) : variant.schema === layoutReadSchema ? read() : readV2();
+      const { call } = fakeCall(0.2, answer);
       const out = await runVariantReads([item(1)], { variant, call, cache: emptyCache(variant), runCapSek: 5, today: "d" });
       const fact = out.reads[0].fact;
       expect(fact, variant.id).not.toBeNull();
@@ -970,10 +982,10 @@ describe("variants d-sonnet and d-opus", () => {
     expect(dS.twoStep?.stepB.systemPrompt).toBe(LAYOUT_STEP_B_SYSTEM_PROMPT);
   });
 
-  it("all five versions are pairwise different", () => {
+  it("all six versions are pairwise different", () => {
     const versions = Object.values(LAYOUT_VARIANTS).map(variantVersion);
-    expect(Object.keys(LAYOUT_VARIANTS)).toEqual(["a", "b", "c", "d-sonnet", "d-opus"]);
-    expect(new Set(versions).size).toBe(5);
+    expect(Object.keys(LAYOUT_VARIANTS)).toEqual(["a", "b", "c", "d-sonnet", "d-opus", "e"]);
+    expect(new Set(versions).size).toBe(6);
   });
 
   it("their cache holds both step answers and refuses a single-step answer", () => {
@@ -1111,5 +1123,321 @@ describe("runVariantReads with a two-step variant", () => {
   it("refuses to build a two-step call for a one-step spec", () => {
     const { client } = twoStepClient();
     expect(() => makeTwoStepLayoutCall(client, LAYOUT_VARIANTS.b)).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Variant e: Jev (TypeSafe), typed questions with probabilities (R-10)
+// ---------------------------------------------------------------------------
+
+type ChoiceAns = { type: "choice"; choice: string; confidence: number; probabilities: Record<string, number> };
+const choiceAns = (choice: string, probabilities: Record<string, number>): ChoiceAns => ({ type: "choice", choice, confidence: 0.5, probabilities });
+const noulAns = (noul: number) => ({ type: "noul" as const, noul });
+
+/** The eight answers of one Jev request. */
+function jevAnswers(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    balconySide: choiceAns("street", { street: 0.8, courtyard: 0.1, none: 0.05, unknown: 0.05 }),
+    windowSides: choiceAns("twoOpposite", { one: 0.1, twoOpposite: 0.7, corner: 0.1, unknown: 0.1 }),
+    bedroomSide: choiceAns("courtyard", { street: 0.25, courtyard: 0.65, unknown: 0.1 }),
+    streetEvidence: choiceAns("cars", { cars: 0.9, oppositeFacade: 0.05, courtyardGreenery: 0.03, none: 0.02 }),
+    livingOnBalconySide: noulAns(0.92),
+    kitchenOnBalconySide: noulAns(0.2),
+    bedroomOnBalconySide: noulAns(0.5),
+    planPresent: noulAns(0.99),
+    ...over,
+  };
+}
+
+describe("variant e (Jev, R-10): the spec", () => {
+  const e = LAYOUT_VARIANTS.e;
+
+  it("is a typesafe call shape on jev-1.14.0 with no temperature, effort or token limit, Booli pictures only", () => {
+    expect(e.callShape).toBe("typesafe");
+    expect(e.model).toBe("jev-1.14.0");
+    expect(e.model).toBe(JEV_MODEL);
+    expect(e.temperature).toBeNull();
+    expect(e.effort).toBeNull();
+    expect(e.steps).toBe(1);
+    expect(e.images).toEqual({ maxBooliPhotos: LAYOUT_MAX_BOOLI_PHOTOS, maxBrokerPhotos: 0 });
+    expect(e.smokeCapSek).toBe(0.1);
+    expect(e.schema).toBe(layoutReadSchemaE);
+  });
+
+  it("asks one question per field of the R-10 mapping, with every stored enum as an option", () => {
+    expect(Object.keys(JEV_QUESTIONS).sort()).toEqual(
+      ["balconySide", "bedroomOnBalconySide", "bedroomSide", "kitchenOnBalconySide", "livingOnBalconySide", "planPresent", "streetEvidence", "windowSides"].sort(),
+    );
+    const options = (id: string) => {
+      const q = JEV_QUESTIONS[id];
+      return q.type === "choice" ? Object.keys(q.criteria) : [];
+    };
+    expect(options("balconySide")).toEqual(["street", "courtyard", "none", "unknown"]);
+    expect(options("windowSides")).toEqual(["one", "twoOpposite", "corner", "unknown"]);
+    expect(options("bedroomSide")).toEqual(["street", "courtyard", "unknown"]);
+    expect(options("streetEvidence")).toEqual(["cars", "oppositeFacade", "courtyardGreenery", "none"]);
+    for (const id of ["livingOnBalconySide", "kitchenOnBalconySide", "bedroomOnBalconySide", "planPresent"]) expect(JEV_QUESTIONS[id].type).toBe("noul");
+  });
+
+  it("carries the evidence rules of variant b in its question text, not an invented set", () => {
+    const text = JSON.stringify(JEV_QUESTIONS);
+    for (const rule of ["street lamps", "shopfronts", "tram wires", "bicycle racks", "lawn", "sandbox", "Artificial grass", "front door", "glass between rooms"]) {
+      expect(text.toLowerCase()).toContain(rule.toLowerCase());
+    }
+  });
+
+  it("has its own 16-hex version, moved by the question set and by the picture limits, and leaves a to d alone", () => {
+    const v = variantVersion(e);
+    expect(v).toMatch(/^[0-9a-f]{16}$/);
+    for (const id of ["a", "b", "c", "d-sonnet", "d-opus"]) expect(variantVersion(LAYOUT_VARIANTS[id])).not.toBe(v);
+    const changedQuestion = { ...e, typesafe: { ...e.typesafe!, questions: { ...JEV_QUESTIONS, planPresent: { type: "noul" as const, instructions: "other" } } } };
+    expect(variantVersion(changedQuestion)).not.toBe(v);
+    const changedLimits = { ...e, typesafe: { ...e.typesafe!, imageLimits: { ...e.typesafe!.imageLimits, maxSidePx: 1200 } } };
+    expect(variantVersion(changedLimits as unknown as LayoutVariantSpec)).not.toBe(v);
+    expect(variantVersion({ ...e, model: "jev-1.13.0" })).not.toBe(v);
+    expect(variantVersion({ ...e })).toBe(v);
+    // a to d have no typesafe fields at all, so their hashed payload is exactly what it was before variant e existed
+    for (const id of ["a", "b", "c", "d-sonnet", "d-opus"]) {
+      expect(LAYOUT_VARIANTS[id].callShape).toBeUndefined();
+      expect(LAYOUT_VARIANTS[id].typesafe).toBeUndefined();
+    }
+  });
+});
+
+describe("variant e: answers to the stored read (R-10 mapping)", () => {
+  it("maps each Choice to its chosen option and each Noul at 0,5 or more to true", () => {
+    const r = layoutReadFromJev(jevAnswers());
+    expect(r.balconySide).toBe("street");
+    expect(r.windowSides).toBe("twoOpposite");
+    expect(r.bedroomSide).toBe("courtyard");
+    expect(r.streetEvidence).toBe("cars");
+    expect(r.livingOnBalconySide).toBe(true);
+    expect(r.kitchenOnBalconySide).toBe(false);
+    expect(r.bedroomOnBalconySide).toBe(true); // 0,5 counts as yes
+    expect(r.planPresent).toBe(true);
+    expect(layoutReadFromJev(jevAnswers({ planPresent: noulAns(0.49) })).planPresent).toBe(false);
+  });
+
+  it("makes the per-field confidence the probability of the chosen option, and the overall one the smallest of the three", () => {
+    const r = layoutReadFromJev(jevAnswers());
+    expect(r.balconyConfidence).toBeCloseTo(0.8);
+    expect(r.windowsConfidence).toBeCloseTo(0.7);
+    expect(r.bedroomConfidence).toBeCloseTo(0.65);
+    expect(r.confidence).toBeCloseTo(0.65);
+  });
+
+  it("scores a Choice by the chosen option's probability and a Noul by max(p, 1 - p)", () => {
+    expect(jevAnswerConfidence(choiceAns("street", { street: 0.8, courtyard: 0.2 }))).toBeCloseTo(0.8);
+    expect(jevAnswerConfidence(noulAns(0.9))).toBeCloseTo(0.9);
+    expect(jevAnswerConfidence(noulAns(0.1))).toBeCloseTo(0.9);
+    expect(jevAnswerConfidence(noulAns(0.5))).toBeCloseTo(0.5);
+  });
+
+  it("keeps the full distributions in the stored read (no picture, no url) and the stored read parses as its schema", () => {
+    const r = layoutReadFromJev(jevAnswers());
+    expect(r.jev.choices.balconySide).toEqual({ street: 0.8, courtyard: 0.1, none: 0.05, unknown: 0.05 });
+    expect(r.jev.noul.planPresent).toBeCloseTo(0.99);
+    expect(layoutReadSchemaE.safeParse(r).success).toBe(true);
+    expect(JSON.stringify(r)).not.toMatch(/https?:/);
+  });
+
+  it("throws on a missing answer, a wrong answer type, an unknown option or a chosen option without probability", () => {
+    const without = jevAnswers();
+    delete without.planPresent;
+    expect(() => layoutReadFromJev(without)).toThrow();
+    expect(() => layoutReadFromJev(jevAnswers({ balconySide: noulAns(0.9) }))).toThrow();
+    expect(() => layoutReadFromJev(jevAnswers({ balconySide: choiceAns("rooftop", { rooftop: 1 }) }))).toThrow();
+    expect(() => layoutReadFromJev(jevAnswers({ balconySide: choiceAns("street", { courtyard: 1 }) }))).toThrow();
+    expect(() => layoutReadFromJev(jevAnswers({ livingOnBalconySide: choiceAns("street", { street: 1 }) }))).toThrow();
+  });
+
+  it("reaches the stored fact with per-field confidences and planPresent, so believedLayout uses the probabilities", () => {
+    const e = LAYOUT_VARIANTS.e;
+    const fact = factFromVariantRead(e, layoutReadFromJev(jevAnswers()), { booli: 4 });
+    expect(layoutFactSchema.safeParse(fact).success).toBe(true);
+    expect(fact.version).toBe(variantVersion(e));
+    expect(fact.fieldConfidence?.balcony).toBeCloseTo(0.8);
+    expect(fact.fieldConfidence?.windows).toBeCloseTo(0.7);
+    expect(fact.fieldConfidence?.bedroom).toBeCloseTo(0.65);
+    expect(fact.planPresent).toBe(true);
+    const policy: LayoutGatePolicy = { balconyGate: 0.75, windowsGate: 0.75, bedroomGate: 0.7, negativeGate: 0.6, sideEvidence: ["cars", "courtyardGreenery"], trustedVersion: null };
+    expect(believedLayout(fact, policy)).toEqual({ balconySide: "street", noBalcony: false, korsdrag: null, bedroomSide: null });
+    expect(believedLayout(fact, { ...policy, windowsGate: 0.7, bedroomGate: 0.65 })).toMatchObject({ korsdrag: true, bedroomSide: "courtyard" });
+  });
+
+  it("abstains when the answer says no floor plan is among the pictures", () => {
+    const fact = factFromVariantRead(LAYOUT_VARIANTS.e, layoutReadFromJev(jevAnswers({ planPresent: noulAns(0.03) })), { booli: 4 });
+    const policy: LayoutGatePolicy = { balconyGate: 0.5, windowsGate: 0.5, bedroomGate: 0.5, negativeGate: 0.5, sideEvidence: ["cars", "courtyardGreenery"], trustedVersion: null };
+    expect(believedLayout(fact, policy)).toEqual({ balconySide: null, noBalcony: false, korsdrag: null, bedroomSide: null });
+  });
+});
+
+describe("variant e: cost at Jev rates", () => {
+  it("charges input tokens at 0,042 USD per million and output tokens nothing", () => {
+    // 1 200 tokens x 0,042 USD / 1 000 000 = 0,0000504 USD = 0,0005544 kr at the 11 kr per USD of brf/cost.ts
+    expect(jevCostSek({ input_tokens: 1200, output_tokens: 500 })).toBeCloseTo(0.0005544, 7);
+    expect(jevCostSek({ input_tokens: 1200, output_tokens: 0 })).toBe(jevCostSek({ input_tokens: 1200, output_tokens: 99999 }));
+    expect(jevCostSek({ input_tokens: 10_000 })).toBeCloseTo(0.00462, 6);
+  });
+
+  it("is 0 for a usage that is missing or not a number, so the runner counts the variant's estimate instead", () => {
+    expect(jevCostSek(undefined)).toBe(0);
+    expect(jevCostSek({ input_tokens: null })).toBe(0);
+    expect(jevCostSek({ input_tokens: Number.NaN })).toBe(0);
+    expect(jevCostSek({ input_tokens: -5 })).toBe(0);
+  });
+});
+
+describe("variant e: the call", () => {
+  const e = LAYOUT_VARIANTS.e;
+  const fakeImage = async (): Promise<Uint8Array> => new Uint8Array([1, 2, 3]);
+  const prepare = async (_in: Uint8Array, format: "png" | "jpeg") => ({ data: new Uint8Array([9, 9, format === "png" ? 1 : 2]), format, width: 800, height: 600 });
+  type Sent = { request: { state: { about: string; pictures: unknown[] }; questions: Record<string, unknown>; model?: string }; options?: { headers?: Record<string, string>; timeout?: number } };
+
+  function jevClient(opts: { answers?: Record<string, unknown>; usage?: { input_tokens: number | null; output_tokens: number }; fail?: { name: string; status?: number } } = {}) {
+    const sent: Sent[] = [];
+    const client: JevClientLike = {
+      systemOne: async (request, options) => {
+        sent.push({ request: request as Sent["request"], options });
+        if (opts.fail) throw Object.assign(new Error("boom with https://secret.example/x"), { name: opts.fail.name, status: opts.fail.status });
+        return { model: JEV_MODEL, answers: opts.answers ?? jevAnswers(), usage: opts.usage ?? { input_tokens: 10_000, output_tokens: 80 } };
+      },
+    };
+    return { client, sent };
+  }
+  const blocks = (): LayoutImageBlock[] => [
+    { type: "image", source: { type: "url", url: url(1) } },
+    { type: "image", source: { type: "url", url: url(2) } },
+    { type: "image", source: { type: "url", url: url(3) } },
+    { type: "image", source: { type: "url", url: url(4) } },
+  ];
+  const deps = { fetchImage: fakeImage, prepare, pauseMs: 0 };
+
+  it("sends one request with the images header, the model, every question and every picture in the state", async () => {
+    const { client, sent } = jevClient();
+    const call = makeJevLayoutCall(client, e, deps);
+    const out = await call(blocks());
+    expect(sent).toHaveLength(1);
+    expect(sent[0].options?.headers).toEqual(JEV_IMAGES_HEADER);
+    expect(sent[0].options?.headers?.["TypeSafe-Danger-Zone-Images"]).toBe("true");
+    expect(sent[0].request.model).toBe("jev-1.14.0");
+    expect(sent[0].request.questions).toEqual(JEV_QUESTIONS);
+    expect(sent[0].request.state.pictures).toHaveLength(4);
+    expect(out.costSek).toBeCloseTo(jevCostSek({ input_tokens: 10_000 }));
+    expect(out.inputTokens).toBe(10_000);
+    expect(layoutReadSchemaE.safeParse(out.result).success).toBe(true);
+  });
+
+  it("references every asset: each picture's reference appears in the serialized state, once, and nothing else does", async () => {
+    const { client, sent } = jevClient();
+    await makeJevLayoutCall(client, e, deps)(blocks());
+    const pictures = sent[0].request.state.pictures;
+    const serialized = JSON.stringify(sent[0].request.state);
+    const refs = pictures.map((p) => String(p));
+    expect(new Set(refs).size).toBe(4);
+    for (const ref of refs) {
+      expect(ref.length).toBeGreaterThan(0);
+      expect(serialized.split(ref).length - 1).toBe(1);
+    }
+  });
+
+  it("prepares the plan as PNG and the photos as JPEG", async () => {
+    const formats: string[] = [];
+    const call = makeJevLayoutCall(jevClient().client, e, { ...deps, prepare: async (b, f) => { formats.push(f); return prepare(b, f); } });
+    await call(blocks());
+    expect(formats).toEqual(["png", "jpeg", "jpeg", "jpeg"]);
+  });
+
+  it("fetches the pictures one at a time and pauses between downloads", async () => {
+    const order: string[] = [];
+    let running = 0;
+    let maxRunning = 0;
+    const slowFetch = async (u: string) => {
+      running += 1;
+      maxRunning = Math.max(maxRunning, running);
+      order.push(u);
+      await new Promise((r) => setTimeout(r, 5));
+      running -= 1;
+      return new Uint8Array([1]);
+    };
+    await makeJevLayoutCall(jevClient().client, e, { ...deps, fetchImage: slowFetch, pauseMs: 1 })(blocks());
+    expect(maxRunning).toBe(1);
+    expect(order).toEqual([url(1), url(2), url(3), url(4)]);
+  });
+
+  it("takes the plan from bytes when the block is inline (the smoke's synthetic plan) and downloads nothing", async () => {
+    const fetched: string[] = [];
+    const { client, sent } = jevClient();
+    await makeJevLayoutCall(client, e, { ...deps, fetchImage: async (u) => { fetched.push(u); return new Uint8Array([1]); } })([
+      { type: "image", source: { type: "base64", media_type: "image/png", data: Buffer.from([1, 2, 3]).toString("base64") } },
+    ]);
+    expect(fetched).toEqual([]);
+    expect(sent[0].request.state.pictures).toHaveLength(1);
+  });
+
+  it("fails the whole flat before any request, billed 0, when a picture cannot be fetched or prepared", async () => {
+    const { client, sent } = jevClient();
+    await expect(makeJevLayoutCall(client, e, { ...deps, fetchImage: async (u) => (u === url(3) ? null : new Uint8Array([1])) })(blocks())).rejects.toMatchObject({ code: "IMAGE_DOWNLOAD", billedSek: 0 });
+    await expect(makeJevLayoutCall(client, e, { ...deps, prepare: async () => { throw new Error("not an image"); } })(blocks())).rejects.toMatchObject({ code: "IMAGE_PREPARE", billedSek: 0 });
+    expect(sent).toHaveLength(0);
+  });
+
+  it("reports an SDK error by class and HTTP status only, never its message, billed 0", async () => {
+    const { client } = jevClient({ fail: { name: "BadRequestError", status: 400 } });
+    const err = await makeJevLayoutCall(client, e, deps)(blocks()).then(
+      () => null,
+      (x: unknown) => x as LayoutCallError & { status?: number },
+    );
+    expect(err).toBeInstanceOf(LayoutCallError);
+    expect(err?.code).toBe("JEV_BadRequestError");
+    expect(err?.status).toBe(400);
+    expect(err?.billedSek).toBe(0);
+    expect(String(err?.message)).not.toMatch(/https?:|secret/);
+  });
+
+  it("bills an answer that cannot be mapped, and an answer without a token count is counted at the estimate by the runner", async () => {
+    const bad = jevClient({ answers: jevAnswers({ balconySide: choiceAns("rooftop", { rooftop: 1 }) }) });
+    await expect(makeJevLayoutCall(bad.client, e, deps)(blocks())).rejects.toMatchObject({ code: "JEV_BAD_ANSWER" });
+    const noUsage = jevClient({ usage: { input_tokens: null, output_tokens: 3 } });
+    const out = await runVariantReads([item(1)], { variant: e, call: makeJevLayoutCall(noUsage.client, e, deps), cache: emptyCache(e), runCapSek: 1, today: "d" });
+    expect(out.reads[0].status).toBe("read");
+    expect(out.spentSek).toBeCloseTo(e.estSekPerFlat);
+  });
+
+  it("runs through runVariantReads: a fresh read, a free cache hit, a fact with the probabilities, and the round cap on real money", async () => {
+    const { client, sent } = jevClient();
+    const call = makeJevLayoutCall(client, e, deps);
+    const first = await runVariantReads([item(1), item(2)], { variant: e, call, cache: emptyCache(e), runCapSek: 40, today: "2026-10-24" });
+    expect(first.calls).toBe(2);
+    expect(first.spentSek).toBeCloseTo(2 * jevCostSek({ input_tokens: 10_000 }));
+    expect(first.reads[0].fact?.fieldConfidence?.balcony).toBeCloseTo(0.8);
+    const second = await runVariantReads([item(1), item(2)], { variant: e, call, cache: first.cacheNext, runCapSek: 40, today: "2026-10-24" });
+    expect(second.cacheHits).toBe(2);
+    expect(second.spentSek).toBe(0);
+    expect(sent).toHaveLength(2);
+  });
+});
+
+describe("variant e: no request without RUN_LLM_EVALS=1", () => {
+  it("jevGate is skip without the run flag, no_key without a key and ok only with both", () => {
+    expect(jevGate({})).toBe("skip");
+    expect(jevGate({ TYPESAFE_API_KEY: "x" })).toBe("skip");
+    expect(jevGate({ RUN_LLM_EVALS: "0", TYPESAFE_API_KEY: "x" })).toBe("skip");
+    expect(jevGate({ RUN_LLM_EVALS: "1" })).toBe("no_key");
+    expect(jevGate({ RUN_LLM_EVALS: "1", TYPESAFE_API_KEY: "" })).toBe("no_key");
+    expect(jevGate({ RUN_LLM_EVALS: "1", TYPESAFE_API_KEY: "x" })).toBe("ok");
+  });
+
+  it("createJevClient builds no client, and so can send nothing, unless the gate is ok", () => {
+    let built = 0;
+    const make = (): JevClientLike => {
+      built += 1;
+      return { systemOne: async () => ({ answers: {} }) };
+    };
+    expect(() => createJevClient({ TYPESAFE_API_KEY: "x" }, make)).toThrow("JEV_GATE_CLOSED");
+    expect(() => createJevClient({ RUN_LLM_EVALS: "1" }, make)).toThrow("JEV_GATE_CLOSED");
+    expect(built).toBe(0);
+    expect(createJevClient({ RUN_LLM_EVALS: "1", TYPESAFE_API_KEY: "x" }, make)).toBeDefined();
+    expect(built).toBe(1);
   });
 });

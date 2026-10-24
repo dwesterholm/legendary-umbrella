@@ -43,6 +43,8 @@ import {
   type TruthFile,
 } from "@/lib/discovery/layout-accuracy";
 import { makeTwoStepLayoutCall, makeVariantLayoutCall } from "@/lib/discovery/layout-call";
+import { createJevClient, makeJevLayoutCall } from "@/lib/discovery/layout-typesafe-call";
+import { jevGate } from "@/lib/discovery/layout-typesafe";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import {
   LAYOUT_ROUND_CAP_SEK,
@@ -437,19 +439,29 @@ function safeError(error: unknown): string {
   return "UNKNOWN";
 }
 
-/** The paid gate: RUN_LLM_EVALS=1, then the key's presence (never its value). Returns an exit code, or null to go on. */
-function paidGate(): number | null {
+/**
+ * The paid gate: RUN_LLM_EVALS=1, then the presence of the key the variant needs (never its value): TYPESAFE_API_KEY for
+ * a Jev variant, ANTHROPIC_API_KEY for the rest. Returns an exit code, or null to go on.
+ */
+function paidGate(spec: LayoutVariantSpec): number | null {
   if (process.env.RUN_LLM_EVALS !== "1") {
     console.log(GATE_TEXT);
     return 0;
+  }
+  if (spec.callShape === "typesafe") {
+    const gate = jevGate(process.env);
+    console.log(`TYPESAFE_API_KEY: ${gate === "ok" ? "satt" : "saknas"}`);
+    return gate === "ok" ? null : 1;
   }
   const hasKey = typeof process.env.ANTHROPIC_API_KEY === "string" && process.env.ANTHROPIC_API_KEY.length > 0;
   console.log(`ANTHROPIC_API_KEY: ${hasKey ? "satt" : "saknas"}`);
   return hasKey ? null : 1;
 }
 
-/** The injected call of a variant. */
-function callFor(client: Anthropic, spec: LayoutVariantSpec): VariantCallFn {
+/** The injected call of a variant. The paid gate has passed before this is reached, so the clients are created here and only here. */
+function callFor(spec: LayoutVariantSpec): VariantCallFn {
+  if (spec.callShape === "typesafe") return makeJevLayoutCall(createJevClient(process.env), spec);
+  const client = new Anthropic();
   return spec.steps === 2 ? makeTwoStepLayoutCall(client, spec) : makeVariantLayoutCall(client, spec);
 }
 
@@ -479,7 +491,7 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
       console.error(`Sanningsfilen klarar inte kontrollen: ${v.error}`);
       return 1;
     }
-    const gate = paidGate();
+    const gate = paidGate(spec);
     if (gate !== null) return gate;
   }
   const snapshotPath = args.snapshot ?? DEFAULT_SNAPSHOT;
@@ -502,7 +514,7 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
     console.error(`Variantcachen ${path} kunde inte läsas; ingen omgång kördes och filen rörs inte`);
     return 1;
   }
-  const call = callFor(new Anthropic(), spec);
+  const call = callFor(spec);
   let latest = cache;
   let out;
   try {
@@ -555,8 +567,9 @@ async function smoke(args: Args & { variant: string }): Promise<number> {
     console.error(`Okänd variant ${args.variant}; kända: ${Object.keys(LAYOUT_VARIANTS).join(", ")}`);
     return 1;
   }
-  const gate = paidGate();
+  const gate = paidGate(spec);
   if (gate !== null) return gate;
+  const smokeCapSek = spec.smokeCapSek ?? LAYOUT_SMOKE_CAP_SEK;
 
   const snapshotPath = args.snapshot ?? DEFAULT_SNAPSHOT;
   if (!existsSync(snapshotPath)) {
@@ -592,10 +605,13 @@ async function smoke(args: Args & { variant: string }): Promise<number> {
 
   // Keep the HTTP status of a failure: a 400 is the signal that the strict-output grammar or the call shape is rejected.
   const statuses: number[] = [];
-  const realCall = callFor(new Anthropic(), spec);
+  const realCall = callFor(spec);
+  let inputTokens = 0;
   const call: VariantCallFn = async (blocks) => {
     try {
-      return await realCall(blocks);
+      const answered = await realCall(blocks);
+      inputTokens += answered.inputTokens ?? 0;
+      return answered;
     } catch (error) {
       const status = httpStatusOf(error);
       if (status !== null) statuses.push(status);
@@ -610,10 +626,10 @@ async function smoke(args: Args & { variant: string }): Promise<number> {
       variant: spec,
       call,
       cache,
-      runCapSek: LAYOUT_SMOKE_CAP_SEK,
+      runCapSek: smokeCapSek,
       today: today(),
       // The smoke may not exceed its cap by an estimate that is larger than the cap itself.
-      estSekPerFlat: Math.min(spec.estSekPerFlat, LAYOUT_SMOKE_CAP_SEK),
+      estSekPerFlat: Math.min(spec.estSekPerFlat, smokeCapSek),
       checkpoint: (c) => {
         latest = c;
         saveVariantCache(path, c);
@@ -648,9 +664,11 @@ async function smoke(args: Args & { variant: string }): Promise<number> {
     cacheHits: out.cacheHits,
     spentSek: Number(out.spentSek.toFixed(4)),
     totalSpentSek: Number(out.totalSpentSek.toFixed(4)),
-    smokeCapSek: LAYOUT_SMOKE_CAP_SEK,
+    smokeCapSek,
     httpStatuses: statuses,
     grammar,
+    // A Jev variant also reports its total in the plain names of the plan (sek) and its input tokens; no picture, URL or key.
+    ...(spec.callShape === "typesafe" ? { sek: Number(out.spentSek.toFixed(4)), input_tokens: inputTokens } : {}),
   };
   const safe = guardedDataPath(evidencePath, { dir: ".planning/phases", ext: ".json" });
   if (safe === null) throw new Error("Bevisfilen får bara skrivas under .planning/phases/");
@@ -661,7 +679,7 @@ async function smoke(args: Args & { variant: string }): Promise<number> {
   }
   console.log(
     `Rökprov ${spec.id}: schemat och anropsformen ${grammar === "ok" ? "gick igenom" : grammar === "400" ? "avvisades (HTTP 400)" : "gav annat fel"}, ${out.calls} anrop, ` +
-      `${out.cacheHits} från cache, ${formatSek(out.spentSek)} kr denna körning (tak ${formatSek(LAYOUT_SMOKE_CAP_SEK)} kr), totalt ${formatSek(out.totalSpentSek)} kr för varianten`,
+      `${out.cacheHits} från cache, ${formatSek(out.spentSek)} kr denna körning (tak ${formatSek(smokeCapSek)} kr), totalt ${formatSek(out.totalSpentSek)} kr för varianten`,
   );
   return grammar === "ok" && out.reads.every((r) => r.status === "read" || r.status === "cache" || r.status === "cost_cap") ? 0 : 1;
 }
