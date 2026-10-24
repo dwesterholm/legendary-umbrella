@@ -4,9 +4,9 @@ Datum: 2026-10-24, körd 12:09 lokal tid (10:09 UTC), lokal webbläsare, ingen b
 
 ## Körningen avbröts av Booli
 
-Booli svarade HTTP 403 (utmaning) på den lokala webbläsaren från den 36:e detaljsidan. Av 58 jämförbara annonser fick 35 sin detaljsida och 23 fick den inte. Programmet stannar inte av sig självt vid en utmaning: det försökte de 23 sidorna en gång vardera och därefter 31 föreningssidor (BRF), och alla 54 försök fick 403 (loggen: 54 rader med "ChallengeError"). Ingen sida försöktes om efter det, och jag startade ingen ny körning. Vägran är noterad i trafikloggen (`booli-gate.mjs --refused live-run`), så ingen Booli-trafik från den här datorn är tillåten före 2026-10-25 10:17 UTC. Körningen tog 8 minuter och jag följde den inte medan den gick, så jag kunde inte avbryta den vid första 403.
+Booli svarade HTTP 403 (utmaning) på den lokala webbläsaren från den 36:e detaljsidan. Av 58 jämförbara annonser fick 35 sin detaljsida och 23 fick den inte. Programmet stannar inte av sig självt vid en utmaning: det fortsatte med de 23 sidorna och därefter 31 föreningssidor (BRF), och alla 54 sidor fick 403. Programmet försöker varje blockerad sida en gång till, så kostnadsraden i loggen visar 212 sidor, 108 utmaningar, 54 omförsök och 54 misslyckade. Jag startade ingen ny körning efteråt. Vägran är noterad i trafikloggen (`booli-gate.mjs --refused live-run`), så ingen Booli-trafik från den här datorn är tillåten före 2026-10-25 10:17 UTC. Körningen tog 8 minuter och jag följde den inte medan den gick, så jag kunde inte avbryta den vid första 403.
 
-Av de 35 detaljsidorna hade 33 mäklartext som gick att läsa. Hos mäklarna vägrade verktyget 17 sidor som skickade om en andra gång, en mäklarsida svarade 403 och en 429.
+Av de 35 detaljsidorna gav 33 en beskrivning som gick att läsa. I loggen syns också 17 mäklarsidor som verktyget vägrade följa vid en andra omdirigering, en mäklarsida som svarade 403 och en som svarade 429; loggen säger inte om beskrivningen då kom från Booli i stället.
 
 Mätningen gäller därför 33 beskrivningar, inte 58. Den är ett riktigt men litet urval: de 35 annonser som stod först i förrank-ordningen fick sin sida.
 
