@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-24",
+  "variant": "b",
+  "version": "4810c64113ec3f71",
+  "model": "claude-sonnet-4-6",
+  "reads": [
+    {
+      "target": "150148",
+      "status": "read",
+      "errorCode": null,
+      "result": {
+        "balconySide": "unknown",
+        "livingOnBalconySide": true,
+        "kitchenOnBalconySide": false,
+        "bedroomOnBalconySide": true,
+        "windowSides": "twoOpposite",
+        "bedroomSide": "unknown",
+        "streetEvidence": "none",
+        "confidence": 0.4,
+        "planPresent": true,
+        "balconyConfidence": 0.2,
+        "windowsConfidence": 0.6,
+        "bedroomConfidence": 0.2
+      },
+      "spentSek": 0.2868
+    },
+    {
+      "target": "syntetisk",
+      "status": "read",
+      "errorCode": null,
+      "result": {
+        "balconySide": "unknown",
+        "livingOnBalconySide": false,
+        "kitchenOnBalconySide": false,
+        "bedroomOnBalconySide": false,
+        "windowSides": "unknown",
+        "bedroomSide": "unknown",
+        "streetEvidence": "none",
+        "confidence": 0.2,
+        "planPresent": true,
+        "balconyConfidence": 0.1,
+        "windowsConfidence": 0.1,
+        "bedroomConfidence": 0.1
+      },
+      "spentSek": 0.1008
+    }
+  ],
+  "calls": 2,
+  "cacheHits": 0,
+  "spentSek": 0.3876,
+  "totalSpentSek": 0.3876,
+  "smokeCapSek": 1,
+  "httpStatuses": [],
+  "grammar": "ok"
+}
