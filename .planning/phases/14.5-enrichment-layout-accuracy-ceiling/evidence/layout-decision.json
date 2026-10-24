@@ -36,10 +36,35 @@
     {
       "slot": "b",
       "variant": "b",
-      "status": "not_run",
-      "spentSek": 0.38761799999999996,
-      "fields": null,
-      "pass": null
+      "status": "run",
+      "spentSek": 17.173199999999998,
+      "fields": {
+        "balcony": {
+          "pass": false,
+          "gate": 0.2,
+          "holdout": {
+            "k": 4,
+            "n": 6,
+            "precision": 0.6666666666666666,
+            "low": 0.2999883213415286,
+            "high": 0.903230667440783
+          },
+          "reason": "holdout-precisionen 4 av 6 (67 %) vid spärren 0,20 är under 75 %"
+        },
+        "korsdrag": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "pass": false
     },
     {
       "slot": "c",
@@ -60,7 +85,7 @@
   ],
   "winner": null,
   "stop": false,
-  "next": "b",
+  "next": "c",
   "tierForD": "sonnet",
   "bestByField": {
     "balcony": {
@@ -78,5 +103,5 @@
     "korsdrag": null,
     "bedroom": null
   },
-  "totalSpentSek": 15.846218388000004
+  "totalSpentSek": 32.631800387999995
 }

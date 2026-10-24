@@ -5,8 +5,8 @@ Varianterna körs i fast ordning och omgångarna stoppas vid den första som kla
 | Variant | Status | Kostnad (kr) | Balkongsida | Korsdrag | Sovrumssida | Alla tre |
 | --- | --- | --- | --- | --- | --- | --- |
 | a | körd | 15,45 | nej | nej | nej | nej |
-| b | nästa att köra | 0,39 | - | - | - | - |
-| c | inte körd ännu | 0,00 | - | - | - | - |
+| b | körd | 17,17 | nej | nej | nej | nej |
+| c | nästa att köra | 0,00 | - | - | - | - |
 | d-sonnet | inte körd ännu | 0,00 | - | - | - | - |
 
 ## Utslag
@@ -19,4 +19,4 @@ Tvåstegsläsningen (d) körs på nivån Sonnet (regel: den nivå vars enstegsva
 - Korsdrag: ingen variant gav någon holdout-precision (ingen spärr nåddes eller ingen körd variant).
 - Sovrumssida: ingen variant gav någon holdout-precision (ingen spärr nåddes eller ingen körd variant).
 
-Total kostnad för alla varianter: 15,85 kr.
+Total kostnad för alla varianter: 32,63 kr.
