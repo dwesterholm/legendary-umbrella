@@ -449,6 +449,12 @@ export interface VariantRunResult {
   cacheHits: number;
   /** The loaded cache plus this run's new reads, with the ledger. */
   cacheNext: VariantCache;
+  /**
+   * True when the `checkpoint` callback threw at least once (a full disk, a path guard). The reads themselves are unaffected:
+   * `reads` has exactly one outcome per item and `cacheNext` holds every paid result, so the caller saves `cacheNext` once more
+   * and exits non-zero (WR-02).
+   */
+  checkpointFailed: boolean;
 }
 
 const isMoney = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
@@ -508,7 +514,8 @@ export async function runVariantReads(
     estSekPerFlat?: number;
     /**
      * Called with the cache as it stands after every PAID call (a usable read or a billed failure), so the caller can save
-     * it right away: a crash or an interrupt later in the run then costs nothing already paid for (R-05).
+     * it right away: a crash or an interrupt later in the run then costs nothing already paid for (R-05). A callback that
+     * throws is caught and reported as `checkpointFailed`; it never changes what is recorded for the item (WR-02).
      */
     checkpoint?: (cache: VariantCache) => void;
   },
@@ -524,6 +531,15 @@ export async function runVariantReads(
   let spentSek = 0;
   let calls = 0;
   let cacheHits = 0;
+  let checkpointFailed = false;
+  /** The caller's save, kept apart from the read: a save that throws must never turn a finished read into a second, failed outcome. */
+  const checkpointNow = (): void => {
+    try {
+      opts.checkpoint?.(cacheNow());
+    } catch {
+      checkpointFailed = true;
+    }
+  };
   const cacheNow = (): VariantCache => ({
     version: 1,
     variantId: spec.id,
@@ -558,23 +574,23 @@ export async function runVariantReads(
       const parsed = schema.safeParse(raw);
       if (!parsed.success) {
         reads.push({ ...base, status: "failed", costSek: paid, result: null, fact: null, images: seen, errorCode: "BAD_ANSWER" });
-        opts.checkpoint?.(cacheNow());
+        checkpointNow();
         continue;
       }
       calls += 1;
       reads.push({ ...base, status: "read", costSek: paid, result: parsed.data, fact: factFromVariantRead(spec, parsed.data, seen), images: seen });
       fresh.set(id, { id, storedAt: opts.today, costSek: paid, result: parsed.data });
-      opts.checkpoint?.(cacheNow());
+      checkpointNow();
     } catch (error) {
       const billed = error instanceof FloorPlanCallError && isMoney(error.billedSek) ? error.billedSek : 0;
       spentSek += billed;
       reads.push({ ...base, status: "failed", costSek: billed, result: null, fact: null, images: seen, errorCode: errorLabel(error) });
-      if (billed > 0) opts.checkpoint?.(cacheNow());
+      if (billed > 0) checkpointNow();
     }
   }
 
   const cacheNext = cacheNow();
-  return { reads, spentSek, totalSpentSek: priorSek + spentSek, calls, cacheHits, cacheNext };
+  return { reads, spentSek, totalSpentSek: priorSek + spentSek, calls, cacheHits, cacheNext, checkpointFailed };
 }
 
 // ---------------------------------------------------------------------------

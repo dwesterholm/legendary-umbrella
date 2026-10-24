@@ -555,6 +555,8 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
     saveVariantCache(path, latest);
   }
   saveVariantCache(path, out.cacheNext);
+  // WR-02: a checkpoint save that failed mid-run does not change the reads; the final save above has just kept them. The run still ends non-zero.
+  if (out.checkpointFailed) console.error(`FEL: en mellanlagring av ${path} misslyckades under körningen; cachen sparades om i slutet`);
   for (const r of out.reads) {
     console.log(`${r.booliId} ${r.status}${r.errorCode ? ` (${r.errorCode})` : ""} ${formatSek(r.costSek)} kr`);
   }
@@ -564,7 +566,7 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
     `Omgång ${spec.id}: ${out.calls} anrop, ${out.cacheHits} från cache, ${capped} över taket, ${failed} misslyckade; ` +
       `${formatSek(out.spentSek)} kr denna omgång (tak ${formatSek(capSek)} kr), totalt ${formatSek(out.totalSpentSek)} kr för varianten`,
   );
-  return capped > 0 || failed > 0 ? 1 : 0;
+  return capped > 0 || failed > 0 || out.checkpointFailed ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -660,6 +662,10 @@ async function smoke(args: Args & { variant: string }): Promise<number> {
     saveVariantCache(path, latest);
   }
   saveVariantCache(path, out.cacheNext);
+  if (out.checkpointFailed) {
+    console.error(`FEL: en mellanlagring av ${path} misslyckades under rökprovet; cachen sparades om i slutet`);
+    process.exitCode = 1;
+  }
 
   const evidencePath = `${EVIDENCE_DIR}/layout-smoke-${spec.id}.json`;
   let grammar: "ok" | "400" | "fel";

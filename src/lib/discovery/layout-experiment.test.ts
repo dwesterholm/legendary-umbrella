@@ -678,6 +678,62 @@ describe("runVariantReads: checkpoint and the smoke estimate", () => {
     expect(snapshots[2]).toEqual(out.cacheNext);
   });
 
+  it("a checkpoint that throws leaves exactly one outcome per item, no double record, and reports checkpointFailed (WR-02)", async () => {
+    let saves = 0;
+    const call: VariantCallFn = async () => ({ result: read(), costSek: 0.2 });
+    const out = await runVariantReads([item(1), item(2), item(3)], {
+      variant: spec,
+      call,
+      cache: emptyCache(),
+      runCapSek: 5,
+      today: "d",
+      checkpoint: () => {
+        saves += 1;
+        throw new Error("ENOSPC: no space left on device");
+      },
+    });
+    expect(saves).toBe(3); // the runner kept going and tried again after every paid call
+    expect(out.reads).toHaveLength(3);
+    expect(out.reads.map((r) => r.status)).toEqual(["read", "read", "read"]);
+    expect(out.reads.map((r) => r.booliId)).toEqual([1, 2, 3]);
+    expect(out.calls).toBe(3);
+    expect(out.spentSek).toBeCloseTo(0.6, 10);
+    expect(Object.keys(out.cacheNext.entries)).toHaveLength(3);
+    expect(out.checkpointFailed).toBe(true);
+  });
+
+  it("a checkpoint that throws after a BAD_ANSWER or a billed failure does not add a second outcome either", async () => {
+    let n = 0;
+    const call: VariantCallFn = async () => {
+      n += 1;
+      if (n === 1) return { result: { nonsense: true }, costSek: 0.2 };
+      throw new FloorPlanCallError("CLAUDE_REFUSAL", 0.3);
+    };
+    const out = await runVariantReads([item(1), item(2)], {
+      variant: spec,
+      call,
+      cache: emptyCache(),
+      runCapSek: 5,
+      today: "d",
+      checkpoint: () => {
+        throw new Error("path guard");
+      },
+    });
+    expect(out.reads).toHaveLength(2);
+    expect(out.reads.map((r) => r.errorCode)).toEqual(["BAD_ANSWER", "CLAUDE_REFUSAL"]);
+    expect(out.spentSek).toBeCloseTo(0.5, 10);
+    expect(out.cacheNext.spentSekTotal).toBeCloseTo(0.5, 10);
+    expect(out.checkpointFailed).toBe(true);
+  });
+
+  it("checkpointFailed is false when every save worked or none was given", async () => {
+    const { call } = fakeCall();
+    const plain = await runVariantReads([item(1)], { variant: spec, call, cache: emptyCache(), runCapSek: 5, today: "d" });
+    expect(plain.checkpointFailed).toBe(false);
+    const saved = await runVariantReads([item(1)], { variant: spec, call, cache: emptyCache(), runCapSek: 5, today: "d", checkpoint: () => undefined });
+    expect(saved.checkpointFailed).toBe(false);
+  });
+
   it("does not checkpoint a cache hit or a skipped item", async () => {
     const { call } = fakeCall();
     const first = await runVariantReads([item(1)], { variant: spec, call, cache: emptyCache(), runCapSek: 5, today: "d" });
