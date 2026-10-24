@@ -70,6 +70,17 @@ import { formatSek } from "@/lib/discovery/sun-floorplan";
 const OUT_DIRS = [".planning/phases", ".planning/calibration/data"] as const;
 const TRUTH_DIR = ".planning/phases";
 const DEFAULT_SNAPSHOT = ".planning/calibration/data/forsale-snapshot-14.4-layout.json";
+/**
+ * The pool a round reads picture links from when no --snapshot is given: the 14.4 snapshot first, then the other stored
+ * snapshots. The locked truth set holds two flats (R-11 (b), plan 07) that only the older snapshots carry. The first snapshot
+ * that has a flat decides its picture links.
+ */
+const DEFAULT_SNAPSHOT_POOL = [
+  DEFAULT_SNAPSHOT,
+  ".planning/calibration/data/forsale-snapshot-14.3-evidence.json",
+  ".planning/calibration/data/forsale-snapshot-2026-10-13.json",
+  ".planning/calibration/data/live-14.3-07-snapshot.json",
+] as const;
 const EVIDENCE_DIR = ".planning/phases/14.5-enrichment-layout-accuracy-ceiling/evidence";
 const SYNTHETIC_PLAN = "src/lib/discovery/__fixtures__/floorplan-north-arrow.fixture.png";
 const F61_BOOLI_ID = 150148;
@@ -380,12 +391,14 @@ function selectAndLock(path: string, dryRun: boolean): number {
 // ---------------------------------------------------------------------------
 
 /** The flats of a round, in order: the locked set in its read order, or every row of an unlocked file (dry run only). */
-function itemsOf(file: TruthFile, snapshotPath: string): { items: VariantReadItem[]; missing: number[] } {
-  const snapshot = parseFitSnapshot(JSON.parse(readFileSync(snapshotPath, "utf8")));
+function itemsOf(file: TruthFile, snapshotPaths: readonly string[]): { items: VariantReadItem[]; missing: number[] } {
   const urlsById = new Map<number, readonly string[] | null>();
-  for (const row of snapshot.rows) {
-    const id = booliIdOf(row.candidate);
-    if (id !== null && !urlsById.has(id)) urlsById.set(id, row.candidate.imageUrls);
+  for (const snapshotPath of snapshotPaths) {
+    const snapshot = parseFitSnapshot(JSON.parse(readFileSync(snapshotPath, "utf8")));
+    for (const row of snapshot.rows) {
+      const id = booliIdOf(row.candidate);
+      if (id !== null && !urlsById.has(id)) urlsById.set(id, row.candidate.imageUrls);
+    }
   }
   const rows =
     file.lockedAt !== null
@@ -494,12 +507,12 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
     const gate = paidGate(spec);
     if (gate !== null) return gate;
   }
-  const snapshotPath = args.snapshot ?? DEFAULT_SNAPSHOT;
-  if (!existsSync(snapshotPath)) {
+  const snapshotPaths = (args.snapshot !== null ? [args.snapshot] : DEFAULT_SNAPSHOT_POOL).filter((p) => existsSync(p));
+  if (snapshotPaths.length === 0) {
     console.error("Snapshoten finns inte; ange --snapshot <fil>");
     return 1;
   }
-  const { items, missing } = itemsOf(file, snapshotPath);
+  const { items, missing } = itemsOf(file, snapshotPaths);
   if (args.dryRun) return dryRun(spec, items, missing, capSek);
   if (missing.length > 0) {
     console.error(`Lägenheter i urvalet saknas i snapshoten: ${missing.join(", ")}; ingen omgång kördes`);
