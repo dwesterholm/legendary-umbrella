@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 7/13 plans executed
+**Plans:** 8/13 plans executed
 
 Plans:
 
@@ -194,7 +194,7 @@ Plans:
 
 **Wave 3** *(group B; blocked on Wave 2 completion)*
 
-- [ ] 14.5-06-PLAN.md — Judging procedure and blind truth rows 1-37, Folkungagatan 61 as row 1; picture downloads not before 2026-10-18 13:15 UTC (LAYACC-01)
+- [x] 14.5-06-PLAN.md — Judging procedure and blind truth rows 1-37, Folkungagatan 61 as row 1; picture downloads not before 2026-10-18 13:15 UTC (LAYACC-01)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
