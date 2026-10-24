@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 9/13 plans executed
+**Plans:** 10/13 plans executed
 
 Plans:
 
@@ -202,7 +202,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 14.5-08-PLAN.md — Live schema smoke; paid rounds a (baseline) and b (evidence rules), each at most 40 kr (LAYACC-02)
+- [x] 14.5-08-PLAN.md — Live schema smoke; paid rounds a (baseline) and b (evidence rules), each at most 40 kr (LAYACC-02)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 

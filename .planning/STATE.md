@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.6"
 current_phase_name: Bygglov & Stambyte, Uppmätning Flags
 status: verifying
-stopped_at: Completed 14.5-07-PLAN.md
-last_updated: "2026-10-24T09:24:40.065Z"
+stopped_at: Completed 14.5-08-PLAN.md
+last_updated: "2026-10-24T09:45:32.264Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: d4a928a85224cb1e2dc08d0f5cc74251f7466bcd
+state_head: 0db88b000bf72e9045ecbccfba97da7fd3b8dc7a
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 77
-  completed_plans: 73
+  completed_plans: 74
   percent: 13
 ---
 
@@ -135,6 +135,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.6 P12 | 16 min | 3 tasks | 10 files |
 | Phase 14.5 P06 | 28 min | 2 tasks | 2 files |
 | Phase 14.5 P07 | 17 min | 3 tasks | 5 files |
+| Phase 14.5 P08 | 22 min | 4 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -334,6 +335,8 @@ Recent decisions affecting current work:
 - [Phase 14.6]: Area note wording unified to 'ofta 1–2 kvm' to match the kr upside (one and two extra kvm) — Plan 10 left the note at 1–3 while the upside covered 1–2
 - [Phase 14.5]: 14.5-06: a sovdel counts as a bedroom only with its own window on the decided wall; photos count only when tied to the balcony wall; plan vs photo contradiction on windows is undecidable
 - [Phase 14.5]: 14.5-07: truth set locked at 60 flats (dev 32, holdout 28); bedroom side not measurable (n = 9 of 12), balcony n = 14, korsdrag n = 59 (4 true two-opposite flats in the set, 1 in holdout) — R-05/R-11: no lowered bar; stored snapshots exhausted at 77 flats; cap raised 45 to 60 in code per R-11
+- [Phase 14.5]: 14.5-08: variant e (Jev) questions are in English; per-field confidence is the answer probability, overall confidence the smallest of the three field probabilities — Jev docs and examples are English; R-10 defines confidence as the answer probability
+- [Phase 14.5]: 14.5-08: rounds read picture links from all stored snapshots (two locked truth rows exist only in older ones) — A paid run stops when any flat of the locked set is missing
 
 ### Pending Todos
 
@@ -367,8 +370,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-24T09:24:39.939Z
-Stopped at: Completed 14.5-07-PLAN.md
+Last session: 2026-10-24T09:45:32.145Z
+Stopped at: Completed 14.5-08-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.
