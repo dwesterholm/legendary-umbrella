@@ -43,6 +43,13 @@ import {
   type TruthFile,
 } from "@/lib/discovery/layout-accuracy";
 import { makeTwoStepLayoutCall, makeVariantLayoutCall } from "@/lib/discovery/layout-call";
+import {
+  COMPARE_VARIANT_IDS,
+  compareVariants,
+  parseRoundLog,
+  renderComparisonMd,
+  type CompareInput,
+} from "@/lib/discovery/layout-compare";
 import { createJevClient, makeJevLayoutCall } from "@/lib/discovery/layout-typesafe-call";
 import { jevGate } from "@/lib/discovery/layout-typesafe";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
@@ -105,7 +112,7 @@ Betalt (kräver RUN_LLM_EVALS=1, annars görs inget anrop):
   --run <id>       Planerar (--dry-run) eller kör (betalt) en omgång för varianten (${LAYOUT_VARIANT_IDS.join(", ")})
   --cap-sek <n>    Taket för omgången i kronor (standard och högsta värde ${LAYOUT_ROUND_CAP_SEK})
   --smoke          Betald rökprov för en variant (--variant <id>), högst ${LAYOUT_SMOKE_CAP_SEK} kr: Folkungagatan 61 och, för enstegsvarianter, den syntetiska planritningen
-  --decide         Gratis: läser varje evidence/layout-accuracy-<variant>.json och variantcachernas kostnad och skriver beslutet (--out, --md)
+  --decide         Gratis: läser varje evidence/layout-accuracy-<variant>.json, rundloggarna och variantcachernas kostnad och skriver beslutet och jämförelsen a till e (--out, --md; skriver också layout-rounds-e.json bredvid --out när e har en rapport)
   --out <fil>      Var rapporten skrivs (.json under .planning/phases/ eller .planning/calibration/data/)
   --md <fil>       Skriver också rapporten som markdown (samma kataloger, .md)
   --judge-list     Arbetslistan: Booli-id:n att bedöma, Folkungagatan 61 först, sedan en bestämd slumpordning; öppnar ingen cache
@@ -752,13 +759,124 @@ function decide(args: Args & { truth: string; out: string }): number {
     }
   }
   const decision = decideRounds(reports, spentByVariant);
-  writeJsonAtomic(jsonOut, decision);
-  if (mdOut !== null) writeTextAtomic(mdOut, renderRoundsMd(decision));
+
+  // The a-to-e comparison (R-10): variant e has no slot in decideRounds, so it is added here. A round's kronor and calls come
+  // from its log, seconds from the timing file; a figure that was not recorded stays null and prints as "ej mätt".
+  const times = roundTimes();
+  const inputs: CompareInput[] = [];
+  for (const id of COMPARE_VARIANT_IDS) {
+    const logSlot = id.startsWith("d-") ? "d" : id;
+    const logPath = `${EVIDENCE_DIR}/layout-round-${logSlot}.log`;
+    const parsed = existsSync(logPath) ? parseRoundLog(readFileSync(logPath, "utf8"), id) : null;
+    const seconds = times[id]?.seconds;
+    inputs.push({
+      variant: id,
+      report: reports[id],
+      variantSek: spentByVariant[id] ?? 0,
+      stats: parsed === null ? null : { calls: parsed.calls, roundSek: parsed.roundSek, seconds: typeof seconds === "number" && seconds > 0 ? seconds : null },
+    });
+  }
+  const comparison = compareVariants(inputs);
+  const measurableStop = comparison.measurablePassing.length > 0;
+
+  // Folkungagatan 61 (Daniel's known truth) per variant: its answers are not part of the blind judging, the truth is on file.
+  const f61: Record<string, unknown> = {};
+  for (const id of COMPARE_VARIANT_IDS) {
+    const spec = LAYOUT_VARIANTS[id];
+    if (spec === undefined || reports[id] === undefined) continue;
+    const loaded = variantReads(spec);
+    const fact = loaded?.reads.get(F61_BOOLI_ID);
+    if (fact === undefined) continue;
+    f61[id] = {
+      balconySide: fact.balconySide,
+      windowSides: fact.windowSides,
+      bedroomSide: fact.bedroomSide,
+      confidence: fact.confidence,
+      fieldConfidence: fact.fieldConfidence ?? null,
+    };
+  }
+
+  // `winner` keeps its D-11 meaning for plan 12: a variant that passes ALL THREE fields. Bedroom side is not measurable,
+  // so while that holds it is null; the cheapest variant that passes every measurable field is `productionCandidate`.
+  const fullDecision = {
+    ...decision,
+    winner: decision.winner ?? comparison.strictWinner,
+    stop: decision.stop || comparison.strictWinner !== null,
+    measurableStop,
+    measurablePassing: comparison.measurablePassing,
+    productionCandidate: comparison.productionCandidate,
+    measurableFields: comparison.measurableFields,
+    unmeasurableFields: comparison.unmeasurableFields,
+    comparison: comparison.columns,
+    folkungagatan61: f61,
+    totalSpentSek: comparison.totalSpentSek > 0 ? comparison.totalSpentSek : decision.totalSpentSek,
+  };
+  writeJsonAtomic(jsonOut, fullDecision);
+  const eReport = reports.e;
+  const eColumn = comparison.columns.find((c) => c.variant === "e");
+  if (eReport !== undefined && eColumn !== undefined) {
+    const ePath = guardedIn(join(dirname(jsonOut), "layout-rounds-e.json"), OUT_DIRS, ".json");
+    if (ePath !== null) {
+      writeJsonAtomic(ePath, {
+        variant: "e",
+        model: LAYOUT_VARIANTS.e?.model ?? null,
+        n: eReport.rows - eReport.noRead,
+        rows: eReport.rows,
+        noRead: eReport.noRead,
+        fields: eColumn.fields,
+        raw: eColumn.raw,
+        sekPerFlat: eColumn.sekPerFlat,
+        sekTotal: eColumn.sekRound,
+        sekVariantTotal: eColumn.sekVariantTotal,
+        secondsPerFlat: eColumn.secondsPerFlat,
+        passMeasurable: eColumn.passMeasurable,
+        passAll: eColumn.passAll,
+        shortfalls: eColumn.shortfalls,
+      });
+    }
+  }
+  if (mdOut !== null) {
+    const parts = [renderRoundsMd(decision), "Tabellen ovan är beslutsregeln i fast ordning a, b, c, d (alla tre fält). Nedan står alla körda varianter, även Jev (e), bredvid varandra.\n", renderComparisonMd(comparison)];
+    const dRun = comparison.columns.some((c) => c.variant.startsWith("d-"));
+    if (measurableStop && !dRun) {
+      parts.push(`Omgång d hoppades över: ${comparison.measurablePassing.join(", ")} klarade alla mätbara fält (D-10, stoppa vid första som klarar).\n`);
+    }
+    if (Object.keys(f61).length > 0) {
+      const line = (id: string) => {
+        const f = f61[id] as { balconySide: string; windowSides: string; bedroomSide: string; confidence: number };
+        return `| ${id} | ${f.balconySide} | ${f.windowSides} | ${f.bedroomSide} | ${f.confidence.toFixed(2).replace(".", ",")} |`;
+      };
+      parts.push(
+        [
+          "## Folkungagatan 61 (Daniels kända sanning: balkong mot gatan, fönster åt en sida, sovrum mot gatan)",
+          "",
+          "| Variant | Balkongsida | Fönstersidor | Sovrumssida | Säkerhet |",
+          "| --- | --- | --- | --- | --- |",
+          ...Object.keys(f61).map(line),
+          "",
+        ].join("\n"),
+      );
+    }
+    writeTextAtomic(mdOut, parts.join("\n"));
+  }
   console.log(
-    `Beslut: vinnare ${decision.winner ?? "ingen"}, nästa ${decision.next ?? "ingen"}, tvåstegsnivå ${decision.tierForD}, ` +
-      `totalt ${formatSek(decision.totalSpentSek)} kr; skrivet till ${args.out}`,
+    `Beslut: vinnare (alla tre fält) ${fullDecision.winner ?? "ingen"}, alla mätbara fält klarar ${comparison.measurablePassing.join(", ") || "ingen"}, ` +
+      `produktionskandidat ${comparison.productionCandidate ?? "ingen"}, nästa ${decision.next ?? "ingen"}, tvåstegsnivå ${decision.tierForD}, ` +
+      `totalt ${formatSek(fullDecision.totalSpentSek)} kr; skrivet till ${args.out}`,
   );
   return 0;
+}
+
+/** Seconds per round from evidence/layout-round-times.json ({ "<variant>": { "seconds": n, "source": "..." } }); empty when the file is absent. */
+function roundTimes(): Record<string, { seconds?: number } | undefined> {
+  const path = `${EVIDENCE_DIR}/layout-round-times.json`;
+  if (!existsSync(path)) return {};
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    return raw !== null && typeof raw === "object" ? (raw as Record<string, { seconds?: number }>) : {};
+  } catch {
+    return {};
+  }
 }
 
 // ---------------------------------------------------------------------------
