@@ -1577,7 +1577,7 @@ async function runLive(args: Args): Promise<void> {
       console.error("\nFEL: alla distrikt misslyckades, ingen snapshot skrevs.");
       await printSpend(t0, result, transport, ledger(), visionLineOf(), visionSekOf(result), layoutSekOf());
       printBooliStop();
-      process.exitCode = 1;
+      process.exitCode = booliBlocked ? EXIT_BOOLI_BLOCKED : 1; // W5: a Booli block keeps code 2
       return;
     }
 
@@ -1609,17 +1609,17 @@ async function runLive(args: Args): Promise<void> {
     printBooliStop();
     if (cacheSaveError !== null) {
       console.error(`\nFEL: bildcachen kunde inte skrivas till ${VISION_CACHE_PATH}: ${cacheSaveError} (nästa körning betalar för samma annonser igen)`);
-      process.exitCode = 1;
+      process.exitCode = booliBlocked ? EXIT_BOOLI_BLOCKED : 1; // W5: a Booli block keeps code 2
     }
     if (layoutCacheSaveError !== null) {
       console.error(`\nFEL: layoutcachen kunde inte skrivas: ${layoutCacheSaveError} (nästa körning betalar för samma annonser igen)`);
-      process.exitCode = 1;
+      process.exitCode = booliBlocked ? EXIT_BOOLI_BLOCKED : 1; // W5: a Booli block keeps code 2
     }
     if (writeError === null) {
       console.log(`\nSnapshot skriven: ${outPath}`);
     } else {
       console.error(`\nFEL: snapshoten kunde inte skrivas till ${outPath}: ${writeError}`);
-      process.exitCode = 1;
+      process.exitCode = booliBlocked ? EXIT_BOOLI_BLOCKED : 1; // W5: a Booli block keeps code 2
     }
 
     if (statePath !== null) {

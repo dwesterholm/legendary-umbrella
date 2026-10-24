@@ -105,7 +105,7 @@ dem som sedda utan mejl, kör med `WATCH_MARK_SEEN_WITHOUT_SMTP=1`.
 |---|---|
 | 0 | Klart (även en tyst vecka utan nyheter) |
 | 1 | Fel: argument, fil, nyckel saknas, alla distrikt misslyckades, ingen skärm |
-| 2 | Apify-utrymmet för månaden räcker inte (bara med `--renderer apify`; ingen betald körning gjordes) |
+| 2 | Booli vägrade (utmaning/403) — körningen stoppade vid första vägrade sidan, resten hoppades över, `refused weekly-live` skrevs i trafikloggen, mailet märkt "berikning avbruten (Booli)"; vänta minst ett dygn (14.5 CR-01). Samma kod för: Apify-utrymmet för månaden räcker inte (bara med `--renderer apify`) |
 | 3 | En annan körning håller låset (`watch-state.lock`) |
 | 4 | E-postleveransen misslyckades eller SMTP-variablerna saknas (HTML skriven, bevakningsminnet orört) |
 | 5 | Körningen passerade 2 timmar och stoppades av vakthunden (webbläsaren stängdes, låset släpptes) |
