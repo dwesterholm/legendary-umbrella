@@ -102,8 +102,37 @@ export function parseRoundLog(text: string, id?: string): { calls: number; round
 
 const pctInt = (x: number): number => Math.round(100 * x);
 
-function shortfallText(field: AccuracyField, cell: FieldCell): string {
+export interface ClosestPoint {
+  t: number;
+  k: number;
+  n: number;
+}
+
+/**
+ * The point of a dev curve nearest to the bar when no gate was found: among the points at or over the target precision,
+ * the one with most believed answers; if none reaches it, the most precise one (ties: most believed answers). Null for an
+ * empty curve or one with no believed answer. Pure.
+ */
+export function closestToGate(curve: readonly { t: number; nBelieved: number; nCorrect: number }[]): ClosestPoint | null {
+  const live = curve.filter((p) => p.nBelieved > 0);
+  if (live.length === 0) return null;
+  const over = live.filter((p) => p.nCorrect / p.nBelieved >= ACCURACY_TARGET - 1e-9);
+  const pool = over.length > 0 ? over : live;
+  let best = pool[0];
+  for (const p of pool) {
+    const rate = p.nCorrect / p.nBelieved;
+    const bestRate = best.nCorrect / best.nBelieved;
+    const better = over.length > 0 ? p.nBelieved > best.nBelieved : rate > bestRate + 1e-9 || (Math.abs(rate - bestRate) <= 1e-9 && p.nBelieved > best.nBelieved);
+    if (better) best = p;
+  }
+  return { t: best.t, k: best.nCorrect, n: best.nBelieved };
+}
+
+function shortfallText(field: AccuracyField, cell: FieldCell, closest: ClosestPoint | null): string {
   const base = cell.reason ?? "klarar inte kraven";
+  if (cell.gate === null && closest !== null) {
+    return `${FIELD_NAME[field]}: ${base}; närmast kravet på dev var ${closest.k} av ${closest.n} trodda svar vid spärren ${closest.t.toFixed(2).replace(".", ",")}`;
+  }
   const h = cell.holdout;
   if (h !== null && h.n > 0 && h.k / h.n < ACCURACY_TARGET) {
     const gap = pctInt(ACCURACY_TARGET) - pctInt(h.k / h.n);
@@ -145,7 +174,9 @@ function columnOf(input: CompareInput): CompareColumn {
   const measurable = ACCURACY_FIELDS.filter((f) => fields[f].measurable);
   const passMeasurable = measurable.length > 0 && measurable.every((f) => fields[f].pass);
   const passAll = ACCURACY_FIELDS.every((f) => fields[f].pass);
-  const shortfalls = measurable.filter((f) => !fields[f].pass).map((f) => ({ field: f, text: shortfallText(f, fields[f]) }));
+  const shortfalls = measurable
+    .filter((f) => !fields[f].pass)
+    .map((f) => ({ field: f, text: shortfallText(f, fields[f], closestToGate(report.fields[f].curveDev)) }));
   return { ...base, ran: true, fields, raw, passMeasurable, passAll, shortfalls };
 }
 

@@ -31,6 +31,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { booliIdOf, parseFitSnapshot } from "@/lib/discovery/fit-score";
 import { guardedDataPath, writeJsonAtomic, writeTextAtomic } from "@/lib/discovery/json-store";
 import {
+  MIN_BELIEVED_DEV,
   TRUTH_SET_MIN_ROWS,
   accuracyReport,
   layoutTruthFileSchema,
@@ -840,6 +841,19 @@ function decide(args: Args & { truth: string; out: string }): number {
     const dRun = comparison.columns.some((c) => c.variant.startsWith("d-"));
     if (measurableStop && !dRun) {
       parts.push(`Omgång d hoppades över: ${comparison.measurablePassing.join(", ")} klarade alla mätbara fält (D-10, stoppa vid första som klarar).\n`);
+    }
+    const positives = (split: "dev" | "holdout") => file.rows.filter((r) => r.inSet && r.split === split && r.windowSides === "twoOpposite").length;
+    if (positives("dev") < MIN_BELIEVED_DEV) {
+      parts.push(
+        [
+          "## Korsdrag: varför kravet är svårt att nå med den här sanningsuppsättningen",
+          "",
+          `Lägenheter med fönster åt två motsatta sidor i sanningsuppsättningen: ${positives("dev")} på dev och ${positives("holdout")} på holdout. ` +
+            `Kravet är minst ${MIN_BELIEVED_DEV} trodda "ja" på dev för att välja en spärr, så en läsning som bara säger "ja" där det stämmer kan inte nå det; ` +
+            `den måste också säga "ja" på lägenheter som inte har två motsatta sidor, och då sjunker precisionen. Kravet har inte sänkts (R-05, R-11 d).`,
+          "",
+        ].join("\n"),
+      );
     }
     if (Object.keys(f61).length > 0) {
       const line = (id: string) => {

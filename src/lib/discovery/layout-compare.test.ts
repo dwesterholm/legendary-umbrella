@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { AccuracyField, AccuracyReport, FieldReport, Precision } from "@/lib/discovery/layout-accuracy";
 import { wilson } from "@/lib/discovery/layout-accuracy";
-import { compareVariants, parseRoundLog, renderComparisonMd } from "@/lib/discovery/layout-compare";
+import { closestToGate, compareVariants, parseRoundLog, renderComparisonMd } from "@/lib/discovery/layout-compare";
 
 const prec = (k: number, n: number): Precision => ({ k, n, precision: n === 0 ? null : k / n, ...wilson(k, n) });
 
@@ -62,6 +62,18 @@ describe("parseRoundLog", () => {
   });
 });
 
+describe("closestToGate", () => {
+  it("takes the point over the target with most believed answers, else the most precise one", () => {
+    expect(closestToGate([{ t: 0.2, nBelieved: 4, nCorrect: 3 }, { t: 0.6, nBelieved: 3, nCorrect: 3 }])).toEqual({ t: 0.2, k: 3, n: 4 });
+    expect(closestToGate([{ t: 0.2, nBelieved: 7, nCorrect: 2 }, { t: 0.7, nBelieved: 5, nCorrect: 2 }, { t: 0.8, nBelieved: 1, nCorrect: 0 }])).toEqual({ t: 0.7, k: 2, n: 5 });
+  });
+
+  it("is null for an empty curve or one without believed answers", () => {
+    expect(closestToGate([])).toBeNull();
+    expect(closestToGate([{ t: 0.9, nBelieved: 0, nCorrect: 0 }])).toBeNull();
+  });
+});
+
 describe("compareVariants", () => {
   it("passes a variant when every measurable field passes, and the strict winner needs all three", () => {
     const c = compareVariants([
@@ -103,6 +115,14 @@ describe("compareVariants", () => {
     expect(b?.shortfalls[0].field).toBe("balcony");
     expect(b?.shortfalls[0].text).toContain("8 procentenheter under kravet");
     expect(c.productionCandidate).toBeNull();
+  });
+
+  it("says how close a field without a gate came", () => {
+    const noGate = field({ pass: false, gate: null, dev: null, holdout: null, pooled: null, reason: "ingen spärr når 75 % på dev med minst 5 spådda svar" });
+    const r = report("variant:c", { korsdrag: noGate });
+    r.fields.korsdrag.curveDev = [{ t: 0.6, nBelieved: 3, nCorrect: 3, precision: 1, low: 0.44, high: 1 }];
+    const c = compareVariants([{ variant: "c", report: r, variantSek: 30, stats: stats(59, 30) }]);
+    expect(c.columns.find((x) => x.variant === "c")?.shortfalls[0].text).toContain("närmast kravet på dev var 3 av 3 trodda svar vid spärren 0,60");
   });
 
   it("a variant with no measurable field never passes", () => {
