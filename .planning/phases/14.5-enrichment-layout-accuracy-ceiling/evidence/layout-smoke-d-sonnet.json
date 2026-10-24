@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-24",
+  "variant": "d-sonnet",
+  "version": "3b9c223e97f3d524",
+  "model": "claude-sonnet-4-6",
+  "reads": [
+    {
+      "target": "150148",
+      "status": "read",
+      "errorCode": null,
+      "result": {
+        "stepA": {
+          "planPresent": true,
+          "balconyWall": "bottom",
+          "livingWall": "bottom",
+          "bedroomWall": "bottom",
+          "windowTop": false,
+          "windowBottom": true,
+          "windowLeft": true,
+          "windowRight": false,
+          "confidence": 0.85
+        },
+        "stepB": {
+          "pictures": [
+            {
+              "index": 1,
+              "takenFrom": "living",
+              "outside": "unknown",
+              "evidence": "none"
+            },
+            {
+              "index": 2,
+              "takenFrom": "living",
+              "outside": "street",
+              "evidence": "oppositeFacade"
+            },
+            {
+              "index": 3,
+              "takenFrom": "living",
+              "outside": "street",
+              "evidence": "oppositeFacade"
+            }
+          ],
+          "confidence": 0.55
+        }
+      },
+      "spentSek": 0.3043
+    }
+  ],
+  "calls": 1,
+  "cacheHits": 0,
+  "spentSek": 0.3043,
+  "totalSpentSek": 0.3043,
+  "smokeCapSek": 1,
+  "httpStatuses": [],
+  "grammar": "ok"
+}
