@@ -23,6 +23,7 @@ import {
 import { createJevClient, makeJevLayoutCall, type JevClientLike } from "@/lib/discovery/layout-typesafe-call";
 import { layoutCallCostSek } from "@/lib/discovery/layout-cost";
 import {
+  LAYOUT_EXPERIMENT_TOTAL_CAP_SEK,
   LAYOUT_ROUND_CAP_SEK,
   LAYOUT_SMOKE_CAP_SEK,
   LAYOUT_VARIANTS,
@@ -31,6 +32,7 @@ import {
   factFromVariantRead,
   layoutVariantCachePath,
   loadVariantCache,
+  phaseBudgetVerdict,
   pickTwoStepTier,
   renderRoundsMd,
   runVariantReads,
@@ -650,6 +652,62 @@ describe("renderRoundsMd", () => {
     expect(md.endsWith("\n")).toBe(true);
     expect(md).toContain("Vinnare: ingen");
     expect(md).toContain("inte körd ännu");
+  });
+});
+
+describe("phaseBudgetVerdict: the 160 kr phase total across rounds (WR-03)", () => {
+  it("the phase total is 4 rounds of the per-round cap", () => {
+    expect(LAYOUT_EXPERIMENT_TOTAL_CAP_SEK).toBe(160);
+    expect(LAYOUT_EXPERIMENT_TOTAL_CAP_SEK).toBe(4 * LAYOUT_ROUND_CAP_SEK);
+  });
+
+  it("a first round fits, and its run cap is the round cap", () => {
+    const v = phaseBudgetVerdict({ spentSek: 0, estimateSek: 12, roundCapSek: 40 });
+    expect(v.ok).toBe(true);
+    expect(v.runCapSek).toBe(40);
+    expect(v.remainingSek).toBe(160);
+  });
+
+  it("a round that ends exactly at the total is allowed (strictly greater is over)", () => {
+    expect(phaseBudgetVerdict({ spentSek: 130, estimateSek: 30, roundCapSek: 40 }).ok).toBe(true);
+  });
+
+  it("refuses a round that would pass the total, and says so with the numbers", () => {
+    const v = phaseBudgetVerdict({ spentSek: 140, estimateSek: 30, roundCapSek: 40 });
+    expect(v.ok).toBe(false);
+    expect(v.runCapSek).toBe(0);
+    expect(v.message).toContain("skulle överskridas");
+    expect(v.message).toContain("--allow-over-total");
+  });
+
+  it("the worst case of a round is its estimate or its own cap, whichever is smaller", () => {
+    // 100 kr of estimated reads, but only 40 kr can be spent in one round: 130 + 40 > 160 is over, 100 + 40 = 140 is fine.
+    expect(phaseBudgetVerdict({ spentSek: 100, estimateSek: 100, roundCapSek: 40 }).ok).toBe(true);
+    expect(phaseBudgetVerdict({ spentSek: 130, estimateSek: 100, roundCapSek: 40 }).ok).toBe(false);
+  });
+
+  it("a round that passes the check still runs under what is left of the total", () => {
+    const v = phaseBudgetVerdict({ spentSek: 155, estimateSek: 3, roundCapSek: 40 });
+    expect(v.ok).toBe(true);
+    expect(v.runCapSek).toBeCloseTo(5, 10);
+  });
+
+  it("a round of cached reads (estimate 0) is allowed even when the total is used up", () => {
+    const v = phaseBudgetVerdict({ spentSek: 160, estimateSek: 0, roundCapSek: 40 });
+    expect(v.ok).toBe(true);
+    expect(v.runCapSek).toBe(0);
+  });
+
+  it("--allow-over-total lets the round start with a warning and only the round cap", () => {
+    const v = phaseBudgetVerdict({ spentSek: 158, estimateSek: 10, roundCapSek: 40, allowOver: true });
+    expect(v.ok).toBe(true);
+    expect(v.runCapSek).toBe(40);
+    expect(v.message.startsWith("VARNING")).toBe(true);
+  });
+
+  it("garbage numbers do not open the door: a NaN ledger reads as 0 but a NaN estimate is priced at the round cap", () => {
+    expect(phaseBudgetVerdict({ spentSek: Number.NaN, estimateSek: 5, roundCapSek: 40 }).spentSek).toBe(0);
+    expect(phaseBudgetVerdict({ spentSek: 130, estimateSek: Number.NaN, roundCapSek: 40 }).ok).toBe(false);
   });
 });
 

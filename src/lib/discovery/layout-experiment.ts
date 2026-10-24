@@ -81,6 +81,64 @@ import {
 export const LAYOUT_ROUND_CAP_SEK = 40;
 /** The most one live smoke may spend, SEK (R-05). */
 export const LAYOUT_SMOKE_CAP_SEK = 1;
+/**
+ * The most all paid rounds of the phase may spend together, SEK (D-13): 4 rounds of 40 kr. The per-round cap above limits one
+ * invocation; this one limits the sum over every variant's ledger, so a retry loop or a mistaken second run of a variant cannot
+ * start from a fresh 40 kr (WR-03). Smokes are in the ledgers and so count; they are not refused by it.
+ */
+export const LAYOUT_EXPERIMENT_TOTAL_CAP_SEK = 160;
+
+export interface PhaseBudgetVerdict {
+  /** The round may start. */
+  ok: boolean;
+  /** What the variant ledgers say has been paid so far, SEK. */
+  spentSek: number;
+  /** What is left of the phase total, SEK (never negative). */
+  remainingSek: number;
+  /** The per-run cap the runner must use: the round cap, cut down to what is left of the total (unless overridden). */
+  runCapSek: number;
+  /** One Swedish line for the terminal. */
+  message: string;
+}
+
+/**
+ * Whether one more paid round fits in the phase total (WR-03). The worst this round can spend is the smaller of its estimate
+ * and its own cap. `allowOver` is the explicit escape (`--allow-over-total`): the round may start, the message says it is over
+ * the total, and the runner keeps only the per-round cap. Pure.
+ */
+export function phaseBudgetVerdict(input: {
+  spentSek: number;
+  estimateSek: number;
+  roundCapSek: number;
+  totalCapSek?: number;
+  allowOver?: boolean;
+}): PhaseBudgetVerdict {
+  const total = input.totalCapSek ?? LAYOUT_EXPERIMENT_TOTAL_CAP_SEK;
+  const spentSek = Number.isFinite(input.spentSek) && input.spentSek > 0 ? input.spentSek : 0;
+  const worstSek = Math.max(0, Math.min(Number.isFinite(input.estimateSek) ? input.estimateSek : input.roundCapSek, input.roundCapSek));
+  const remainingSek = Math.max(0, total - spentSek);
+  const over = spentSek + worstSek > total + 1e-9;
+  const where = `hittills ${formatSek(spentSek)} kr av ${formatSek(total)} kr, den här omgången högst ${formatSek(worstSek)} kr`;
+  if (!over) {
+    return { ok: true, spentSek, remainingSek, runCapSek: Math.min(input.roundCapSek, remainingSek), message: `Fasens ram: ${where}; ryms` };
+  }
+  if (input.allowOver === true) {
+    return {
+      ok: true,
+      spentSek,
+      remainingSek,
+      runCapSek: input.roundCapSek,
+      message: `VARNING: fasens ram på ${formatSek(total)} kr överskrids (${where}); körs ändå med --allow-over-total`,
+    };
+  }
+  return {
+    ok: false,
+    spentSek,
+    remainingSek,
+    runCapSek: 0,
+    message: `Fasens ram på ${formatSek(total)} kr skulle överskridas (${where}); ingen omgång kördes. Bara du kan släppa igenom den, med --allow-over-total`,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // The variant spec

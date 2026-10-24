@@ -55,6 +55,7 @@ import { createJevClient, makeJevLayoutCall } from "@/lib/discovery/layout-types
 import { jevGate } from "@/lib/discovery/layout-typesafe";
 import type { LayoutFact } from "@/lib/discovery/layout-fact";
 import {
+  LAYOUT_EXPERIMENT_TOTAL_CAP_SEK,
   LAYOUT_ROUND_CAP_SEK,
   LAYOUT_SMOKE_CAP_SEK,
   LAYOUT_VARIANTS,
@@ -63,10 +64,12 @@ import {
   factFromVariantRead,
   layoutVariantCachePath,
   loadVariantCache,
+  phaseBudgetVerdict,
   renderRoundsMd,
   runVariantReads,
   saveVariantCache,
   variantReadId,
+  variantSpentSek,
   variantVersion,
   type LayoutVariantSpec,
   type VariantCallFn,
@@ -104,7 +107,7 @@ const USAGE = `Användning (gratis, inget anrop, ingen Booli-sida):
   npx tsx scripts/layout-accuracy.ts --decide --truth <sanningsfil> --out <json> [--md <md>]
 Betalt (kräver RUN_LLM_EVALS=1, annars görs inget anrop):
   RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --smoke --variant <id> [--snapshot <snapshot>]
-  RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --run <id> --truth <låst sanningsfil> [--snapshot <snapshot>] [--cap-sek <n>]
+  RUN_LLM_EVALS=1 npx tsx scripts/layout-accuracy.ts --run <id> --truth <låst sanningsfil> [--snapshot <snapshot>] [--cap-sek <n>] [--allow-over-total]
 
   --report         Räknar ut träffsäkerheten för de lagrade läsningarna mot sanningsfilen
   --truth <fil>    Sanningsfilen (zod-kontrollerad, bara id:n och uppräkningar)
@@ -112,6 +115,7 @@ Betalt (kräver RUN_LLM_EVALS=1, annars görs inget anrop):
   --variant <id>   Använder i stället experimentcachen för varianten (layout-exp-<id>.json), nyaste läsning per annons
   --run <id>       Planerar (--dry-run) eller kör (betalt) en omgång för varianten (${LAYOUT_VARIANT_IDS.join(", ")})
   --cap-sek <n>    Taket för omgången i kronor (standard och högsta värde ${LAYOUT_ROUND_CAP_SEK})
+  --allow-over-total  Släpper igenom en omgång som skulle föra fasens samlade kostnad över ${LAYOUT_EXPERIMENT_TOTAL_CAP_SEK} kr (skriver en varning); utan flaggan stoppas den
   --smoke          Betald rökprov för en variant (--variant <id>), högst ${LAYOUT_SMOKE_CAP_SEK} kr: Folkungagatan 61 och, för enstegsvarianter, den syntetiska planritningen
   --decide         Gratis: läser varje evidence/layout-accuracy-<variant>.json, rundloggarna och variantcachernas kostnad och skriver beslutet och jämförelsen a till e (--out, --md; skriver också layout-rounds-e.json bredvid --out när e har en rapport)
   --out <fil>      Var rapporten skrivs (.json under .planning/phases/ eller .planning/calibration/data/)
@@ -143,6 +147,7 @@ interface Args {
   requireLocked: boolean;
   selectAndLock: string | null;
   dryRun: boolean;
+  allowOverTotal: boolean;
   help: boolean;
 }
 
@@ -150,7 +155,7 @@ function parseArgs(argv: string[]): Args | null {
   const a: Args = {
     report: false, truth: null, cache: null, variant: null, smoke: false, decide: false, run: null, capSek: null, out: null, md: null,
     judgeList: false, snapshot: null, withUrls: false,
-    checkTruth: null, requireLocked: false, selectAndLock: null, dryRun: false, help: false,
+    checkTruth: null, requireLocked: false, selectAndLock: null, dryRun: false, allowOverTotal: false, help: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
@@ -173,6 +178,7 @@ function parseArgs(argv: string[]): Args | null {
     else if (flag === "--require-locked") a.requireLocked = true;
     else if (flag === "--select-and-lock" && value !== undefined) { a.selectAndLock = value; i++; }
     else if (flag === "--dry-run") a.dryRun = true;
+    else if (flag === "--allow-over-total") a.allowOverTotal = true;
     else return null;
   }
   if (a.help) return a;
@@ -193,6 +199,7 @@ function parseArgs(argv: string[]): Args | null {
   if (a.selectAndLock === null && a.run === null && a.dryRun) return null;
   if (a.smoke && a.dryRun) return null;
   if (a.run === null && a.capSek !== null) return null;
+  if (a.run === null && a.allowOverTotal) return null;
   return a;
 }
 
@@ -441,8 +448,27 @@ function dryRun(spec: LayoutVariantSpec, items: readonly VariantReadItem[], miss
     `Uppskattat: ${toCall} anrop à ${formatSek(spec.estSekPerFlat)} kr = ${formatSek(estimate)} kr (tak ${formatSek(capSek)} kr${estimate > capSek ? "; uppskattningen överstiger taket, omgången skulle stanna" : ""})`,
   );
   if (missing.length > 0) console.log(`Saknas i snapshoten: ${missing.join(", ")}`);
+  const lifetime = lifetimeSpend();
+  if (lifetime.unreadable.length > 0) console.log(`Fasens ram: kostnaden är okänd, cachen för ${lifetime.unreadable.join(", ")} kunde inte läsas`);
+  else console.log(phaseBudgetVerdict({ spentSek: lifetime.spentSek, estimateSek: estimate, roundCapSek: capSek }).message);
   console.log("Torrkörning: inga anrop");
   return 0;
+}
+
+/**
+ * What every variant has paid so far, SEK (WR-03): the sum of the ledgers in the six variant caches. A cache written for an
+ * older version of a variant still counts (its ledger is kept). A file that cannot be read is listed in `unreadable`, and the
+ * total is then not known.
+ */
+function lifetimeSpend(): { spentSek: number; unreadable: string[] } {
+  let spentSek = 0;
+  const unreadable: string[] = [];
+  for (const id of LAYOUT_VARIANT_IDS) {
+    const loaded = loadVariantCache(layoutVariantCachePath(id), LAYOUT_VARIANTS[id]);
+    if (loaded.unreadable) unreadable.push(id);
+    else spentSek += variantSpentSek(loaded.cache);
+  }
+  return { spentSek, unreadable };
 }
 
 /** The HTTP status of an SDK error, or null. */
@@ -535,6 +561,24 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
     console.error(`Variantcachen ${path} kunde inte läsas; ingen omgång kördes och filen rörs inte`);
     return 1;
   }
+  // WR-03: the phase total across rounds. The estimate is what this round would pay for the flats not already in the cache.
+  const toCall = items.filter((item) => {
+    const id = variantReadId(spec, item);
+    return id !== null && cache.entries[id] === undefined;
+  }).length;
+  const lifetime = lifetimeSpend();
+  if (lifetime.unreadable.length > 0 && !args.allowOverTotal) {
+    console.error(`Fasens samlade kostnad är okänd: cachen för ${lifetime.unreadable.join(", ")} kunde inte läsas; ingen omgång kördes (--allow-over-total släpper igenom)`);
+    return 1;
+  }
+  const budget = phaseBudgetVerdict({
+    spentSek: lifetime.spentSek,
+    estimateSek: toCall * spec.estSekPerFlat,
+    roundCapSek: capSek,
+    allowOver: args.allowOverTotal,
+  });
+  console.log(budget.message);
+  if (!budget.ok) return 1;
   const call = callFor(spec);
   let latest = cache;
   let out;
@@ -543,7 +587,8 @@ async function run(args: Args & { run: string; truth: string }): Promise<number>
       variant: spec,
       call,
       cache,
-      runCapSek: capSek,
+      // The per-round cap, cut down to what is left of the phase total, so real usage cannot pass it either.
+      runCapSek: budget.runCapSek,
       today: today(),
       checkpoint: (c) => {
         latest = c;
