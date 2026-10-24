@@ -1,0 +1,446 @@
+{
+  "source": "variant:c",
+  "version": "864927e4ac41ea06",
+  "truthLocked": true,
+  "lockedAt": "2026-10-24T09:23:11.309Z",
+  "rows": 60,
+  "noRead": 0,
+  "raw": {
+    "balcony": {
+      "decided": 14,
+      "read": 14,
+      "correct": 14,
+      "undecidable": 15
+    },
+    "korsdrag": {
+      "decided": 59,
+      "read": 58,
+      "correct": 57,
+      "undecidable": 1
+    },
+    "bedroom": {
+      "decided": 9,
+      "read": 8,
+      "correct": 8,
+      "undecidable": 51
+    }
+  },
+  "measurability": {
+    "balcony": {
+      "measurable": true,
+      "decided": 14,
+      "reason": null
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decided": 59,
+      "reason": null
+    },
+    "bedroom": {
+      "measurable": false,
+      "decided": 9,
+      "reason": "ej mätbart (n = 9)"
+    }
+  },
+  "sideEvidence": [
+    "cars",
+    "courtyardGreenery"
+  ],
+  "byEvidence": {
+    "dev": [
+      {
+        "evidence": "cars",
+        "balcony": {
+          "n": 2,
+          "correct": 2
+        },
+        "bedroom": {
+          "n": 1,
+          "correct": 1
+        }
+      },
+      {
+        "evidence": "oppositeFacade",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "courtyardGreenery",
+        "balcony": {
+          "n": 5,
+          "correct": 5
+        },
+        "bedroom": {
+          "n": 3,
+          "correct": 3
+        }
+      },
+      {
+        "evidence": "none",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "evidence": "cars",
+        "balcony": {
+          "n": 3,
+          "correct": 3
+        },
+        "bedroom": {
+          "n": 2,
+          "correct": 2
+        }
+      },
+      {
+        "evidence": "oppositeFacade",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      },
+      {
+        "evidence": "courtyardGreenery",
+        "balcony": {
+          "n": 3,
+          "correct": 3
+        },
+        "bedroom": {
+          "n": 2,
+          "correct": 2
+        }
+      },
+      {
+        "evidence": "none",
+        "balcony": {
+          "n": 0,
+          "correct": 0
+        },
+        "bedroom": {
+          "n": 0,
+          "correct": 0
+        }
+      }
+    ]
+  },
+  "fields": {
+    "balcony": {
+      "measurable": true,
+      "decidedRows": 14,
+      "curveDev": [
+        {
+          "t": 0.4,
+          "nBelieved": 7,
+          "nCorrect": 7,
+          "precision": 1,
+          "low": 0.6456611570247934,
+          "high": 1
+        },
+        {
+          "t": 0.45,
+          "nBelieved": 7,
+          "nCorrect": 7,
+          "precision": 1,
+          "low": 0.6456611570247934,
+          "high": 1
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 7,
+          "nCorrect": 7,
+          "precision": 1,
+          "low": 0.6456611570247934,
+          "high": 1
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 7,
+          "nCorrect": 7,
+          "precision": 1,
+          "low": 0.6456611570247934,
+          "high": 1
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 5,
+          "nCorrect": 5,
+          "precision": 1,
+          "low": 0.565508505247919,
+          "high": 1
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 4,
+          "nCorrect": 4,
+          "precision": 1,
+          "low": 0.5100999795960008,
+          "high": 1
+        },
+        {
+          "t": 0.75,
+          "nBelieved": 4,
+          "nCorrect": 4,
+          "precision": 1,
+          "low": 0.5100999795960008,
+          "high": 1
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.85,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        },
+        {
+          "t": 0.9,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        }
+      ],
+      "gate": 0.4,
+      "dev": {
+        "k": 7,
+        "n": 7,
+        "precision": 1,
+        "low": 0.6456611570247934,
+        "high": 1
+      },
+      "holdout": {
+        "k": 6,
+        "n": 6,
+        "precision": 1,
+        "low": 0.6096569663469354,
+        "high": 1
+      },
+      "pooled": {
+        "k": 13,
+        "n": 13,
+        "precision": 1,
+        "low": 0.7718981569447084,
+        "high": 1
+      },
+      "allCalls": {
+        "k": 44,
+        "n": 44,
+        "precision": 1,
+        "low": 0.919701682217986,
+        "high": 0.9999999999999998
+      },
+      "pass": true,
+      "reason": null
+    },
+    "korsdrag": {
+      "measurable": true,
+      "decidedRows": 59,
+      "curveDev": [
+        {
+          "t": 0.2,
+          "nBelieved": 4,
+          "nCorrect": 3,
+          "precision": 0.75,
+          "low": 0.30063605244263664,
+          "high": 0.9544139373553638
+        },
+        {
+          "t": 0.4,
+          "nBelieved": 4,
+          "nCorrect": 3,
+          "precision": 0.75,
+          "low": 0.30063605244263664,
+          "high": 0.9544139373553638
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 4,
+          "nCorrect": 3,
+          "precision": 0.75,
+          "low": 0.30063605244263664,
+          "high": 0.9544139373553638
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.65,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.75,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.8,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.85,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.9,
+          "nBelieved": 0,
+          "nCorrect": 0,
+          "precision": 0,
+          "low": 0,
+          "high": 1
+        }
+      ],
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "allCalls": null,
+      "pass": false,
+      "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+    },
+    "bedroom": {
+      "measurable": false,
+      "decidedRows": 9,
+      "curveDev": [
+        {
+          "t": 0.1,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.3,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.4,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.45,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.5,
+          "nBelieved": 3,
+          "nCorrect": 3,
+          "precision": 1,
+          "low": 0.4384939195509822,
+          "high": 1
+        },
+        {
+          "t": 0.55,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.6,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.65,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.7,
+          "nBelieved": 2,
+          "nCorrect": 2,
+          "precision": 1,
+          "low": 0.3423719528896193,
+          "high": 1
+        },
+        {
+          "t": 0.85,
+          "nBelieved": 1,
+          "nCorrect": 1,
+          "precision": 1,
+          "low": 0.20654329147389294,
+          "high": 1
+        }
+      ],
+      "gate": null,
+      "dev": null,
+      "holdout": null,
+      "pooled": null,
+      "allCalls": null,
+      "pass": false,
+      "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+    }
+  },
+  "livingOnBalconySide": {
+    "decided": 27,
+    "read": 27,
+    "correct": 22
+  },
+  "pass": false
+}

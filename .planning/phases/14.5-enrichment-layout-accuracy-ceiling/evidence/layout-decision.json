@@ -69,10 +69,35 @@
     {
       "slot": "c",
       "variant": "c",
-      "status": "not_run",
-      "spentSek": 0,
-      "fields": null,
-      "pass": null
+      "status": "run",
+      "spentSek": 30.787020000000005,
+      "fields": {
+        "balcony": {
+          "pass": true,
+          "gate": 0.4,
+          "holdout": {
+            "k": 6,
+            "n": 6,
+            "precision": 1,
+            "low": 0.6096569663469354,
+            "high": 1
+          },
+          "reason": null
+        },
+        "korsdrag": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "pass": false,
+          "gate": null,
+          "holdout": null,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "pass": false
     },
     {
       "slot": "d",
@@ -85,23 +110,344 @@
   ],
   "winner": null,
   "stop": false,
-  "next": "c",
+  "next": "d-sonnet",
   "tierForD": "sonnet",
   "bestByField": {
     "balcony": {
-      "variant": "a",
+      "variant": "c",
       "holdout": {
-        "k": 3,
-        "n": 3,
+        "k": 6,
+        "n": 6,
         "precision": 1,
-        "low": 0.4384939195509822,
+        "low": 0.6096569663469354,
         "high": 1
       },
-      "pass": false,
-      "reason": "holdout har 3 spådda svar vid spärren 0,40, minst 5 krävs; poolat har 9 spådda svar vid spärren 0,40, minst 10 krävs"
+      "pass": true,
+      "reason": null
     },
     "korsdrag": null,
     "bedroom": null
   },
-  "totalSpentSek": 32.631800387999995
+  "totalSpentSek": 63.418820388,
+  "measurableStop": false,
+  "measurablePassing": [],
+  "productionCandidate": null,
+  "measurableFields": [
+    "balcony",
+    "korsdrag"
+  ],
+  "unmeasurableFields": [
+    "bedroom"
+  ],
+  "comparison": [
+    {
+      "variant": "a",
+      "calls": 60,
+      "sekRound": 15.45,
+      "sekPerFlat": 0.2575,
+      "sekVariantTotal": 15.448587000000003,
+      "secondsRound": null,
+      "secondsPerFlat": null,
+      "ran": true,
+      "fields": {
+        "balcony": {
+          "measurable": true,
+          "decidedRows": 14,
+          "gate": 0.4,
+          "dev": {
+            "k": 6,
+            "n": 6,
+            "precision": 1,
+            "low": 0.6096569663469354,
+            "high": 1
+          },
+          "holdout": {
+            "k": 3,
+            "n": 3,
+            "precision": 1,
+            "low": 0.4384939195509822,
+            "high": 1
+          },
+          "pooled": {
+            "k": 9,
+            "n": 9,
+            "precision": 1,
+            "low": 0.7008472464490406,
+            "high": 1
+          },
+          "pass": false,
+          "reason": "holdout har 3 spådda svar vid spärren 0,40, minst 5 krävs; poolat har 9 spådda svar vid spärren 0,40, minst 10 krävs"
+        },
+        "korsdrag": {
+          "measurable": true,
+          "decidedRows": 59,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "measurable": false,
+          "decidedRows": 9,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "raw": {
+        "balcony": {
+          "correct": 12,
+          "read": 14,
+          "decided": 14
+        },
+        "korsdrag": {
+          "correct": 46,
+          "read": 59,
+          "decided": 59
+        },
+        "bedroom": {
+          "correct": 1,
+          "read": 2,
+          "decided": 9
+        }
+      },
+      "passMeasurable": false,
+      "passAll": false,
+      "shortfalls": [
+        {
+          "field": "balcony",
+          "text": "Balkongsida: holdout har 3 spådda svar vid spärren 0,40, minst 5 krävs; poolat har 9 spådda svar vid spärren 0,40, minst 10 krävs"
+        },
+        {
+          "field": "korsdrag",
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      ]
+    },
+    {
+      "variant": "b",
+      "calls": 59,
+      "sekRound": 16.79,
+      "sekPerFlat": 0.2845762711864407,
+      "sekVariantTotal": 17.173199999999998,
+      "secondsRound": null,
+      "secondsPerFlat": null,
+      "ran": true,
+      "fields": {
+        "balcony": {
+          "measurable": true,
+          "decidedRows": 14,
+          "gate": 0.2,
+          "dev": {
+            "k": 7,
+            "n": 7,
+            "precision": 1,
+            "low": 0.6456611570247934,
+            "high": 1
+          },
+          "holdout": {
+            "k": 4,
+            "n": 6,
+            "precision": 0.6666666666666666,
+            "low": 0.2999883213415286,
+            "high": 0.903230667440783
+          },
+          "pooled": {
+            "k": 11,
+            "n": 13,
+            "precision": 0.8461538461538461,
+            "low": 0.5776482949136899,
+            "high": 0.9567427368172621
+          },
+          "pass": false,
+          "reason": "holdout-precisionen 4 av 6 (67 %) vid spärren 0,20 är under 75 %"
+        },
+        "korsdrag": {
+          "measurable": true,
+          "decidedRows": 59,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "measurable": false,
+          "decidedRows": 9,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "raw": {
+        "balcony": {
+          "correct": 12,
+          "read": 13,
+          "decided": 14
+        },
+        "korsdrag": {
+          "correct": 29,
+          "read": 59,
+          "decided": 59
+        },
+        "bedroom": {
+          "correct": 2,
+          "read": 3,
+          "decided": 9
+        }
+      },
+      "passMeasurable": false,
+      "passAll": false,
+      "shortfalls": [
+        {
+          "field": "balcony",
+          "text": "Balkongsida: holdout-precisionen 4 av 6 (67 %) vid spärren 0,20 är under 75 % (8 procentenheter under kravet)"
+        },
+        {
+          "field": "korsdrag",
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      ]
+    },
+    {
+      "variant": "c",
+      "calls": 59,
+      "sekRound": 30.15,
+      "sekPerFlat": 0.5110169491525424,
+      "sekVariantTotal": 30.787020000000005,
+      "secondsRound": 229,
+      "secondsPerFlat": 3.8813559322033897,
+      "ran": true,
+      "fields": {
+        "balcony": {
+          "measurable": true,
+          "decidedRows": 14,
+          "gate": 0.4,
+          "dev": {
+            "k": 7,
+            "n": 7,
+            "precision": 1,
+            "low": 0.6456611570247934,
+            "high": 1
+          },
+          "holdout": {
+            "k": 6,
+            "n": 6,
+            "precision": 1,
+            "low": 0.6096569663469354,
+            "high": 1
+          },
+          "pooled": {
+            "k": 13,
+            "n": 13,
+            "precision": 1,
+            "low": 0.7718981569447084,
+            "high": 1
+          },
+          "pass": true,
+          "reason": null
+        },
+        "korsdrag": {
+          "measurable": true,
+          "decidedRows": 59,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ingen spärr når 75 % på dev med minst 5 spådda svar"
+        },
+        "bedroom": {
+          "measurable": false,
+          "decidedRows": 9,
+          "gate": null,
+          "dev": null,
+          "holdout": null,
+          "pooled": null,
+          "pass": false,
+          "reason": "ej mätbart (n = 9); ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      },
+      "raw": {
+        "balcony": {
+          "correct": 14,
+          "read": 14,
+          "decided": 14
+        },
+        "korsdrag": {
+          "correct": 57,
+          "read": 58,
+          "decided": 59
+        },
+        "bedroom": {
+          "correct": 8,
+          "read": 8,
+          "decided": 9
+        }
+      },
+      "passMeasurable": false,
+      "passAll": false,
+      "shortfalls": [
+        {
+          "field": "korsdrag",
+          "text": "Korsdrag: ingen spärr når 75 % på dev med minst 5 spådda svar"
+        }
+      ]
+    },
+    {
+      "variant": "e",
+      "calls": null,
+      "sekRound": null,
+      "sekPerFlat": null,
+      "sekVariantTotal": 0.010013388000000002,
+      "secondsRound": null,
+      "secondsPerFlat": null,
+      "ran": false,
+      "fields": null,
+      "raw": null,
+      "passMeasurable": null,
+      "passAll": null,
+      "shortfalls": []
+    }
+  ],
+  "folkungagatan61": {
+    "a": {
+      "balconySide": "courtyard",
+      "windowSides": "twoOpposite",
+      "bedroomSide": "courtyard",
+      "confidence": 0.55,
+      "fieldConfidence": null
+    },
+    "b": {
+      "balconySide": "unknown",
+      "windowSides": "twoOpposite",
+      "bedroomSide": "unknown",
+      "confidence": 0.4,
+      "fieldConfidence": {
+        "balcony": 0.2,
+        "windows": 0.6,
+        "bedroom": 0.2
+      }
+    },
+    "c": {
+      "balconySide": "street",
+      "windowSides": "one",
+      "bedroomSide": "street",
+      "confidence": 0.6,
+      "fieldConfidence": {
+        "balcony": 0.55,
+        "windows": 0.85,
+        "bedroom": 0.55
+      }
+    }
+  }
 }
