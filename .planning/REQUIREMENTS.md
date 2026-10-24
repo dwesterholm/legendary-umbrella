@@ -76,7 +76,7 @@
 - [x] **CEIL-02**: If ≥ 300 sold rows carry a stated height, `ceilingHeightM` enters the hedonic model with the honesty rule (null → mean, listed in `imputed`) and is reported with SE; whether or not it is fitted, a taste term inside the unchanged 5 % cap (+1 % of resale at ≥ 3,0 m, +2 % at ≥ 3,5 m, unknown adds 0) and a "Takhöjd" column in the table and mail are added; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched.
   - Amended 2026-10-17 (14.5-CONTEXT R-03): Booli sold-detail payloads carry no broker text, so the hedonic clause (≥ 300 sold rows → fitted feature) cannot be met from Booli data and is NOT built; CEIL-02 is met by the taste term + "Takhöjd" column alone, and the refit prints "takhöjd: 0 sålda rader med uppgift".
 - [x] **LAYACC-01**: A hand-judged truth set of ≥ 25 current or recent flats (balcony side, window sides, bedroom side, street evidence, each with a one-line justification) is stored as data under the phase directory (never photos), with Folkungagatan 61 as row 1; the judging procedure is written down so a second judge can repeat it.
-- [ ] **LAYACC-02**: The layout read is reworked against the truth set — model tier comparison (Sonnet vs Opus on the plan + photos), explicit evidence rules in the prompt (cars/street lamps/shopfronts = street; bicycle racks/lawns/own back facade = courtyard; artificial grass on a balcony is not greenery; the plan's entrance arrow is not a side), per-field confidence — with per-field accuracy and a confidence-vs-accuracy curve measured and recorded; ≤ 40 kr per experiment round, 0 USD Apify, cached.
+- [x] **LAYACC-02**: The layout read is reworked against the truth set — model tier comparison (Sonnet vs Opus on the plan + photos), explicit evidence rules in the prompt (cars/street lamps/shopfronts = street; bicycle racks/lawns/own back facade = courtyard; artificial grass on a balcony is not greenery; the plan's entrance arrow is not a side), per-field confidence — with per-field accuracy and a confidence-vs-accuracy curve measured and recorded; ≤ 40 kr per experiment round, 0 USD Apify, cached.
 - [x] **LAYACC-03**: `LAYOUT_INFLUENCE_ENABLED` is flipped back on ONLY if balcony side, korsdrag and bedroom side each reach ≥ 75 % accuracy on the truth set with the gate set from the measured curve; otherwise it stays off and the report says which field failed and why; the Sol/Korsdrag/Sovrum cells follow the switch.
 
 ### Bygglov & Stambyte from the City's Case List, Uppmätning Flags (Phase 14.6, inserted 2026-10-18)
@@ -173,7 +173,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | CEIL-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
 | CEIL-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
 | LAYACC-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
-| LAYACC-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| LAYACC-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
 | LAYACC-03 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
 | CASE-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | CASE-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
