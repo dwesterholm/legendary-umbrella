@@ -1079,7 +1079,7 @@ function districtOf(name: string): InnerstanDistrict | null {
 
 /** Local-browser counters for the spend block, or null when Apify rendered everything (14.1 mode). */
 interface LocalLedger {
-  stats: { pages: number; challenged: number; retried: number; failed: number; refused: number; apifyFallbacks: number };
+  stats: { pages: number; challenged: number; challengedBroker: number; retried: number; failed: number; refused: number; apifyFallbacks: number };
   apifyMaxRenders: number;
 }
 
@@ -1102,7 +1102,7 @@ async function printSpend(
   if (local) {
     const s = local.stats;
     console.log(
-      `Lokal webbläsare: ${s.pages} sidor (${s.challenged} utmaningar, ${s.retried} omförsök, ${s.failed} misslyckade, ${s.refused} vägrade), 0,00 USD`,
+      `Lokal webbläsare: ${s.pages} sidor (${s.challenged} utmaningar från Booli, ${s.challengedBroker} från mäklarsidor, ${s.retried} omförsök, ${s.failed} misslyckade, ${s.refused} vägrade), 0,00 USD`,
     );
     console.log(`Apify-reserv: ${s.apifyFallbacks} renderingar (tak ${local.apifyMaxRenders})`);
   }

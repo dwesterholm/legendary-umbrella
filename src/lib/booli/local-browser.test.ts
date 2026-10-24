@@ -357,6 +357,67 @@ describe("challenge handling (D-04)", () => {
   });
 });
 
+describe("the latch after a Booli block (CR-01)", () => {
+  it("after a doubly-challenged Booli page every later Booli render fails at once, without opening a page", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    const h = install(clock, b.launcher);
+    await expect(clock.run(render(`${BOOLI_URL}&page=1`))).rejects.toThrow("lokal webblasare");
+    const openedAfterBlock = b.log.opened;
+    expect(openedAfterBlock).toBe(2); // the attempt and its one retry
+    for (let n = 2; n <= 6; n++) {
+      await expect(clock.run(render(`${BOOLI_URL}&page=${n}`))).rejects.toThrow("lokal webblasare");
+    }
+    expect(b.log.opened).toBe(openedAfterBlock); // five more renders, zero more requests
+    expect(b.log.urls).toHaveLength(2);
+    expect(h.stats()).toMatchObject({ challenged: 2, latched: 5, failed: 1 });
+    expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("fetchListing walks its rungs without a single request once latched", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    install(clock, b.launcher);
+    await expect(clock.run(render())).rejects.toThrow();
+    const urlsBefore = b.log.urls.length;
+    await expect(clock.run(fetchListing("https://www.booli.se/annons/123"))).rejects.toThrow("Alla Booli-kallor misslyckades");
+    expect(b.log.urls).toHaveLength(urlsBefore);
+  });
+
+  it("a challenge that the one retry clears does not latch", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, (_u, n) => (n === 1 ? { status: 403 } : {}));
+    const h = install(clock, b.launcher);
+    await clock.run(render(`${BOOLI_URL}&page=1`));
+    await clock.run(render(`${BOOLI_URL}&page=2`));
+    expect(h.stats()).toMatchObject({ challenged: 1, latched: 0 });
+    expect(b.log.urls).toHaveLength(3);
+  });
+
+  it("retryChallenge false: the first refusal is the last request, with no 5 s wait, and it latches", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, () => ({ status: 403 }));
+    const h = install(clock, b.launcher, { retryChallenge: false });
+    await expect(clock.run(render(`${BOOLI_URL}&page=1`))).rejects.toThrow("lokal webblasare");
+    await expect(clock.run(render(`${BOOLI_URL}&page=2`))).rejects.toThrow("lokal webblasare");
+    expect(clock.sleeps).not.toContain(5_000);
+    expect(b.log.urls).toHaveLength(1);
+    expect(h.stats()).toMatchObject({ challenged: 1, retried: 0, latched: 1, failed: 1 });
+  });
+
+  it("a render that queued for a page slot before the block does not open a page after it", async () => {
+    const clock = makeClock();
+    // Three renders start together; only two pages are open at once, so the third waits for a slot.
+    const b = makeBrowser(clock, () => ({ status: 403, durationMs: 100 }));
+    const h = install(clock, b.launcher, { retryChallenge: false });
+    const all = Promise.allSettled([1, 2, 3].map((n) => render(`${BOOLI_URL}&page=${n}`)));
+    const settled = await clock.run(all);
+    expect(settled.every((s) => s.status === "rejected")).toBe(true);
+    expect(b.log.urls.length).toBeLessThan(3);
+    expect(h.stats().challenged + h.stats().latched).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe("one retry policy across rungs (WR-04)", () => {
   it("fetchListing with a challenged page opens it twice (attempt + the one retry), not four times, and never calls Apify", async () => {
     const clock = makeClock();
@@ -428,8 +489,18 @@ describe("broker pages (14.2-06)", () => {
     await expect(clock.run(renderBroker())).rejects.toThrow("lokal webblasare");
     expect(clock.sleeps).not.toContain(5_000);
     expect(b.log.opened).toBe(1);
-    expect(h.stats()).toMatchObject({ challenged: 1, retried: 0, failed: 1, apifyFallbacks: 0 });
+    // WR-01: a broker challenge is counted apart and is not the Booli number the stop rule reads.
+    expect(h.stats()).toMatchObject({ challenged: 0, challengedBroker: 1, retried: 0, failed: 1, apifyFallbacks: 0 });
     expect(actorCall).not.toHaveBeenCalled();
+  });
+
+  it("a broker challenge never latches: Booli pages are still fetched afterwards (WR-01)", async () => {
+    const clock = makeClock();
+    const b = makeBrowser(clock, (u) => (u.includes("erikolsson") ? { status: 403 } : {}));
+    const h = install(clock, b.launcher);
+    await expect(clock.run(renderBroker())).rejects.toThrow("lokal webblasare");
+    await expect(clock.run(render())).resolves.toHaveLength(1);
+    expect(h.stats()).toMatchObject({ challenged: 0, challengedBroker: 1, latched: 0 });
   });
 
   it("a failed broker page logs the error name only, never the message (which can carry the URL)", async () => {

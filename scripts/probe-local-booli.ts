@@ -637,7 +637,7 @@ async function main(): Promise<number> {
     await handle.close();
     const s = handle.stats();
     console.log(
-      `Lokal webbläsare: ${s.pages} sidor (${s.challenged} utmaningar, ${s.retried} omförsök, ${s.failed} misslyckade, ${s.refused} vägrade), 0,00 USD`,
+      `Lokal webbläsare: ${s.pages} sidor (${s.challenged} utmaningar från Booli, ${s.challengedBroker} från mäklarsidor, ${s.retried} omförsök, ${s.failed} misslyckade, ${s.refused} vägrade), 0,00 USD`,
     );
     console.log(`Apify-reserv: ${s.apifyFallbacks} renderingar`);
   }

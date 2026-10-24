@@ -117,7 +117,10 @@ const hasFlag = (name: string): boolean => process.argv.includes(name);
 /** The local browser's counters for the ledger. */
 interface LocalStats {
   pages: number;
+  /** Booli challenges only (WR-01): the number the stop rule reads. */
   challenged: number;
+  /** Challenges from third-party broker pages; shown, never part of the stop rule. */
+  challengedBroker?: number;
   retried: number;
   failed: number;
   refused: number;
@@ -181,7 +184,7 @@ const needsApifyToken = (ctx: RendererContext): boolean => !ctx.local || ctx.all
 async function printLocalLedger(t0: Date, stats: LocalStats, ctx: RendererContext): Promise<void> {
   console.log("\n=== KOSTNAD ===");
   console.log(
-    `Lokal webbläsare: ${stats.pages} sidor (${stats.challenged} utmaningar, ${stats.retried} omförsök, ${stats.failed} misslyckade, ${stats.refused} vägrade), 0,00 USD`,
+    `Lokal webbläsare: ${stats.pages} sidor (${stats.challenged} utmaningar från Booli, ${stats.challengedBroker ?? 0} från mäklarsidor, ${stats.retried} omförsök, ${stats.failed} misslyckade, ${stats.refused} vägrade), 0,00 USD`,
   );
   console.log(`Apify-reserv: ${stats.apifyFallbacks} renderingar (tak ${ctx.apifyMaxRenders})`);
   if (process.env[TOKEN_ENV_NAME]) {

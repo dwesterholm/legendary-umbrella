@@ -105,6 +105,11 @@ export interface LocalRendererOptions {
   window?: LocalWindow;
   /** Default from `BOOLI_LOCAL_MODE`, else headed. */
   mode?: LocalMode;
+  /**
+   * Whether a challenged Booli page earns one retry after `LOCAL_CHALLENGE_RETRY_MS` (D-04). Default true. The weekly
+   * live run passes false (CR-01): Booli's first refusal is then the last request this process sends.
+   */
+  retryChallenge?: boolean;
   /** Test seam: replaces the real browser launcher. */
   launcher?: LocalLauncher;
   /** Test seam: whether a URL's host resolves to a public address (WR-06). Default `isSafeExternalUrl`. */
@@ -120,7 +125,15 @@ export interface LocalRendererOptions {
 /** Counters printed in the spend block. */
 export interface LocalRendererStats {
   pages: number;
+  /**
+   * Challenges from BOOLI pages only (WR-01). This is the number the D-04 stop rule (`enrichStopReason`) reads: a
+   * Cloudflare page on a broker's own site must never stop a run that Booli did not block.
+   */
   challenged: number;
+  /** Challenges from third-party broker pages; printed next to the Booli number, never part of the stop rule. */
+  challengedBroker: number;
+  /** Booli renders refused at once, with no request, because the latch was set (CR-01). */
+  latched: number;
   retried: number;
   apifyFallbacks: number;
   failed: number;
@@ -337,6 +350,9 @@ export function closeOnSignals(
 /** What a render started after `close()` is told (CR-01): the run is over, nothing is sent to Apify. */
 export const CLOSED_RENDERER_MESSAGE = "Lokala webblasaren ar stangd";
 
+/** What a Booli render started after the latch is set is told (CR-01). Keeps the words "lokal webblasare" the callers match on. */
+export const BLOCKED_RENDERER_MESSAGE = "Booli har utmanat den lokala webblasaren; inga fler Booli-sidor hamtas (lokal webblasare)";
+
 /** Whole-run ceiling for a headless script (WR-01): 2 hours, far past a normal run (about 40 minutes at most). */
 export const RUN_WATCHDOG_MS = 2 * 60 * 60_000;
 /** Exit code of a run stopped by the watchdog. */
@@ -408,12 +424,22 @@ function headedUserAgent(version: string): string {
  */
 export function installLocalRenderer(options: LocalRendererOptions = {}): LocalRendererHandle {
   const allowApify = options.allowApify ?? false;
+  const retryChallenge = options.retryChallenge ?? true;
   const apifyMaxRenders = options.apifyMaxRenders ?? DEFAULT_APIFY_MAX_RENDERS;
   const pageCallTimeoutMs = options.pageCallTimeoutMs ?? LOCAL_PAGE_CALL_TIMEOUT_MS;
   const isSafeUrl = options.isSafeUrl ?? isSafeExternalUrl;
   const windowMode = options.window ?? readWindow();
   const mode = options.mode ?? readMode();
-  const stats: LocalRendererStats = { pages: 0, challenged: 0, retried: 0, apifyFallbacks: 0, failed: 0, refused: 0 };
+  const stats: LocalRendererStats = {
+    pages: 0,
+    challenged: 0,
+    challengedBroker: 0,
+    latched: 0,
+    retried: 0,
+    apifyFallbacks: 0,
+    failed: 0,
+    refused: 0,
+  };
 
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const now = options.now ?? (() => Date.now());
@@ -425,6 +451,10 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
   let closed = false;
   let relaunched = false;
   let dead = false;
+  // CR-01: set when a Booli page has been challenged for good (twice, or once when the retry is switched off). From
+  // then on every Booli render fails at once without opening a page, whichever caller asks (area pages, detail
+  // pages, BRF pages, the sold-price pull), so a loop that forgets to check the stop rule still sends nothing.
+  let booliBlocked = false;
 
   async function ensureContext(): Promise<LocalContext> {
     if (dead) throw new Error("webblasaren tappade anslutningen igen");
@@ -516,6 +546,8 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
   async function attempt(url: string, pageFunction: string, broker: boolean): Promise<unknown[]> {
     await acquire();
     try {
+      // A render that queued for a slot before the latch was set must not open a page after it (CR-01).
+      if (booliBlocked && !broker) throw new NonRetryableRenderError(BLOCKED_RENDERER_MESSAGE);
       const ctx = await ensureContext();
       const page = await withTimeout(ctx.newPage(), pageCallTimeoutMs, "ny flik");
       try {
@@ -577,23 +609,39 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
       stats.refused += 1;
       throw new NonRetryableRenderError("Lokala webblasaren hamtar bara Booli-sidor och maklarsidor");
     }
+    if (booliBlocked && !broker) {
+      stats.latched += 1;
+      throw new NonRetryableRenderError(BLOCKED_RENDERER_MESSAGE);
+    }
     let lastError: unknown;
-    // At most two attempts, and only a challenge earns the second one (D-04).
+    // At most two attempts, and only a challenge earns the second one (D-04), unless the retry is switched off.
     for (let tryNo = 1; tryNo <= 2; tryNo++) {
       try {
         return await attempt(url, pageFunction, broker);
       } catch (error) {
         lastError = error;
+        if (error instanceof NonRetryableRenderError) {
+          stats.latched += 1;
+          throw error;
+        }
         if (!(error instanceof ChallengeError)) break;
+        // A broker page is a bonus: one attempt, no wait, no retry, and never the paid Apify rung. Its challenge is
+        // counted apart (WR-01) and never latches.
+        if (broker) {
+          stats.challengedBroker += 1;
+          break;
+        }
         stats.challenged += 1;
-        // A broker page is a bonus: one attempt, no wait, no retry, and never the paid Apify rung.
-        if (broker) break;
-        if (tryNo === 1) {
+        if (tryNo === 1 && retryChallenge && !booliBlocked) {
           stats.retried += 1;
           await sleep(LOCAL_CHALLENGE_RETRY_MS);
+          // The other slot may have been refused for good while this one waited: then no second request goes out.
+          if (booliBlocked) break;
           continue;
         }
-        // Challenged twice: the paid rung runs only when the caller asked for it and the cap has room (D-04, R-03).
+        // Challenged for good: Booli has refused this Mac. Latch before anything else can request another page.
+        booliBlocked = true;
+        // The paid rung runs only when the caller asked for it and the cap has room (D-04, R-03).
         if (!closed && allowApify && stats.apifyFallbacks < apifyMaxRenders) {
           stats.apifyFallbacks += 1;
           try {
@@ -603,6 +651,7 @@ export function installLocalRenderer(options: LocalRendererOptions = {}): LocalR
             throw new NonRetryableRenderError(apifyError instanceof Error ? apifyError.message : "Apify-rendering misslyckades");
           }
         }
+        break;
       }
     }
     stats.failed += 1;
