@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 12/13 plans executed
+**Plans:** 13/13 plans executed
 
 Plans:
 
@@ -222,7 +222,7 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
-- [ ] 14.5-13-PLAN.md — First live run for ceiling coverage (0 kr), phase exit, plain-words summary for Daniel (CEIL-01, CEIL-02, all)
+- [x] 14.5-13-PLAN.md — First live run for ceiling coverage (0 kr), phase exit, plain-words summary for Daniel (CEIL-01, CEIL-02, all)
 
 ### Phase 14.6: Bygglov & Stambyte from the City's Case List, Uppmätning Flags (INSERTED 2026-10-18)
 

@@ -71,13 +71,13 @@
 
 - [ ] **ENR-01**: The remaining ≈ 4 300 sold rows in the 2025-10-20+ window and every new distinct BRF are enriched through the free local rung (R-10 rules: no_data never retried, failures judged after 100, a challenge stops at once, 0 USD Apify); the run log and `--enrich-report` are in the phase evidence with counts per field (avgift, BRF id, days on market, debt/kvm, image ids, takhöjd when ENR-/CEIL- adds it).
   - Amended 2026-10-18 (14.5-CONTEXT R-09, Daniel): accepted at 3 912 of 5 469 rows (72 %) after Booli blocked two sequential runs; the 1 557 remaining ids are recorded in the phase evidence for a later run; BRF pass for the remaining associations pending.
-- [ ] **ENR-02**: The hedonic model is refitted on the full enriched set; the report shows every coefficient with SE before (n ≈ 1 200) and after (n ≈ 5 500), R²/CV, the avgift–debt correlation, and whether balcony and 1961–1990 still sit on the ±8 % stage-2 cap; if they do, the cap is widened in ONE documented step (±12 %) and refitted again, with Folkungagatan 61's rank and decomposition before/after each step — measured, not tuned.
-- [ ] **CEIL-01**: Stated ceiling height is parsed from broker text ("takhöjd 3,2 m", "takhöjd om ca 3 meter", "3,5 meter i takhöjd", … ) into a `ceilingHeightM` fact (metres, source "angiven", plausibility 2,2–5,0 m) on for-sale detail pages (text already read) and, if the probe shows sold-detail pages carry the description, on sold rows during enrichment; coverage per source is measured and printed; nothing is guessed from photos into the valuation.
-- [ ] **CEIL-02**: If ≥ 300 sold rows carry a stated height, `ceilingHeightM` enters the hedonic model with the honesty rule (null → mean, listed in `imputed`) and is reported with SE; whether or not it is fitted, a taste term inside the unchanged 5 % cap (+1 % of resale at ≥ 3,0 m, +2 % at ≥ 3,5 m, unknown adds 0) and a "Takhöjd" column in the table and mail are added; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched.
+- [x] **ENR-02**: The hedonic model is refitted on the full enriched set; the report shows every coefficient with SE before (n ≈ 1 200) and after (n ≈ 5 500), R²/CV, the avgift–debt correlation, and whether balcony and 1961–1990 still sit on the ±8 % stage-2 cap; if they do, the cap is widened in ONE documented step (±12 %) and refitted again, with Folkungagatan 61's rank and decomposition before/after each step — measured, not tuned.
+- [x] **CEIL-01**: Stated ceiling height is parsed from broker text ("takhöjd 3,2 m", "takhöjd om ca 3 meter", "3,5 meter i takhöjd", … ) into a `ceilingHeightM` fact (metres, source "angiven", plausibility 2,2–5,0 m) on for-sale detail pages (text already read) and, if the probe shows sold-detail pages carry the description, on sold rows during enrichment; coverage per source is measured and printed; nothing is guessed from photos into the valuation.
+- [x] **CEIL-02**: If ≥ 300 sold rows carry a stated height, `ceilingHeightM` enters the hedonic model with the honesty rule (null → mean, listed in `imputed`) and is reported with SE; whether or not it is fitted, a taste term inside the unchanged 5 % cap (+1 % of resale at ≥ 3,0 m, +2 % at ≥ 3,5 m, unknown adds 0) and a "Takhöjd" column in the table and mail are added; `niche-score.ts`/`flags.ts`/`candidate.ts` untouched.
   - Amended 2026-10-17 (14.5-CONTEXT R-03): Booli sold-detail payloads carry no broker text, so the hedonic clause (≥ 300 sold rows → fitted feature) cannot be met from Booli data and is NOT built; CEIL-02 is met by the taste term + "Takhöjd" column alone, and the refit prints "takhöjd: 0 sålda rader med uppgift".
-- [ ] **LAYACC-01**: A hand-judged truth set of ≥ 25 current or recent flats (balcony side, window sides, bedroom side, street evidence, each with a one-line justification) is stored as data under the phase directory (never photos), with Folkungagatan 61 as row 1; the judging procedure is written down so a second judge can repeat it.
+- [x] **LAYACC-01**: A hand-judged truth set of ≥ 25 current or recent flats (balcony side, window sides, bedroom side, street evidence, each with a one-line justification) is stored as data under the phase directory (never photos), with Folkungagatan 61 as row 1; the judging procedure is written down so a second judge can repeat it.
 - [ ] **LAYACC-02**: The layout read is reworked against the truth set — model tier comparison (Sonnet vs Opus on the plan + photos), explicit evidence rules in the prompt (cars/street lamps/shopfronts = street; bicycle racks/lawns/own back facade = courtyard; artificial grass on a balcony is not greenery; the plan's entrance arrow is not a side), per-field confidence — with per-field accuracy and a confidence-vs-accuracy curve measured and recorded; ≤ 40 kr per experiment round, 0 USD Apify, cached.
-- [ ] **LAYACC-03**: `LAYOUT_INFLUENCE_ENABLED` is flipped back on ONLY if balcony side, korsdrag and bedroom side each reach ≥ 75 % accuracy on the truth set with the gate set from the measured curve; otherwise it stays off and the report says which field failed and why; the Sol/Korsdrag/Sovrum cells follow the switch.
+- [x] **LAYACC-03**: `LAYOUT_INFLUENCE_ENABLED` is flipped back on ONLY if balcony side, korsdrag and bedroom side each reach ≥ 75 % accuracy on the truth set with the gate set from the measured curve; otherwise it stays off and the report says which field failed and why; the Sol/Korsdrag/Sovrum cells follow the switch.
 
 ### Bygglov & Stambyte from the City's Case List, Uppmätning Flags (Phase 14.6, inserted 2026-10-18)
 
@@ -169,12 +169,12 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | BID-01 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | BID-02 | Phase 14.4 — Valuation Gaps, Layout & Livability | Complete |
 | ENR-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
-| ENR-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
-| CEIL-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
-| CEIL-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
-| LAYACC-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| ENR-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
+| CEIL-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
+| CEIL-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
+| LAYACC-01 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
 | LAYACC-02 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
-| LAYACC-03 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Pending |
+| LAYACC-03 | Phase 14.5 — Full Enrichment, Layout Accuracy, Ceiling Height | Complete |
 | CASE-01 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | CASE-02 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
 | CASE-03 | Phase 14.6 — Bygglov & Stambyte, Uppmätning Flags | Complete |
