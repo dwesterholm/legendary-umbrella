@@ -10,6 +10,10 @@
  *       [--stambyte-join .planning/calibration/data/bygglov/sold-join.json]
  *   npx tsx scripts/fit-hedonic.ts --graft-stambyte <donor.json> --out <fil.json> [--base data/hedonic-model.json]
  *
+ * NOTE: without --out the fit REPLACES the committed model data/hedonic-model.json. Pass --out <scratch file> for any trial run
+ * (a file under .planning/calibration/data/). With --report-json the report is built and validated before the model is written
+ * (review 14.5 WR-07), so a run that stops on the report leaves the model as it was.
+ *
  * 14.6 (STAM-02, R-03): --stambyte-join <fil> attaches the city's building history to each sold row (what the record said on
  * the SALE date, from `stambyteAtSale`) and fits the stambyte post-stage: an optional `stambyteTerm` kept only when 5-fold
  * cross-validation improves, printed in a Stambyte block beside the circulating figures and the correlation with debt and
@@ -1004,12 +1008,10 @@ function main(): void {
   );
 
   // ---- write ----
-  // 2-space indent, but each kernel point on one line: [lat, lng, ln kr/m2].
-  const json = serialiseModel(model);
-  // Temp file + rename (IN-10): a crash mid-write must not leave a truncated committed model that every consumer refuses.
-  writeTextAtomic(outPath, `${json}\n`);
-  console.log(`\nModell skriven: ${relative(CWD, outPath)} (${fmt(Math.round(json.length / 1024))} kB, ${fmt(model.kernel.points.length)} punkter)`);
-
+  // WR-07: everything that can refuse the run is checked BEFORE the first file is written. The report is built and validated
+  // first; only then is the model written, so a run that exits 1 on the report has not replaced the model (`--out` defaults to
+  // the committed data/hedonic-model.json).
+  let reportText: string | null = null;
   if (reportJsonPath !== null) {
     if (measuredStage2 === null) throw new Error("--report-json: ingen steg-2-mätning (för få försäljningar med detaljuppgifter)");
     const diagnostics = newFeatureDiagnostics(training, asOf);
@@ -1028,7 +1030,17 @@ function main(): void {
     };
     // Validated against the shape plan 03 defined before anything is written.
     fitReportJsonSchema.parse(payload);
-    writeTextAtomic(reportJsonPath, `${JSON.stringify(payload, null, 2)}\n`);
+    reportText = `${JSON.stringify(payload, null, 2)}\n`;
+  }
+
+  // 2-space indent, but each kernel point on one line: [lat, lng, ln kr/m2].
+  const json = serialiseModel(model);
+  // Temp file + rename (IN-10): a crash mid-write must not leave a truncated committed model that every consumer refuses.
+  writeTextAtomic(outPath, `${json}\n`);
+  console.log(`\nModell skriven: ${relative(CWD, outPath)} (${fmt(Math.round(json.length / 1024))} kB, ${fmt(model.kernel.points.length)} punkter)`);
+
+  if (reportJsonPath !== null && reportText !== null) {
+    writeTextAtomic(reportJsonPath, reportText);
     console.log(`Anpassningsrapport skriven: ${relative(CWD, reportJsonPath)}`);
   }
 }
