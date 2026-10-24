@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "seed": "14.5",
+  "lockedAt": null,
+  "rowsHash": null,
+  "procedureHash": null,
+  "selectionRule": null,
+  "triage": null,
+  "unavailable": [],
+  "rows": [
+    {
+      "booliId": 150148,
+      "position": 1,
+      "source": "known",
+      "inSet": false,
+      "split": null,
+      "order": null,
+      "planPresent": true,
+      "balconySide": "street",
+      "livingOnBalconySide": "yes",
+      "windowSides": "one",
+      "bedroomSide": "street",
+      "judgeConfidence": "high",
+      "evidence": ["none"],
+      "note": "Känd sanning från Daniel: balkong, vardagsrum och sovrum mot gatan, fönster åt ett håll"
+    }
+  ]
+}
