@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 8/13 plans executed
+**Plans:** 9/13 plans executed
 
 Plans:
 
@@ -198,7 +198,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 14.5-07-PLAN.md — Blind truth rows 38-end; select, split and lock before any paid call (LAYACC-01)
+- [x] 14.5-07-PLAN.md — Blind truth rows 38-end; select, split and lock before any paid call (LAYACC-01)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
