@@ -5,16 +5,16 @@ milestone_name: Renovator-Grade Discovery Analysis (Phases 13–17) — IN PROGR
 current_phase: "14.6"
 current_phase_name: Bygglov & Stambyte, Uppmätning Flags
 status: verifying
-stopped_at: Completed 14.5-09-PLAN.md
-last_updated: "2026-10-24T10:04:01.234Z"
+stopped_at: Completed 14.5-12-PLAN.md
+last_updated: "2026-10-24T10:07:34.304Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 14.3 execution started
-state_head: 16d5bd9f214b16a8dde6b61e2d82ae8348e989ff
+state_head: 83c1259059fff4c9e0567c332ef9ec205d8a7570
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 77
-  completed_plans: 75
+  completed_plans: 76
   percent: 13
 ---
 
@@ -137,6 +137,7 @@ Next step: /gsd-plan-phase 14.2 --auto — autonomous until a trustworthy weekly
 | Phase 14.5 P07 | 17 min | 3 tasks | 5 files |
 | Phase 14.5 P08 | 22 min | 4 tasks | 18 files |
 | Phase 14.5 P09 | 16 min | 4 tasks | 18 files |
+| Phase 14.5 P12 | 3 min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -339,6 +340,7 @@ Recent decisions affecting current work:
 - [Phase 14.5]: 14.5-08: variant e (Jev) questions are in English; per-field confidence is the answer probability, overall confidence the smallest of the three field probabilities — Jev docs and examples are English; R-10 defines confidence as the answer probability
 - [Phase 14.5]: 14.5-08: rounds read picture links from all stored snapshots (two locked truth rows exist only in older ones) — A paid run stops when any flat of the locked set is missing
 - [Phase 14.5]: Plan 09: no layout variant wins; balcony side passes in c (Opus), d (two-step Sonnet) and e (Jev), korsdrag passes in none (4 true two-opposite flats, 5 believed answers needed on dev), bedroom side not measurable; switch stays off. Cheapest per flat: Jev 0,008 kr — Bar not lowered (R-05, R-11 d); winner keeps the all-three-fields meaning plan 12 reads
+- [Phase 14.5]: 14.5-12: layout switch stays off (no variant passes all three fields: balcony passes in c/d/e, korsdrag in none with 4 true two-opposite flats, bedroom 9 of 12 rows); korsdrag options left to Daniel
 
 ### Pending Todos
 
@@ -372,8 +374,8 @@ Recent decisions affecting current work:
 
 **Resume file:** None
 
-Last session: 2026-10-24T10:04:01.042Z
-Stopped at: Completed 14.5-09-PLAN.md
+Last session: 2026-10-24T10:07:34.180Z
+Stopped at: Completed 14.5-12-PLAN.md
 Next step: Operator live-smoke re-run of Phase 13 (confirm the counter now reads "N av N" at done with no "350 av 25" / backward jump), then `/gsd-verify-phase 13`. The v1.1 operator live-validation backlog below (Phases 9–12 kill-criteria, 05/07/08 live smokes) remains outstanding but does not block v1.2 phase planning — the discovery surface is live on `main` and `DISCOVERY_ENABLED` is ON.
 
 **Shipped 2026-07-08:** v1.1 (Phases 5–12) opened as PR #1 → main, merged. Discovery cores + analysis cores (`flip-economics.ts`, `area-comps.ts`, pre-filter flip A.1, Haiku triage flip A.2) are on `main` as of the 2026-07-17 discovery overhaul merge (11a3c7a). v1.2 wires them live.

@@ -177,7 +177,7 @@ Plans:
 
 **Requirements**: ENR-01, ENR-02, CEIL-01, CEIL-02, LAYACC-01, LAYACC-02, LAYACC-03
 **Depends on:** 14.4 (enrichment path, model v2, layout modules, UAT items 1, 4, 5)
-**Plans:** 11/13 plans executed
+**Plans:** 12/13 plans executed
 
 Plans:
 
@@ -218,7 +218,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 14.5-12-PLAN.md — Layout switch decision: on with the measured gate and read only if a variant passed, else off with the reason (LAYACC-03)
+- [x] 14.5-12-PLAN.md — Layout switch decision: on with the measured gate and read only if a variant passed, else off with the reason (LAYACC-03)
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
