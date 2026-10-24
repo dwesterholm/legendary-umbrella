@@ -1,91 +1,111 @@
 {
   "version": 1,
   "seed": "14.5",
-  "lockedAt": null,
-  "rowsHash": null,
-  "procedureHash": null,
-  "selectionRule": null,
-  "triage": null,
+  "lockedAt": "2026-10-24T09:23:11.309Z",
+  "rowsHash": "6b59060f515acda8",
+  "procedureHash": "5a7c3322abf23ca0",
+  "selectionRule": "Urval: bedömda lägenheter vars bilder gick att hämta. Först Folkungagatan 61 och alla lägenheter där balkongens eller sovrummets sida (gata eller gård) kunde avgöras, sedan lägenheter där fönstersidorna kunde avgöras, i en ordning som bestäms av fröet, högst 60 rader. Lägenheter där inget kunde avgöras ingår inte. Siffrorna gäller därför precision på lägenheter en bedömare kunde avgöra, inte ett slumpmässigt urval.",
+  "triage": {
+    "judged": 76,
+    "unavailable": 0,
+    "balconyDecided": 13,
+    "windowsDecided": 69,
+    "bedroomDecided": 8,
+    "livingDecided": 30
+  },
   "unavailable": [],
   "rows": [
     {
       "booliId": 150148,
       "position": 1,
       "source": "known",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 9,
       "planPresent": true,
       "balconySide": "street",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "street",
       "judgeConfidence": "high",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Känd sanning från Daniel: balkong, vardagsrum och sovrum mot gatan, fönster åt ett håll"
     },
     {
       "booliId": 768792,
       "position": 2,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 1,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på en vägg, ingen balkong i planen eller på bild 2-4; enrummare, inget sovrum i planen"
     },
     {
       "booliId": 436593,
       "position": 3,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 2,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster på en vägg, ingen balkong i plan eller foton; sovrummet har inget synligt fönster i planen eller på bild 2-4"
     },
     {
       "booliId": 6305697,
       "position": 4,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 3,
       "planPresent": false,
       "balconySide": "street",
       "livingOnBalconySide": "undecidable",
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["cars", "roadway", "facadeAcrossRoad"],
+      "evidence": [
+        "cars",
+        "roadway",
+        "facadeAcrossRoad"
+      ],
       "note": "Bild 2-3: parkerade bilar och körbana nedanför balkongen, bostadshus mitt emot; ingen planritning, övriga fält ej avgörbara"
     },
     {
       "booliId": 348715,
       "position": 5,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 4,
       "planPresent": true,
       "balconySide": "street",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["cars", "roadway"],
+      "evidence": [
+        "cars",
+        "roadway"
+      ],
       "note": "Bild 3: bilar och körbana långt nedanför; bild 2 och 4 balkongdörr i vardagsrummet; bild 1: fönster på två väggar i hörn; ettrummare"
     },
     {
@@ -101,167 +121,191 @@
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster på en vägg i planen men köksfönstret på bild 2 syns inte där; ingen balkong; sovrumsutsikt på bild 3 avgör ingen sida"
     },
     {
       "booliId": 764543,
       "position": 7,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 5,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["pavedCourtyardPlanters", "ownRearFacade"],
+      "evidence": [
+        "pavedCourtyardPlanters",
+        "ownRearFacade"
+      ],
       "note": "Bild 3-4: stenlagd uteplats med planteringsmur, murgröna och cykel mot husets egen fasad; bild 1: dörr från vardagsrummet; sovrumsfönster saknas i planen"
     },
     {
       "booliId": 6265111,
       "position": 8,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 6,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "street",
       "judgeConfidence": "medium",
-      "evidence": ["roadway", "streetLamps"],
+      "evidence": [
+        "roadway",
+        "streetLamps"
+      ],
       "note": "Bild 3: körbana med räcke och gatlykta på tråd utanför fönstren; bild 1: alla fönster på en vägg; sovdel i samma rum; ingen balkong"
     },
     {
       "booliId": 6282708,
       "position": 9,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 7,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1 och 4: fönster och balkongdörr från vardagsrummet; bild 3: bostadshus och träd, ingen körbana eller cykelställ syns, ger ingen sida"
     },
     {
       "booliId": 4309411,
       "position": 10,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 8,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på en vägg, ingen balkong i plan eller foton; bild 2 visar bara en närliggande fasad, sovrumsutsikt saknas"
     },
     {
       "booliId": 393034,
       "position": 11,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 10,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: vardagsrum och sovrum har fönster på samma vägg, ingen balkong; foton på bild 2-4 visar ingen utsikt som avgör sida"
     },
     {
       "booliId": 328408,
       "position": 12,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 11,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i vardagsrum och kök på samma vägg, ingen balkong; bild 2-3: närliggande fasad utan väg eller gård synlig; inget sovrum i planen"
     },
     {
       "booliId": 6110614,
       "position": 13,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 12,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: ett fönster på en vägg i vardagsrummet, ingen balkong; bild 3: bara närliggande fasad; ettrummare utan eget sovrum"
     },
     {
       "booliId": 4515303,
       "position": 14,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 13,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: balkongdörrar med räcke på två väggar i hörnet av vardagsrummet; bild 2: träfasad nära utanför, ingen gata eller gård syns"
     },
     {
       "booliId": 208640,
       "position": 15,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 14,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på en vägg, ingen balkong i någon planvariant; bild 4: träd och fasad på avstånd avgör ingen sida; sovalkoven saknar fönster"
     },
     {
       "booliId": 3958359,
       "position": 16,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 15,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i vardagsrum och kök på samma vägg, ingen balkong; bild 4: buskar och hus på avstånd; sovrummet har inget fönster i planen"
     },
     {
@@ -277,103 +321,117 @@
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster på en vägg men bild 4 visar hörnfönster, plan och foto säger emot varandra; ingen balkong; sovrumsutsikt avgör ingen sida"
     },
     {
       "booliId": 586385,
       "position": 18,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 16,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på en vägg, ingen balkong; bild 3-4: träd och hus på avstånd avgör ingen sida; sovalkoven saknar fönster"
     },
     {
       "booliId": 6304161,
       "position": 19,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 17,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: balkong utanför rummet med fönster och balkongdörr; bild 3-4: höghus och träd, ingen körbana eller gårdsföremål syns; sovdel utan fönster"
     },
     {
       "booliId": 372080,
       "position": 20,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 18,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: vardagsrum och sovrum har fönster på samma vägg, ingen balkong; bild 2 och 4: bara träd utanför, ingen väg eller gård syns"
     },
     {
       "booliId": 705284,
       "position": 21,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 19,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i kök och vardagsrum på samma vägg, ingen balkong; bild 2-4: fasad mitt emot utan bil eller gårdsföremål; sovrummet har inget fönster"
     },
     {
       "booliId": 393008,
       "position": 22,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 20,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i sovrum och vardagsrum på samma vägg, ingen balkong; bild 3: bara ljus utanför fönstret, ingen utsikt som avgör sida"
     },
     {
       "booliId": 6295311,
       "position": 23,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 21,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 3: parkerade bilar men också häck och gräs mellan husen, blandat bevis; plan och bild 2 säger olika om vilket rum balkongen nås från"
     },
     {
@@ -389,231 +447,264 @@
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-4: annonsen visar en segelbåt vid kaj, inga rumsbilder och ingen planritning, inget fält kan avgöras"
     },
     {
       "booliId": 4388959,
       "position": 25,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 23,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "courtyard",
       "judgeConfidence": "low",
-      "evidence": ["ownRearFacade"],
+      "evidence": [
+        "ownRearFacade"
+      ],
       "note": "Bild 2: planterad gård omsluten av husfasader (bilden märkt som AI-skapad); bild 1: balkong, vardagsrum och sovrum på samma vägg"
     },
     {
       "booliId": 767763,
       "position": 26,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 24,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i kök, vardagsrum och sovrum längs samma vägg, ingen balkong; bild 2-3: träd och hus mitt emot avgör ingen sida"
     },
     {
       "booliId": 6269573,
       "position": 27,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 25,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i vardagsrum och sovrum på samma vägg, ingen balkong; bild 2-3: träd och fasad utanför, ingen bil eller gårdsföremål syns"
     },
     {
       "booliId": 700725,
       "position": 28,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 26,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: balkongdörr i vardagsrummets fönsterrad; bild 3: träd och hus på avstånd, ingen väg eller gård syns; fönstervägg böjd, sovrum ej avgjort"
     },
     {
       "booliId": 4538398,
       "position": 29,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 27,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "high",
-      "evidence": ["pavedCourtyardPlanters", "ownRearFacade"],
+      "evidence": [
+        "pavedCourtyardPlanters",
+        "ownRearFacade"
+      ],
       "note": "Bild 3: uteplats mot planterad innergård med planteringsbäddar och pergola, omsluten av husfasader; bild 1: sovdelen har inget fönster"
     },
     {
       "booliId": 3916472,
       "position": 30,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 28,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fransk balkong i vardagsrummet på en vägg och köksfönster på en annan; bild 3: väg och park långt nere, går ej att knyta till balkongen"
     },
     {
       "booliId": 142942,
       "position": 31,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 29,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster i kök och vardagsrum längs samma vägg, ingen balkong; bild 3: fasader med balkonger nära utanför, ingen bil eller gårdsföremål syns"
     },
     {
       "booliId": 6230072,
       "position": 32,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 30,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: fönster i vardagsrum och sovrum längs samma vägg, ingen balkong; bild 3-4: träd, hus och vatten i fjärran avgör ingen sida"
     },
     {
       "booliId": 572010,
       "position": 33,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 31,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-3: fransk balkong med räcke i vardagsrummet, fönster på vägg och snedvägg; bild 2: byggnad mitt emot, men ingen mark syns"
     },
     {
       "booliId": 130457,
       "position": 34,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 32,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: balkong och alla fönster på samma vägg; bild 3: bara tak och byggnader mitt emot, ingen mark syns; sovrumsfönstret ligger på samma vägg"
     },
     {
       "booliId": 6305304,
       "position": 35,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 33,
       "planPresent": true,
       "balconySide": "street",
       "livingOnBalconySide": "no",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["cars", "roadway", "facadeAcrossRoad"],
+      "evidence": [
+        "cars",
+        "roadway",
+        "facadeAcrossRoad"
+      ],
       "note": "Bild 3-4: parkerade bilar på körbana nedanför balkongen och husfasad mitt emot; bild 1: balkongen nås från köket; sovalkoven saknar fönster"
     },
     {
       "booliId": 6284016,
       "position": 36,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 34,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "courtyard",
       "judgeConfidence": "medium",
-      "evidence": ["lawn"],
+      "evidence": [
+        "lawn"
+      ],
       "note": "Bild 4: gräsmatta och häck nedanför balkongen mellan husen; bild 1: balkong, sovrum och kök på samma vägg, balkongen nås från vardagsrummet"
     },
     {
       "booliId": 6233823,
       "position": 37,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 35,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: fönster i rum och kök på samma vägg, ingen balkong; bild 3: gårdsvy utan koppling till ett bestämt fönster; sovrummet saknar fönster"
     },
     {
       "booliId": 6155023,
       "position": 38,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 36,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "twoOpposite",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster på två motstående kortsidor (sovrum och vardagsrum); ingen balkong; bild 2-3 visar bara grönska och fasad, ingen sida avgörs"
     },
     {
@@ -629,7 +720,9 @@
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Ingen plan; bild 2 och 4 utsikt från fönster mot träd och gata men ingen balkong syns och sovrum saknas på bild"
     },
     {
@@ -645,327 +738,370 @@
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Ingen plan, bara rumsbilder; bild 1 och 4 fönster mot fasader i fjärran, ingen balkong syns, sovrumsbilden visar ingen utsikt"
     },
     {
       "booliId": 6293700,
       "position": 41,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 38,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på vänster vägg, ingen balkong; bild 3-4: bergvägg, träd och hus på avstånd, inget gatu- eller gårdsbevis"
     },
     {
       "booliId": 309602,
       "position": 42,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 39,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "no",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: balkongen nås från köket, fönster på samma vägg; bild 3: bara lövträd från balkongen, ingen gata eller gård syns; sovrummet saknar fönster"
     },
     {
       "booliId": 4515291,
       "position": 43,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 40,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: franska balkongdörrar på två väggar i hörnet av kök/vardagsrum; bild 3: träfasad tätt mitt emot, ingen gata eller gård avgörs"
     },
     {
       "booliId": 572581,
       "position": 44,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 41,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "no",
       "windowSides": "twoOpposite",
       "bedroomSide": "street",
       "judgeConfidence": "medium",
-      "evidence": ["ownRearFacade"],
+      "evidence": [
+        "ownRearFacade"
+      ],
       "note": "Bild 2-3: sluten gård med träd och husflyglar från balkongen; bild 1: balkong från köket, fönster på motstående väggar; sovrum motsatt sida enligt plan"
     },
     {
       "booliId": 635120,
       "position": 45,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 42,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "twoOpposite",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster på två motstående kortsidor (sovrum och vardagsrum), ingen balkong; bild 2-3 träd och fasad, sovrummet syns inte på någon bild"
     },
     {
       "booliId": 568925,
       "position": 46,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 43,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på vänster vägg, ingen balkong; bild 2-3: träd och byggnader mitt emot, inget gatu- eller gårdsbevis; plan saknar sovrum"
     },
     {
       "booliId": 700459,
       "position": 47,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 44,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: sovrum och vardagsrum har fönster på samma vägg, ingen balkong; bild 3: utsikt över träd och vatten, inget gatu- eller gårdsbevis"
     },
     {
       "booliId": 6286736,
       "position": 48,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 45,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på vänster vägg, ingen balkong; bild 2-3: fasad med brandstege mitt emot, inget i listan syns; sovrummet visar ingen utsikt"
     },
     {
       "booliId": 804932,
       "position": 49,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 46,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: allrum med fönster på vänster och nedre vägg i hörn, ingen balkong; bild 3: träd och en väg långt nere utan koppling; sovdel utan eget fönster"
     },
     {
       "booliId": 6216222,
       "position": 50,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 47,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på nedre väggen, ingen balkong; bild 2-4: stadsutsikt från hög våning, väg långt nere utan koppling; sovrummet syns inte"
     },
     {
       "booliId": 6187084,
       "position": 51,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 48,
       "planPresent": true,
       "balconySide": "street",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "street",
       "judgeConfidence": "medium",
-      "evidence": ["cars", "roadway"],
+      "evidence": [
+        "cars",
+        "roadway"
+      ],
       "note": "Bild 4: bilar på körbana nedanför balkongen, räcke i bild; bild 1: balkong från vardagsrummet; sovrumsfönstret på samma vägg enligt plan och balkongsida"
     },
     {
       "booliId": 324812,
       "position": 52,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 49,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på vänster vägg, ingen balkong; bild 2-4: fasader tätt mitt emot, inget gatu- eller gårdsbevis; sovalkoven saknar fönster"
     },
     {
       "booliId": 6271664,
       "position": 53,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 50,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster på övre och högra väggen (hörn), ingen balkong; bild 2-3: hus och träd mitt emot, inget gatu- eller gårdsbevis; sovrummet visas inte"
     },
     {
       "booliId": 348671,
       "position": 54,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 51,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fransk balkong i vardagsrummet, fönster på nedre och vänstra väggen; bild 2: stadsutsikt utan koppling till balkongväggen; plan saknar sovrum"
     },
     {
       "booliId": 323721,
       "position": 55,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 52,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "twoOpposite",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: långsmal plan med fönster på båda kortsidorna, balkong från vardagsrummet; bild 4: fasad med balkonger tätt mitt emot, ingen gata eller gård avgörs"
     },
     {
       "booliId": 6276087,
       "position": 56,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 53,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: vardagsrum och sovrum har fönster på övre väggen; bild 2-4: franska balkongdörrar, fasad med järntrappor mitt emot, inget gatu- eller gårdsbevis"
     },
     {
       "booliId": 3987792,
       "position": 57,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 54,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: balkongdörr och fönster på två väggar i hörn, balkong från vardagsrummet; bild 2: ny fasad tätt mitt emot, ingen gata eller gård avgörs"
     },
     {
       "booliId": 6299459,
       "position": 58,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 55,
       "planPresent": true,
       "balconySide": "undecidable",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: balkong från vardagsrummet och sovrumsfönster på samma vägg; bild 2: trädtoppar och ett hus på avstånd, ingen mark syns"
     },
     {
       "booliId": 324863,
       "position": 59,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 56,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-4: bara planritningar, fönster på övre väggen och ingen balkong; inga fotografier, så sovrumssida går inte att avgöra"
     },
     {
       "booliId": 6211654,
       "position": 60,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 57,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på nedre väggen, ingen balkong; bild 2-4: tak och fasader på avstånd, inget gatu- eller gårdsbevis; sovalkoven saknar fönster"
     },
     {
@@ -981,7 +1117,9 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: fönster bara på högra väggen, balkong bara som möjlighet; bild 4 är AI-skapad; bild 3: fasad tätt mitt emot, inget gatu- eller gårdsbevis"
     },
     {
@@ -997,7 +1135,9 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på övre väggen, ingen balkong; bild 4: husfasad utifrån som inte kan knytas till lägenhetens vägg; sovalkoven saknar fönster"
     },
     {
@@ -1013,7 +1153,9 @@
       "windowSides": "undecidable",
       "bedroomSide": "undecidable",
       "judgeConfidence": "low",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 4: bilar på körväg men också gräs och häckar från balkongen, bevis åt båda håll; bild 1 och 3 säger emot varandra om fönstervägg"
     },
     {
@@ -1029,23 +1171,29 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: balkong och fönster på övre väggen; bild 3: fasad med balkonger tätt mitt emot och träd, ingen gata eller gård avgörs; plan saknar sovrum"
     },
     {
       "booliId": 6305391,
       "position": 65,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 58,
       "planPresent": true,
       "balconySide": "street",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["cars", "roadway", "streetLamps"],
+      "evidence": [
+        "cars",
+        "roadway",
+        "streetLamps"
+      ],
       "note": "Bild 3-4: bilar och körbana med belysningsstolpar nedanför balkongen; bild 1: balkong från vardagsrummet, fönster på högra väggen; sovrummet saknar fönster"
     },
     {
@@ -1061,23 +1209,28 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på nedre väggen, ingen balkong; bild 2-4: fasad tätt mitt emot, inget gatu- eller gårdsbevis; alkoven saknar fönster"
     },
     {
       "booliId": 144070,
       "position": 67,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 59,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "courtyard",
       "judgeConfidence": "medium",
-      "evidence": ["pavedCourtyardPlanters", "lawn"],
+      "evidence": [
+        "pavedCourtyardPlanters",
+        "lawn"
+      ],
       "note": "Bild 2: stenlagd gård med planteringslådor, gräsmatta och träd från balkongen; bild 1: balkong från vardagsrummet, sovrumsfönster på samma vägg enligt plan"
     },
     {
@@ -1093,7 +1246,9 @@
       "windowSides": "twoOpposite",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: långsmal plan med fönster på båda kortsidorna, ingen balkong; bild 3: tegelfasad tätt mitt emot, ingen sida avgörs; sovrum bara i förslagsplanen"
     },
     {
@@ -1109,7 +1264,9 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på övre väggen, ingen balkong; bild 2: cyklar och fasad utanför köksfönstret men ingen balkong att knyta till; sovrummet saknar fönster"
     },
     {
@@ -1125,7 +1282,9 @@
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: balkong från sällskapsrummet, fönster på övre och högra väggen (hörn); bild 3-4: hustak och stadsvy från hög våning, ingen mark eller gata syns"
     },
     {
@@ -1141,7 +1300,9 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på vänster vägg, ingen balkong; bild 2-3: gul fasad tätt mitt emot, inget gatu- eller gårdsbevis; sovrumsfönstret på samma vägg"
     },
     {
@@ -1157,23 +1318,27 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: balkong från rummet, fönster på övre väggen; bild 2-4: träd och grön sluttning från balkongen, inget gatu- eller gårdsbevis; alkoven saknar fönster"
     },
     {
       "booliId": 6248840,
       "position": 73,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "holdout",
+      "order": 60,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "courtyard",
       "judgeConfidence": "medium",
-      "evidence": ["lawn"],
+      "evidence": [
+        "lawn"
+      ],
       "note": "Bild 2-3: gräsmatta, träd och uteplats nedanför balkongen, räcke i bild; bild 1: balkong och sovrumsfönster på samma vänstra vägg; sovrum samma sida enligt plan"
     },
     {
@@ -1189,7 +1354,9 @@
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: fönster bara på högra väggen, ingen balkong; bild 4: träfasad med garageportar tätt mitt emot, inget gatu- eller gårdsbevis; inga sovrumsbilder"
     },
     {
@@ -1205,39 +1372,46 @@
       "windowSides": "corner",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1-2: fönster på övre och högra väggen i hörn, ingen balkong; bild 2-3: träd och hus på avstånd, inget gatu- eller gårdsbevis; sovrummet syns inte"
     },
     {
       "booliId": 4538414,
       "position": 76,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 22,
       "planPresent": true,
       "balconySide": "courtyard",
       "livingOnBalconySide": "yes",
       "windowSides": "one",
       "bedroomSide": "courtyard",
       "judgeConfidence": "medium",
-      "evidence": ["pavedCourtyardPlanters", "ownRearFacade"],
+      "evidence": [
+        "pavedCourtyardPlanters",
+        "ownRearFacade"
+      ],
       "note": "Bild 2: sluten gård med odlingslådor, stenläggning och husflyglar från balkongen; bild 1: balkong från vardagsrummet, sovrumsfönster på samma vägg enligt plan"
     },
     {
       "booliId": 439232,
       "position": 77,
       "source": "judged",
-      "inSet": false,
-      "split": null,
-      "order": null,
+      "inSet": true,
+      "split": "dev",
+      "order": 37,
       "planPresent": true,
       "balconySide": "none",
       "livingOnBalconySide": "undecidable",
       "windowSides": "one",
       "bedroomSide": "undecidable",
       "judgeConfidence": "medium",
-      "evidence": ["none"],
+      "evidence": [
+        "none"
+      ],
       "note": "Bild 1: alla fönster på högra väggen, ingen balkong; bild 2-3: gul fasad tätt mitt emot och träd, inget gatu- eller gårdsbevis; sovrummet syns inte"
     }
   ]
